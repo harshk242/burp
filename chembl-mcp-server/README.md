@@ -1,6 +1,4 @@
-![ChEMBL MCP Server Logo](chembl-mcp-server-logo.png)
-
-# **Unofficial** ChEMBL MCP Server
+# ChEMBL MCP Server
 
 A comprehensive Model Context Protocol (MCP) server providing advanced access to the ChEMBL chemical database. This server offers 22 specialized tools enabling AI assistants and MCP clients to perform sophisticated drug discovery research, chemical informatics analysis, and bioactivity investigations directly through ChEMBL's REST API.
 
@@ -482,13 +480,3 @@ For issues and questions:
 - **Resource Templates**: Direct URI-based access to ChEMBL data
 - **Docker Support**: Containerized deployment with security best practices
 - **Professional Documentation**: Complete tool reference and examples
-
-## Citation
-If you use this project in your research or publications, please cite it as follows:
-
-```bibtex @misc{chemblmcp2025, 
-author = {Moudather Chelbi},
-title = {ChEMBL MCP Server},
-year = {2025},
-howpublished = {https://github.com/harshk242/super-bio-agent},
-note = {Accessed: 2025-06-29}
