@@ -1,0 +1,86 @@
+{
+  "name": "open-targets-mcp",
+  "description": "Open Targets MCP server - TypeScript implementation providing access to Open Targets Platform data",
+  "version": "0.2.0",
+  "packages": [
+    {
+      "registryType": "bun",
+      "identifier": "open-targets-mcp",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "tools": {
+    "target": {
+      "get_target_info": "Retrieve core identity details for a target gene",
+      "get_target_class": "Return ChEMBL target class annotations",
+      "get_target_alternative_genes": "List alternate gene symbols and cross-references",
+      "get_target_expression": "Return RNA and protein expression profiles",
+      "get_target_pathways_and_go_terms": "List pathway memberships and GO annotations",
+      "get_target_homologues": "Retrieve cross-species homologues",
+      "get_target_subcellular_locations": "Return subcellular localisation annotations",
+      "get_target_genetic_constraint": "Fetch genetic constraint metrics",
+      "get_target_mouse_phenotypes": "Retrieve mouse knockout phenotypes",
+      "get_target_hallmarks": "Return cancer hallmark annotations",
+      "get_target_depmap_essentiality": "Fetch DepMap CRISPR essentiality scores",
+      "get_target_interactions": "Retrieve protein interaction partners",
+      "get_target_associated_diseases": "List diseases linked to a target",
+      "get_target_known_drugs": "Return compounds with known activity",
+      "get_target_literature_occurrences": "Return literature co-occurrence records",
+      "get_target_safety_information": "Retrieve documented safety liabilities",
+      "get_target_tractability": "Return tractability assessments",
+      "get_target_chemical_probes": "List available chemical probes",
+      "get_target_tep": "Fetch Target Enabling Package information",
+      "get_target_prioritization": "Return target prioritisation scores"
+    },
+    "disease": {
+      "get_disease_info": "Retrieve core metadata for a disease",
+      "get_disease_associated_targets": "List targets associated with a disease",
+      "get_disease_phenotypes": "Fetch HPO phenotype annotations",
+      "get_disease_otar_projects": "List OTAR projects linked to a disease"
+    },
+    "drug": {
+      "get_drug_info": "Fetch identity, indication, and mechanism data",
+      "get_drug_cross_references": "Retrieve cross-database identifiers",
+      "get_drug_linked_diseases": "List diseases connected to a drug",
+      "get_drug_linked_targets": "Return targets linked via mechanism of action",
+      "get_drug_adverse_events": "Retrieve adverse event signals",
+      "get_drug_pharmacovigilance": "Summarise pharmacovigilance data",
+      "get_drug_warnings": "Fetch detailed regulatory warnings"
+    },
+    "evidence": {
+      "get_target_disease_evidence": "Retrieve evidence strings linking target to disease",
+      "get_target_disease_biomarkers": "Inspect biomarker annotations"
+    },
+    "search": {
+      "search_entities": "Search and resolve synonyms to canonical IDs",
+      "search_suggestions": "Return autocomplete suggestions",
+      "get_similar_targets": "Identify targets with similar profiles",
+      "search_facets": "Return facet counts for filtering"
+    },
+    "variant": {
+      "get_variant_info": "Retrieve metadata and functional annotations",
+      "get_variant_credible_sets": "List credible sets including a variant",
+      "get_variant_pharmacogenomics": "Retrieve pharmacogenomic annotations",
+      "get_variant_evidences": "Retrieve evidence strings for a variant",
+      "get_variant_intervals": "Retrieve E2G predictions overlapping a variant",
+      "get_variant_protein_coordinates": "Retrieve protein-level consequences"
+    },
+    "study": {
+      "get_study_info": "Retrieve metadata for a GWAS study",
+      "get_studies_by_disease": "List studies linked to diseases",
+      "get_study_credible_sets": "Retrieve fine-mapped credible sets",
+      "get_credible_set_by_id": "Fetch details for a credible set",
+      "get_credible_set_colocalisation": "Retrieve colocalisation results",
+      "get_credible_sets": "Query credible sets with filters"
+    },
+    "meta": {
+      "get_api_metadata": "Return platform release metadata",
+      "get_association_datasources": "List association evidence sources",
+      "get_interaction_resources": "Enumerate interaction databases",
+      "get_gene_ontology_terms": "Resolve GO IDs to labels",
+      "map_ids": "Map free-text terms to canonical IDs"
+    }
+  }
+}
