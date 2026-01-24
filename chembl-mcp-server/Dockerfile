@@ -39,9 +39,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD node -e "console.log('ChEMBL MCP Server is healthy')" || exit 1
 
 # Add labels for metadata
-LABEL maintainer="Augmented Nature <contact@augmentednature.ai>"
 LABEL description="ChEMBL Model Context Protocol Server"
 LABEL version="1.0.0"
-LABEL org.opencontainers.image.source="https://github.com/augmented-nature/chembl-mcp-server"
 LABEL org.opencontainers.image.description="A comprehensive MCP server for ChEMBL chemical database access"
 LABEL org.opencontainers.image.licenses="MIT"

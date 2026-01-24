@@ -4,7 +4,6 @@ Model Context Protocol server for accessing Reactome pathway and systems biology
 
 [![API](https://img.shields.io/badge/Reactome-v79-blue)](https://reactome.org/)
 
-Developed by [Augmented Nature](https://augmentednature.ai) - Advancing AI for Scientific Discovery
 
 ## ✅ **Verified Features**
 

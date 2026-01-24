@@ -41,12 +41,4 @@
   "bin": {
     "uniprot-server": "./build/index.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/augmented-nature/uniprot-mcp-server"
-  },
-  "homepage": "https://github.com/augmented-nature/uniprot-mcp-server#readme",
-  "bugs": {
-    "url": "https://github.com/augmented-nature/uniprot-mcp-server/issues"
-  }
 }

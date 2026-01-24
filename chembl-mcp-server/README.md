@@ -4,7 +4,6 @@
 
 A comprehensive Model Context Protocol (MCP) server providing advanced access to the ChEMBL chemical database. This server offers 22 specialized tools enabling AI assistants and MCP clients to perform sophisticated drug discovery research, chemical informatics analysis, and bioactivity investigations directly through ChEMBL's REST API.
 
-**Developed by [Augmented Nature](https://augmentednature.ai)**
 
 ## Features
 
@@ -426,10 +425,6 @@ For issues and questions:
 2. Review the [Model Context Protocol specification](https://modelcontextprotocol.io/)
 3. Open an issue on the repository
 
-## About Augmented Nature
-
-This comprehensive ChEMBL MCP Server is developed by **[Augmented Nature](https://augmentednature.ai)**, a leading innovator in AI-powered bioinformatics and computational chemistry solutions. Augmented Nature specializes in creating advanced tools that bridge the gap between artificial intelligence and chemical research, enabling researchers to unlock deeper insights from chemical and biological data.
-
 ## Complete Tool Reference
 
 ### **Core Chemical Search & Retrieval Tools**
@@ -487,7 +482,6 @@ This comprehensive ChEMBL MCP Server is developed by **[Augmented Nature](https:
 - **Resource Templates**: Direct URI-based access to ChEMBL data
 - **Docker Support**: Containerized deployment with security best practices
 - **Professional Documentation**: Complete tool reference and examples
-- **Developed by Augmented Nature**: Professional chemical informatics platform
 
 ## Citation
 If you use this project in your research or publications, please cite it as follows:
@@ -496,5 +490,5 @@ If you use this project in your research or publications, please cite it as foll
 author = {Moudather Chelbi},
 title = {ChEMBL MCP Server},
 year = {2025},
-howpublished = {https://github.com/Augmented-Nature/ChEMBL-MCP-Server},
+howpublished = {https://github.com/harshk242/super-bio-agent},
 note = {Accessed: 2025-06-29}

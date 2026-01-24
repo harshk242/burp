@@ -42,12 +42,4 @@
   "bin": {
     "chembl-server": "./build/index.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/augmented-nature/chembl-mcp-server"
-  },
-  "homepage": "https://github.com/augmented-nature/chembl-mcp-server#readme",
-  "bugs": {
-    "url": "https://github.com/augmented-nature/chembl-mcp-server/issues"
-  }
 }

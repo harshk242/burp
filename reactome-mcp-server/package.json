@@ -1,7 +1,7 @@
 {
   "name": "reactome-server",
   "version": "1.0.0",
-  "description": "Production-ready MCP server for Reactome pathway and systems biology data - Developed by Augmented Nature",
+  "description": "Production-ready MCP server for Reactome pathway and systems biology data",
   "main": "build/index.js",
   "type": "module",
   "scripts": {
@@ -40,16 +40,4 @@
   "bin": {
     "reactome-server": "./build/index.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/augmented-nature/reactome-mcp-server"
-  },
-  "homepage": "https://augmentednature.ai",
-  "bugs": {
-    "url": "https://github.com/augmented-nature/reactome-mcp-server/issues"
-  },
-  "funding": {
-    "type": "individual",
-    "url": "https://augmentednature.ai"
-  }
 }

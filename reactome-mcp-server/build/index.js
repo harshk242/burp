@@ -3,11 +3,7 @@
  * Reactome MCP Server
  * Production-ready Model Context Protocol server for Reactome pathway and systems biology data
  *
- * Copyright (c) 2025 Augmented Nature
  * Licensed under MIT License - see LICENSE file for details
- *
- * Developed by Augmented Nature - https://augmentednature.ai
- * Advancing AI for Scientific Discovery
  *
  * This server provides comprehensive access to Reactome's curated biological pathway data
  * through the Model Context Protocol, enabling AI systems to perform systems biology analysis.

@@ -29,11 +29,6 @@
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/augmentednature/pubchem-mcp-server"
-  },
-  "homepage": "https://augmentednature.ai",
   "engines": {
     "node": ">=18.0.0"
   }

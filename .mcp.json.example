@@ -2,7 +2,7 @@
   "mcpServers": {
     "open-targets": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/open-targets-mcp-js/dist/index.js"]
+      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/open-targets-mcp-server/dist/index.js"]
     },
     "uniprot": {
       "command": "node",
