@@ -1262,39 +1262,24 @@ class EnsemblServer {
       const format = args.format || 'json';
       const region = this.formatGenomicRegion(args.region);
 
-      // Try overlap endpoint first as variation/region may not have data for all regions
-      try {
-        const response = await this.apiClient.get(`/overlap/region/${species}/${region}`, {
-          params: { feature: 'variation' }
-        });
+      const params: any = { feature: 'variation' };
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
-      } catch (overlapError) {
-        // Fallback to variation endpoint
-        const params: any = { format };
-
-        if (args.consequence_type) {
-          params.consequence_type = args.consequence_type.join(',');
-        }
-
-        const response = await this.apiClient.get(`/variation/region/${species}/${region}`, { params });
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
+      if (args.consequence_type && args.consequence_type.length > 0) {
+        // Note: overlap endpoint doesn't support consequence_type filtering
+        // Users should use get_variant_consequences for detailed consequence analysis
+        params.consequence_type = args.consequence_type.join(',');
       }
+
+      const response = await this.apiClient.get(`/overlap/region/${species}/${region}`, { params });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(response.data, null, 2),
+          },
+        ],
+      };
     } catch (error) {
       return this.handleError(error, 'fetching variants');
     }
@@ -1337,48 +1322,43 @@ class EnsemblServer {
       const species = this.getDefaultSpecies(args.species);
       const region = this.formatGenomicRegion(args.region);
 
-      // Try overlap endpoint for regulatory features
-      try {
-        const response = await this.apiClient.get(`/overlap/region/${species}/${region}`, {
-          params: { feature: 'regulatory' }
-        });
+      const params: any = { feature: 'regulatory' };
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
-      } catch (overlapError) {
-        // Alternative: try the overlap endpoint with different feature types
-        const features = ['gene', 'transcript'];
-        const results = [];
+      if (args.feature_type) {
+        params.feature_type = args.feature_type;
+      }
 
-        for (const feature of features) {
-          try {
-            const response = await this.apiClient.get(`/overlap/region/${species}/${region}`, {
-              params: { feature }
-            });
-            results.push({ feature, data: response.data });
-          } catch (e) {
-            // Continue to next feature
-          }
-        }
+      if (args.cell_type) {
+        params.cell_type = args.cell_type;
+      }
 
+      const response = await this.apiClient.get(`/overlap/region/${species}/${region}`, { params });
+
+      // Check if we got regulatory features
+      if (Array.isArray(response.data) && response.data.length === 0) {
         return {
           content: [
             {
               type: 'text',
               text: JSON.stringify({
-                message: 'Regulatory features not available, showing overlapping genomic features',
-                features: results
+                message: 'No regulatory features found in this region',
+                region: region,
+                species: species,
+                suggestion: 'Try a different region or check if regulatory data is available for this species'
               }, null, 2),
             },
           ],
         };
       }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(response.data, null, 2),
+          },
+        ],
+      };
     } catch (error) {
       return this.handleError(error, 'fetching regulatory features');
     }
