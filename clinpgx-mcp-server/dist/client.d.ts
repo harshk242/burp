@@ -11,38 +11,44 @@ export declare class PharmGKBClient {
      */
     private request;
     /**
-     * Search for genes
+     * Search for genes by symbol
+     * PharmGKB API uses 'symbol' parameter for gene search
      */
     searchGenes(query: string, maxResults?: number): Promise<SearchResult<GeneInfo>>;
     /**
-     * Get gene info by ID or symbol
+     * Get gene info by ID (PAxxxx) or symbol
+     * For symbol lookups, use search and return first result
      */
     getGeneInfo(idOrSymbol: string): Promise<GeneInfo | null>;
     private parseGeneInfo;
     /**
-     * Search for drugs
+     * Search for drugs by name
+     * PharmGKB API uses 'name' parameter for chemical/drug search
      */
     searchDrugs(query: string, maxResults?: number): Promise<SearchResult<DrugInfo>>;
     /**
-     * Get drug info by ID or name
+     * Get drug info by ID (PAxxxx) or name
      */
     getDrugInfo(idOrName: string): Promise<DrugInfo | null>;
     private parseDrugInfo;
     /**
-     * Search for variants
+     * Search for variants by rsID or symbol
+     * PharmGKB API uses 'symbol' parameter for variant search
      */
     searchVariants(query: string, maxResults?: number): Promise<SearchResult<VariantInfo>>;
     /**
-     * Get variant info by ID or rsID
+     * Get variant info by ID (PAxxxx) or rsID
      */
     getVariantInfo(idOrRsId: string): Promise<VariantInfo | null>;
     private parseVariantInfo;
     /**
      * Get clinical annotations for a gene
+     * PharmGKB API uses 'location.genes.symbol' parameter
      */
     getClinicalAnnotationsForGene(gene: string): Promise<ClinicalAnnotation[]>;
     /**
      * Get clinical annotations for a drug
+     * PharmGKB API uses 'relatedChemicals.name' parameter
      */
     getClinicalAnnotationsForDrug(drug: string): Promise<ClinicalAnnotation[]>;
     /**
@@ -52,24 +58,29 @@ export declare class PharmGKBClient {
     private parseClinicalAnnotation;
     /**
      * Get dosing guidelines for a gene
+     * PharmGKB API uses 'relatedGenes.symbol' parameter for guidelineAnnotation
      */
     getDosingGuidelinesForGene(gene: string): Promise<DosingGuideline[]>;
     /**
      * Get dosing guidelines for a drug
+     * PharmGKB API uses 'relatedChemicals.name' parameter for guidelineAnnotation
      */
     getDosingGuidelinesForDrug(drug: string): Promise<DosingGuideline[]>;
     private parseDosingGuideline;
     /**
      * Get drug labels for a drug
+     * PharmGKB API uses 'relatedChemicals.name' parameter for labelAnnotation
      */
     getDrugLabels(drug: string): Promise<DrugLabel[]>;
     private parseDrugLabel;
     /**
-     * Get pathways
+     * Get pathways by gene symbol
+     * PharmGKB API uses 'genes.symbol' parameter
      */
     getPathways(query?: string): Promise<Pathway[]>;
     /**
      * Get pathways for a gene
+     * PharmGKB API uses 'genes.symbol' parameter
      */
     getGenePathways(gene: string): Promise<Pathway[]>;
     /**
@@ -78,6 +89,8 @@ export declare class PharmGKBClient {
     getDrugGeneInteractions(gene: string): Promise<DrugGeneInteraction[]>;
     /**
      * Get database statistics
+     * Note: PharmGKB doesn't have a direct stats endpoint or support limit parameter.
+     * We query using CPIC gene filter to get a representative sample.
      */
     getDatabaseStats(): Promise<{
         genes: number;
