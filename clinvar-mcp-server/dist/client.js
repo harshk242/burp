@@ -219,7 +219,8 @@ export class ClinVarClient {
      */
     async searchByRsId(rsId) {
         const cleanRsId = rsId.replace(/^rs/i, '');
-        return this.search(`rs${cleanRsId}[variant id]`);
+        // Search by rsID directly - ClinVar recognizes rs numbers without field qualifier
+        return this.search(`rs${cleanRsId}`);
     }
     /**
      * Search by molecular consequence
