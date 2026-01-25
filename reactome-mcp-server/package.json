@@ -39,5 +39,5 @@
   },
   "bin": {
     "reactome-server": "./build/index.js"
-  },
+  }
 }

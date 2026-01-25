@@ -40,5 +40,5 @@
   },
   "bin": {
     "uniprot-server": "./build/index.js"
-  },
+  }
 }

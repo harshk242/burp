@@ -41,5 +41,5 @@
   },
   "bin": {
     "chembl-server": "./build/index.js"
-  },
+  }
 }
