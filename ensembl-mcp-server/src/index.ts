@@ -1338,11 +1338,15 @@ class EnsemblServer {
   private async handleGetVariantConsequences(args: any) {
     try {
       const species = this.getDefaultSpecies(args.species);
-      const variants = args.variants.join('\n');
 
-      const response = await this.apiClient.post(`/vep/species/${species}/region`, variants, {
+      // VEP API expects JSON format with "variants" array
+      const payload = {
+        variants: args.variants
+      };
+
+      const response = await this.apiClient.post(`/vep/${species}/region`, payload, {
         headers: {
-          'Content-Type': 'text/plain',
+          'Content-Type': 'application/json',
         },
       });
 
