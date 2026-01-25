@@ -109,11 +109,22 @@ export function parseGuidelineSource(name: string): 'CPIC' | 'DPWG' | 'Other' {
 
 /**
  * Parse evidence level
+ * Handles both string values and object values with 'term' property
  */
-export function parseEvidenceLevel(level: string | undefined): string {
+export function parseEvidenceLevel(level: unknown): string {
   if (!level) return 'Unknown';
 
-  const normalized = level.toLowerCase().trim();
+  // Handle object with term property (from API response)
+  let levelStr: string;
+  if (typeof level === 'object' && level !== null && 'term' in level) {
+    levelStr = String((level as { term: unknown }).term);
+  } else if (typeof level === 'string') {
+    levelStr = level;
+  } else {
+    return 'Unknown';
+  }
+
+  const normalized = levelStr.toLowerCase().trim();
   const mappings: Record<string, string> = {
     '1a': 'Level 1A - High evidence',
     '1b': 'Level 1B - Moderate evidence',
@@ -129,7 +140,7 @@ export function parseEvidenceLevel(level: string | undefined): string {
     }
   }
 
-  return level;
+  return levelStr;
 }
 
 /**
@@ -172,9 +183,20 @@ export function buildSearchQuery(
 
 /**
  * Normalize phenotype category
+ * Handles string, array, or undefined inputs
  */
-export function normalizePhenotypeCategory(category: string | undefined): string {
+export function normalizePhenotypeCategory(category: unknown): string {
   if (!category) return 'Unknown';
+
+  // Handle array input (from types field)
+  let categoryStr: string;
+  if (Array.isArray(category)) {
+    categoryStr = category[0] || 'Unknown';
+  } else if (typeof category === 'string') {
+    categoryStr = category;
+  } else {
+    return 'Unknown';
+  }
 
   const mappings: Record<string, string> = {
     'efficacy': 'Efficacy',
@@ -186,12 +208,12 @@ export function normalizePhenotypeCategory(category: string | undefined): string
     'other': 'Other',
   };
 
-  const lower = category.toLowerCase();
+  const lower = categoryStr.toLowerCase();
   for (const [key, value] of Object.entries(mappings)) {
     if (lower.includes(key)) {
       return value;
     }
   }
 
-  return category;
+  return categoryStr;
 }

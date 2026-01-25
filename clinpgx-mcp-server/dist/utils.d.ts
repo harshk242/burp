@@ -44,8 +44,9 @@ export declare function formatRsId(id: string): string;
 export declare function parseGuidelineSource(name: string): 'CPIC' | 'DPWG' | 'Other';
 /**
  * Parse evidence level
+ * Handles both string values and object values with 'term' property
  */
-export declare function parseEvidenceLevel(level: string | undefined): string;
+export declare function parseEvidenceLevel(level: unknown): string;
 /**
  * Extract PharmGKB ID from various formats
  */
@@ -60,6 +61,7 @@ export declare function buildSearchQuery(type: 'gene' | 'drug' | 'variant' | 'pa
 }): string;
 /**
  * Normalize phenotype category
+ * Handles string, array, or undefined inputs
  */
-export declare function normalizePhenotypeCategory(category: string | undefined): string;
+export declare function normalizePhenotypeCategory(category: unknown): string;
 //# sourceMappingURL=utils.d.ts.map

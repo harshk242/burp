@@ -90,11 +90,23 @@ export function parseGuidelineSource(name) {
 }
 /**
  * Parse evidence level
+ * Handles both string values and object values with 'term' property
  */
 export function parseEvidenceLevel(level) {
     if (!level)
         return 'Unknown';
-    const normalized = level.toLowerCase().trim();
+    // Handle object with term property (from API response)
+    let levelStr;
+    if (typeof level === 'object' && level !== null && 'term' in level) {
+        levelStr = String(level.term);
+    }
+    else if (typeof level === 'string') {
+        levelStr = level;
+    }
+    else {
+        return 'Unknown';
+    }
+    const normalized = levelStr.toLowerCase().trim();
     const mappings = {
         '1a': 'Level 1A - High evidence',
         '1b': 'Level 1B - Moderate evidence',
@@ -108,7 +120,7 @@ export function parseEvidenceLevel(level) {
             return value;
         }
     }
-    return level;
+    return levelStr;
 }
 /**
  * Extract PharmGKB ID from various formats
@@ -138,10 +150,22 @@ export function buildSearchQuery(type, term, options) {
 }
 /**
  * Normalize phenotype category
+ * Handles string, array, or undefined inputs
  */
 export function normalizePhenotypeCategory(category) {
     if (!category)
         return 'Unknown';
+    // Handle array input (from types field)
+    let categoryStr;
+    if (Array.isArray(category)) {
+        categoryStr = category[0] || 'Unknown';
+    }
+    else if (typeof category === 'string') {
+        categoryStr = category;
+    }
+    else {
+        return 'Unknown';
+    }
     const mappings = {
         'efficacy': 'Efficacy',
         'dosage': 'Dosage',
@@ -151,12 +175,12 @@ export function normalizePhenotypeCategory(category) {
         'pharmacokinetics': 'Metabolism/PK',
         'other': 'Other',
     };
-    const lower = category.toLowerCase();
+    const lower = categoryStr.toLowerCase();
     for (const [key, value] of Object.entries(mappings)) {
         if (lower.includes(key)) {
             return value;
         }
     }
-    return category;
+    return categoryStr;
 }
 //# sourceMappingURL=utils.js.map

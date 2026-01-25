@@ -13,6 +13,7 @@ export declare class PharmGKBClient {
     /**
      * Search for genes by symbol
      * PharmGKB API uses 'symbol' parameter for gene search
+     * If no query is provided, returns CPIC pharmacogenes
      */
     searchGenes(query: string, maxResults?: number): Promise<SearchResult<GeneInfo>>;
     /**
@@ -89,8 +90,8 @@ export declare class PharmGKBClient {
     getDrugGeneInteractions(gene: string): Promise<DrugGeneInteraction[]>;
     /**
      * Get database statistics
-     * Note: PharmGKB doesn't have a direct stats endpoint or support limit parameter.
-     * We query using CPIC gene filter to get a representative sample.
+     * Note: PharmGKB doesn't have a direct stats endpoint.
+     * We query using CPIC gene filter to get representative pharmacogenomic data.
      */
     getDatabaseStats(): Promise<{
         genes: number;
@@ -100,6 +101,7 @@ export declare class PharmGKBClient {
         guidelines: number;
         labels: number;
         pathways: number;
+        note: string;
     }>;
     clearCache(): void;
     getCacheStats(): {
