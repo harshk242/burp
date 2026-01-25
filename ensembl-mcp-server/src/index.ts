@@ -1192,15 +1192,23 @@ class EnsemblServer {
       const format = args.format || 'json';
 
       // Use the correct homology endpoint to find true orthologs
+      const params: any = {
+        type: type
+      };
+
+      // Only add target_species if specified
+      if (args.target_species) {
+        params.target_species = args.target_species;
+      }
+
+      // Only add format if not json (json is default via Accept header)
+      if (format !== 'json') {
+        params.format = format;
+      }
+
       const response = await this.apiClient.get(
         `/homology/id/${species}/${args.gene_id}`,
-        {
-          params: {
-            target_species: args.target_species,
-            type: type,
-            format: format
-          }
-        }
+        { params }
       );
 
       return {
