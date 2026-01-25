@@ -718,29 +718,46 @@ class EnsemblServer {
         }
         try {
             const species = this.getDefaultSpecies(args.species);
-            const feature = args.feature || 'gene';
-            const limit = args.limit || 25;
-            const params = {
-                q: args.query,
-                species,
-                feature,
-                limit,
-            };
-            if (args.biotype) {
-                params.biotype = args.biotype;
+            // Note: REST API does not have a /search endpoint
+            // Use symbol lookup for exact gene symbol matching instead
+            try {
+                const response = await this.apiClient.get(`/lookup/symbol/${species}/${args.query}`, {
+                    params: {
+                        object_type: args.feature || 'gene'
+                    }
+                });
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                search_type: 'exact_symbol_match',
+                                note: 'REST API only supports exact gene symbol lookup, not fuzzy search',
+                                result: response.data
+                            }, null, 2),
+                        },
+                    ],
+                };
             }
-            const response = await this.apiClient.get('/search', { params });
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify(response.data, null, 2),
-                    },
-                ],
-            };
+            catch (error) {
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                error: 'Gene not found',
+                                message: `No gene found with symbol: ${args.query}`,
+                                note: 'REST API only supports exact gene symbol lookup',
+                                suggestion: 'Try exact Ensembl gene symbols (e.g., TP53, BRCA1, BRCA2)'
+                            }, null, 2)
+                        }
+                    ],
+                    isError: true
+                };
+            }
         }
         catch (error) {
-            return this.handleError(error, 'searching genes');
+            return this.handleError(error, 'searching for gene');
         }
     }
     async handleGetSequence(args) {
@@ -871,80 +888,27 @@ class EnsemblServer {
         }
         try {
             const species = this.getDefaultSpecies(args.species);
-            // Use overlap endpoint to get gene information from different species
-            // This provides comparative information by looking up the same gene in different organisms
-            const geneResponse = await this.apiClient.get(`/lookup/id/${args.gene_id}`, {
-                params: { species }
+            const type = args.type || 'all';
+            const format = args.format || 'json';
+            // Use the correct homology endpoint to find true orthologs
+            const response = await this.apiClient.get(`/homology/id/${species}/${args.gene_id}`, {
+                params: {
+                    target_species: args.target_species,
+                    type: type,
+                    format: format
+                }
             });
-            const gene = geneResponse.data;
-            // Get orthologs by looking up the same gene symbol in other species
-            const targetSpecies = args.target_species || 'mus_musculus'; // Default to mouse
-            try {
-                const orthologResponse = await this.apiClient.get(`/lookup/symbol/${targetSpecies}/${gene.display_name}`);
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: JSON.stringify({
-                                source_gene: {
-                                    id: gene.id,
-                                    symbol: gene.display_name,
-                                    species: species,
-                                    description: gene.description,
-                                    location: `${gene.seq_region_name}:${gene.start}-${gene.end}`,
-                                    biotype: gene.biotype
-                                },
-                                ortholog: {
-                                    id: orthologResponse.data.id,
-                                    symbol: orthologResponse.data.display_name,
-                                    species: targetSpecies,
-                                    description: orthologResponse.data.description,
-                                    location: `${orthologResponse.data.seq_region_name}:${orthologResponse.data.start}-${orthologResponse.data.end}`,
-                                    biotype: orthologResponse.data.biotype
-                                },
-                                analysis: {
-                                    method: 'Gene symbol ortholog lookup',
-                                    conservation: 'Symbol-based orthology',
-                                    note: 'Genes with same symbol across species are typically orthologs'
-                                }
-                            }, null, 2),
-                        },
-                    ],
-                };
-            }
-            catch (orthologError) {
-                // Return information about the source gene even if ortholog not found
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: JSON.stringify({
-                                source_gene: {
-                                    id: gene.id,
-                                    symbol: gene.display_name,
-                                    species: species,
-                                    description: gene.description,
-                                    location: `${gene.seq_region_name}:${gene.start}-${gene.end}`,
-                                    biotype: gene.biotype
-                                },
-                                ortholog_search: {
-                                    target_species: targetSpecies,
-                                    result: 'No ortholog found with same gene symbol',
-                                    suggestion: 'Try different target species or use gene family analysis'
-                                },
-                                available_data: {
-                                    gene_info: 'Complete source gene information available',
-                                    cross_references: 'Use get_xrefs tool for external database links',
-                                    sequences: 'Use get_sequence tool for sequence comparison'
-                                }
-                            }, null, 2),
-                        },
-                    ],
-                };
-            }
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: JSON.stringify(response.data, null, 2),
+                    },
+                ],
+            };
         }
         catch (error) {
-            return this.handleError(error, 'fetching comparative gene data');
+            return this.handleError(error, 'fetching homolog data');
         }
     }
     async handleGetGeneTree(args) {
@@ -1023,10 +987,13 @@ class EnsemblServer {
     async handleGetVariantConsequences(args) {
         try {
             const species = this.getDefaultSpecies(args.species);
-            const variants = args.variants.join('\n');
-            const response = await this.apiClient.post(`/vep/species/${species}/region`, variants, {
+            // VEP API expects JSON format with "variants" array
+            const payload = {
+                variants: args.variants
+            };
+            const response = await this.apiClient.post(`/vep/${species}/region`, payload, {
                 headers: {
-                    'Content-Type': 'text/plain',
+                    'Content-Type': 'application/json',
                 },
             });
             return {
@@ -1101,12 +1068,26 @@ class EnsemblServer {
         }
         try {
             const species = this.getDefaultSpecies(args.species);
-            const region = this.formatGenomicRegion(args.region);
-            const params = {};
-            if (args.binding_matrix) {
-                params.binding_matrix = args.binding_matrix;
+            // Note: REST API does not support region-based motif searching
+            // Only supports retrieval of specific binding matrices by ID
+            if (!args.binding_matrix) {
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                error: 'Region-based motif search not available in REST API',
+                                message: 'The Ensembl REST API only supports retrieval of specific binding matrices by ID',
+                                solution: 'Provide a binding_matrix parameter with a valid binding matrix stable ID',
+                                alternative: 'Use the Variant Effect Predictor (VEP) tool for comprehensive region analysis',
+                                example_id: 'ENSPFM0001'
+                            }, null, 2)
+                        }
+                    ],
+                };
             }
-            const response = await this.apiClient.get(`/regulatory/species/${species}/microarray/${region}`, { params });
+            // Use the correct binding matrix endpoint with specific ID
+            const response = await this.apiClient.get(`/species/${species}/binding_matrix/${args.binding_matrix}/`);
             return {
                 content: [
                     {
@@ -1117,7 +1098,7 @@ class EnsemblServer {
             };
         }
         catch (error) {
-            return this.handleError(error, 'fetching motif features');
+            return this.handleError(error, 'fetching binding matrix information');
         }
     }
     async handleGetXrefs(args) {
