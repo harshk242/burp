@@ -26,10 +26,12 @@ const parser = new XMLParser({
   trimValues: true,
   isArray: (name) => {
     // Force these elements to always be arrays
+    // Note: IdList is NOT included because there's only one per response
+    // and including it causes IdList?.Id to fail (becomes array[0].Id)
     const arrayElements = [
-      'Id', 'IdList', 'Item', 'Author', 'AuthorList',
+      'Id', 'Item', 'Author', 'AuthorList',
       'ArticleId', 'MeshHeading', 'Keyword', 'Grant',
-      'PublicationType', 'Link', 'LinkSet'
+      'PublicationType', 'Link', 'LinkSet', 'Translation'
     ];
     return arrayElements.includes(name);
   },
