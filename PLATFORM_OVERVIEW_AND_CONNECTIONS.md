@@ -408,6 +408,69 @@ Result: Clinical interpretation with personalized drug recommendations
 
 ---
 
+## ID Mapping Quick Reference
+
+### Gene Symbol → Ensembl ID
+| Starting With | Tool to Use | Example |
+|--------------|-------------|---------|
+| Gene symbol (BRCA1, TP53) | `Ensembl.search_genes(query="BRCA1")` | Returns ENSG00000012048 |
+| Gene symbol | `Open Targets.search_entities(query="BRCA1", entity_type="target")` | Returns ENSG00000012048 |
+
+**Important:** `Ensembl.lookup_gene()` only accepts Ensembl IDs, NOT gene symbols. Use `search_genes` for symbol-to-ID conversion.
+
+### Ensembl ID → Gene Details
+| Starting With | Tool to Use | Returns |
+|--------------|-------------|---------|
+| Ensembl ID (ENSG...) | `Ensembl.lookup_gene(gene_id="ENSG00000012048")` | Full gene details |
+| Ensembl ID | `Open Targets.get_target_info(ensembl_id="ENSG00000012048")` | Target info with disease associations |
+
+### Gene Symbol → UniProt Accession
+| Starting With | Tool to Use | Example |
+|--------------|-------------|---------|
+| Gene symbol | `UniProt.search_by_gene(gene_name="TP53")` | Returns P04637 |
+| Gene symbol | `UniProt.search_proteins(query="TP53", reviewed=true)` | Returns reviewed entries |
+
+**Tip:** Always use `reviewed=true` to get Swiss-Prot (curated) entries instead of TrEMBL (unreviewed).
+
+### UniProt → Ensembl (and vice versa)
+| Direction | Tool to Use | Notes |
+|-----------|-------------|-------|
+| UniProt → Ensembl | `UniProt.get_external_references(accession="P04637")` | Look for Ensembl in xrefs |
+| Ensembl → UniProt | `Ensembl.get_xrefs(id="ENSG00000141510")` | Look for Uniprot_gn entries |
+
+### Variant IDs
+| Starting With | Tool to Use | Returns |
+|--------------|-------------|---------|
+| rsID (rs121913343) | `ClinVar.lookup_by_rsid(rsid="rs121913343")` | Clinical significance |
+| rsID | `Ensembl.get_variants(region="17:7673000-7674000")` | Variant details |
+| Gene symbol | `ClinVar.search_variants_by_gene(gene_symbol="BRCA1")` | All variants in gene |
+
+### Compound IDs
+| Starting With | Tool to Use | Notes |
+|--------------|-------------|-------|
+| Drug name | `ChEMBL.search_compounds(query="imatinib")` | Returns CHEMBL941 |
+| SMILES | `PubChem.search_by_smiles(smiles="...")` | Returns CID |
+| ChEMBL ID | `ChEMBL.get_compound_info(chembl_id="CHEMBL941")` | Full compound data |
+
+### Common Workflow Patterns
+
+**Pattern 1: Gene Symbol → Full Analysis**
+```
+1. Ensembl.search_genes(query="BRCA1") → Get ENSG00000012048
+2. Ensembl.lookup_gene(gene_id="ENSG00000012048") → Get gene details
+3. UniProt.search_by_gene(gene_name="BRCA1") → Get P38398
+4. Open Targets.get_target_info(ensembl_id="ENSG00000012048") → Get disease associations
+```
+
+**Pattern 2: Variant → Clinical Context**
+```
+1. ClinVar.lookup_by_rsid(rsid="rs80357906") → Get clinical significance
+2. Ensembl.get_variant_consequences(id="rs80357906") → Get functional impact
+3. ClinPGx.get_variant_annotations(variant="rs80357906") → Get PGx implications
+```
+
+---
+
 ## Summary Statistics
 
 | **Metric** | **Count** |
