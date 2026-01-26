@@ -1563,15 +1563,30 @@ class EnsemblServer {
 
       const geneData = { ids: args.gene_ids };
 
+      // Note: The /lookup/id POST endpoint does not support 'format' as a query parameter.
+      // Format is controlled via Accept header. For XML, we need to change the header.
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (format === 'xml') {
+        headers['Accept'] = 'text/xml';
+      } else {
+        headers['Accept'] = 'application/json';
+      }
+
       const response = await this.apiClient.post('/lookup/id', geneData, {
-        params: { species, format },
+        params: { species },
+        headers,
       });
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(response.data, null, 2),
+            text: typeof response.data === 'object'
+              ? JSON.stringify(response.data, null, 2)
+              : String(response.data),
           },
         ],
       };
