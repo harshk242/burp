@@ -568,11 +568,11 @@ class EnsemblServer {
         // Gene & Transcript Information
         {
           name: 'lookup_gene',
-          description: 'Get detailed gene information by stable ID or symbol',
+          description: 'Get detailed gene information by Ensembl stable ID. NOTE: Only accepts Ensembl IDs (e.g., ENSG00000139618), NOT gene symbols. For gene symbol lookup, use search_genes instead.',
           inputSchema: {
             type: 'object',
             properties: {
-              gene_id: { type: 'string', description: 'Ensembl gene ID or gene symbol (e.g., ENSG00000139618, BRCA2)' },
+              gene_id: { type: 'string', description: 'Ensembl gene ID (e.g., ENSG00000139618 for BRCA2). Use search_genes for gene symbols like BRCA2, TP53' },
               species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
               expand: { type: 'boolean', description: 'Include transcript and exon details (default: false)' },
               format: { type: 'string', enum: ['json', 'fasta', 'gff'], description: 'Output format (default: json)' },
@@ -595,11 +595,11 @@ class EnsemblServer {
         },
         {
           name: 'search_genes',
-          description: 'Search for genes by name, description, or identifier',
+          description: 'Look up genes by gene symbol (e.g., BRCA1, TP53). This is the primary tool for converting gene symbols to Ensembl IDs. Uses exact symbol matching.',
           inputSchema: {
             type: 'object',
             properties: {
-              query: { type: 'string', description: 'Search term (gene name, description, or partial match)' },
+              query: { type: 'string', description: 'Gene symbol (e.g., BRCA1, TP53, EGFR). Returns Ensembl gene ID and details.' },
               species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
               feature: { type: 'string', enum: ['gene', 'transcript'], description: 'Feature type to search (default: gene)' },
               biotype: { type: 'string', description: 'Filter by biotype (e.g., protein_coding, lncRNA)' },

@@ -29,7 +29,7 @@ import type {
   LinkResult,
 } from './types.js';
 
-const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
+const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 1000;
@@ -181,7 +181,7 @@ export class PubMedClient {
    */
   async esearch(params: ESearchParams): Promise<ESearchResult> {
     return this.request(
-      '/esearch.fcgi',
+      'esearch.fcgi',
       {
         db: params.db || 'pubmed',
         term: params.term,
@@ -204,7 +204,7 @@ export class PubMedClient {
    */
   async esummary(params: ESummaryParams): Promise<ArticleSummary[]> {
     return this.request(
-      '/esummary.fcgi',
+      'esummary.fcgi',
       {
         db: params.db || 'pubmed',
         id: params.id,
@@ -219,7 +219,7 @@ export class PubMedClient {
    */
   async efetch(params: EFetchParams): Promise<PubMedArticle[]> {
     return this.request(
-      '/efetch.fcgi',
+      'efetch.fcgi',
       {
         db: params.db || 'pubmed',
         id: params.id,
@@ -235,7 +235,7 @@ export class PubMedClient {
    */
   async elink(params: ELinkParams): Promise<LinkResult> {
     return this.request(
-      '/elink.fcgi',
+      'elink.fcgi',
       {
         db: params.db || 'pubmed',
         dbfrom: params.dbfrom || 'pubmed',

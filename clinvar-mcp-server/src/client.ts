@@ -29,7 +29,7 @@ import type {
   ClinicalTablesVariant,
 } from './types.js';
 
-const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
+const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const CLINICAL_TABLES_URL = 'https://clinicaltables.nlm.nih.gov/api/variants/v4';
 const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
 const DEFAULT_MAX_RETRIES = 3;
@@ -192,7 +192,7 @@ export class ClinVarClient {
     options?: { maxResults?: number; start?: number }
   ): Promise<{ count: number; ids: string[] }> {
     const result = await this.ncbiRequest(
-      '/esearch.fcgi',
+      'esearch.fcgi',
       {
         term,
         retmax: options?.maxResults || 20,
@@ -267,7 +267,7 @@ export class ClinVarClient {
     if (ids.length === 0) return [];
 
     return this.ncbiRequest(
-      '/esummary.fcgi',
+      'esummary.fcgi',
       {
         id: ids.join(','),
         retmode: 'xml',
@@ -281,7 +281,7 @@ export class ClinVarClient {
    */
   async getVCVRecord(variationId: string): Promise<VCVRecord | null> {
     const records = await this.ncbiRequest(
-      '/efetch.fcgi',
+      'efetch.fcgi',
       {
         id: variationId,
         rettype: 'vcv',
