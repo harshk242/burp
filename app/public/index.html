@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Bio Agent</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #eee;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(90deg, #00d9ff, #00ff88);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p {
+      color: #888;
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+    }
+    .status {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 1rem 2rem;
+      display: inline-block;
+    }
+    .badge {
+      background: #00ff88;
+      color: #000;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    a {
+      color: #00d9ff;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Super Bio Agent</h1>
+    <p>Conversational AI for biomedical database queries</p>
+    <div class="status">
+      <span class="badge">Phase 1 Complete</span>
+      <p style="margin-top: 1rem; margin-bottom: 0;">
+        Server running. UI coming in Phase 4.<br>
+        <a href="/api">View API endpoints</a> |
+        <a href="/health">Health check</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

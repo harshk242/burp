@@ -1,0 +1,61 @@
+-- Super Bio Agent Database Schema
+-- SQLite with foreign key enforcement
+
+-- IMPORTANT: Enable foreign key enforcement (must run on each connection)
+PRAGMA foreign_keys = ON;
+
+-- Users (synced from Clerk)
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  clerk_id TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  image_url TEXT,
+  role TEXT DEFAULT 'waitlist' CHECK (role IN ('waitlist', 'user', 'admin')),
+  institution TEXT,
+  research_area TEXT,
+  total_queries INTEGER DEFAULT 0,
+  created_at INTEGER DEFAULT (unixepoch()),
+  last_active_at INTEGER
+);
+
+-- Access requests (waitlist)
+CREATE TABLE IF NOT EXISTS access_requests (
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  institution TEXT,
+  research_area TEXT,
+  use_case TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  submitted_at INTEGER DEFAULT (unixepoch()),
+  reviewed_at INTEGER,
+  reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Chat sessions
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT,
+  created_at INTEGER DEFAULT (unixepoch()),
+  updated_at INTEGER
+);
+
+-- Messages (cascade delete when chat is deleted)
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT,
+  tool_calls TEXT, -- JSON array of tool calls
+  created_at INTEGER DEFAULT (unixepoch())
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
+CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);

@@ -5,3 +5,6 @@ bun.lock
 .mcp.json
 build/
 dist/
+
+# SQLite
+data/
