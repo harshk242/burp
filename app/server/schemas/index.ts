@@ -138,6 +138,7 @@ export const MCPToolSchema = z.object({
   description: z.string().openapi({ example: "Search for proteins by name, gene, or accession" }),
   server: z.string().openapi({ example: "uniprot" }),
   inputSchema: z.record(z.unknown()),
+  available: z.boolean().openapi({ example: true, description: "Whether the MCP server is available" }),
 });
 
 export const ToolListSchema = z.object({

@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { ToolListSchema, ToolSearchQuerySchema, ErrorSchema, MCPToolSchema } from "../schemas";
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
+import { toolRegistry } from "../mcp/registry";
+import { mcpManager } from "../mcp/manager";
 
 const tools = new OpenAPIHono();
 
@@ -47,10 +49,10 @@ const listToolsRoute = createRoute({
 });
 
 tools.openapi(listToolsRoute, async (c) => {
-  // TODO: Implement in Phase 3 (Gateway) - get tools from MCP registry
+  const allTools = toolRegistry.getAll(true); // Include unavailable tools
   return c.json({
-    tools: [],
-    count: 0,
+    tools: allTools,
+    count: allTools.length,
   }, 200);
 });
 
@@ -107,10 +109,10 @@ const searchToolsRoute = createRoute({
 tools.openapi(searchToolsRoute, async (c) => {
   const { q } = c.req.valid("query");
 
-  // TODO: Implement in Phase 3 (Gateway) - search MCP registry
+  const results = toolRegistry.search(q, true); // Include unavailable tools
   return c.json({
-    tools: [],
-    count: 0,
+    tools: results,
+    count: results.length,
   }, 200);
 });
 
@@ -195,11 +197,26 @@ const callToolRoute = createRoute({
 
 tools.openapi(callToolRoute, async (c) => {
   const { server, name } = c.req.valid("param");
+  const input = await c.req.json();
 
-  // TODO: Implement in Phase 3 (Gateway) - call MCP tool directly
-  return c.json({
-    error: "Direct tool calls will be implemented in Phase 3",
-  }, 501);
+  // Check if tool exists
+  const tool = toolRegistry.get(server, name);
+  if (!tool) {
+    return c.json({ error: `Tool '${name}' not found on server '${server}'` }, 404);
+  }
+
+  // Check if server is available
+  if (!tool.available || !mcpManager.isServerAvailable(server)) {
+    return c.json({ error: `Server '${server}' is not available` }, 503);
+  }
+
+  try {
+    const result = await mcpManager.callTool(server, name, input);
+    return c.json({ result: result.content }, 200);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Tool execution failed";
+    return c.json({ error: errorMsg }, 500);
+  }
 });
 
 export { tools };

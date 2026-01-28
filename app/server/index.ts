@@ -5,9 +5,43 @@ import { serveStatic } from "hono/bun";
 import { initializeSchema } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
+import { toolRegistry } from "./mcp/registry";
 
 // Initialize database on startup
 initializeSchema();
+
+// Initialize MCP servers and tool discovery
+async function initializeMCP() {
+  console.log("[Startup] Registering MCP servers...");
+  mcpManager.registerAll();
+
+  console.log("[Startup] Starting MCP servers (best-effort)...");
+  await mcpManager.startAll();
+
+  console.log("[Startup] Discovering tools from running servers...");
+  await toolRegistry.discoverTools(mcpManager);
+
+  console.log(`[Startup] Ready with ${toolRegistry.availableCount}/${toolRegistry.count} tools available`);
+}
+
+// Start MCP initialization (don't block server startup)
+initializeMCP().catch((error) => {
+  console.error("[Startup] MCP initialization error:", error);
+  // Don't exit - server can still handle requests, just without tools
+});
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  console.log("[Shutdown] Received SIGTERM, stopping MCP servers...");
+  await mcpManager.stopAll();
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  console.log("[Shutdown] Received SIGINT, stopping MCP servers...");
+  await mcpManager.stopAll();
+  process.exit(0);
+});
 
 const app = new Hono();
 

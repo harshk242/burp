@@ -1,7 +1,9 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { streamSSE } from "hono/streaming";
+import { v4 as uuidv4 } from "uuid";
 import { ChatRequestSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
+import { processChat, generateSessionTitle } from "../orchestration/chat";
 
 const chat = new OpenAPIHono();
 
@@ -103,37 +105,34 @@ data: {"message":"Complete"}`,
 });
 
 chat.openapi(chatRoute, async (c) => {
-  const { message, sessionId } = c.req.valid("json");
+  const { message, sessionId: providedSessionId } = c.req.valid("json");
   const userId = c.get("userId") as string;
 
-  // For now, return a simple SSE response
+  // Generate session ID if not provided
+  const sessionId = providedSessionId || uuidv4();
+  const isNewSession = !providedSessionId;
+
   return streamSSE(c, async (stream) => {
-    // Send initial event
-    await stream.writeSSE({
-      event: "start",
-      data: JSON.stringify({ sessionId: sessionId || "new", userId }),
-    });
+    try {
+      // Process chat through Claude with tool calling
+      for await (const event of processChat(sessionId, userId, message)) {
+        await stream.writeSSE({
+          event: event.type,
+          data: typeof event.data === "string" ? event.data : JSON.stringify(event.data),
+        });
+      }
 
-    // Placeholder response
-    const response =
-      "Chat orchestration with MCP tools will be implemented in Phase 3. " +
-      "This will include: LLM integration, tool calling, and streaming responses.";
-
-    // Stream the response word by word (demo)
-    const words = response.split(" ");
-    for (const word of words) {
+      // Generate title for new sessions (async, don't wait)
+      if (isNewSession) {
+        generateSessionTitle(sessionId, message).catch(console.error);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
       await stream.writeSSE({
-        event: "text",
-        data: word + " ",
+        event: "error",
+        data: JSON.stringify({ error: errorMsg }),
       });
-      await new Promise((resolve) => setTimeout(resolve, 50));
     }
-
-    // Send completion event
-    await stream.writeSSE({
-      event: "done",
-      data: JSON.stringify({ message: "Complete" }),
-    });
   });
 });
 
