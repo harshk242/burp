@@ -1,7 +1,11 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { ToolListSchema, ToolSearchQuerySchema, ErrorSchema, MCPToolSchema } from "../schemas";
+import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 
 const tools = new OpenAPIHono();
+
+// Apply Clerk auth and user role check to all tool routes
+tools.use("*", clerkAuth, requireDbUser, requireUser);
 
 // ============================================
 // GET /api/tools - List all available tools
@@ -25,6 +29,14 @@ const listToolsRoute = createRoute({
     },
     401: {
       description: "Unauthorized",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    403: {
+      description: "Forbidden - User role required",
       content: {
         "application/json": {
           schema: ErrorSchema,
@@ -75,6 +87,14 @@ const searchToolsRoute = createRoute({
     },
     401: {
       description: "Unauthorized",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    403: {
+      description: "Forbidden - User role required",
       content: {
         "application/json": {
           schema: ErrorSchema,
@@ -132,6 +152,22 @@ const callToolRoute = createRoute({
     },
     400: {
       description: "Invalid input",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    401: {
+      description: "Unauthorized",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    403: {
+      description: "Forbidden - User role required",
       content: {
         "application/json": {
           schema: ErrorSchema,

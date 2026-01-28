@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { v4 as uuidv4 } from "uuid";
 import { chatSessionQueries, messageQueries } from "../db";
+import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import {
   CreateSessionSchema,
   SessionCreatedSchema,
@@ -12,6 +13,9 @@ import {
 } from "../schemas";
 
 const sessions = new OpenAPIHono();
+
+// Apply Clerk auth and user role check to all session routes
+sessions.use("*", clerkAuth, requireDbUser, requireUser);
 
 // ============================================
 // GET /api/sessions - List user's chat sessions
@@ -41,6 +45,14 @@ const listSessionsRoute = createRoute({
         },
       },
     },
+    403: {
+      description: "Forbidden - User role required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     500: {
       description: "Internal server error",
       content: {
@@ -53,8 +65,7 @@ const listSessionsRoute = createRoute({
 });
 
 sessions.openapi(listSessionsRoute, async (c) => {
-  // TODO: Get user_id from auth context in Phase 2
-  const userId = c.get("userId") || "test-user";
+  const userId = c.get("userId") as string;
 
   try {
     const chatSessions = chatSessionQueries.findByUserId(userId);
@@ -103,6 +114,14 @@ const createSessionRoute = createRoute({
         },
       },
     },
+    403: {
+      description: "Forbidden - User role required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     500: {
       description: "Internal server error",
       content: {
@@ -115,8 +134,7 @@ const createSessionRoute = createRoute({
 });
 
 sessions.openapi(createSessionRoute, async (c) => {
-  // TODO: Get user_id from auth context in Phase 2
-  const userId = c.get("userId") || "test-user";
+  const userId = c.get("userId") as string;
 
   try {
     const body = await c.req.json().catch(() => ({}));
@@ -157,6 +175,14 @@ const getSessionRoute = createRoute({
         },
       },
     },
+    403: {
+      description: "Forbidden - Not your session",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     404: {
       description: "Session not found",
       content: {
@@ -178,11 +204,17 @@ const getSessionRoute = createRoute({
 
 sessions.openapi(getSessionRoute, async (c) => {
   const { id } = c.req.valid("param");
+  const userId = c.get("userId") as string;
 
   try {
-    const session = chatSessionQueries.findById(id);
+    const session = chatSessionQueries.findById(id) as any;
     if (!session) {
       return c.json({ error: "Session not found" }, 404);
+    }
+
+    // Ensure user owns this session
+    if (session.user_id !== userId) {
+      return c.json({ error: "Forbidden - Not your session" }, 403);
     }
 
     const messages = messageQueries.findByChatId(id);
@@ -225,6 +257,14 @@ const deleteSessionRoute = createRoute({
         },
       },
     },
+    403: {
+      description: "Forbidden - Not your session",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     404: {
       description: "Session not found",
       content: {
@@ -246,11 +286,17 @@ const deleteSessionRoute = createRoute({
 
 sessions.openapi(deleteSessionRoute, async (c) => {
   const { id } = c.req.valid("param");
+  const userId = c.get("userId") as string;
 
   try {
-    const session = chatSessionQueries.findById(id);
+    const session = chatSessionQueries.findById(id) as any;
     if (!session) {
       return c.json({ error: "Session not found" }, 404);
+    }
+
+    // Ensure user owns this session
+    if (session.user_id !== userId) {
+      return c.json({ error: "Forbidden - Not your session" }, 403);
     }
 
     // Messages are cascade deleted due to foreign key
@@ -303,6 +349,14 @@ const updateSessionRoute = createRoute({
         },
       },
     },
+    403: {
+      description: "Forbidden - Not your session",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     404: {
       description: "Session not found",
       content: {
@@ -325,11 +379,17 @@ const updateSessionRoute = createRoute({
 sessions.openapi(updateSessionRoute, async (c) => {
   const { id } = c.req.valid("param");
   const { title } = c.req.valid("json");
+  const userId = c.get("userId") as string;
 
   try {
-    const session = chatSessionQueries.findById(id);
+    const session = chatSessionQueries.findById(id) as any;
     if (!session) {
       return c.json({ error: "Session not found" }, 404);
+    }
+
+    // Ensure user owns this session
+    if (session.user_id !== userId) {
+      return c.json({ error: "Forbidden - Not your session" }, 403);
     }
 
     chatSessionQueries.updateTitle(id, title);

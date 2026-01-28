@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { v4 as uuidv4 } from "uuid";
-import { accessRequestQueries } from "../db";
+import { accessRequestQueries, userQueries } from "../db";
+import { clerkAuth, requireAdmin, requireDbUser } from "../middleware/clerk";
 import {
   CreateAccessRequestSchema,
   AccessRequestCreatedSchema,
@@ -142,8 +143,32 @@ const listRequestsRoute = createRoute({
   },
 });
 
+// Apply auth middleware to admin routes
+waitlist.use("/", async (c, next) => {
+  // Skip auth for POST (public endpoint)
+  if (c.req.method === "POST") {
+    return next();
+  }
+  return clerkAuth(c, next);
+});
+
+waitlist.use("/", async (c, next) => {
+  // Skip admin check for POST (public endpoint)
+  if (c.req.method === "POST") {
+    return next();
+  }
+  return requireDbUser(c, next);
+});
+
+waitlist.use("/", async (c, next) => {
+  // Skip admin check for POST (public endpoint)
+  if (c.req.method === "POST") {
+    return next();
+  }
+  return requireAdmin(c, next);
+});
+
 waitlist.openapi(listRequestsRoute, async (c) => {
-  // TODO: Add admin auth check in Phase 2
   try {
     const requests = accessRequestQueries.findPending();
     return c.json({ requests }, 200);
@@ -162,7 +187,7 @@ const approveRequestRoute = createRoute({
   path: "/{id}/approve",
   tags: ["Waitlist"],
   summary: "Approve access request",
-  description: "Approve a pending access request. Requires admin authentication.",
+  description: "Approve a pending access request. Requires admin authentication. If the user has already signed up, their role will be upgraded to 'user'.",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -197,17 +222,28 @@ const approveRequestRoute = createRoute({
   },
 });
 
+// Apply auth middleware to /:id/* routes
+waitlist.use("/:id/*", clerkAuth, requireDbUser, requireAdmin);
+
 waitlist.openapi(approveRequestRoute, async (c) => {
   const { id } = c.req.valid("param");
+  const adminUserId = c.get("userId") as string;
 
   try {
-    const request = accessRequestQueries.findById(id);
+    const request = accessRequestQueries.findById(id) as any;
     if (!request) {
       return c.json({ error: "Request not found" }, 404);
     }
 
-    // TODO: Get admin user id from auth context
-    accessRequestQueries.approve(id, null);
+    // Approve the access request
+    accessRequestQueries.approve(id, adminUserId);
+
+    // If user already exists with waitlist role, upgrade them to user
+    const existingUser = userQueries.findByEmail(request.email) as any;
+    if (existingUser && existingUser.role === "waitlist") {
+      userQueries.updateRole(existingUser.id, "user");
+    }
+
     return c.json({ message: "Request approved" }, 200);
   } catch (error) {
     console.error("Error approving request:", error);
@@ -261,6 +297,7 @@ const rejectRequestRoute = createRoute({
 
 waitlist.openapi(rejectRequestRoute, async (c) => {
   const { id } = c.req.valid("param");
+  const adminUserId = c.get("userId") as string;
 
   try {
     const request = accessRequestQueries.findById(id);
@@ -268,7 +305,7 @@ waitlist.openapi(rejectRequestRoute, async (c) => {
       return c.json({ error: "Request not found" }, 404);
     }
 
-    accessRequestQueries.reject(id, null);
+    accessRequestQueries.reject(id, adminUserId);
     return c.json({ message: "Request rejected" }, 200);
   } catch (error) {
     console.error("Error rejecting request:", error);

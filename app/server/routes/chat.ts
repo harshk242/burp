@@ -1,8 +1,12 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { streamSSE } from "hono/streaming";
 import { ChatRequestSchema, ErrorSchema } from "../schemas";
+import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 
 const chat = new OpenAPIHono();
+
+// Apply Clerk auth and user role check to all chat routes
+chat.use("*", clerkAuth, requireDbUser, requireUser);
 
 // ============================================
 // POST /api/chat - Chat with SSE streaming
@@ -100,13 +104,14 @@ data: {"message":"Complete"}`,
 
 chat.openapi(chatRoute, async (c) => {
   const { message, sessionId } = c.req.valid("json");
+  const userId = c.get("userId") as string;
 
   // For now, return a simple SSE response
   return streamSSE(c, async (stream) => {
     // Send initial event
     await stream.writeSSE({
       event: "start",
-      data: JSON.stringify({ sessionId: sessionId || "new" }),
+      data: JSON.stringify({ sessionId: sessionId || "new", userId }),
     });
 
     // Placeholder response
