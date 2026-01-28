@@ -39,7 +39,8 @@ User: "What proteins interact with TP53?"
 1. Claude receives:
    - System prompt with database summaries
    - Built-in tool_search_tool_bm25 (natural language search)
-   - ALL 210+ tools with defer_loading: true
+   - ~11 core ID-bridge tools (non-deferred, always available)
+   - ~200 specialized tools with defer_loading: true
          │
          ▼
 2. Claude calls: tool_search_tool_bm25("protein interaction")
@@ -153,9 +154,10 @@ const ALWAYS_LOADED_TOOLS = new Set([
   
   // Evidence Hubs
   'pubmed__search_pubmed',           // Quick PMID discovery (literature hub)
-  'clinical-trials__search_by_intervention', // Drug → NCT IDs (trial link)
-  'clinical-trials__search_by_condition',    // Condition → NCT IDs (trial link)
+  'clinicaltrials__search_by_intervention', // Drug → NCT IDs (trial link)
+  'clinicaltrials__search_by_condition',    // Condition → NCT IDs (trial link)
 ]);
+// NOTE: Server slug is "clinicaltrials" (no dash) as defined in app/server/mcp/manager.ts
 ```
 
 **Why these specific tools?**
@@ -171,7 +173,7 @@ const ALWAYS_LOADED_TOOLS = new Set([
 | `pubchem__search_by_smiles` | Structure-based mapping | SMILES → CID (ChEMBL ↔ PubChem) |
 | `clinvar__lookup_by_rsid` | Variant bridge | rsID → gene + clinical context |
 | `pubmed__search_pubmed` | Literature discovery | Query → PMIDs |
-| `clinical-trials__search_by_*` | Trial evidence | Drug/condition → NCT IDs |
+| `clinicaltrials__search_by_*` | Trial evidence | Drug/condition → NCT IDs |
 
 This is the **minimum set** to resolve:
 - Gene ↔ Protein ↔ Drug relationships
@@ -201,8 +203,8 @@ const ALWAYS_LOADED_TOOLS = new Set([
   'pubchem__search_by_smiles',
   'clinvar__lookup_by_rsid',
   'pubmed__search_pubmed',
-  'clinical-trials__search_by_intervention',
-  'clinical-trials__search_by_condition',
+  'clinicaltrials__search_by_intervention',
+  'clinicaltrials__search_by_condition',
 ]);
 
 /**
@@ -343,8 +345,8 @@ You have 210+ specialized tools available, organized in two tiers:
 - **pubchem__search_by_smiles** - SMILES structure → PubChem CID
 - **clinvar__lookup_by_rsid** - rsID → clinical significance and gene
 - **pubmed__search_pubmed** - Quick literature search → PMIDs
-- **clinical-trials__search_by_intervention** - Drug → clinical trials (NCT IDs)
-- **clinical-trials__search_by_condition** - Condition → clinical trials (NCT IDs)
+- **clinicaltrials__search_by_intervention** - Drug → clinical trials (NCT IDs)
+- **clinicaltrials__search_by_condition** - Condition → clinical trials (NCT IDs)
 
 ### Additional Specialized Tools (use tool_search to discover):
 For specialized queries (protein structure, pathway analysis, bioactivity data, etc.), 
@@ -1158,7 +1160,7 @@ const DATABASE_LABELS: Record<string, string> = {
   clinvar: 'ClinVar',
   'open-targets': 'Open Targets',
   reactome: 'Reactome',
-  'clinical-trials': 'Clinical Trials',
+  clinicaltrials: 'Clinical Trials',  // Note: server slug is "clinicaltrials" (no dash)
   pubmed: 'PubMed',
   clinpgx: 'ClinPGx',
 };
@@ -1521,7 +1523,7 @@ const response = await anthropic.beta.messages.create({
 
 ### Always-Loaded Tools Reference
 
-**Exact Tool IDs (verified from MCP server implementations):**
+**Exact Tool IDs (tool names from MCP servers, prefixes from registry config in `app/server/mcp/manager.ts`):**
 
 ```ts
 const ALWAYS_LOADED_TOOLS = [
@@ -1537,8 +1539,8 @@ const ALWAYS_LOADED_TOOLS = [
   
   // Evidence Hubs (3 tools)
   'pubmed__search_pubmed',             // Literature search
-  'clinical-trials__search_by_intervention',  // Drug → trials
-  'clinical-trials__search_by_condition',     // Condition → trials
+  'clinicaltrials__search_by_intervention',  // Drug → trials
+  'clinicaltrials__search_by_condition',     // Condition → trials
 ];
 ```
 
@@ -1570,6 +1572,6 @@ Gene Symbol → ensembl__search_genes → ENSG
 
 rsID → clinvar__lookup_by_rsid → Gene + Clinical Significance
 
-Drug → clinical-trials__search_by_intervention → NCT IDs
-Condition → clinical-trials__search_by_condition → NCT IDs
+Drug → clinicaltrials__search_by_intervention → NCT IDs
+Condition → clinicaltrials__search_by_condition → NCT IDs
 ```
