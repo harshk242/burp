@@ -57,6 +57,73 @@ tools.openapi(listToolsRoute, async (c) => {
 });
 
 // ============================================
+// GET /api/tools/config - Verify tool loading configuration
+// ============================================
+
+const toolConfigRoute = createRoute({
+  method: "get",
+  path: "/config",
+  tags: ["Tools"],
+  summary: "Get tool configuration",
+  description: "Verify the tool loading configuration including always-loaded and deferred tools.",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description: "Tool configuration details",
+      content: {
+        "application/json": {
+          schema: z.object({
+            total: z.number(),
+            alwaysLoaded: z.object({
+              count: z.number(),
+              names: z.array(z.string()),
+            }),
+            deferred: z.object({
+              count: z.number(),
+            }),
+            expectedAlwaysLoaded: z.array(z.string()),
+          }),
+        },
+      },
+    },
+    401: {
+      description: "Unauthorized",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    403: {
+      description: "Forbidden - User role required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+tools.openapi(toolConfigRoute, async (c) => {
+  const claudeTools = toolRegistry.toClaudeFormat(true);
+  const alwaysLoaded = claudeTools.filter((t) => !t.defer_loading);
+  const deferred = claudeTools.filter((t) => t.defer_loading);
+
+  return c.json({
+    total: claudeTools.length,
+    alwaysLoaded: {
+      count: alwaysLoaded.length,
+      names: alwaysLoaded.map((t) => t.name),
+    },
+    deferred: {
+      count: deferred.length,
+    },
+    expectedAlwaysLoaded: toolRegistry.getAlwaysLoadedTools(),
+  }, 200);
+});
+
+// ============================================
 // GET /api/tools/search - Search tools by name/description
 // ============================================
 

@@ -14,10 +14,41 @@ export interface MCPTool {
   available: boolean;
 }
 
+/**
+ * Core tools that are ALWAYS loaded (non-deferred).
+ * These serve as ID-bridge tools and evidence hubs, enabling:
+ * - Gene symbol → Ensembl ID (foundation ID)
+ * - Gene → Protein ID bridge
+ * - Compound name → ChEMBL ID
+ * - Structure → PubChem CID
+ * - rsID → clinical context
+ * - Quick literature and trial discovery
+ *
+ * Tool search can still find additional specialized tools.
+ * NOTE: Server slugs must match those defined in manager.ts
+ */
+const ALWAYS_LOADED_TOOLS = new Set([
+  // ID-Bridge Core
+  "ensembl__search_genes", // Gene symbol → ENSG (foundation ID)
+  "open-targets__search_entities", // Gene/disease → ENSG/EFO (most connected hub)
+  "uniprot__search_by_gene", // Gene symbol → UniProt accession
+  "uniprot__get_external_references", // UniProt → Ensembl cross-refs
+  "ensembl__get_xrefs", // Ensembl → UniProt cross-refs (bidirectional)
+  "chembl__search_compounds", // Drug name → ChEMBL ID (compound hub)
+  "pubchem__search_by_smiles", // SMILES → PubChem CID (ChEMBL ↔ PubChem mapping)
+  "clinvar__lookup_by_rsid", // rsID → clinical context + gene (variant bridge)
+
+  // Evidence Hubs
+  "pubmed__search_pubmed", // Quick PMID discovery (literature hub)
+  "clinicaltrials__search_by_intervention", // Drug → NCT IDs (trial link)
+  "clinicaltrials__search_by_condition", // Condition → NCT IDs (trial link)
+]);
+
 export interface ClaudeTool {
   name: string;
   description: string;
   input_schema: Anthropic.Tool.InputSchema;
+  defer_loading?: boolean;
 }
 
 class ToolRegistry {
@@ -82,19 +113,34 @@ class ToolRegistry {
   }
 
   /**
-   * Convert tools to Claude API format
-   * Uses server__toolname format for unique naming
+   * Convert tools to Claude API format with selective deferred loading.
+   * Core ID-bridge tools are always loaded; others are deferred.
+   * Uses server__toolname format for unique naming.
    */
   toClaudeFormat(onlyAvailable = true): Anthropic.Tool[] {
     const tools = onlyAvailable
       ? Array.from(this.tools.values()).filter((t) => t.available)
       : Array.from(this.tools.values());
 
-    return tools.map((tool) => ({
-      name: `${tool.server}__${tool.name}`,
-      description: `[${tool.server}] ${tool.description}`,
-      input_schema: tool.inputSchema as Anthropic.Tool.InputSchema,
-    }));
+    return tools.map((tool) => {
+      const fullName = `${tool.server}__${tool.name}`;
+      const isCore = ALWAYS_LOADED_TOOLS.has(fullName);
+
+      return {
+        name: fullName,
+        description: `[${tool.server}] ${tool.description}`,
+        input_schema: tool.inputSchema as Anthropic.Tool.InputSchema,
+        // Core tools are NOT deferred; all others are
+        ...(isCore ? {} : { defer_loading: true }),
+      };
+    });
+  }
+
+  /**
+   * Get the list of always-loaded tool names for verification.
+   */
+  getAlwaysLoadedTools(): string[] {
+    return Array.from(ALWAYS_LOADED_TOOLS);
   }
 
   /**

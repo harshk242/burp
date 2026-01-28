@@ -12,6 +12,12 @@ import { messageQueries, chatSessionQueries, userQueries } from "../db";
 // Initialize Anthropic client
 const anthropic = new Anthropic();
 
+// Tool search tool definition (built-in, BM25 variant for natural language)
+const TOOL_SEARCH_TOOL = {
+  type: "tool_search_tool_bm25_20251119" as const,
+  name: "tool_search",
+};
+
 // System prompt for biomedical research assistant
 const SYSTEM_PROMPT = `You are a biomedical research assistant with access to 10 specialized databases:
 
@@ -26,12 +32,41 @@ const SYSTEM_PROMPT = `You are a biomedical research assistant with access to 10
 9. **PubMed** - Biomedical literature and abstracts
 10. **ClinPGx (PharmGKB)** - Pharmacogenomics data
 
-When answering questions:
-- Use the appropriate database tools to find accurate, up-to-date information
-- Cross-reference multiple databases when relevant
-- Cite specific identifiers (UniProt IDs, ChEMBL IDs, PMIDs, etc.)
-- Explain your findings in clear, scientific language
-- If information is not found, suggest alternative searches or databases
+## Available Tools
+
+You have 210+ specialized tools available, organized in two tiers:
+
+### Always-Available Core Tools (use directly without searching):
+- **ensembl__search_genes** - Convert gene symbols (TP53, BRCA1) → Ensembl IDs (ENSG...)
+- **open-targets__search_entities** - Find genes/diseases → ENSG/EFO IDs (main hub)
+- **uniprot__search_by_gene** - Gene symbol → UniProt accession (protein ID)
+- **uniprot__get_external_references** - UniProt → Ensembl/PDB cross-references
+- **ensembl__get_xrefs** - Ensembl → UniProt/HGNC cross-references
+- **chembl__search_compounds** - Drug/compound name → ChEMBL ID
+- **pubchem__search_by_smiles** - SMILES structure → PubChem CID
+- **clinvar__lookup_by_rsid** - rsID → clinical significance and gene
+- **pubmed__search_pubmed** - Quick literature search → PMIDs
+- **clinicaltrials__search_by_intervention** - Drug → clinical trials (NCT IDs)
+- **clinicaltrials__search_by_condition** - Condition → clinical trials (NCT IDs)
+
+### Additional Specialized Tools (use tool_search to discover):
+For specialized queries (protein structure, pathway analysis, bioactivity data, etc.),
+use the tool_search tool to find relevant tools by describing what you need.
+
+## Workflow Guidelines
+
+1. **Start with core tools** for ID resolution and initial discovery
+2. **Use tool_search** when you need specialized analysis not covered by core tools
+3. **Cross-reference multiple databases** - use IDs from one database to query others
+4. **Cite specific identifiers** (UniProt IDs, ChEMBL IDs, PMIDs, ENSG IDs, etc.)
+5. **Explain your findings** in clear, scientific language
+
+## Common ID Resolution Patterns
+
+- Gene symbol → ENSG: Use ensembl__search_genes("TP53")
+- Gene → Protein: Use uniprot__search_by_gene("TP53")
+- Drug name → ChEMBL: Use chembl__search_compounds("imatinib")
+- rsID → Gene: Use clinvar__lookup_by_rsid("rs1042522")
 
 Always prefer using tools over your training knowledge for biomedical facts.`;
 
@@ -92,8 +127,25 @@ export async function* processChat(
     // Build messages array for Claude
     const messages = buildClaudeMessages(history, userMessage);
 
-    // Get available tools in Claude format
-    const tools = toolRegistry.toClaudeFormat(true);
+    // Get MCP tools in Claude format (core tools non-deferred, rest deferred)
+    const mcpTools = toolRegistry.toClaudeFormat(true);
+
+    // Verify at least one tool is non-deferred (guard against API error)
+    const nonDeferredCount = mcpTools.filter((t) => !t.defer_loading).length;
+    if (nonDeferredCount === 0) {
+      throw new Error(
+        "Configuration error: All tools have defer_loading set. " +
+          "At least one tool must be non-deferred. Check ALWAYS_LOADED_TOOLS."
+      );
+    }
+
+    // Combine: tool search (built-in) + MCP tools (mix of deferred/non-deferred)
+    const tools = [TOOL_SEARCH_TOOL, ...mcpTools];
+
+    // Log for debugging
+    console.log(
+      `[Chat] Tools loaded: ${mcpTools.length} total, ${nonDeferredCount} always-loaded (core)`
+    );
 
     // Store user message
     const userMsgId = uuidv4();
@@ -105,12 +157,13 @@ export async function* processChat(
     const allToolCalls: ToolCall[] = [];
 
     while (continueLoop) {
-      // Create streaming request to Claude
-      const stream = anthropic.messages.stream({
-        model: "claude-sonnet-4-20250514",
+      // Create streaming request to Claude with beta header for tool search
+      const stream = anthropic.beta.messages.stream({
+        model: "claude-sonnet-4-5-20250929,
+        betas: ["advanced-tool-use-2025-11-20"],
         max_tokens: 4096,
         system: SYSTEM_PROMPT,
-        tools: tools.length > 0 ? tools : undefined,
+        tools: tools.length > 0 ? (tools as Anthropic.Tool[]) : undefined,
         messages,
       });
 
@@ -132,12 +185,19 @@ export async function* processChat(
           if (event.content_block.type === "text") {
             // Text block starting
           } else if (event.content_block.type === "tool_use") {
-            // Tool use block starting
+            // Regular MCP tool use block starting
             currentToolUseBlock = {
               id: event.content_block.id,
               name: event.content_block.name,
               input: "",
             };
+          } else if ((event.content_block as { type: string }).type === "server_tool_use") {
+            // Built-in tool (like tool_search) being called
+            // The API handles this automatically - no action needed
+            const serverTool = event.content_block as { type: string; name?: string };
+            console.log(
+              `[Chat] Server tool being called: ${serverTool.name || "unknown"}`
+            );
           }
         } else if (event.type === "content_block_delta") {
           if (event.delta.type === "text_delta") {
@@ -347,7 +407,7 @@ export async function generateSessionTitle(
 ): Promise<string> {
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-5-20250929",
       max_tokens: 50,
       messages: [
         {
