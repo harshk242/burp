@@ -130,12 +130,20 @@ export async function* processChat(
     // Get MCP tools in Claude format (core tools non-deferred, rest deferred)
     const mcpTools = toolRegistry.toClaudeFormat(true);
 
-    // Verify at least one tool is non-deferred (guard against API error)
-    const nonDeferredCount = mcpTools.filter((t) => !t.defer_loading).length;
-    if (nonDeferredCount === 0) {
+    // Guard: Must have at least some MCP tools available
+    if (mcpTools.length === 0) {
       throw new Error(
-        "Configuration error: All tools have defer_loading set. " +
-          "At least one tool must be non-deferred. Check ALWAYS_LOADED_TOOLS."
+        "No MCP tools available. All database servers may be down."
+      );
+    }
+
+    // Guard: At least one MCP tool must be non-deferred (API requirement)
+    // tool_search alone is useless if there are no tools to discover
+    const coreToolCount = mcpTools.filter((t) => !t.defer_loading).length;
+    if (coreToolCount === 0) {
+      console.warn(
+        "[Chat] Warning: No core tools available. All tools are deferred. " +
+          "Claude will need to use tool_search for every query."
       );
     }
 
@@ -144,7 +152,7 @@ export async function* processChat(
 
     // Log for debugging
     console.log(
-      `[Chat] Tools loaded: ${mcpTools.length} total, ${nonDeferredCount} always-loaded (core)`
+      `[Chat] Tools loaded: ${mcpTools.length} MCP tools (${coreToolCount} core) + 1 tool_search`
     );
 
     // Store user message
