@@ -53,7 +53,7 @@ super-bio-agent/
 │       ├── mcp/           # Server manager + tool registry
 │       ├── orchestration/ # Chat loop with Claude
 │       └── routes/        # HTTP endpoints
-└── *-mcp-server/          # Existing 10 MCP servers
+└── mcp-servers/           # Existing 10 MCP servers
 ```
 
 ## Phases

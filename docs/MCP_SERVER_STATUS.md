@@ -16,15 +16,15 @@
   "mcpServers": {
     "chembl": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/chembl-mcp-server/build/index.js"]
+      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/mcp-servers/chembl/build/index.js"]
     },
     "uniprot": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/uniprot-mcp-server/build/index.js"]
+      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/mcp-servers/uniprot/build/index.js"]
     },
     "reactome": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/reactome-mcp-server/build/index.js"]
+      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/mcp-servers/reactome/build/index.js"]
     }
   }
 }
@@ -90,17 +90,17 @@ Test that servers can start properly:
 
 ```bash
 # Test ChEMBL MCP server
-cd /home/harsh242/pc_data/projects/super-bio-agent/chembl-mcp-server
+cd mcp-servers/chembl
 node build/index.js
 # Should start without errors (use Ctrl+C to stop)
 
 # Test UniProt MCP server
-cd /home/harsh242/pc_data/projects/super-bio-agent/uniprot-mcp-server
+cd mcp-servers/uniprot
 node build/index.js
 # Should start without errors (use Ctrl+C to stop)
 
 # Test Reactome MCP server
-cd /home/harsh242/pc_data/projects/super-bio-agent/reactome-mcp-server
+cd mcp-servers/reactome
 node build/index.js
 # Should start without errors (use Ctrl+C to stop)
 ```
@@ -241,7 +241,7 @@ This is the correct location and format for Claude Code to discover MCP servers.
 
 1. Verify all 10 platforms load successfully
 2. Run connection verification tests again
-3. Update PLATFORM_CONNECTIONS_VERIFICATION_REPORT.md
+3. Update PLATFORM_VERIFICATION_REPORT_20260125.md
 4. Test the 40+ documented connections
 5. Generate new success metrics
 

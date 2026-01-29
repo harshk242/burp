@@ -103,7 +103,7 @@ super-bio-agent/
 │   │   ├── next.config.js    # output: 'export'
 │   │   └── package.json
 │   └── package.json
-├── *-mcp-server/             # Existing 10 servers
+├── mcp-servers/              # Existing 10 servers
 ├── data/                     # SQLite (volume mount)
 ├── Dockerfile
 └── docker-compose.yml
@@ -402,7 +402,7 @@ WORKDIR /app
 
 # Build MCP servers
 FROM base AS mcp-build
-COPY *-mcp-server ./servers/
+COPY mcp-servers ./servers/
 RUN for dir in servers/*/; do cd "$dir" && bun install && bun run build && cd ../..; done
 
 # Build web UI (static export)

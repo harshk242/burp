@@ -54,21 +54,26 @@ Super Bio Agent integrates the following biomedical research platforms into a si
 
 ```
 super-bio-agent/
-├── open-targets-mcp-server/      # Target-disease-drug integration hub
-├── uniprot-mcp-server/            # Protein sequences & annotations
-├── ensembl-mcp-server/            # Genomic sequences & gene annotations
-├── chembl-mcp-server/             # Bioactive compounds & targets
-├── pubchem-mcp-server/            # Chemical structure database
-├── clinical-trials-mcp-server/    # Clinical trial registry
-├── clinvar-mcp-server/            # Genetic variants & phenotypes
-├── pubmed-mcp-server/             # Biomedical literature
-├── reactome-mcp-server/           # Biological pathways
-├── clinpgx-mcp-server/            # Pharmacogenomics
+├── app/
+│   ├── server/                    # Hono backend API
+│   └── web/                       # Next.js frontend
 │
+├── mcp-servers/
+│   ├── open-targets/              # Target-disease-drug integration hub
+│   ├── uniprot/                   # Protein sequences & annotations
+│   ├── ensembl/                   # Genomic sequences & gene annotations
+│   ├── chembl/                    # Bioactive compounds & targets
+│   ├── pubchem/                   # Chemical structure database
+│   ├── clinical-trials/           # Clinical trial registry
+│   ├── clinvar/                   # Genetic variants & phenotypes
+│   ├── pubmed/                    # Biomedical literature
+│   ├── reactome/                  # Biological pathways
+│   └── clinpgx/                   # Pharmacogenomics
+│
+├── docs/                          # Documentation
+├── scripts/                       # Utility scripts
 ├── .mcp.json                      # MCP server configuration
 ├── .env.local                     # Environment variables (API keys)
-├── PLATFORM_OVERVIEW_AND_CONNECTIONS.md  # Detailed connection mappings
-├── research-platform-strategy.md  # Project strategy & roadmap
 └── CLAUDE.md                      # Build & deployment instructions
 ```
 
@@ -100,15 +105,15 @@ super-bio-agent/
 3. **Build all MCP servers**
    ```bash
    # Build each server
-   cd open-targets-mcp-server && bun run build && cd ..
-   cd uniprot-mcp-server && bun run build && cd ..
-   cd ensembl-mcp-server && bun run build && cd ..
+   cd mcp-servers/open-targets && bun run build && cd ../..
+   cd mcp-servers/uniprot && bun run build && cd ../..
+   cd mcp-servers/ensembl && bun run build && cd ../..
    # ... repeat for all servers
    ```
 
    Or build a specific server:
    ```bash
-   cd chembl-mcp-server && bun run build
+   cd mcp-servers/chembl && bun run build
    ```
 
 ### Configuration
@@ -120,11 +125,11 @@ The `.mcp.json` file configures how all 10 servers are launched:
   "mcpServers": {
     "open-targets": {
       "command": "node",
-      "args": ["open-targets-mcp-server/dist/index.js"]
+      "args": ["mcp-servers/open-targets/dist/index.js"]
     },
     "chembl": {
       "command": "node",
-      "args": ["chembl-mcp-server/build/index.js"]
+      "args": ["mcp-servers/chembl/build/index.js"]
     },
     // ... more servers
   }
@@ -253,9 +258,9 @@ Pharmacogenomics and personalized medicine.
 
 ## Documentation
 
-- **`PLATFORM_OVERVIEW_AND_CONNECTIONS.md`**: Complete platform descriptions and all 40+ inter-platform connection workflows
-- **`research-platform-strategy.md`**: Project vision, strategy, and roadmap for computational intelligence features
-- **Individual server READMEs**: Detailed tool documentation for each platform
+- **`docs/PLATFORM_OVERVIEW_AND_CONNECTIONS.md`**: Complete platform descriptions and all 40+ inter-platform connection workflows
+- **`docs/research-platform-strategy.md`**: Project vision, strategy, and roadmap for computational intelligence features
+- **Individual server READMEs**: Detailed tool documentation for each platform in `mcp-servers/*/README.md`
 
 ## Architecture
 
@@ -302,7 +307,7 @@ All platforms provide public REST APIs with the following characteristics:
 ### Building a Single Server
 
 ```bash
-cd chembl-mcp-server
+cd mcp-servers/chembl
 bun install
 bun run build
 ```

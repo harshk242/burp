@@ -7,7 +7,7 @@ This directory contains comprehensive test cases and scripts to manually verify 
 1. **FAILED_TEST_CASES.md** - Detailed documentation of all failed test cases
 2. **test_failed_cases.sh** - Bash script for quick API testing
 3. **test_failed_cases.py** - Python script with detailed testing
-4. **PLATFORM_CONNECTIONS_VERIFICATION_REPORT.md** - Full verification report
+4. **PLATFORM_VERIFICATION_REPORT_20260125.md** - Full verification report
 
 ---
 
@@ -279,7 +279,7 @@ Based on the verification report, prioritize fixes in this order:
 If you encounter issues:
 
 1. Check **FAILED_TEST_CASES.md** for detailed debugging steps
-2. Review **PLATFORM_CONNECTIONS_VERIFICATION_REPORT.md** for context
+2. Review **PLATFORM_VERIFICATION_REPORT_20260125.md** for context
 3. Test APIs directly with curl to isolate MCP vs API issues
 4. Check API documentation for changes
 5. Verify MCP server configuration
@@ -327,4 +327,4 @@ vim ~/.config/claude/claude_desktop_config.json
 ---
 
 **Last Updated:** 2026-01-24
-**Related Files:** PLATFORM_CONNECTIONS_VERIFICATION_REPORT.md, FAILED_TEST_CASES.md
+**Related Files:** PLATFORM_VERIFICATION_REPORT_20260125.md, FAILED_TEST_CASES.md

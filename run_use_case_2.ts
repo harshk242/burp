@@ -1,8 +1,8 @@
-import { initializeClient as initOpenTargets } from './open-targets-mcp-server/src/client.js';
-import { searchEntities } from './open-targets-mcp-server/src/tools/search.js';
-import { getTargetInfo } from './open-targets-mcp-server/src/tools/target/identity.js';
-import { getTargetPathwaysAndGoTerms } from './open-targets-mcp-server/src/tools/target/biology.js';
-import { getTargetAssociatedDiseases, getTargetKnownDrugs } from './open-targets-mcp-server/src/tools/target/associations.js';
+import { initializeClient as initOpenTargets } from './mcp-servers/open-targets/src/client.js';
+import { searchEntities } from './mcp-servers/open-targets/src/tools/search.js';
+import { getTargetInfo } from './mcp-servers/open-targets/src/tools/target/identity.js';
+import { getTargetPathwaysAndGoTerms } from './mcp-servers/open-targets/src/tools/target/biology.js';
+import { getTargetAssociatedDiseases, getTargetKnownDrugs } from './mcp-servers/open-targets/src/tools/target/associations.js';
 import { URLSearchParams } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 

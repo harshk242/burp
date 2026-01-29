@@ -12,9 +12,9 @@ This file documents how to use Codex CLI with the MCP multi-server runner to exe
 Build the servers you plan to call:
 
 ```bash
-cd open-targets-mcp-server && bun install && bun run build && cd ..
-cd clinvar-mcp-server && bun install && bun run build && cd ..
-cd pubmed-mcp-server && bun install && bun run build && cd ..
+cd mcp-servers/open-targets && bun install && bun run build && cd ../..
+cd mcp-servers/clinvar && bun install && bun run build && cd ../..
+cd mcp-servers/pubmed && bun install && bun run build && cd ../..
 # Repeat for other servers as needed
 ```
 

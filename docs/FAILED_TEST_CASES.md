@@ -2,7 +2,7 @@
 
 **Generated:** 2026-01-24
 **Purpose:** Document all failed API calls for manual debugging and verification
-**Reference:** PLATFORM_CONNECTIONS_VERIFICATION_REPORT.md
+**Reference:** PLATFORM_VERIFICATION_REPORT_20260125.md
 
 ---
 
