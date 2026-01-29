@@ -1,0 +1,9 @@
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+coverage/
+.eslintcache
+*.log
+.DS_Store

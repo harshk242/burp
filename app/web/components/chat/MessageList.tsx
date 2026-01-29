@@ -1,0 +1,86 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { MessageBubble } from "./MessageBubble";
+import { StreamingText } from "./StreamingText";
+import { ToolCallCard } from "./ToolCallCard";
+import type { Message, ToolCall } from "@/types";
+
+interface MessageListProps {
+  messages: Message[];
+  streamingContent: string;
+  pendingToolCalls: ToolCall[];
+  isStreaming: boolean;
+}
+
+export function MessageList({
+  messages,
+  streamingContent,
+  pendingToolCalls,
+  isStreaming,
+}: MessageListProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll on new content
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, streamingContent, pendingToolCalls]);
+
+  return (
+    <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+      <div className="max-w-3xl mx-auto py-4 space-y-4">
+        {messages.map((message) => (
+          <MessageBubble key={message.id} message={message} />
+        ))}
+
+        {/* Streaming content */}
+        {isStreaming && (streamingContent || pendingToolCalls.length > 0) && (
+          <div className="space-y-2">
+            {/* Pending tool calls */}
+            {pendingToolCalls.map((toolCall) => (
+              <ToolCallCard key={toolCall.id} toolCall={toolCall} />
+            ))}
+
+            {/* Streaming text */}
+            {streamingContent && (
+              <div className="flex gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+                  AI
+                </div>
+                <div className="flex-1 space-y-2 overflow-hidden">
+                  <StreamingText content={streamingContent} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {messages.length === 0 && !isStreaming && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <h2 className="text-2xl font-semibold mb-2">
+              Welcome to Super Bio Agent
+            </h2>
+            <p className="text-muted-foreground max-w-md">
+              Ask questions about proteins, drugs, genes, variants, pathways,
+              clinical trials, or biomedical literature. I have access to 10
+              specialized databases.
+            </p>
+            <div className="mt-6 grid gap-2 text-sm text-muted-foreground">
+              <p>Try asking:</p>
+              <ul className="space-y-1">
+                <li>&quot;What proteins interact with BRCA1?&quot;</li>
+                <li>&quot;Find drugs that target EGFR&quot;</li>
+                <li>&quot;What is the clinical significance of rs1042522?&quot;</li>
+                <li>&quot;Show me pathways involving TP53&quot;</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+    </ScrollArea>
+  );
+}
