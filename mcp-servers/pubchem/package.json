@@ -2,12 +2,12 @@
   "name": "pubchem-server",
   "version": "1.0.0",
   "description": "Model Context Protocol server for PubChem chemical database access",
-  "main": "build/index.js",
+  "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc && chmod +x build/index.js",
+    "build": "tsc && chmod +x dist/index.js",
     "dev": "tsc --watch",
-    "start": "node build/index.js"
+    "start": "node dist/index.js"
   },
   "keywords": [
     "mcp",

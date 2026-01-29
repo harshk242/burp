@@ -16,21 +16,20 @@ const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || "../mcp-servers";
 interface MCPServerDef {
   name: string;
   dir: string;
-  outDir: string; // "build" or "dist"
   env?: Record<string, string | undefined>;
 }
 
 const MCP_SERVER_DEFS: MCPServerDef[] = [
-  { name: "uniprot", dir: "uniprot", outDir: "build" },
-  { name: "chembl", dir: "chembl", outDir: "build" },
-  { name: "pubchem", dir: "pubchem", outDir: "build" },
-  { name: "ensembl", dir: "ensembl", outDir: "build" },
-  { name: "clinvar", dir: "clinvar", outDir: "dist", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
-  { name: "open-targets", dir: "open-targets", outDir: "dist" },
-  { name: "reactome", dir: "reactome", outDir: "build" },
-  { name: "clinicaltrials", dir: "clinical-trials", outDir: "build" },
-  { name: "pubmed", dir: "pubmed", outDir: "dist", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
-  { name: "clinpgx", dir: "clinpgx", outDir: "dist" },
+  { name: "uniprot", dir: "uniprot" },
+  { name: "chembl", dir: "chembl" },
+  { name: "pubchem", dir: "pubchem" },
+  { name: "ensembl", dir: "ensembl" },
+  { name: "clinvar", dir: "clinvar", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
+  { name: "open-targets", dir: "open-targets" },
+  { name: "reactome", dir: "reactome" },
+  { name: "clinicaltrials", dir: "clinical-trials" },
+  { name: "pubmed", dir: "pubmed", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
+  { name: "clinpgx", dir: "clinpgx" },
 ];
 
 export interface MCPServerConfig {
@@ -44,7 +43,7 @@ export interface MCPServerConfig {
 export const MCP_SERVERS: MCPServerConfig[] = MCP_SERVER_DEFS.map((s) => ({
   name: s.name,
   command: "node",
-  args: [`${MCP_SERVERS_BASE}/${s.dir}/${s.outDir}/index.js`],
+  args: [`${MCP_SERVERS_BASE}/${s.dir}/dist/index.js`],
   env: s.env,
 }));
 

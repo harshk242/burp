@@ -6,27 +6,27 @@
     },
     "uniprot": {
       "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/uniprot/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/uniprot/dist/index.js"]
     },
     "chembl": {
       "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/chembl/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/chembl/dist/index.js"]
     },
     "pubchem": {
       "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/pubchem/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/pubchem/dist/index.js"]
     },
     "clinicaltrials": {
       "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/clinical-trials/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/clinical-trials/dist/index.js"]
     },
     "ensembl": {
       "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/ensembl/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/ensembl/dist/index.js"]
     },
     "reactome": {
       "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/reactome/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/reactome/dist/index.js"]
     },
     "pubmed": {
       "command": "node",

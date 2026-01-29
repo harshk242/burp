@@ -2,11 +2,11 @@
   "name": "uniprot-server",
   "version": "1.0.0",
   "description": "A comprehensive Model Context Protocol server for accessing UniProt protein database with 26 bioinformatics tools for protein research, comparative genomics, and systems biology",
-  "main": "build/index.js",
+  "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
-    "start": "node build/index.js",
+    "build": "tsc && node -e \"require('fs').chmodSync('dist/index.js', '755')\"",
+    "start": "node dist/index.js",
     "dev": "tsc --watch"
   },
   "keywords": [
@@ -39,6 +39,6 @@
     "typescript": "^5.0.0"
   },
   "bin": {
-    "uniprot-server": "./build/index.js"
+    "uniprot-server": "./dist/index.js"
   }
 }
