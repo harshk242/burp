@@ -7,7 +7,7 @@ RUN apk add --no-cache nodejs npm
 
 # Build MCP servers
 FROM base AS mcp-build
-COPY *-mcp-server ./servers/
+COPY mcp-servers ./servers/
 RUN for dir in servers/*/; do \
       echo "Building $dir..." && \
       cd "$dir" && \

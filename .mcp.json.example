@@ -2,49 +2,49 @@
   "mcpServers": {
     "open-targets": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/open-targets-mcp-server/dist/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/open-targets/dist/index.js"]
     },
     "uniprot": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/uniprot-mcp-server/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/uniprot/build/index.js"]
     },
     "chembl": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/chembl-mcp-server/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/chembl/build/index.js"]
     },
     "pubchem": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/pubchem-mcp-server/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/pubchem/build/index.js"]
     },
     "clinicaltrials": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/clinical-trials-mcp-server/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/clinical-trials/build/index.js"]
     },
     "ensembl": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/ensembl-mcp-server/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/ensembl/build/index.js"]
     },
     "reactome": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/reactome-mcp-server/build/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/reactome/build/index.js"]
     },
     "pubmed": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/pubmed-mcp-server/dist/index.js"],
+      "args": ["/path/to/super-bio-agent/mcp-servers/pubmed/dist/index.js"],
       "env": {
         "NCBI_API_KEY": "YOUR_NCBI_API_KEY_HERE"
       }
     },
     "clinvar": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/clinvar-mcp-server/dist/index.js"],
+      "args": ["/path/to/super-bio-agent/mcp-servers/clinvar/dist/index.js"],
       "env": {
         "NCBI_API_KEY": "YOUR_NCBI_API_KEY_HERE"
       }
     },
     "clinpgx": {
       "command": "node",
-      "args": ["/home/harsh242/pc_data/projects/super-bio-agent/clinpgx-mcp-server/dist/index.js"]
+      "args": ["/path/to/super-bio-agent/mcp-servers/clinpgx/dist/index.js"]
     }
   }
 }

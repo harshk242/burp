@@ -8,9 +8,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { toolRegistry } from "./registry";
 
 // Environment-aware base path for MCP servers
-// Default: ".." because app runs from app/ directory, servers are at project root
+// Default: "../mcp-servers" because app runs from app/ directory, servers are at project root in mcp-servers/
 // In container: "/app/servers" where Dockerfile copies them
-const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || "..";
+const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || "../mcp-servers";
 
 // Server configurations
 interface MCPServerDef {
@@ -21,16 +21,16 @@ interface MCPServerDef {
 }
 
 const MCP_SERVER_DEFS: MCPServerDef[] = [
-  { name: "uniprot", dir: "uniprot-mcp-server", outDir: "build" },
-  { name: "chembl", dir: "chembl-mcp-server", outDir: "build" },
-  { name: "pubchem", dir: "pubchem-mcp-server", outDir: "build" },
-  { name: "ensembl", dir: "ensembl-mcp-server", outDir: "build" },
-  { name: "clinvar", dir: "clinvar-mcp-server", outDir: "dist", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
-  { name: "open-targets", dir: "open-targets-mcp-server", outDir: "dist" },
-  { name: "reactome", dir: "reactome-mcp-server", outDir: "build" },
-  { name: "clinicaltrials", dir: "clinical-trials-mcp-server", outDir: "build" },
-  { name: "pubmed", dir: "pubmed-mcp-server", outDir: "dist", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
-  { name: "clinpgx", dir: "clinpgx-mcp-server", outDir: "dist" },
+  { name: "uniprot", dir: "uniprot", outDir: "build" },
+  { name: "chembl", dir: "chembl", outDir: "build" },
+  { name: "pubchem", dir: "pubchem", outDir: "build" },
+  { name: "ensembl", dir: "ensembl", outDir: "build" },
+  { name: "clinvar", dir: "clinvar", outDir: "dist", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
+  { name: "open-targets", dir: "open-targets", outDir: "dist" },
+  { name: "reactome", dir: "reactome", outDir: "build" },
+  { name: "clinicaltrials", dir: "clinical-trials", outDir: "build" },
+  { name: "pubmed", dir: "pubmed", outDir: "dist", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
+  { name: "clinpgx", dir: "clinpgx", outDir: "dist" },
 ];
 
 export interface MCPServerConfig {
