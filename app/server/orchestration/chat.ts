@@ -167,7 +167,7 @@ export async function* processChat(
     while (continueLoop) {
       // Create streaming request to Claude with beta header for tool search
       const stream = anthropic.beta.messages.stream({
-        model: "claude-sonnet-4-5-20250929,
+        model: "claude-sonnet-4-5-20250929",
         betas: ["advanced-tool-use-2025-11-20"],
         max_tokens: 4096,
         system: SYSTEM_PROMPT,
