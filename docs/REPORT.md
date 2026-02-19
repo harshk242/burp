@@ -20,3 +20,6 @@ Keep the following in mind.
 - Include citations per platform so the user can trace each claim to its source.
 - Use a consistent structure (for example: Overview, Findings by Platform, Cross-links, Gaps/Limitations).
 - Ask follow-up questions only when essential for clarification, and keep them to a minimum.
+
+Pubmed -
+add year and number of citations
