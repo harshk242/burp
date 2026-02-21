@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/clerk-react";
 import { useChatStore } from "@/stores/chatStore";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useApi } from "@/hooks/useApi";
 import { streamChat } from "@/lib/sse";
+import { buildChatUrl, extractSessionIdFromLocation } from "@/lib/chatUrl";
+import { generateId } from "@/lib/id";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ChatContainer } from "@/components/chat/ChatContainer";
@@ -20,8 +21,13 @@ interface ChatPageClientProps {
   sessionId: string | null;
 }
 
-export function ChatPageClient({ sessionId: initialSessionId }: ChatPageClientProps) {
+export function ChatPageClient({ sessionId: _initialSessionId }: ChatPageClientProps) {
   const [mounted, setMounted] = useState(false);
+
+  // Always resolve session ID from the URL client-side (needed for static export)
+  const initialSessionId = typeof window !== "undefined"
+    ? extractSessionIdFromLocation(window.location)
+    : _initialSessionId;
 
   useEffect(() => {
     setMounted(true);
@@ -57,7 +63,6 @@ export function ChatPageClient({ sessionId: initialSessionId }: ChatPageClientPr
 }
 
 function ChatPageContent({ initialSessionId }: { initialSessionId: string | null }) {
-  const router = useRouter();
   const { getToken } = useAuth();
   const { get, post } = useApi();
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId);
@@ -93,7 +98,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
           // Use most recent session
           setCurrentSessionId(data.sessions[0].id);
           // Update URL without full navigation
-          window.history.replaceState(null, "", `/chat/${data.sessions[0].id}/`);
+          window.history.replaceState(null, "", buildChatUrl(data.sessions[0].id));
         } else {
           // Create a new session
           const newSession = await post<{ id: string; title: string }>("/sessions", {});
@@ -107,7 +112,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
           addSession(session);
           setCurrentSessionId(newSession.id);
           // Update URL without full navigation
-          window.history.replaceState(null, "", `/chat/${newSession.id}/`);
+          window.history.replaceState(null, "", buildChatUrl(newSession.id));
         }
       } catch (err) {
         console.error("Failed to init session:", err);
@@ -158,7 +163,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
 
       // Add user message immediately
       addMessage({
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: "user",
         content,
         createdAt: Date.now(),

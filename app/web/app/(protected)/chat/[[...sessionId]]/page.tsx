@@ -5,12 +5,7 @@ export function generateStaticParams() {
   return [{ sessionId: [] }];
 }
 
-export default function ChatPage({
-  params,
-}: {
-  params: { sessionId?: string[] };
-}) {
-  // Extract session ID from optional catch-all params
-  const sessionId = params.sessionId?.[0] || null;
-  return <ChatPageClient sessionId={sessionId} />;
+export default function ChatPage() {
+  // Session ID is resolved client-side from window.location in ChatPageClient
+  return <ChatPageClient sessionId={null} />;
 }

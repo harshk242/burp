@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Message, ToolCall } from "@/types";
+import { generateId } from "@/lib/id";
 
 interface ChatState {
   messages: Message[];
@@ -57,7 +58,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: [
           ...state.messages,
           {
-            id: crypto.randomUUID(),
+            id: generateId(),
             role: "assistant",
             content: streamingContent,
             toolCalls: pendingToolCalls.length > 0 ? pendingToolCalls : undefined,

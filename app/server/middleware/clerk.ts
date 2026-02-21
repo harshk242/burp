@@ -4,7 +4,7 @@
  */
 
 import type { Context, Next } from "hono";
-import { createClerkClient } from "@clerk/backend";
+import { createClerkClient, verifyToken } from "@clerk/backend";
 import { userQueries, accessRequestQueries } from "../db";
 import { v4 as uuidv4 } from "uuid";
 
@@ -95,7 +95,7 @@ export async function clerkAuth(c: Context, next: Next) {
 
   try {
     // Verify JWT with Clerk
-    const payload = await clerk.verifyToken(token);
+    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
     const clerkUserId = payload.sub;
 
     if (!clerkUserId) {

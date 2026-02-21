@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Plus, MessageSquare, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,10 +10,10 @@ import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useApi } from "@/hooks/useApi";
+import { buildChatUrl } from "@/lib/chatUrl";
 import type { SessionListResponse } from "@/types";
 
 export function Sidebar() {
-  const router = useRouter();
   const { get, post, delete: del } = useApi();
   const {
     sessions,
@@ -57,7 +55,7 @@ export function Sidebar() {
       };
       addSession(newSession);
       setActiveSession(data.id);
-      router.push(`/chat/${data.id}`);
+      window.location.href = buildChatUrl(data.id);
       setMobileMenuOpen(false);
     } catch (error) {
       console.error("Failed to create session:", error);
@@ -74,7 +72,7 @@ export function Sidebar() {
       await del(`/sessions/${sessionId}`);
       removeSession(sessionId);
       if (activeSessionId === sessionId) {
-        router.push("/chat");
+        window.location.href = buildChatUrl();
       }
     } catch (error) {
       console.error("Failed to delete session:", error);
@@ -129,12 +127,14 @@ export function Sidebar() {
                 </p>
               ) : (
                 sessions.map((session) => (
-                  <Link
+                  <a
                     key={session.id}
-                    href={`/chat/${session.id}`}
-                    onClick={() => {
+                    href={buildChatUrl(session.id)}
+                    onClick={(e) => {
+                      e.preventDefault();
                       setActiveSession(session.id);
                       setMobileMenuOpen(false);
+                      window.location.href = buildChatUrl(session.id);
                     }}
                     className={cn(
                       "group flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent",
@@ -153,7 +153,7 @@ export function Sidebar() {
                     >
                       <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
                     </Button>
-                  </Link>
+                  </a>
                 ))
               )}
             </div>

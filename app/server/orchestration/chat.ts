@@ -17,7 +17,8 @@ const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
 // Tool search tool definition (built-in, BM25 variant for natural language)
 const TOOL_SEARCH_TOOL = {
   type: "tool_search_tool_bm25_20251119" as const,
-  name: "tool_search",
+  // Anthropic currently requires this exact tool name literal for BM25 search.
+  name: "tool_search_tool_bm25",
 };
 
 // System prompt for biomedical research assistant
@@ -51,14 +52,14 @@ You have 210+ specialized tools available, organized in two tiers:
 - **clinicaltrials__search_by_intervention** - Drug → clinical trials (NCT IDs)
 - **clinicaltrials__search_by_condition** - Condition → clinical trials (NCT IDs)
 
-### Additional Specialized Tools (use tool_search to discover):
+### Additional Specialized Tools (use tool_search_tool_bm25 to discover):
 For specialized queries (protein structure, pathway analysis, bioactivity data, etc.),
-use the tool_search tool to find relevant tools by describing what you need.
+use the tool_search_tool_bm25 tool to find relevant tools by describing what you need.
 
 ## Workflow Guidelines
 
 1. **Start with core tools** for ID resolution and initial discovery
-2. **Use tool_search** when you need specialized analysis not covered by core tools
+2. **Use tool_search_tool_bm25** when you need specialized analysis not covered by core tools
 3. **Cross-reference multiple databases** - use IDs from one database to query others
 4. **Cite specific identifiers** (UniProt IDs, ChEMBL IDs, PMIDs, ENSG IDs, etc.)
 5. **Explain your findings** in clear, scientific language
@@ -140,12 +141,12 @@ export async function* processChat(
     }
 
     // Guard: At least one MCP tool must be non-deferred (API requirement)
-    // tool_search alone is useless if there are no tools to discover
+    // tool_search_tool_bm25 alone is useless if there are no tools to discover
     const coreToolCount = mcpTools.filter((t) => !t.defer_loading).length;
     if (coreToolCount === 0) {
       console.warn(
         "[Chat] Warning: No core tools available. All tools are deferred. " +
-          "Claude will need to use tool_search for every query."
+          "Claude will need to use tool_search_tool_bm25 for every query."
       );
     }
 
@@ -154,7 +155,7 @@ export async function* processChat(
 
     // Log for debugging
     console.log(
-      `[Chat] Tools loaded: ${mcpTools.length} MCP tools (${coreToolCount} core) + 1 tool_search`
+      `[Chat] Tools loaded: ${mcpTools.length} MCP tools (${coreToolCount} core) + 1 tool_search_tool_bm25`
     );
 
     // Store user message
@@ -202,7 +203,7 @@ export async function* processChat(
               input: "",
             };
           } else if ((event.content_block as { type: string }).type === "server_tool_use") {
-            // Built-in tool (like tool_search) being called
+            // Built-in tool (like tool_search_tool_bm25) being called
             // The API handles this automatically - no action needed
             const serverTool = event.content_block as { type: string; name?: string };
             console.log(
