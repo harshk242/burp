@@ -6,6 +6,7 @@ Git commit message length should scale with the change scope:
 - Medium changes (moderate LOC/complexity, several files): clear subject + brief body.
 - Large or complex changes (high LOC, high complexity, many files): detailed subject + structured body covering what changed and why.
 Destructive ops forbidden unless explicit (reset --hard, clean, restore, rm, …).
+Don't mention claude or codex models as co author in commit messages or anywhere in the code
 
 # Critical Thinking
 Fix root cause (not band-aid).
@@ -19,6 +20,3 @@ Rules for Codex CLI:
 
 # Package management
 - use bun commands always
-
-# Git
-- Don't mention claude or codex models as co author in commit messages or anywhere in the code

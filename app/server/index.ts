@@ -50,7 +50,12 @@ app.use("*", logger());
 app.use(
   "*",
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: (origin) => {
+      const allowed = (process.env.CORS_ORIGINS || "http://localhost:3000,http://localhost:3001")
+        .split(",")
+        .map((o) => o.trim());
+      return allowed.includes(origin) ? origin : allowed[0];
+    },
     credentials: true,
   })
 );
@@ -90,5 +95,6 @@ console.log(`
 
 export default {
   port,
+  hostname: "0.0.0.0",
   fetch: app.fetch,
 };

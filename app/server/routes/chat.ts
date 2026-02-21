@@ -122,9 +122,13 @@ chat.openapi(chatRoute, async (c) => {
         });
       }
 
-      // Generate title for new sessions (async, don't wait)
+      // Generate title for new sessions and emit via SSE
       if (isNewSession) {
-        generateSessionTitle(sessionId, message).catch(console.error);
+        const title = await generateSessionTitle(sessionId, message);
+        await stream.writeSSE({
+          event: "title",
+          data: JSON.stringify({ title }),
+        });
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";

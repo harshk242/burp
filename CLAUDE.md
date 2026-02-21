@@ -1,3 +1,3 @@
 # Instructions
 - Use AGENTS.md always.
-- Ignore claude.md file.
+- Ignore CLAUDE.md file.

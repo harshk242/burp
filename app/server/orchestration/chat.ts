@@ -12,6 +12,8 @@ import { messageQueries, chatSessionQueries, userQueries } from "../db";
 // Initialize Anthropic client
 const anthropic = new Anthropic();
 
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
+
 // Tool search tool definition (built-in, BM25 variant for natural language)
 const TOOL_SEARCH_TOOL = {
   type: "tool_search_tool_bm25_20251119" as const,
@@ -167,7 +169,7 @@ export async function* processChat(
     while (continueLoop) {
       // Create streaming request to Claude with beta header for tool search
       const stream = anthropic.beta.messages.stream({
-        model: "claude-sonnet-4-5-20250929",
+        model: CLAUDE_MODEL,
         betas: ["advanced-tool-use-2025-11-20"],
         max_tokens: 4096,
         system: SYSTEM_PROMPT,
