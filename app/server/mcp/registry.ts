@@ -5,6 +5,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import type { mcpManager as MCPManagerType } from "./manager";
+import { ALWAYS_LOADED_TOOLS } from "./platforms.config";
 
 export interface MCPTool {
   name: string;
@@ -13,36 +14,6 @@ export interface MCPTool {
   inputSchema: Record<string, unknown>;
   available: boolean;
 }
-
-/**
- * Core tools that are ALWAYS loaded (non-deferred).
- * These serve as ID-bridge tools and evidence hubs, enabling:
- * - Gene symbol → Ensembl ID (foundation ID)
- * - Gene → Protein ID bridge
- * - Compound name → ChEMBL ID
- * - Structure → PubChem CID
- * - rsID → clinical context
- * - Quick literature and trial discovery
- *
- * Tool search can still find additional specialized tools.
- * NOTE: Server slugs must match those defined in manager.ts
- */
-const ALWAYS_LOADED_TOOLS = new Set([
-  // ID-Bridge Core
-  "ensembl__search_genes", // Gene symbol → ENSG (foundation ID)
-  "open-targets__search_entities", // Gene/disease → ENSG/EFO (most connected hub)
-  "uniprot__search_by_gene", // Gene symbol → UniProt accession
-  "uniprot__get_external_references", // UniProt → Ensembl cross-refs
-  "ensembl__get_xrefs", // Ensembl → UniProt cross-refs (bidirectional)
-  "chembl__search_compounds", // Drug name → ChEMBL ID (compound hub)
-  "pubchem__search_by_smiles", // SMILES → PubChem CID (ChEMBL ↔ PubChem mapping)
-  "clinvar__lookup_by_rsid", // rsID → clinical context + gene (variant bridge)
-
-  // Evidence Hubs
-  "pubmed__search_pubmed", // Quick PMID discovery (literature hub)
-  "clinicaltrials__search_by_intervention", // Drug → NCT IDs (trial link)
-  "clinicaltrials__search_by_condition", // Condition → NCT IDs (trial link)
-]);
 
 export interface ClaudeTool {
   name: string;

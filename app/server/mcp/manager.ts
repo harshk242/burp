@@ -6,31 +6,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { toolRegistry } from "./registry";
+import { enabledPlatforms } from "./platforms.config";
 
 // Environment-aware base path for MCP servers
 // Default: "../mcp-servers" because app runs from app/ directory, servers are at project root in mcp-servers/
 // In container: "/app/servers" where Dockerfile copies them
 const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || "../mcp-servers";
-
-// Server configurations
-interface MCPServerDef {
-  name: string;
-  dir: string;
-  env?: Record<string, string | undefined>;
-}
-
-const MCP_SERVER_DEFS: MCPServerDef[] = [
-  { name: "uniprot", dir: "uniprot" },
-  { name: "chembl", dir: "chembl" },
-  { name: "pubchem", dir: "pubchem" },
-  { name: "ensembl", dir: "ensembl" },
-  { name: "clinvar", dir: "clinvar", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
-  { name: "open-targets", dir: "open-targets" },
-  { name: "reactome", dir: "reactome" },
-  { name: "clinicaltrials", dir: "clinical-trials" },
-  { name: "pubmed", dir: "pubmed", env: { NCBI_API_KEY: process.env.NCBI_API_KEY } },
-  { name: "clinpgx", dir: "clinpgx" },
-];
 
 export interface MCPServerConfig {
   name: string;
@@ -40,11 +21,11 @@ export interface MCPServerConfig {
   env?: Record<string, string | undefined>;
 }
 
-export const MCP_SERVERS: MCPServerConfig[] = MCP_SERVER_DEFS.map((s) => ({
-  name: s.name,
+export const MCP_SERVERS: MCPServerConfig[] = enabledPlatforms.map((p) => ({
+  name: p.name,
   command: "node",
-  args: [`${MCP_SERVERS_BASE}/${s.dir}/dist/index.js`],
-  env: s.env,
+  args: [`${MCP_SERVERS_BASE}/${p.dir}/dist/index.js`],
+  env: p.env,
 }));
 
 export type ServerStatus = "stopped" | "starting" | "running" | "error";
