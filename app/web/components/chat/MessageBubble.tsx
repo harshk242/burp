@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ToolCallCard } from "./ToolCallCard";
@@ -55,7 +56,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               <p className="whitespace-pre-wrap">{message.content}</p>
             ) : (
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{message.content}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
               </div>
             )}
           </div>

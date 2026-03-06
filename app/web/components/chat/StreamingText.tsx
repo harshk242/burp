@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 
 interface StreamingTextProps {
@@ -17,7 +18,7 @@ export function StreamingText({ content, className }: StreamingTextProps) {
       )}
     >
       <div className="prose prose-sm dark:prose-invert max-w-none">
-        <ReactMarkdown>{content}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         <span className="streaming-cursor" />
       </div>
     </div>

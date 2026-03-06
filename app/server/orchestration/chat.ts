@@ -336,10 +336,18 @@ export async function* processChat(
           }
         }
 
-        // Add assistant message with tool use blocks to messages
+        // Add assistant message with tool use blocks to messages.
+        // Filter out server_tool_use and tool_search_tool_result blocks — these are
+        // server-side artifacts returned in the response that the API rejects when
+        // re-sent in request bodies (they contain extra fields not permitted in requests).
+        const clientContentBlocks = assistantContentBlocks.filter(
+          (block) =>
+            (block as { type: string }).type !== "server_tool_use" &&
+            (block as { type: string }).type !== "tool_search_tool_result"
+        );
         messages.push({
           role: "assistant",
-          content: assistantContentBlocks,
+          content: clientContentBlocks,
         });
 
         // Add tool results as user message
