@@ -11,6 +11,7 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import axios, { AxiosInstance } from 'axios';
+import { resolveSpeciesFilter, extractSearchByGeneResponse } from './extractors.js';
 
 // UniProt API interfaces
 interface ProteinSearchResult {
@@ -90,12 +91,12 @@ const isValidProteinInfoArgs = (
 
 const isValidGeneSearchArgs = (
   args: any
-): args is { gene: string; organism?: string; size?: number } => {
+): args is { gene: string; species?: string[]; size?: number } => {
   return (
     typeof args === 'object' &&
     args !== null &&
     typeof args.gene === 'string' &&
-    (args.organism === undefined || typeof args.organism === 'string') &&
+    (args.species === undefined || Array.isArray(args.species)) &&
     (args.size === undefined || (typeof args.size === 'number' && args.size > 0 && args.size <= 500))
   );
 };
@@ -425,12 +426,16 @@ class UniProtServer {
         },
         {
           name: 'search_by_gene',
-          description: 'Search for proteins by gene name or symbol',
+          description: 'Search for proteins by gene name or symbol. Returns extracted, LLM-optimized data (~98% smaller than raw). Defaults to human (Homo sapiens) if no species specified.',
           inputSchema: {
             type: 'object',
             properties: {
               gene: { type: 'string', description: 'Gene name or symbol (e.g., BRCA1, INS)' },
-              organism: { type: 'string', description: 'Organism name or taxonomy ID to filter results' },
+              species: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Species to search. Accepts common names (human, mouse, rat), scientific names, or taxon IDs. Defaults to ["human"] if omitted.',
+              },
               size: { type: 'number', description: 'Number of results to return (1-500, default: 25)', minimum: 1, maximum: 500 },
             },
             required: ['gene'],
@@ -876,8 +881,9 @@ class UniProtServer {
 
     try {
       let query = `gene:"${args.gene}"`;
-      if (args.organism) {
-        query += ` AND organism_name:"${args.organism}"`;
+      const speciesFilter = resolveSpeciesFilter(args.species);
+      if (speciesFilter) {
+        query += ` AND ${speciesFilter}`;
       }
 
       const response = await this.apiClient.get('/uniprotkb/search', {
@@ -888,11 +894,17 @@ class UniProtServer {
         },
       });
 
+      const extracted = extractSearchByGeneResponse(
+        response.data,
+        args.gene,
+        args.species,
+      );
+
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(extracted, null, 2),
           },
         ],
       };
