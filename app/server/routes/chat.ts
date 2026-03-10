@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ChatRequestSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import { processChat, generateSessionTitle } from "../orchestration/chat";
+import { chatSessionQueries, messageQueries } from "../db";
 
 const chat = new OpenAPIHono();
 
@@ -110,21 +111,45 @@ chat.openapi(chatRoute, async (c) => {
 
   // Generate session ID if not provided
   const sessionId = providedSessionId || uuidv4();
-  const isNewSession = !providedSessionId;
+
+  const existingSession = chatSessionQueries.findById(sessionId) as
+    | { title: string | null; user_id: string }
+    | null;
+  const canInspectSession = !existingSession || existingSession.user_id === userId;
+
+  const existingMessages = canInspectSession
+    ? (messageQueries.findByChatId(sessionId) as Array<{
+        role: string;
+        content: string | null;
+      }>)
+    : [];
+  const firstUserMessage = existingMessages.find((msg) => msg.role === "user" && msg.content)
+    ?.content;
+  const shouldGenerateTitle =
+    canInspectSession &&
+    isUntitledSession(existingSession?.title) &&
+    (existingMessages.length === 0 || Boolean(firstUserMessage));
 
   return streamSSE(c, async (stream) => {
     try {
+      let hasStreamError = false;
+
       // Process chat through Claude with tool calling
       for await (const event of processChat(sessionId, userId, message)) {
+        if (event.type === "error") {
+          hasStreamError = true;
+        }
         await stream.writeSSE({
           event: event.type,
           data: typeof event.data === "string" ? event.data : JSON.stringify(event.data),
         });
       }
 
-      // Generate title for new sessions and emit via SSE
-      if (isNewSession) {
-        const title = await generateSessionTitle(sessionId, message);
+      // Generate title when session is still untitled.
+      // This handles pre-created sessions where the first chat message includes a sessionId.
+      if (!hasStreamError && shouldGenerateTitle) {
+        const titleHint = firstUserMessage || message;
+        const title = await generateSessionTitle(sessionId, titleHint);
         await stream.writeSSE({
           event: "title",
           data: JSON.stringify({ title }),
@@ -139,5 +164,12 @@ chat.openapi(chatRoute, async (c) => {
     }
   });
 });
+
+function isUntitledSession(title: string | null | undefined): boolean {
+  if (!title) {
+    return true;
+  }
+  return title.trim().toLowerCase() === "new chat";
+}
 
 export { chat };

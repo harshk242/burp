@@ -13,6 +13,7 @@ import { messageQueries, chatSessionQueries, userQueries } from "../db";
 const anthropic = new Anthropic();
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
+const TITLE_MODEL = process.env.CLAUDE_TITLE_MODEL || "claude-3-haiku-20240307";
 
 // Tool search tool definition (built-in, BM25 variant for natural language)
 const TOOL_SEARCH_TOOL = {
@@ -424,29 +425,60 @@ export async function generateSessionTitle(
   sessionId: string,
   firstMessage: string
 ): Promise<string> {
+  const fallbackTitle = buildFallbackTitle(firstMessage);
+
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-5-20250929",
+      model: TITLE_MODEL,
       max_tokens: 50,
       messages: [
         {
           role: "user",
-          content: `Generate a very short title (3-6 words) for a chat that starts with this message: "${firstMessage.substring(0, 200)}"
+          content: `Generate a short chat title (3-6 words) from this user question:
+"${firstMessage.substring(0, 300)}"
 
-Just respond with the title, nothing else.`,
+Return only the title text.`,
         },
       ],
     });
 
-    const title =
-      response.content[0].type === "text"
-        ? response.content[0].text.trim()
-        : "New Chat";
+    const generatedText =
+      response.content.find((block) => block.type === "text")?.text || "";
+    const title = normalizeTitle(generatedText, fallbackTitle);
 
     chatSessionQueries.updateTitle(sessionId, title);
     return title;
   } catch (error) {
     console.error("[Chat] Failed to generate title:", error);
+    chatSessionQueries.updateTitle(sessionId, fallbackTitle);
+    return fallbackTitle;
+  }
+}
+
+function normalizeTitle(rawTitle: string, fallback: string): string {
+  const normalized = rawTitle
+    .replace(/\s+/g, " ")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .trim();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  return normalized.length > 80 ? normalized.slice(0, 80).trimEnd() : normalized;
+}
+
+function buildFallbackTitle(firstMessage: string): string {
+  const cleaned = firstMessage
+    .replace(/\s+/g, " ")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .trim();
+
+  if (!cleaned) {
     return "New Chat";
   }
+
+  const words = cleaned.split(" ").slice(0, 6);
+  const title = words.join(" ");
+  return title.length > 80 ? title.slice(0, 80).trimEnd() : title;
 }
