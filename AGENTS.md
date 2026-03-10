@@ -21,6 +21,24 @@ Leave breadcrumb notes in thread.
 Rules for Codex CLI:
 - To run code in this repository, refer to CODEX_CLI.md.
 
+# Symlink setup (Windows)
+`CLAUDE.md` is a symlink to `AGENTS.md`. Git may check it out as a plain text file containing the path on Windows.
+To fix, run in an elevated (Admin) terminal from the repo root:
+```
+del CLAUDE.md
+mklink CLAUDE.md AGENTS.md
+```
+Or with Git for Windows (Git Bash):
+```
+rm CLAUDE.md
+ln -s AGENTS.md CLAUDE.md
+```
+Alternatively, enable symlink support globally so Git restores them automatically:
+```
+git config --global core.symlinks true
+```
+Then re-clone or `git checkout -- CLAUDE.md`.
+
 # Package management
 - use bun commands always
 
