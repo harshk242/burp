@@ -1,4 +1,5 @@
 node_modules/
+package-lock.json
 .env.local
 .DS_Store
 bun.lock
@@ -11,3 +12,5 @@ data/
 
 # Environment variables
 .env
+
+app/tmp

@@ -81,40 +81,175 @@ super-bio-agent/
 
 ### Prerequisites
 
-- **Node.js** 18+
-- **Bun** package manager ([install](https://bun.sh))
-- **NCBI API Key** (optional, for PubMed and ClinVar access) - get from [NCBI](https://www.ncbi.nlm.nih.gov/account/)
-
-### Installation
-
-1. **Clone the repository**
+1. **Bun** package manager
    ```bash
-   git clone <repository-url>
-   cd super-bio-agent
+   curl -fsSL https://bun.sh/install | bash
    ```
 
-2. **Set up environment variables**
-   ```bash
-   cp .mcp.json.example .mcp.json
-   cp .env.local.example .env.local  # if available
+2. **Node.js** 18+ (included with Bun)
 
-   # Add your NCBI API key to .env.local
-   export NCBI_API_KEY="your-api-key-here"
-   ```
+3. **API Keys** — Get these before starting:
+   - **Anthropic API Key**: Get from [Anthropic Console](https://console.anthropic.com/)
+   - **Clerk API Key**: Get from [Clerk Dashboard](https://dashboard.clerk.com)
+   - **NCBI API Key** (optional, but recommended for higher rate limits): Get from [NCBI](https://www.ncbi.nlm.nih.gov/account/)
 
-3. **Build all MCP servers**
-   ```bash
-   # Build each server
-   cd mcp-servers/open-targets && bun run build && cd ../..
-   cd mcp-servers/uniprot && bun run build && cd ../..
-   cd mcp-servers/ensembl && bun run build && cd ../..
-   # ... repeat for all servers
-   ```
+### Installation Steps
 
-   Or build a specific server:
-   ```bash
-   cd mcp-servers/chembl && bun run build
-   ```
+#### 1. **Clone & Install Dependencies**
+```bash
+git clone <repository-url>
+cd super-bio-agent
+
+# Install root dependencies (if any)
+bun install
+
+# Install server dependencies
+cd app
+bun install
+
+# Install web (frontend) dependencies
+cd web
+bun install
+cd ../..
+```
+
+#### 2. **Setup Clerk Authentication**
+
+Go to [Clerk Dashboard](https://dashboard.clerk.com):
+- Create a new application (if you haven't)
+- Copy your **Publishable Key** and **Secret Key**
+- You'll use these in the environment variables
+
+#### 3. **Environment Variables**
+
+**For the backend** (`app/.env`):
+```bash
+cd app
+cp .env.example .env
+```
+
+Edit `app/.env` and fill in:
+```env
+# Required
+ANTHROPIC_API_KEY=sk-ant-...
+CLERK_SECRET_KEY=sk_test_...
+
+# Recommended
+NCBI_API_KEY=<your-ncbi-key>
+
+# Optional
+CLAUDE_MODEL=claude-sonnet-4-6
+PORT=3000
+DATABASE_URL=./data/super-bio-agent.db
+MCP_SERVERS_BASE=../mcp-servers
+ADMIN_EMAIL=you@example.com
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+```
+
+**For the frontend** (`app/web/.env.local`):
+```bash
+cd web
+cp .env.example .env.local
+```
+
+Edit `app/web/.env.local`:
+```env
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_API_URL=http://localhost:3000
+```
+
+#### 4. **Build MCP Servers** (one-time)
+```bash
+cd super-bio-agent
+
+# Build all servers (from root)
+for dir in mcp-servers/*/; do
+  cd "$dir"
+  bun install
+  bun run build 2>/dev/null || true  # Some servers may not have a build script
+  cd ../../
+done
+```
+
+Or build individual servers as needed:
+```bash
+cd mcp-servers/uniprot
+bun install
+bun run build
+cd ../..
+```
+
+### Running the Application
+
+#### **Option 1: Development Mode** (recommended)
+
+Terminal 1 — Backend:
+```bash
+cd app
+bun run dev
+# Server runs on http://localhost:3000
+```
+
+Terminal 2 — Frontend:
+```bash
+cd app/web
+bun run dev
+# Frontend runs on http://localhost:3001
+```
+
+Then open http://localhost:3001 in your browser.
+
+#### **Option 2: Production Mode**
+
+Backend:
+```bash
+cd app
+bun run start
+```
+
+Frontend:
+```bash
+cd app/web
+bun run build
+bun run start
+```
+
+### Database Setup (First Time)
+
+```bash
+cd app
+bun run db:init
+```
+
+This initializes the SQLite database at `./data/super-bio-agent.db`.
+
+### Verification Checklist
+
+- [ ] Bun installed: `bun --version`
+- [ ] Dependencies installed: Check `app/node_modules` and `app/web/node_modules` exist
+- [ ] Environment variables set in both `app/.env` and `app/web/.env.local`
+- [ ] Clerk keys are valid (test by visiting login page at http://localhost:3001)
+- [ ] MCP servers built: Check `mcp-servers/*/dist` or `mcp-servers/*/build` folders exist
+- [ ] Backend starts: `bun run dev` in `app/` should show "Server running"
+- [ ] Frontend starts: `bun run dev` in `app/web/` should show "ready - started server on ..."
+
+### Troubleshooting
+
+**"Port already in use"**
+- Backend uses 3000, frontend uses 3001. Stop other services or change port in scripts.
+
+**"Clerk authentication fails"**
+- Verify `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is set in `app/web/.env.local`
+- Make sure it matches your Clerk application
+
+**"MCP servers not found"**
+- Ensure all servers are built: `cd mcp-servers/<server> && bun run build`
+- Check `.mcp.json` paths match your actual build output directories
+
+**"Database errors"**
+- Run: `bun run db:init` from `app/` directory
+- Check file permissions on `./data/` directory
 
 ### Configuration
 
