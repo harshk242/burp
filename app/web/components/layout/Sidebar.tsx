@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { Plus, MessageSquare, Trash2, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, MessageSquare, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -14,18 +14,20 @@ import { buildChatUrl } from "@/lib/chatUrl";
 import type { SessionListResponse } from "@/types";
 
 export function Sidebar() {
-  const { get, post, delete: del } = useApi();
+  const { get, patch, delete: del } = useApi();
   const {
     sessions,
     activeSessionId,
     isLoading,
     setSessions,
-    addSession,
     removeSession,
     setActiveSession,
+    updateSession,
     setLoading,
   } = useSessionStore();
   const { sidebarOpen, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
 
   // Fetch sessions on mount
   useEffect(() => {
@@ -43,22 +45,39 @@ export function Sidebar() {
     fetchSessions();
   }, [get, setSessions, setLoading]);
 
-  async function handleNewChat() {
+  function handleNewChat() {
+    setActiveSession(null);
+    setMobileMenuOpen(false);
+    window.location.href = buildChatUrl();
+  }
+
+  function handleStartRename(e: React.MouseEvent, sessionId: string, currentTitle: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingSessionId(sessionId);
+    setEditingTitle(currentTitle || "New Chat");
+  }
+
+  async function handleRenameCommit(sessionId: string) {
+    const trimmed = editingTitle.trim();
+    setEditingSessionId(null);
+    if (!trimmed) return;
+    const session = sessions.find((s) => s.id === sessionId);
+    if (trimmed === (session?.title || "New Chat")) return;
     try {
-      const data = await post<{ id: string; title: string }>("/sessions", {});
-      const newSession = {
-        id: data.id,
-        user_id: "",
-        title: data.title,
-        created_at: Math.floor(Date.now() / 1000),
-        updated_at: null,
-      };
-      addSession(newSession);
-      setActiveSession(data.id);
-      window.location.href = buildChatUrl(data.id);
-      setMobileMenuOpen(false);
+      await patch(`/sessions/${sessionId}`, { title: trimmed });
+      updateSession(sessionId, { title: trimmed });
     } catch (error) {
-      console.error("Failed to create session:", error);
+      console.error("Failed to rename session:", error);
+    }
+  }
+
+  function handleRenameKeyDown(e: React.KeyboardEvent, sessionId: string) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleRenameCommit(sessionId);
+    } else if (e.key === "Escape") {
+      setEditingSessionId(null);
     }
   }
 
@@ -131,6 +150,7 @@ export function Sidebar() {
                     key={session.id}
                     href={buildChatUrl(session.id)}
                     onClick={(e) => {
+                      if (editingSessionId === session.id) return;
                       e.preventDefault();
                       setActiveSession(session.id);
                       setMobileMenuOpen(false);
@@ -142,17 +162,41 @@ export function Sidebar() {
                     )}
                   >
                     <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate">
-                      {session.title || "New Chat"}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
-                      onClick={(e) => handleDeleteSession(e, session.id)}
-                    >
-                      <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                    </Button>
+                    {editingSessionId === session.id ? (
+                      <input
+                        autoFocus
+                        className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none border-b border-muted-foreground/40"
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onBlur={() => handleRenameCommit(session.id)}
+                        onKeyDown={(e) => handleRenameKeyDown(e, session.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <>
+                        <span className="flex-1 truncate">
+                          {session.title || "New Chat"}
+                        </span>
+                        <div className="hidden group-hover:flex items-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={(e) => handleStartRename(e, session.id, session.title || "")}
+                          >
+                            <Pencil className="h-3 w-3 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={(e) => handleDeleteSession(e, session.id)}
+                          >
+                            <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </a>
                 ))
               )}

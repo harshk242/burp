@@ -15,7 +15,7 @@ import { MessageList } from "@/components/chat/MessageList";
 import { MessageInput } from "@/components/chat/MessageInput";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { SessionWithMessagesResponse, SessionListResponse, Message, ToolCall } from "@/types";
+import type { SessionWithMessagesResponse, Message, ToolCall } from "@/types";
 
 interface ChatPageClientProps {
   sessionId: string | null;
@@ -66,7 +66,6 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
   const { getToken } = useAuth();
   const { get, post } = useApi();
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId);
-  const [isLoadingSession, setIsLoadingSession] = useState(!initialSessionId);
   const {
     messages,
     isStreaming,
@@ -78,56 +77,11 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     reset,
     setError,
   } = useChatStore();
-  const { sessions, setSessions, addSession, setActiveSession, updateSession } = useSessionStore();
-
-  // If no session ID provided, load or create one
-  useEffect(() => {
-    if (currentSessionId) {
-      setIsLoadingSession(false);
-      return;
-    }
-
-    async function initSession() {
-      setIsLoadingSession(true);
-      try {
-        // First, try to load existing sessions
-        const data = await get<SessionListResponse>("/sessions");
-        setSessions(data.sessions);
-
-        if (data.sessions.length > 0) {
-          // Use most recent session
-          setCurrentSessionId(data.sessions[0].id);
-          // Update URL without full navigation
-          window.history.replaceState(null, "", buildChatUrl(data.sessions[0].id));
-        } else {
-          // Create a new session
-          const newSession = await post<{ id: string; title: string }>("/sessions", {});
-          const session = {
-            id: newSession.id,
-            user_id: "",
-            title: newSession.title,
-            created_at: Math.floor(Date.now() / 1000),
-            updated_at: null,
-          };
-          addSession(session);
-          setCurrentSessionId(newSession.id);
-          // Update URL without full navigation
-          window.history.replaceState(null, "", buildChatUrl(newSession.id));
-        }
-      } catch (err) {
-        console.error("Failed to init session:", err);
-        setError("Failed to initialize chat session");
-      } finally {
-        setIsLoadingSession(false);
-      }
-    }
-
-    initSession();
-  }, [currentSessionId, get, post, setSessions, addSession, setError]);
+  const { addSession, setActiveSession, updateSession } = useSessionStore();
 
   // Load session messages when session ID changes
   useEffect(() => {
-    if (!currentSessionId || isLoadingSession) return;
+    if (!currentSessionId) return;
 
     setActiveSession(currentSessionId);
     reset(); // Clear previous session's messages
@@ -155,11 +109,33 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     }
 
     loadMessages();
-  }, [currentSessionId, isLoadingSession, get, setActiveSession, reset, setMessages, setError]);
+  }, [currentSessionId, get, setActiveSession, reset, setMessages, setError]);
 
   const handleSend = useCallback(
     async (content: string) => {
-      if (!currentSessionId) return;
+      let sessionId = currentSessionId;
+
+      // Lazily create session on first message
+      if (!sessionId) {
+        try {
+          const data = await post<{ id: string; title: string }>("/sessions", {});
+          const newSession = {
+            id: data.id,
+            user_id: "",
+            title: data.title,
+            created_at: Math.floor(Date.now() / 1000),
+            updated_at: null,
+          };
+          addSession(newSession);
+          setCurrentSessionId(data.id);
+          setActiveSession(data.id);
+          window.history.replaceState(null, "", buildChatUrl(data.id));
+          sessionId = data.id;
+        } catch (err) {
+          setError("Failed to create session");
+          return;
+        }
+      }
 
       // Add user message immediately
       addMessage({
@@ -173,30 +149,16 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
         const token = await getToken();
         if (!token) throw new Error("Not authenticated");
 
-        await streamChat(currentSessionId, content, token, (title) => {
-          updateSession(currentSessionId, { title });
+        await streamChat(sessionId, content, token, (title) => {
+          updateSession(sessionId!, { title });
         });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "An error occurred";
         setError(errorMsg);
       }
     },
-    [currentSessionId, getToken, addMessage, updateSession, setError]
+    [currentSessionId, getToken, addMessage, updateSession, setError, post, addSession, setActiveSession]
   );
-
-  if (isLoadingSession) {
-    return (
-      <div className="flex h-screen flex-col">
-        <Header />
-        <div className="flex flex-1 items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <LoadingSpinner size="lg" />
-            <p className="text-muted-foreground">Loading chat...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen flex-col">
@@ -219,7 +181,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
               </div>
             </div>
           )}
-          <MessageInput onSend={handleSend} disabled={isStreaming || !currentSessionId} />
+          <MessageInput onSend={handleSend} disabled={isStreaming} />
         </ChatContainer>
       </div>
     </div>

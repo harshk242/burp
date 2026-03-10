@@ -161,18 +161,11 @@ NEXT_PUBLIC_API_URL=http://localhost:3000
 
 #### 4. **Build MCP Servers** (one-time)
 ```bash
-cd super-bio-agent
-
-# Build all servers (from root)
-for dir in mcp-servers/*/; do
-  cd "$dir"
-  bun install
-  bun run build 2>/dev/null || true  # Some servers may not have a build script
-  cd ../../
-done
+# Build all servers from the project root
+bun run build:servers
 ```
 
-Or build individual servers as needed:
+Or build an individual server:
 ```bash
 cd mcp-servers/uniprot
 bun install
