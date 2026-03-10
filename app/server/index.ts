@@ -1,52 +1,87 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import { serveStatic } from "hono/bun";
 import { initializeSchema } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
 import { toolRegistry } from "./mcp/registry";
+import { logger, startTimer, generateRequestId } from "./logger";
 
 // Initialize database on startup
 initializeSchema();
+logger.info("STARTUP", "database_initialized");
 
 // Initialize MCP servers and tool discovery
 async function initializeMCP() {
-  console.log("[Startup] Registering MCP servers...");
+  const elapsed = startTimer();
+
+  logger.info("STARTUP", "mcp_init_start");
   mcpManager.registerAll();
 
-  console.log("[Startup] Starting MCP servers (best-effort)...");
-  await mcpManager.startAll();
+  logger.info("STARTUP", "mcp_servers_starting");
+  const { succeeded, failed } = await mcpManager.startAll();
 
-  console.log("[Startup] Discovering tools from running servers...");
+  logger.info("STARTUP", "mcp_servers_started", {
+    data: { succeeded, failed, total: succeeded + failed },
+  });
+
+  logger.info("STARTUP", "tool_discovery_start");
   await toolRegistry.discoverTools(mcpManager);
 
-  console.log(`[Startup] Ready with ${toolRegistry.availableCount}/${toolRegistry.count} tools available`);
+  logger.info("STARTUP", "mcp_init_complete", {
+    duration_ms: elapsed(),
+    data: {
+      tools_available: toolRegistry.availableCount,
+      tools_total: toolRegistry.count,
+    },
+  });
 }
 
 // Start MCP initialization (don't block server startup)
 initializeMCP().catch((error) => {
-  console.error("[Startup] MCP initialization error:", error);
-  // Don't exit - server can still handle requests, just without tools
+  logger.error("STARTUP", "mcp_init_failed", { error: error instanceof Error ? error : String(error) });
 });
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  console.log("[Shutdown] Received SIGTERM, stopping MCP servers...");
+  logger.info("SHUTDOWN", "sigterm_received");
   await mcpManager.stopAll();
+  logger.flush();
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-  console.log("[Shutdown] Received SIGINT, stopping MCP servers...");
+  logger.info("SHUTDOWN", "sigint_received");
   await mcpManager.stopAll();
+  logger.flush();
   process.exit(0);
 });
 
 const app = new Hono();
 
-// Middleware
-app.use("*", logger());
+// Middleware - HTTP request logging
+app.use("*", async (c, next) => {
+  const rid = generateRequestId();
+  c.set("requestId", rid);
+  const elapsed = startTimer();
+  const method = c.req.method;
+  const path = c.req.path;
+
+  logger.info("HTTP", "request_start", {
+    data: { method, path },
+    ctx: { request_id: rid },
+  });
+
+  await next();
+
+  const status = c.res.status;
+  const level = status >= 500 ? "error" : status >= 400 ? "warn" : "info";
+  logger[level]("HTTP", "request_end", {
+    duration_ms: elapsed(),
+    data: { method, path, status },
+    ctx: { request_id: rid },
+  });
+});
 app.use(
   "*",
   cors({

@@ -7,6 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { toolRegistry } from "./registry";
 import { enabledPlatforms } from "./platforms.config";
+import { logger, startTimer, estimateTokens } from "../logger";
 
 // Environment-aware base path for MCP servers
 // Default: "../mcp-servers" because app runs from app/ directory, servers are at project root in mcp-servers/
@@ -97,9 +98,11 @@ class MCPManager {
 
     server.status = "starting";
     server.error = undefined;
+    const elapsed = startTimer();
+
+    logger.info("MCP", "server_starting", { data: { server: name, command: server.config.command, args: server.config.args.join(" ") } });
 
     try {
-      // Create transport - it handles spawning the process internally
       const transport = new StdioClientTransport({
         command: server.config.command,
         args: server.config.args,
@@ -109,13 +112,11 @@ class MCPManager {
 
       server.transport = transport;
 
-      // Create MCP client
       const client = new Client(
         { name: "super-bio-agent", version: "1.0.0" },
         { capabilities: {} }
       );
 
-      // Connect client to transport (this starts the process)
       await client.connect(transport);
 
       server.client = client;
@@ -123,27 +124,26 @@ class MCPManager {
       server.retryCount = 0;
       server.nextRetryAt = undefined;
 
-      console.log(`[MCP] Server '${name}' started successfully`);
+      logger.info("MCP", "server_started", { duration_ms: elapsed(), data: { server: name } });
 
-      // Handle transport close for crash detection
       transport.onclose = () => {
         if (server.status === "running") {
-          console.error(`[MCP] Server '${name}' connection closed unexpectedly`);
           server.status = "error";
           server.error = "Connection closed unexpectedly";
           server.client = null;
           server.transport = null;
+          logger.error("MCP", "server_connection_closed", { data: { server: name } });
           this.scheduleRetry(name);
         }
       };
 
       transport.onerror = (error) => {
         if (server.status === "running") {
-          console.error(`[MCP] Server '${name}' error:`, error);
           server.status = "error";
           server.error = error instanceof Error ? error.message : String(error);
           server.client = null;
           server.transport = null;
+          logger.error("MCP", "server_error", { data: { server: name }, error: error instanceof Error ? error : String(error) });
           this.scheduleRetry(name);
         }
       };
@@ -152,7 +152,7 @@ class MCPManager {
       server.error = error instanceof Error ? error.message : String(error);
       server.client = null;
       server.transport = null;
-      console.error(`[MCP] Failed to start server '${name}':`, server.error);
+      logger.error("MCP", "server_start_failed", { duration_ms: elapsed(), data: { server: name }, error: error instanceof Error ? error : String(error) });
       this.scheduleRetry(name);
     }
   }
@@ -164,7 +164,6 @@ class MCPManager {
     const server = this.servers.get(name);
     if (!server) return;
 
-    // Mark tools from this server as unavailable
     toolRegistry.setServerAvailability(name, false);
 
     const delay = Math.min(
@@ -175,9 +174,9 @@ class MCPManager {
     server.retryCount++;
     server.nextRetryAt = new Date(Date.now() + delay);
 
-    console.log(
-      `[MCP] Server '${name}' scheduled for retry #${server.retryCount} in ${delay / 1000}s`
-    );
+    logger.warn("MCP", "server_retry_scheduled", {
+      data: { server: name, retry_count: server.retryCount, delay_s: delay / 1000 },
+    });
   }
 
   /**
@@ -212,7 +211,7 @@ class MCPManager {
     server.nextRetryAt = undefined;
 
     if (wasRunning) {
-      console.log(`[MCP] Server '${name}' stopped`);
+      logger.info("MCP", "server_stopped", { data: { server: name } });
     }
   }
 
@@ -220,29 +219,30 @@ class MCPManager {
    * Start all registered servers (best-effort, continues on failures)
    */
   async startAll(): Promise<{ succeeded: number; failed: number }> {
-    console.log(`[MCP] Starting ${this.servers.size} servers...`);
+    const totalServers = this.servers.size;
+    logger.info("MCP", "starting_all_servers", { data: { total: totalServers } });
 
-    // Start all servers in parallel
     await Promise.allSettled(
       Array.from(this.servers.keys()).map((name) => this.start(name))
     );
 
-    // Count actual successes/failures by checking server status (not Promise results)
     let succeeded = 0;
     let failed = 0;
-    for (const server of this.servers.values()) {
+    const failedNames: string[] = [];
+    for (const [name, server] of this.servers) {
       if (server.status === "running") {
         succeeded++;
       } else {
         failed++;
+        failedNames.push(name);
       }
     }
 
-    console.log(`[MCP] Started ${succeeded}/${this.servers.size} servers (${failed} failed)`);
+    logger.info("MCP", "all_servers_started", {
+      data: { succeeded, failed, total: totalServers, failed_servers: failedNames.length > 0 ? failedNames.join(",") : undefined },
+    });
 
-    // Start background retry loop
     this.startRetryLoop();
-
     return { succeeded, failed };
   }
 
@@ -256,7 +256,7 @@ class MCPManager {
       Array.from(this.servers.keys()).map((name) => this.stop(name))
     );
 
-    console.log("[MCP] All servers stopped");
+    logger.info("MCP", "all_servers_stopped");
   }
 
   /**
@@ -274,10 +274,9 @@ class MCPManager {
           server.nextRetryAt &&
           server.nextRetryAt <= now
         ) {
-          console.log(`[MCP] Retrying server '${name}'...`);
+          logger.info("MCP", "server_retrying", { data: { server: name, retry_count: server.retryCount } });
           await this.start(name);
 
-          // If server recovered, re-discover its tools
           if (server.status === "running") {
             try {
               const tools = await this.listTools(name);
@@ -286,21 +285,19 @@ class MCPManager {
                   name: tool.name,
                   description: tool.description || "",
                   inputSchema: tool.inputSchema,
-                }, true); // available = true
+                }, true);
               }
-              console.log(`[MCP] Re-discovered ${tools.length} tools from recovered server '${name}'`);
+              logger.info("MCP", "server_recovered_tools", { data: { server: name, tool_count: tools.length } });
             } catch (error) {
-              // Tool discovery failed - mark server as error to trigger another retry
-              // Otherwise tools remain permanently unavailable
-              console.error(`[MCP] Failed to re-discover tools from '${name}', marking as error:`, error);
               server.status = "error";
               server.error = `Tool discovery failed: ${error instanceof Error ? error.message : String(error)}`;
+              logger.error("MCP", "server_recovery_tool_discovery_failed", { data: { server: name }, error: error instanceof Error ? error : String(error) });
               this.scheduleRetry(name);
             }
           }
         }
       }
-    }, 5000); // Check every 5 seconds
+    }, 5000);
   }
 
   /**
@@ -346,14 +343,21 @@ class MCPManager {
   ): Promise<ToolResult> {
     const server = this.servers.get(serverName);
     if (!server) {
+      logger.error("MCP", "tool_call_server_not_registered", { data: { server: serverName, tool: toolName } });
       throw new Error(`MCP server '${serverName}' not registered`);
     }
 
     if (server.status !== "running" || !server.client) {
+      logger.error("MCP", "tool_call_server_unavailable", { data: { server: serverName, tool: toolName, status: server.status } });
       throw new Error(`MCP server '${serverName}' is not available (status: ${server.status})`);
     }
 
-    // Execute with timeout
+    const elapsed = startTimer();
+
+    logger.debug("MCP", "tool_call_start", {
+      data: { server: serverName, tool: toolName, input: args, timeout_ms: timeoutMs },
+    });
+
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error(`Tool call timed out after ${timeoutMs}ms`)), timeoutMs);
     });
@@ -367,14 +371,14 @@ class MCPManager {
 
     // Extract text content from result
     let content: unknown = result.content;
+    let rawText = "";
     if (Array.isArray(result.content)) {
-      // MCP returns array of content blocks, extract text
       const textContent = result.content
         .filter((c): c is { type: "text"; text: string } => c.type === "text")
         .map((c) => c.text)
         .join("\n");
+      rawText = textContent;
 
-      // Try to parse as JSON if it looks like JSON
       if (textContent.startsWith("{") || textContent.startsWith("[")) {
         try {
           content = JSON.parse(textContent);
@@ -384,7 +388,27 @@ class MCPManager {
       } else {
         content = textContent;
       }
+    } else if (typeof result.content === "string") {
+      rawText = result.content;
+    } else {
+      rawText = JSON.stringify(result.content);
     }
+
+    const duration = elapsed();
+    const outputTokens = estimateTokens(rawText);
+    const outputBytes = Buffer.byteLength(rawText, "utf8");
+
+    logger.info("MCP", "tool_call_complete", {
+      duration_ms: duration,
+      data: {
+        server: serverName,
+        tool: toolName,
+        is_error: result.isError || false,
+        output_tokens: outputTokens,
+        output_bytes: outputBytes,
+        output_chars: rawText.length,
+      },
+    });
 
     return {
       content,

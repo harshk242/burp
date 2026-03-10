@@ -3,6 +3,7 @@ import { ToolListSchema, ToolSearchQuerySchema, ErrorSchema, MCPToolSchema } fro
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import { toolRegistry } from "../mcp/registry";
 import { mcpManager } from "../mcp/manager";
+import { logger, startTimer } from "../logger";
 
 const tools = new OpenAPIHono();
 
@@ -265,23 +266,28 @@ const callToolRoute = createRoute({
 tools.openapi(callToolRoute, async (c) => {
   const { server, name } = c.req.valid("param");
   const input = await c.req.json();
+  const elapsed = startTimer();
 
-  // Check if tool exists
   const tool = toolRegistry.get(server, name);
   if (!tool) {
+    logger.warn("TOOL", "direct_call_not_found", { data: { server, tool: name } });
     return c.json({ error: `Tool '${name}' not found on server '${server}'` }, 404);
   }
 
-  // Check if server is available
   if (!tool.available || !mcpManager.isServerAvailable(server)) {
+    logger.warn("TOOL", "direct_call_unavailable", { data: { server, tool: name } });
     return c.json({ error: `Server '${server}' is not available` }, 503);
   }
 
+  logger.info("TOOL", "direct_call_start", { data: { server, tool: name, input } });
+
   try {
     const result = await mcpManager.callTool(server, name, input);
+    logger.info("TOOL", "direct_call_success", { duration_ms: elapsed(), data: { server, tool: name } });
     return c.json({ result: result.content }, 200);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Tool execution failed";
+    logger.error("TOOL", "direct_call_failed", { duration_ms: elapsed(), data: { server, tool: name }, error: error instanceof Error ? error : errorMsg });
     return c.json({ error: errorMsg }, 500);
   }
 });

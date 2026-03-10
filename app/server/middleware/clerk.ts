@@ -7,6 +7,7 @@ import type { Context, Next } from "hono";
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import { userQueries, accessRequestQueries } from "../db";
 import { v4 as uuidv4 } from "uuid";
+import { logger } from "../logger";
 
 // Initialize Clerk client (lazy, only when needed)
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
@@ -60,7 +61,7 @@ export async function clerkAuth(c: Context, next: Next) {
 
   // Development mode - skip auth if no Clerk keys configured
   if (!clerk) {
-    console.warn("⚠️  CLERK_SECRET_KEY not set - running in development mode with test user");
+    logger.warn("AUTH", "dev_mode_no_clerk_key");
     const devClerkId = "dev-clerk-id";
     const devEmail = process.env.ADMIN_EMAIL || "dev@example.com";
 
@@ -155,9 +156,12 @@ export async function clerkAuth(c: Context, next: Next) {
 
     return next();
   } catch (err) {
-    console.error("Auth error:", err);
+    const isExpired = err instanceof Error && err.message.includes("expired");
+    logger.warn("AUTH", isExpired ? "token_expired" : "token_invalid", {
+      error: err instanceof Error ? err : String(err),
+    });
 
-    if (err instanceof Error && err.message.includes("expired")) {
+    if (isExpired) {
       return c.json({ error: "Token expired" }, 401);
     }
 

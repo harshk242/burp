@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import { mcpManager } from "../mcp/manager";
 import { toolRegistry } from "../mcp/registry";
 import { messageQueries, chatSessionQueries, userQueries } from "../db";
+import { logger, startTimer, estimateTokens, type LogContext } from "../logger";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic();
@@ -108,56 +109,60 @@ export async function* processChat(
   userId: string,
   userMessage: string
 ): AsyncGenerator<StreamEvent> {
+  const chatElapsed = startTimer();
+  const ctx: LogContext = { session_id: sessionId, user_id: userId };
+
+  logger.info("CHAT", "process_start", {
+    ctx,
+    data: { message_length: userMessage.length, message_preview: userMessage.slice(0, 150) },
+  });
+
   try {
     // Check if session exists and belongs to the current user
     let session = chatSessionQueries.findById(sessionId) as { id: string; user_id: string } | null;
     if (session) {
-      // Session exists - verify ownership
       if (session.user_id !== userId) {
+        logger.warn("CHAT", "session_unauthorized", { ctx, data: { session_owner: session.user_id } });
         yield { type: "error", data: { error: "Unauthorized: session belongs to another user" } };
         return;
       }
+      logger.debug("CHAT", "session_found", { ctx });
     } else {
-      // Session doesn't exist - create it for the current user
       chatSessionQueries.create(sessionId, userId, null);
       session = { id: sessionId, user_id: userId };
+      logger.info("CHAT", "session_created", { ctx });
     }
 
     yield { type: "start", data: { sessionId } };
 
     // Load conversation history
     const history = messageQueries.findByChatId(sessionId) as DBMessage[];
+    logger.debug("CHAT", "history_loaded", { ctx, data: { message_count: history.length } });
 
     // Build messages array for Claude
     const messages = buildClaudeMessages(history, userMessage);
 
-    // Get MCP tools in Claude format (core tools non-deferred, rest deferred)
+    // Get MCP tools in Claude format
     const mcpTools = toolRegistry.toClaudeFormat(true);
 
-    // Guard: Must have at least some MCP tools available
     if (mcpTools.length === 0) {
-      throw new Error(
-        "No MCP tools available. All database servers may be down."
-      );
+      logger.error("CHAT", "no_tools_available", { ctx });
+      throw new Error("No MCP tools available. All database servers may be down.");
     }
 
-    // Guard: At least one MCP tool must be non-deferred (API requirement)
-    // tool_search_tool_bm25 alone is useless if there are no tools to discover
     const coreToolCount = mcpTools.filter((t) => !t.defer_loading).length;
+    const deferredToolCount = mcpTools.length - coreToolCount;
+
     if (coreToolCount === 0) {
-      console.warn(
-        "[Chat] Warning: No core tools available. All tools are deferred. " +
-          "Claude will need to use tool_search_tool_bm25 for every query."
-      );
+      logger.warn("CHAT", "no_core_tools", { ctx, data: { total_tools: mcpTools.length } });
     }
 
-    // Combine: tool search (built-in) + MCP tools (mix of deferred/non-deferred)
     const tools = [TOOL_SEARCH_TOOL, ...mcpTools];
 
-    // Log for debugging
-    console.log(
-      `[Chat] Tools loaded: ${mcpTools.length} MCP tools (${coreToolCount} core) + 1 tool_search_tool_bm25`
-    );
+    logger.info("CHAT", "tools_loaded", {
+      ctx,
+      data: { total: mcpTools.length, core: coreToolCount, deferred: deferredToolCount },
+    });
 
     // Store user message
     const userMsgId = uuidv4();
@@ -167,9 +172,18 @@ export async function* processChat(
     let continueLoop = true;
     let fullAssistantContent = "";
     const allToolCalls: ToolCall[] = [];
+    let loopIteration = 0;
 
     while (continueLoop) {
-      // Create streaming request to Claude with beta header for tool search
+      loopIteration++;
+      const iterElapsed = startTimer();
+
+      logger.info("CHAT", "llm_request_start", {
+        ctx,
+        data: { iteration: loopIteration, model: CLAUDE_MODEL, message_count: messages.length },
+      });
+
+      // Create streaming request to Claude
       const stream = anthropic.beta.messages.stream({
         model: CLAUDE_MODEL,
         betas: ["advanced-tool-use-2025-11-20"],
@@ -190,6 +204,7 @@ export async function* processChat(
         input: Record<string, unknown>;
       }> = [];
       let assistantContentBlocks: Anthropic.ContentBlock[] = [];
+      let textChunkCount = 0;
 
       // Process stream events
       for await (const event of stream) {
@@ -197,32 +212,32 @@ export async function* processChat(
           if (event.content_block.type === "text") {
             // Text block starting
           } else if (event.content_block.type === "tool_use") {
-            // Regular MCP tool use block starting
             currentToolUseBlock = {
               id: event.content_block.id,
               name: event.content_block.name,
               input: "",
             };
+            logger.debug("STREAM", "tool_use_block_start", {
+              ctx,
+              data: { tool: event.content_block.name, block_id: event.content_block.id },
+            });
           } else if ((event.content_block as { type: string }).type === "server_tool_use") {
-            // Built-in tool (like tool_search_tool_bm25) being called
-            // The API handles this automatically - no action needed
             const serverTool = event.content_block as { type: string; name?: string };
-            console.log(
-              `[Chat] Server tool being called: ${serverTool.name || "unknown"}`
-            );
+            logger.info("CHAT", "server_tool_invoked", {
+              ctx,
+              data: { tool: serverTool.name || "unknown" },
+            });
           }
         } else if (event.type === "content_block_delta") {
           if (event.delta.type === "text_delta") {
-            // Stream text to client
             fullAssistantContent += event.delta.text;
+            textChunkCount++;
             yield { type: "text", data: event.delta.text };
           } else if (event.delta.type === "input_json_delta" && currentToolUseBlock) {
-            // Accumulate tool input JSON
             currentToolUseBlock.input += event.delta.partial_json;
           }
         } else if (event.type === "content_block_stop") {
           if (currentToolUseBlock) {
-            // Parse accumulated input and queue for execution
             try {
               const input = currentToolUseBlock.input
                 ? JSON.parse(currentToolUseBlock.input)
@@ -232,8 +247,16 @@ export async function* processChat(
                 name: currentToolUseBlock.name,
                 input,
               });
+              logger.debug("STREAM", "tool_use_block_parsed", {
+                ctx,
+                data: { tool: currentToolUseBlock.name, input },
+              });
             } catch (e) {
-              // If JSON parse fails, use empty object
+              logger.warn("STREAM", "tool_input_parse_failed", {
+                ctx,
+                data: { tool: currentToolUseBlock.name, raw_input: currentToolUseBlock.input.slice(0, 200) },
+                error: e instanceof Error ? e : String(e),
+              });
               pendingToolCalls.push({
                 id: currentToolUseBlock.id,
                 name: currentToolUseBlock.name,
@@ -251,9 +274,31 @@ export async function* processChat(
       const finalMessage = await stream.finalMessage();
       assistantContentBlocks = finalMessage.content;
 
+      const iterDuration = iterElapsed();
+      logger.info("CHAT", "llm_response_received", {
+        ctx,
+        duration_ms: iterDuration,
+        data: {
+          iteration: loopIteration,
+          stop_reason: finalMessage.stop_reason,
+          input_tokens: finalMessage.usage?.input_tokens,
+          output_tokens: finalMessage.usage?.output_tokens,
+          text_chunks: textChunkCount,
+          pending_tool_calls: pendingToolCalls.length,
+        },
+      });
+
       // Check if we need to execute tools
       if (finalMessage.stop_reason === "tool_use" && pendingToolCalls.length > 0) {
-        // Execute all pending tool calls
+        logger.info("TOOL", "batch_execution_start", {
+          ctx,
+          data: {
+            iteration: loopIteration,
+            tool_count: pendingToolCalls.length,
+            tools: pendingToolCalls.map((t) => t.name).join(","),
+          },
+        });
+
         const toolResults: Array<{
           type: "tool_result";
           tool_use_id: string;
@@ -263,6 +308,12 @@ export async function* processChat(
 
         for (const toolCall of pendingToolCalls) {
           const { server, name: toolName } = toolRegistry.parseToolName(toolCall.name);
+          const toolElapsed = startTimer();
+
+          logger.info("TOOL", "call_start", {
+            ctx,
+            data: { tool: toolCall.name, server, tool_name: toolName, input: toolCall.input },
+          });
 
           yield {
             type: "tool_start",
@@ -278,6 +329,11 @@ export async function* processChat(
           try {
             const result = await mcpManager.callTool(server, toolName, toolCall.input);
 
+            const resultStr = typeof result.content === "string"
+              ? result.content
+              : JSON.stringify(result.content);
+            const outputTokens = estimateTokens(resultStr);
+
             const toolCallRecord: ToolCall = {
               id: toolCall.id,
               name: toolCall.name,
@@ -287,6 +343,17 @@ export async function* processChat(
               output: result.content,
             };
             allToolCalls.push(toolCallRecord);
+
+            logger.info("TOOL", "call_success", {
+              ctx,
+              duration_ms: toolElapsed(),
+              data: {
+                tool: toolCall.name,
+                is_error: result.isError,
+                output_tokens: outputTokens,
+                output_chars: resultStr.length,
+              },
+            });
 
             yield {
               type: "tool_end",
@@ -301,9 +368,7 @@ export async function* processChat(
             toolResults.push({
               type: "tool_result",
               tool_use_id: toolCall.id,
-              content: typeof result.content === "string"
-                ? result.content
-                : JSON.stringify(result.content),
+              content: resultStr,
               is_error: result.isError,
             });
           } catch (error) {
@@ -318,6 +383,13 @@ export async function* processChat(
               error: errorMsg,
             };
             allToolCalls.push(toolCallRecord);
+
+            logger.error("TOOL", "call_failed", {
+              ctx,
+              duration_ms: toolElapsed(),
+              data: { tool: toolCall.name, server, tool_name: toolName },
+              error: error instanceof Error ? error : errorMsg,
+            });
 
             yield {
               type: "tool_end",
@@ -337,10 +409,17 @@ export async function* processChat(
           }
         }
 
-        // Add assistant message with tool use blocks to messages.
-        // Filter out server_tool_use and tool_search_tool_result blocks — these are
-        // server-side artifacts returned in the response that the API rejects when
-        // re-sent in request bodies (they contain extra fields not permitted in requests).
+        logger.info("TOOL", "batch_execution_complete", {
+          ctx,
+          data: {
+            iteration: loopIteration,
+            total: pendingToolCalls.length,
+            succeeded: toolResults.filter((r) => !r.is_error).length,
+            failed: toolResults.filter((r) => r.is_error).length,
+          },
+        });
+
+        // Filter out server-side artifacts
         const clientContentBlocks = assistantContentBlocks.filter(
           (block) =>
             (block as { type: string }).type !== "server_tool_use" &&
@@ -351,15 +430,11 @@ export async function* processChat(
           content: clientContentBlocks,
         });
 
-        // Add tool results as user message
         messages.push({
           role: "user",
           content: toolResults,
         });
-
-        // Continue the loop to get Claude's response to tool results
       } else {
-        // No more tool calls, we're done
         continueLoop = false;
       }
     }
@@ -378,10 +453,27 @@ export async function* processChat(
     chatSessionQueries.touch(sessionId);
     userQueries.incrementQueries(userId);
 
+    logger.info("CHAT", "process_complete", {
+      ctx,
+      duration_ms: chatElapsed(),
+      data: {
+        iterations: loopIteration,
+        tool_calls_total: allToolCalls.length,
+        tool_calls_failed: allToolCalls.filter((t) => t.error).length,
+        response_length: fullAssistantContent.length,
+        response_tokens: estimateTokens(fullAssistantContent),
+        message_id: assistantMsgId,
+      },
+    });
+
     yield { type: "done", data: { messageId: assistantMsgId } };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error("[Chat] Error processing chat:", errorMsg);
+    logger.error("CHAT", "process_failed", {
+      ctx,
+      duration_ms: chatElapsed(),
+      error: error instanceof Error ? error : errorMsg,
+    });
     yield { type: "error", data: { error: errorMsg } };
   }
 }
@@ -426,6 +518,10 @@ export async function generateSessionTitle(
   firstMessage: string
 ): Promise<string> {
   const fallbackTitle = buildFallbackTitle(firstMessage);
+  const elapsed = startTimer();
+  const ctx: LogContext = { session_id: sessionId };
+
+  logger.info("TITLE", "generation_start", { ctx, data: { model: TITLE_MODEL } });
 
   try {
     const controller = new AbortController();
@@ -455,9 +551,21 @@ Return only the title text.`,
     const title = normalizeTitle(generatedText, fallbackTitle);
 
     chatSessionQueries.updateTitle(sessionId, title);
+
+    logger.info("TITLE", "generation_complete", {
+      ctx,
+      duration_ms: elapsed(),
+      data: { title, input_tokens: response.usage?.input_tokens, output_tokens: response.usage?.output_tokens },
+    });
+
     return title;
   } catch (error) {
-    console.error("[Chat] Failed to generate title:", error);
+    logger.error("TITLE", "generation_failed", {
+      ctx,
+      duration_ms: elapsed(),
+      error: error instanceof Error ? error : String(error),
+      data: { fallback_title: fallbackTitle },
+    });
     chatSessionQueries.updateTitle(sessionId, fallbackTitle);
     return fallbackTitle;
   }

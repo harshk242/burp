@@ -5,6 +5,7 @@ import { ChatRequestSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import { processChat, generateSessionTitle } from "../orchestration/chat";
 import { chatSessionQueries, messageQueries } from "../db";
+import { logger } from "../logger";
 
 const chat = new OpenAPIHono();
 
@@ -138,7 +139,7 @@ chat.openapi(chatRoute, async (c) => {
       const titlePromise = shouldGenerateTitle
         ? generateSessionTitle(sessionId, firstUserMessage || message).catch(
             (err) => {
-              console.error("[Chat] Title generation failed:", err);
+              logger.error("TITLE", "generation_failed_in_route", { error: err instanceof Error ? err : String(err), ctx: { session_id: sessionId } });
               return null;
             }
           )

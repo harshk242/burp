@@ -6,6 +6,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { mcpManager as MCPManagerType } from "./manager";
 import { ALWAYS_LOADED_TOOLS } from "./platforms.config";
+import { logger, startTimer } from "../logger";
 
 export interface MCPTool {
   name: string;
@@ -40,10 +41,12 @@ class ToolRegistry {
     this.clear();
 
     const runningServers = mcpManager.getRunningServers();
-    console.log(`[Registry] Discovering tools from ${runningServers.length} servers...`);
+    const elapsed = startTimer();
+    logger.info("REGISTRY", "discovery_start", { data: { server_count: runningServers.length, servers: runningServers.join(",") } });
 
     const results = await Promise.allSettled(
       runningServers.map(async (serverName) => {
+        const serverElapsed = startTimer();
         try {
           const tools = await mcpManager.listTools(serverName);
           for (const tool of tools) {
@@ -53,22 +56,29 @@ class ToolRegistry {
               inputSchema: tool.inputSchema,
             });
           }
+          logger.info("REGISTRY", "server_tools_discovered", {
+            duration_ms: serverElapsed(),
+            data: { server: serverName, tool_count: tools.length },
+          });
           return { server: serverName, count: tools.length };
         } catch (error) {
-          console.error(`[Registry] Failed to discover tools from ${serverName}:`, error);
+          logger.error("REGISTRY", "server_discovery_failed", {
+            duration_ms: serverElapsed(),
+            data: { server: serverName },
+            error: error instanceof Error ? error : String(error),
+          });
           throw error;
         }
       })
     );
 
-    // Log results
-    for (const result of results) {
-      if (result.status === "fulfilled") {
-        console.log(`[Registry] Discovered ${result.value.count} tools from ${result.value.server}`);
-      }
-    }
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected").length;
 
-    console.log(`[Registry] Total tools registered: ${this.count}`);
+    logger.info("REGISTRY", "discovery_complete", {
+      duration_ms: elapsed(),
+      data: { total_tools: this.count, servers_succeeded: succeeded, servers_failed: failed },
+    });
   }
 
   /**
@@ -80,7 +90,7 @@ class ToolRegistry {
         this.tools.set(key, { ...tool, available });
       }
     }
-    console.log(`[Registry] Set ${server} tools availability to ${available}`);
+    logger.info("REGISTRY", "server_availability_changed", { data: { server, available } });
   }
 
   /**
