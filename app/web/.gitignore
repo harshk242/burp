@@ -6,4 +6,5 @@ out/
 coverage/
 .eslintcache
 *.log
+*.tsbuildinfo
 .DS_Store

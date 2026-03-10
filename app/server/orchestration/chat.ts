@@ -12,8 +12,8 @@ import { messageQueries, chatSessionQueries, userQueries } from "../db";
 // Initialize Anthropic client
 const anthropic = new Anthropic();
 
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
-const TITLE_MODEL = process.env.CLAUDE_TITLE_MODEL || "claude-3-haiku-20240307";
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
+const TITLE_MODEL = process.env.CLAUDE_TITLE_MODEL || "claude-haiku-4-5";
 
 // Tool search tool definition (built-in, BM25 variant for natural language)
 const TOOL_SEARCH_TOOL = {
@@ -428,19 +428,27 @@ export async function generateSessionTitle(
   const fallbackTitle = buildFallbackTitle(firstMessage);
 
   try {
-    const response = await anthropic.messages.create({
-      model: TITLE_MODEL,
-      max_tokens: 50,
-      messages: [
-        {
-          role: "user",
-          content: `Generate a short chat title (3-6 words) from this user question:
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const response = await anthropic.messages.create(
+      {
+        model: TITLE_MODEL,
+        max_tokens: 50,
+        messages: [
+          {
+            role: "user",
+            content: `Generate a short chat title (3-6 words) from this user question:
 "${firstMessage.substring(0, 300)}"
 
 Return only the title text.`,
-        },
-      ],
-    });
+          },
+        ],
+      },
+      { signal: controller.signal }
+    );
+
+    clearTimeout(timeout);
 
     const generatedText =
       response.content.find((block) => block.type === "text")?.text || "";

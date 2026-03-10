@@ -132,28 +132,36 @@ chat.openapi(chatRoute, async (c) => {
 
   return streamSSE(c, async (stream) => {
     try {
-      let hasStreamError = false;
+      // Fire title generation in parallel with chat processing.
+      // The title only depends on the user's question, not the response,
+      // so we don't need to wait for chat completion.
+      const titlePromise = shouldGenerateTitle
+        ? generateSessionTitle(sessionId, firstUserMessage || message).catch(
+            (err) => {
+              console.error("[Chat] Title generation failed:", err);
+              return null;
+            }
+          )
+        : null;
 
       // Process chat through Claude with tool calling
       for await (const event of processChat(sessionId, userId, message)) {
-        if (event.type === "error") {
-          hasStreamError = true;
-        }
         await stream.writeSSE({
           event: event.type,
           data: typeof event.data === "string" ? event.data : JSON.stringify(event.data),
         });
       }
 
-      // Generate title when session is still untitled.
-      // This handles pre-created sessions where the first chat message includes a sessionId.
-      if (!hasStreamError && shouldGenerateTitle) {
-        const titleHint = firstUserMessage || message;
-        const title = await generateSessionTitle(sessionId, titleHint);
-        await stream.writeSSE({
-          event: "title",
-          data: JSON.stringify({ title }),
-        });
+      // Emit the title after streaming completes.
+      // The API call likely finished long ago; this just awaits the stored result.
+      if (titlePromise) {
+        const title = await titlePromise;
+        if (title) {
+          await stream.writeSSE({
+            event: "title",
+            data: JSON.stringify({ title }),
+          });
+        }
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";

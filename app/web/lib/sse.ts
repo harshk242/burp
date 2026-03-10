@@ -46,32 +46,56 @@ export async function streamChat(
       buffer = lines.pop() || "";
 
       for (const line of lines) {
-        // Standard SSE format: backend sends "event: <type>" then "data: <payload>"
-        if (line.startsWith("event: ")) {
-          currentEventType = line.slice(7).trim();
-        } else if (line.startsWith("data: ")) {
-          const payload = line.slice(6);
-          if (payload && currentEventType) {
-            try {
-              const data = JSON.parse(payload);
-              handleSSEEvent(currentEventType, data, onTitle);
-            } catch {
-              // Handle non-JSON data (e.g., plain text chunks)
-              handleSSEEvent(currentEventType, payload, onTitle);
-            }
-          }
-          // Reset event type after processing (SSE events are paired)
-          currentEventType = null;
-        }
-        // Empty line marks end of an event block (SSE spec)
-        else if (line === "") {
-          currentEventType = null;
-        }
+        currentEventType = processSSELine(line, currentEventType, onTitle);
+      }
+    }
+
+    // Drain any remaining data in the buffer after the stream closes.
+    // This ensures the last SSE event (e.g., title) is never lost.
+    if (buffer.trim()) {
+      for (const line of buffer.split("\n")) {
+        currentEventType = processSSELine(line, currentEventType, onTitle);
       }
     }
   } finally {
     reader.releaseLock();
   }
+}
+
+/**
+ * Process a single SSE line and return the updated event type.
+ */
+function processSSELine(
+  line: string,
+  currentEventType: string | null,
+  onTitle?: (title: string) => void
+): string | null {
+  // Standard SSE format: backend sends "event: <type>" then "data: <payload>"
+  if (line.startsWith("event: ")) {
+    return line.slice(7).trim();
+  }
+
+  if (line.startsWith("data: ")) {
+    const payload = line.slice(6);
+    if (payload && currentEventType) {
+      try {
+        const data = JSON.parse(payload);
+        handleSSEEvent(currentEventType, data, onTitle);
+      } catch {
+        // Handle non-JSON data (e.g., plain text chunks)
+        handleSSEEvent(currentEventType, payload, onTitle);
+      }
+    }
+    // Reset event type after processing (SSE events are paired)
+    return null;
+  }
+
+  // Empty line marks end of an event block (SSE spec)
+  if (line === "") {
+    return null;
+  }
+
+  return currentEventType;
 }
 
 /**
