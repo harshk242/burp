@@ -15,6 +15,19 @@ const anthropic = new Anthropic();
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
 const TITLE_MODEL = process.env.CLAUDE_TITLE_MODEL || "claude-haiku-4-5";
+const SUMMARIZER_MODEL = process.env.TOOL_SUMMARIZER_MODEL || "claude-haiku-4-5";
+
+// Tool output summarization threshold (bytes). Outputs larger than this
+// are compressed via a Haiku side-call before entering the main conversation.
+const TOOL_OUTPUT_SUMMARY_THRESHOLD = parseInt(
+  process.env.TOOL_OUTPUT_SUMMARY_THRESHOLD || "15000",
+  10
+);
+
+// 429 retry configuration
+const MAX_RETRIES = parseInt(process.env.LLM_MAX_RETRIES || "3", 10);
+const INITIAL_RETRY_DELAY_MS = 5000; // 5 seconds
+const RETRY_BACKOFF_MULTIPLIER = 2;
 
 // Tool search tool definition (built-in, BM25 variant for natural language)
 const TOOL_SEARCH_TOOL = {
@@ -101,6 +114,187 @@ interface DBMessage {
 }
 
 /**
+ * Summarize a large tool output via a fast Haiku call.
+ * Preserves identifiers and key data while compressing bulk results.
+ */
+async function summarizeToolOutput(
+  toolName: string,
+  rawOutput: string,
+  userQuery: string,
+  ctx: LogContext
+): Promise<string> {
+  const elapsed = startTimer();
+
+  logger.info("TOOL", "summarize_start", {
+    ctx,
+    data: {
+      tool: toolName,
+      raw_chars: rawOutput.length,
+      raw_tokens_est: estimateTokens(rawOutput),
+      threshold: TOOL_OUTPUT_SUMMARY_THRESHOLD,
+    },
+  });
+
+  const SUMMARIZER_MAX_RETRIES = 2;
+
+  for (let attempt = 1; attempt <= SUMMARIZER_MAX_RETRIES; attempt++) {
+    try {
+      const response = await anthropic.messages.create({
+        model: SUMMARIZER_MODEL,
+        max_tokens: 4096,
+        system: `You are a biomedical data extraction assistant. Your job is to compress large tool outputs into concise summaries that preserve all essential information.
+
+Rules:
+- PRESERVE ALL identifiers exactly: ChEMBL IDs, UniProt accessions, ENSG IDs, PMIDs, CIDs, NCT IDs, rsIDs, SMILES strings, InChI keys, gene symbols, drug names
+- PRESERVE all numerical data: IC50 values, Ki values, p-values, scores, molecular weights, coordinates
+- REMOVE redundant or repetitive entries — if 50 compounds are returned, summarize the top/most relevant ones (up to 10) and note how many total were returned
+- REMOVE verbose metadata, boilerplate fields, and empty/null fields
+- Output valid JSON when the input is JSON, otherwise use concise structured text
+- Be thorough — the main assistant will rely ONLY on your summary to answer the user's question`,
+        messages: [
+          {
+            role: "user",
+            content: `The user's research question: "${userQuery}"
+
+The tool "${toolName}" returned ${rawOutput.length.toLocaleString()} characters of data. Extract the relevant information:
+
+${rawOutput}`,
+          },
+        ],
+      });
+
+      const summary =
+        response.content.find((block) => block.type === "text")?.text || rawOutput;
+
+      const prefix = `[Summarized from ${(rawOutput.length / 1024).toFixed(0)} KB tool output — ${response.usage?.input_tokens ?? "?"} tokens compressed to ${response.usage?.output_tokens ?? "?"} tokens. Query specific tool with exact IDs for full details.]\n`;
+
+      logger.info("TOOL", "summarize_complete", {
+        ctx,
+        duration_ms: elapsed(),
+        data: {
+          tool: toolName,
+          raw_chars: rawOutput.length,
+          summary_chars: summary.length,
+          compression_ratio: (rawOutput.length / summary.length).toFixed(1),
+          input_tokens: response.usage?.input_tokens,
+          output_tokens: response.usage?.output_tokens,
+          attempt,
+        },
+      });
+
+      return prefix + summary;
+    } catch (error) {
+      const is429 =
+        error instanceof Anthropic.RateLimitError ||
+        (error instanceof Error && error.message.includes("429"));
+
+      if (is429 && attempt < SUMMARIZER_MAX_RETRIES) {
+        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(RETRY_BACKOFF_MULTIPLIER, attempt - 1);
+        logger.warn("TOOL", "summarize_rate_limit_retry", {
+          ctx,
+          data: { tool: toolName, attempt, delay_ms: delay },
+        });
+        await sleep(delay);
+        continue;
+      }
+
+      // Non-retryable or exhausted retries — fall back to truncation
+      logger.error("TOOL", "summarize_failed", {
+        ctx,
+        duration_ms: elapsed(),
+        data: { tool: toolName, attempt },
+        error: error instanceof Error ? error : String(error),
+      });
+
+      const truncated = rawOutput.slice(0, TOOL_OUTPUT_SUMMARY_THRESHOLD);
+      return `[Summarization failed — output truncated from ${(rawOutput.length / 1024).toFixed(0)} KB to ${(TOOL_OUTPUT_SUMMARY_THRESHOLD / 1024).toFixed(0)} KB]\n${truncated}`;
+    }
+  }
+
+  // Should not reach here, but fallback just in case
+  const truncated = rawOutput.slice(0, TOOL_OUTPUT_SUMMARY_THRESHOLD);
+  return `[Summarization failed — output truncated from ${(rawOutput.length / 1024).toFixed(0)} KB to ${(TOOL_OUTPUT_SUMMARY_THRESHOLD / 1024).toFixed(0)} KB]\n${truncated}`;
+}
+
+/**
+ * Conditionally compress a tool result if it exceeds the size threshold.
+ */
+async function maybeCompressToolOutput(
+  toolName: string,
+  rawOutput: string,
+  userQuery: string,
+  ctx: LogContext
+): Promise<string> {
+  if (rawOutput.length <= TOOL_OUTPUT_SUMMARY_THRESHOLD) {
+    return rawOutput;
+  }
+  return summarizeToolOutput(toolName, rawOutput, userQuery, ctx);
+}
+
+/**
+ * Sleep helper for retry backoff.
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Create a streaming request to Claude with automatic retry on 429 rate limit errors.
+ */
+function streamWithRetry(
+  params: Parameters<typeof anthropic.beta.messages.stream>[0],
+  ctx: LogContext
+) {
+  let attempt = 0;
+
+  // We return a wrapper that lazily initiates the stream so the caller
+  // can await in a for-await-of loop with transparent retries.
+  const makeStream = () => anthropic.beta.messages.stream(params);
+
+  return {
+    async *iterate() {
+      while (true) {
+        attempt++;
+        try {
+          const stream = makeStream();
+          // Yield each event from the real stream
+          for await (const event of stream) {
+            yield { type: "event" as const, event };
+          }
+          // Yield the final message at the end
+          const finalMessage = await stream.finalMessage();
+          yield { type: "final" as const, finalMessage };
+          return; // Success — exit retry loop
+        } catch (error) {
+          const is429 =
+            error instanceof Anthropic.RateLimitError ||
+            (error instanceof Error && error.message.includes("429"));
+
+          if (is429 && attempt < MAX_RETRIES) {
+            // Use retry-after header if available, otherwise exponential backoff
+            const retryAfterSec =
+              error instanceof Anthropic.APIError
+                ? parseFloat(error.headers?.get?.("retry-after") ?? "0")
+                : 0;
+            const delay = retryAfterSec > 0
+              ? retryAfterSec * 1000
+              : INITIAL_RETRY_DELAY_MS * Math.pow(RETRY_BACKOFF_MULTIPLIER, attempt - 1);
+            logger.warn("CHAT", "rate_limit_retry", {
+              ctx,
+              data: { attempt, max_retries: MAX_RETRIES, delay_ms: delay, retry_after_header: retryAfterSec || null },
+              error: error instanceof Error ? error : String(error),
+            });
+            await sleep(delay);
+            continue; // Retry
+          }
+          throw error; // Non-retryable or exhausted retries
+        }
+      }
+    },
+  };
+}
+
+/**
  * Process a chat message through Claude with tool calling
  * Yields SSE events for streaming
  */
@@ -183,15 +377,18 @@ export async function* processChat(
         data: { iteration: loopIteration, model: CLAUDE_MODEL, message_count: messages.length },
       });
 
-      // Create streaming request to Claude
-      const stream = anthropic.beta.messages.stream({
-        model: CLAUDE_MODEL,
-        betas: ["advanced-tool-use-2025-11-20"],
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        tools: tools.length > 0 ? (tools as Anthropic.Tool[]) : undefined,
-        messages,
-      });
+      // Create streaming request to Claude with automatic 429 retry
+      const retryStream = streamWithRetry(
+        {
+          model: CLAUDE_MODEL,
+          betas: ["advanced-tool-use-2025-11-20"],
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          tools: tools.length > 0 ? (tools as Anthropic.Tool[]) : undefined,
+          messages,
+        },
+        ctx
+      );
 
       let currentToolUseBlock: {
         id: string;
@@ -205,9 +402,15 @@ export async function* processChat(
       }> = [];
       let assistantContentBlocks: Anthropic.ContentBlock[] = [];
       let textChunkCount = 0;
+      let finalMessage: Anthropic.Beta.BetaMessage | null = null;
 
-      // Process stream events
-      for await (const event of stream) {
+      // Process stream events (with transparent retry on 429)
+      for await (const item of retryStream.iterate()) {
+        if (item.type === "final") {
+          finalMessage = item.finalMessage;
+          break;
+        }
+        const event = item.event;
         if (event.type === "content_block_start") {
           if (event.content_block.type === "text") {
             // Text block starting
@@ -270,8 +473,10 @@ export async function* processChat(
         }
       }
 
-      // Get final message to check stop reason and content blocks
-      const finalMessage = await stream.finalMessage();
+      // finalMessage is set by the "final" item from the retry stream
+      if (!finalMessage) {
+        throw new Error("Stream ended without a final message");
+      }
       assistantContentBlocks = finalMessage.content;
 
       const iterDuration = iterElapsed();
@@ -365,10 +570,15 @@ export async function* processChat(
               },
             };
 
+            // Compress large tool outputs before adding to conversation context
+            const compressedResult = result.isError
+              ? resultStr
+              : await maybeCompressToolOutput(toolCall.name, resultStr, userMessage, ctx);
+
             toolResults.push({
               type: "tool_result",
               tool_use_id: toolCall.id,
-              content: resultStr,
+              content: compressedResult,
               is_error: result.isError,
             });
           } catch (error) {
