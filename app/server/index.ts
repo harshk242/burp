@@ -132,4 +132,5 @@ export default {
   port,
   hostname: "0.0.0.0",
   fetch: app.fetch,
+  idleTimeout: 255, // seconds (Bun max) — SSE streams idle during tool summarization
 };

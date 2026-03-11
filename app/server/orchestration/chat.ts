@@ -504,11 +504,12 @@ export async function* processChat(
           },
         });
 
-        const toolResults: Array<{
-          type: "tool_result";
-          tool_use_id: string;
-          content: string;
-          is_error?: boolean;
+        // Collect raw results; compression happens in parallel after all tools complete
+        const rawToolResults: Array<{
+          toolUseId: string;
+          toolName: string;
+          resultStr: string;
+          isError: boolean;
         }> = [];
 
         for (const toolCall of pendingToolCalls) {
@@ -570,16 +571,11 @@ export async function* processChat(
               },
             };
 
-            // Compress large tool outputs before adding to conversation context
-            const compressedResult = result.isError
-              ? resultStr
-              : await maybeCompressToolOutput(toolCall.name, resultStr, userMessage, ctx);
-
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: toolCall.id,
-              content: compressedResult,
-              is_error: result.isError,
+            rawToolResults.push({
+              toolUseId: toolCall.id,
+              toolName: toolCall.name,
+              resultStr,
+              isError: result.isError === true,
             });
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
@@ -610,14 +606,26 @@ export async function* processChat(
               },
             };
 
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: toolCall.id,
-              content: `Error: ${errorMsg}`,
-              is_error: true,
+            rawToolResults.push({
+              toolUseId: toolCall.id,
+              toolName: toolCall.name,
+              resultStr: `Error: ${errorMsg}`,
+              isError: true,
             });
           }
         }
+
+        // Compress large tool outputs in parallel to minimize idle gaps on SSE stream
+        const toolResults = await Promise.all(
+          rawToolResults.map(async (raw) => ({
+            type: "tool_result" as const,
+            tool_use_id: raw.toolUseId,
+            content: raw.isError
+              ? raw.resultStr
+              : await maybeCompressToolOutput(raw.toolName, raw.resultStr, userMessage, ctx),
+            is_error: raw.isError,
+          }))
+        );
 
         logger.info("TOOL", "batch_execution_complete", {
           ctx,
