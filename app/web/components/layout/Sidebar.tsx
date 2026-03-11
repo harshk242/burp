@@ -132,7 +132,7 @@ export function Sidebar() {
           <Separator />
 
           {/* Sessions list */}
-          <ScrollArea className="flex-1 px-2">
+          <ScrollArea className="flex-1 px-2 [&_[data-radix-scroll-area-viewport]>div]:!block [&_[data-radix-scroll-area-viewport]>div]:!min-w-0">
             <div className="space-y-1 py-2">
               {isLoading ? (
                 <>
@@ -157,7 +157,7 @@ export function Sidebar() {
                       window.location.href = buildChatUrl(session.id);
                     }}
                     className={cn(
-                      "group flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent",
+                      "group flex items-center gap-2 rounded-md px-3 py-2 text-sm overflow-hidden hover:bg-accent",
                       activeSessionId === session.id && "bg-accent"
                     )}
                   >
@@ -174,17 +174,17 @@ export function Sidebar() {
                       />
                     ) : (
                       <>
-                        <span className="flex-1 truncate">
+                        <span className="flex-1 min-w-0 truncate">
                           {session.title || "New Chat"}
                         </span>
-                        <div className="hidden group-hover:flex items-center">
+                        <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 shrink-0"
                             onClick={(e) => handleStartRename(e, session.id, session.title || "")}
                           >
-                            <Pencil className="h-3 w-3 text-muted-foreground" />
+                            <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-blue-500" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -192,7 +192,7 @@ export function Sidebar() {
                             className="h-6 w-6 shrink-0"
                             onClick={(e) => handleDeleteSession(e, session.id)}
                           >
-                            <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                            <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                           </Button>
                         </div>
                       </>
