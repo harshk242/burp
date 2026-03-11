@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useApi } from "@/hooks/useApi";
@@ -174,9 +175,21 @@ export function Sidebar() {
                       />
                     ) : (
                       <>
-                        <span className="flex-1 min-w-0 truncate">
-                          {session.title || "New Chat"}
-                        </span>
+                        <TooltipProvider delayDuration={400}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex-1 min-w-0 truncate">
+                                {session.title || "New Chat"}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="right"
+                              className="rounded-lg bg-gray-200 text-black border-0 dark:bg-gray-700 dark:text-white"
+                            >
+                              {session.title || "New Chat"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button
                             variant="ghost"
