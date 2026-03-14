@@ -114,7 +114,7 @@ export function Sidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-64 border-r bg-background transition-transform duration-200 md:relative md:top-0 md:h-full",
+          "fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-64 overflow-hidden border-r bg-background transition-all duration-200 md:relative md:top-0 md:h-full",
           isOpen ? "translate-x-0" : "-translate-x-full md:w-0 md:translate-x-0"
         )}
       >
