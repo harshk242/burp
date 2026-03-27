@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./MessageBubble";
 import { StreamingText } from "./StreamingText";
-import { ToolCallCard } from "./ToolCallCard";
+import { ToolCallGroup } from "./ToolCallGroup";
 import type { Message, ToolCall } from "@/types";
 
 interface MessageListProps {
@@ -40,9 +40,9 @@ export function MessageList({
         {isStreaming && (streamingContent || pendingToolCalls.length > 0) && (
           <div className="space-y-2">
             {/* Pending tool calls */}
-            {pendingToolCalls.map((toolCall) => (
-              <ToolCallCard key={toolCall.id} toolCall={toolCall} />
-            ))}
+            {pendingToolCalls.length > 0 && (
+              <ToolCallGroup toolCalls={pendingToolCalls} />
+            )}
 
             {/* Streaming text */}
             {streamingContent && (

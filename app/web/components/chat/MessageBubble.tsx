@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { User, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ToolCallCard } from "./ToolCallCard";
+import { ToolCallGroup } from "./ToolCallGroup";
 import type { Message } from "@/types";
 
 interface MessageBubbleProps {
@@ -65,10 +65,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       >
         {/* Tool calls (for assistant messages) */}
         {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="space-y-2 text-left w-full">
-            {message.toolCalls.map((toolCall) => (
-              <ToolCallCard key={toolCall.id} toolCall={toolCall} />
-            ))}
+          <div className="text-left w-full">
+            <ToolCallGroup toolCalls={message.toolCalls} />
           </div>
         )}
 
