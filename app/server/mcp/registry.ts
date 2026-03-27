@@ -50,11 +50,25 @@ class ToolRegistry {
         try {
           const tools = await mcpManager.listTools(serverName);
           for (const tool of tools) {
-            this.register(serverName, {
-              name: tool.name,
-              description: tool.description || "",
-              inputSchema: tool.inputSchema,
-            });
+            // Unified server returns prefixed tool names (e.g. "ensembl__search_genes")
+            // Parse them back into platform + bare name for registry keying
+            const sep = tool.name.indexOf("__");
+            if (sep !== -1) {
+              const platformName = tool.name.substring(0, sep);
+              const bareName = tool.name.substring(sep + 2);
+              this.register(platformName, {
+                name: bareName,
+                description: tool.description || "",
+                inputSchema: tool.inputSchema,
+              });
+            } else {
+              // Fallback: register as-is (shouldn't happen with unified server)
+              this.register(serverName, {
+                name: tool.name,
+                description: tool.description || "",
+                inputSchema: tool.inputSchema,
+              });
+            }
           }
           logger.info("REGISTRY", "server_tools_discovered", {
             duration_ms: serverElapsed(),
@@ -91,6 +105,16 @@ class ToolRegistry {
       }
     }
     logger.info("REGISTRY", "server_availability_changed", { data: { server, available } });
+  }
+
+  /**
+   * Update availability for ALL tools (used when the unified server goes down/up)
+   */
+  setAllAvailability(available: boolean): void {
+    for (const [key, tool] of this.tools) {
+      this.tools.set(key, { ...tool, available });
+    }
+    logger.info("REGISTRY", "all_availability_changed", { data: { available } });
   }
 
   /**

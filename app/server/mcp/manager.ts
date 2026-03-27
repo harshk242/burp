@@ -22,12 +22,21 @@ export interface MCPServerConfig {
   env?: Record<string, string | undefined>;
 }
 
-export const MCP_SERVERS: MCPServerConfig[] = enabledPlatforms.map((p) => ({
-  name: p.name,
-  command: "node",
-  args: [`${MCP_SERVERS_BASE}/${p.dir}/dist/index.js`],
-  env: p.env,
-}));
+// Collect env vars from all enabled platforms for the unified server
+const unifiedEnv: Record<string, string | undefined> = {};
+for (const p of enabledPlatforms) {
+  if (p.env) Object.assign(unifiedEnv, p.env);
+}
+
+// Single unified MCP server replaces the 10 individual servers
+export const MCP_SERVERS: MCPServerConfig[] = [
+  {
+    name: "unified",
+    command: "node",
+    args: [`${MCP_SERVERS_BASE}/unified/dist/index.js`],
+    env: unifiedEnv,
+  },
+];
 
 export type ServerStatus = "stopped" | "starting" | "running" | "error";
 
@@ -164,7 +173,8 @@ class MCPManager {
     const server = this.servers.get(name);
     if (!server) return;
 
-    toolRegistry.setServerAvailability(name, false);
+    // Unified server: mark all platforms unavailable
+    toolRegistry.setAllAvailability(false);
 
     const delay = Math.min(
       INITIAL_RETRY_DELAY_MS * Math.pow(RETRY_BACKOFF_MULTIPLIER, server.retryCount),
@@ -277,15 +287,21 @@ class MCPManager {
           logger.info("MCP", "server_retrying", { data: { server: name, retry_count: server.retryCount } });
           await this.start(name);
 
-          if (server.status === "running") {
+          if ((server.status as ServerStatus) === "running") {
             try {
               const tools = await this.listTools(name);
               for (const tool of tools) {
-                toolRegistry.register(name, {
-                  name: tool.name,
-                  description: tool.description || "",
-                  inputSchema: tool.inputSchema,
-                }, true);
+                // Parse prefixed tool names from unified server (e.g. "ensembl__search_genes")
+                const sep = tool.name.indexOf("__");
+                if (sep !== -1) {
+                  const platformName = tool.name.substring(0, sep);
+                  const bareName = tool.name.substring(sep + 2);
+                  toolRegistry.register(platformName, {
+                    name: bareName,
+                    description: tool.description || "",
+                    inputSchema: tool.inputSchema,
+                  }, true);
+                }
               }
               logger.info("MCP", "server_recovered_tools", { data: { server: name, tool_count: tools.length } });
             } catch (error) {
@@ -341,17 +357,19 @@ class MCPManager {
     args: Record<string, unknown>,
     timeoutMs = 30000
   ): Promise<ToolResult> {
-    const server = this.servers.get(serverName);
+    // Route all calls through the unified server with prefixed tool name
+    const server = this.servers.get("unified");
     if (!server) {
       logger.error("MCP", "tool_call_server_not_registered", { data: { server: serverName, tool: toolName } });
-      throw new Error(`MCP server '${serverName}' not registered`);
+      throw new Error(`Unified MCP server not registered`);
     }
 
     if (server.status !== "running" || !server.client) {
       logger.error("MCP", "tool_call_server_unavailable", { data: { server: serverName, tool: toolName, status: server.status } });
-      throw new Error(`MCP server '${serverName}' is not available (status: ${server.status})`);
+      throw new Error(`Unified MCP server is not available (status: ${server.status})`);
     }
 
+    const prefixedToolName = `${serverName}__${toolName}`;
     const elapsed = startTimer();
 
     logger.debug("MCP", "tool_call_start", {
@@ -363,7 +381,7 @@ class MCPManager {
     });
 
     const callPromise = server.client.callTool({
-      name: toolName,
+      name: prefixedToolName,
       arguments: args,
     });
 
@@ -412,7 +430,7 @@ class MCPManager {
 
     return {
       content,
-      isError: result.isError || false,
+      isError: (result.isError ?? false) as boolean,
     };
   }
 
@@ -446,8 +464,8 @@ class MCPManager {
   /**
    * Check if a server is available
    */
-  isServerAvailable(name: string): boolean {
-    const server = this.servers.get(name);
+  isServerAvailable(_name: string): boolean {
+    const server = this.servers.get("unified");
     return server?.status === "running" && server.client !== null;
   }
 }

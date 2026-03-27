@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build:servers": "for dir in mcp-servers/*/; do echo \"Building $dir...\"; (cd \"$dir\" && bun install && bun run build); done"
+    "build:servers": "cd mcp-servers/unified && bun install && bun run build"
   }
 }

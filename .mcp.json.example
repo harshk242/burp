@@ -1,50 +1,11 @@
 {
   "mcpServers": {
-    "open-targets": {
+    "bio": {
       "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/open-targets/dist/index.js"]
-    },
-    "uniprot": {
-      "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/uniprot/dist/index.js"]
-    },
-    "chembl": {
-      "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/chembl/dist/index.js"]
-    },
-    "pubchem": {
-      "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/pubchem/dist/index.js"]
-    },
-    "clinicaltrials": {
-      "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/clinical-trials/dist/index.js"]
-    },
-    "ensembl": {
-      "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/ensembl/dist/index.js"]
-    },
-    "reactome": {
-      "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/reactome/dist/index.js"]
-    },
-    "pubmed": {
-      "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/pubmed/dist/index.js"],
+      "args": ["/path/to/super-bio-agent/mcp-servers/unified/dist/index.js"],
       "env": {
         "NCBI_API_KEY": "YOUR_NCBI_API_KEY_HERE"
       }
-    },
-    "clinvar": {
-      "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/clinvar/dist/index.js"],
-      "env": {
-        "NCBI_API_KEY": "YOUR_NCBI_API_KEY_HERE"
-      }
-    },
-    "clinpgx": {
-      "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/clinpgx/dist/index.js"]
     }
   }
 }

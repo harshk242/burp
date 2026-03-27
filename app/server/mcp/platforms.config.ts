@@ -11,11 +11,11 @@
 export interface PlatformConfig {
   /** Display / registry name (e.g. "uniprot") */
   name: string;
-  /** Directory name under mcp-servers/ (e.g. "clinical-trials") */
-  dir: string;
+  /** Directory name under mcp-servers/ (no longer used for spawning — kept for reference) */
+  dir?: string;
   /** Whether this platform is active */
   enabled: boolean;
-  /** Optional env vars forwarded to the server process */
+  /** Optional env vars forwarded to the unified server process */
   env?: Record<string, string | undefined>;
   /**
    * Tools from this platform that should always be loaded (non-deferred).

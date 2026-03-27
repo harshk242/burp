@@ -1,0 +1,11 @@
+import type { PlatformModule } from '../../types.js';
+import { init, cleanup } from './client.js';
+import { tools, handlers } from './tools/index.js';
+
+export const platform: PlatformModule = {
+  name: 'chembl',
+  tools,
+  handlers,
+  init,
+  cleanup,
+};

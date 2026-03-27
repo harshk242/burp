@@ -1,0 +1,25 @@
+{
+  "name": "bio-mcp-unified",
+  "version": "1.0.0",
+  "description": "Unified MCP server for bioinformatics databases",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "axios": "^1.6.0",
+    "fast-xml-parser": "^4.3.0",
+    "fuzzball": "^2.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "bin": {
+    "bio-mcp": "./dist/index.js"
+  }
+}
