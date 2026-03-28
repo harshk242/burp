@@ -3,6 +3,7 @@ import { streamSSE } from "hono/streaming";
 import { v4 as uuidv4 } from "uuid";
 import { ChatRequestSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
+import { rateLimitMiddleware } from "../middleware/rateLimit";
 import { processChat, generateSessionTitle } from "../orchestration/chat";
 import { chatSessionQueries, messageQueries } from "../db";
 import { logger } from "../logger";
@@ -10,7 +11,7 @@ import { logger } from "../logger";
 const chat = new OpenAPIHono();
 
 // Apply Clerk auth and user role check to all chat routes
-chat.use("*", clerkAuth, requireDbUser, requireUser);
+chat.use("*", clerkAuth, requireDbUser, requireUser, rateLimitMiddleware);
 
 // ============================================
 // POST /api/chat - Chat with SSE streaming

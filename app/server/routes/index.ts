@@ -5,6 +5,7 @@ import { waitlist } from "./waitlist";
 import { sessions } from "./sessions";
 import { tools } from "./tools";
 import { chat } from "./chat";
+import { usage } from "./usage";
 
 const api = new OpenAPIHono();
 
@@ -14,6 +15,7 @@ api.route("/waitlist", waitlist);
 api.route("/sessions", sessions);
 api.route("/tools", tools);
 api.route("/chat", chat);
+api.route("/usage", usage);
 
 // Generate OpenAPI spec
 api.doc("/doc", {

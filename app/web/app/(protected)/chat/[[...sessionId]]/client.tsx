@@ -15,6 +15,9 @@ import { MessageList } from "@/components/chat/MessageList";
 import { MessageInput } from "@/components/chat/MessageInput";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { RateLimitError } from "@/types";
 import type { SessionWithMessagesResponse, Message, ToolCall } from "@/types";
 
 interface ChatPageClientProps {
@@ -66,6 +69,10 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
   const { getToken } = useAuth();
   const { get, post } = useApi();
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId);
+  const [rateLimitInfo, setRateLimitInfo] = useState<{
+    message: string;
+    resetAt: number;
+  } | null>(null);
   const {
     messages,
     isStreaming,
@@ -149,12 +156,25 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
         const token = await getToken();
         if (!token) throw new Error("Not authenticated");
 
+        setRateLimitInfo(null);
         await streamChat(sessionId, content, token, (title) => {
           updateSession(sessionId!, { title });
         });
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "An error occurred";
-        setError(errorMsg);
+        if (err instanceof RateLimitError) {
+          const resetTime = new Date(err.resetAt * 1000).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZoneName: "short",
+          });
+          setRateLimitInfo({
+            message: `You've used all ${err.limit} queries for today. Resets at ${resetTime}.`,
+            resetAt: err.resetAt,
+          });
+        } else {
+          const errorMsg = err instanceof Error ? err.message : "An error occurred";
+          setError(errorMsg);
+        }
       }
     },
     [currentSessionId, getToken, addMessage, updateSession, setError, post, addSession, setActiveSession]
@@ -172,7 +192,18 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
             pendingToolCalls={pendingToolCalls}
             isStreaming={isStreaming}
           />
-          {error && (
+          {rateLimitInfo && (
+            <div className="px-4 pb-2">
+              <div className="max-w-3xl mx-auto">
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Daily limit reached</AlertTitle>
+                  <AlertDescription>{rateLimitInfo.message}</AlertDescription>
+                </Alert>
+              </div>
+            </div>
+          )}
+          {error && !rateLimitInfo && (
             <div className="px-4 pb-2">
               <div className="max-w-3xl mx-auto">
                 <div className="rounded-lg bg-destructive/10 text-destructive px-4 py-2 text-sm">

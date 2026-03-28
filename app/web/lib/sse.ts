@@ -1,4 +1,5 @@
 import { useChatStore } from "@/stores/chatStore";
+import { RateLimitError } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -23,12 +24,24 @@ export async function streamChat(
   });
 
   if (!response.ok) {
+    store.setStreaming(false);
     const error = await response.json().catch(() => ({ error: "Request failed" }));
+    if (response.status === 429) {
+      throw new RateLimitError(
+        error.message || "Rate limit exceeded",
+        error.limit ?? 0,
+        error.used ?? 0,
+        error.resetAt ?? 0
+      );
+    }
     throw new Error(error.error || `HTTP ${response.status}`);
   }
 
   const reader = response.body?.getReader();
-  if (!reader) throw new Error("No response body");
+  if (!reader) {
+    store.setStreaming(false);
+    throw new Error("No response body");
+  }
 
   const decoder = new TextDecoder();
   let buffer = "";

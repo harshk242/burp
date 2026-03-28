@@ -131,6 +131,12 @@ export const accessRequestQueries = {
       "UPDATE access_requests SET status = 'rejected', reviewed_at = unixepoch(), reviewed_by = ? WHERE id = ?"
     ).run(reviewedBy, id);
   },
+
+  findAll() {
+    return stmt(
+      "SELECT * FROM access_requests ORDER BY submitted_at DESC"
+    ).all();
+  },
 };
 
 /**
@@ -192,6 +198,55 @@ export const messageQueries = {
 
   findById(id: string) {
     return stmt("SELECT * FROM messages WHERE id = ?").get(id);
+  },
+};
+
+/**
+ * Daily usage queries (rate limiting)
+ */
+export const dailyUsageQueries = {
+  /** Increment today's usage and return new count */
+  incrementAndGet(userId: string): number {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+    stmt(
+      `INSERT INTO daily_usage (user_id, date, query_count)
+       VALUES (?, ?, 1)
+       ON CONFLICT(user_id, date) DO UPDATE SET query_count = query_count + 1`
+    ).run(userId, today);
+    const row = stmt(
+      "SELECT query_count FROM daily_usage WHERE user_id = ? AND date = ?"
+    ).get(userId, today) as { query_count: number } | undefined;
+    return row?.query_count ?? 1;
+  },
+
+  /** Get today's usage without incrementing */
+  getToday(userId: string): number {
+    const today = new Date().toISOString().slice(0, 10);
+    const row = stmt(
+      "SELECT query_count FROM daily_usage WHERE user_id = ? AND date = ?"
+    ).get(userId, today) as { query_count: number } | undefined;
+    return row?.query_count ?? 0;
+  },
+};
+
+/**
+ * Rate limit queries
+ */
+export const rateLimitQueries = {
+  getForRole(role: string): number {
+    const row = stmt(
+      "SELECT daily_limit FROM rate_limits WHERE role = ?"
+    ).get(role) as { daily_limit: number } | undefined;
+    if (!row) return role === "admin" ? -1 : 50;
+    return row.daily_limit;
+  },
+
+  update(role: string, dailyLimit: number) {
+    return stmt(
+      `INSERT INTO rate_limits (role, daily_limit, updated_at)
+       VALUES (?, ?, unixepoch())
+       ON CONFLICT(role) DO UPDATE SET daily_limit = ?, updated_at = unixepoch()`
+    ).run(role, dailyLimit, dailyLimit);
   },
 };
 

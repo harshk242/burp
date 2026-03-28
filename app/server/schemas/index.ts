@@ -151,6 +151,23 @@ export const ToolSearchQuerySchema = z.object({
 });
 
 // ============================================
+// Usage / Rate Limit Schemas
+// ============================================
+
+export const UsageSchema = z.object({
+  used: z.number().int().openapi({ example: 12 }),
+  limit: z.number().int().openapi({ example: 50, description: "-1 means unlimited" }),
+  remaining: z.number().int().openapi({ example: 38 }),
+  resetAt: z.number().int().openapi({ example: 1711497600, description: "Unix timestamp of next midnight UTC" }),
+  total_queries: z.number().int().openapi({ example: 142 }),
+  role: z.enum(["waitlist", "user", "admin"]).openapi({ example: "user" }),
+});
+
+export const AccessRequestAllListSchema = z.object({
+  requests: z.array(AccessRequestSchema),
+});
+
+// ============================================
 // Health Check Schemas
 // ============================================
 

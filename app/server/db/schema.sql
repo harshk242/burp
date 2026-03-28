@@ -52,6 +52,27 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at INTEGER DEFAULT (unixepoch())
 );
 
+-- Daily usage tracking (one row per user per day)
+CREATE TABLE IF NOT EXISTS daily_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,            -- YYYY-MM-DD (UTC)
+  query_count INTEGER DEFAULT 0,
+  created_at INTEGER DEFAULT (unixepoch()),
+  UNIQUE(user_id, date)
+);
+
+-- Configurable rate limits per role
+CREATE TABLE IF NOT EXISTS rate_limits (
+  role TEXT PRIMARY KEY CHECK (role IN ('user', 'admin')),
+  daily_limit INTEGER NOT NULL,
+  updated_at INTEGER DEFAULT (unixepoch())
+);
+
+-- Seed default rate limits
+INSERT OR IGNORE INTO rate_limits (role, daily_limit) VALUES ('user', 50);
+INSERT OR IGNORE INTO rate_limits (role, daily_limit) VALUES ('admin', -1);  -- -1 = unlimited
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -59,3 +80,4 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
 CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
 CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
+CREATE INDEX IF NOT EXISTS idx_daily_usage_user_date ON daily_usage(user_id, date);

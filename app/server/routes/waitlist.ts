@@ -6,6 +6,7 @@ import {
   CreateAccessRequestSchema,
   AccessRequestCreatedSchema,
   AccessRequestListSchema,
+  AccessRequestAllListSchema,
   ErrorSchema,
   MessageSchema,
 } from "../schemas";
@@ -174,6 +175,53 @@ waitlist.openapi(listRequestsRoute, async (c) => {
     return c.json({ requests }, 200);
   } catch (error) {
     console.error("Error fetching access requests:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// ============================================
+// GET /api/waitlist/all - All requests (Admin only)
+// ============================================
+
+const listAllRequestsRoute = createRoute({
+  method: "get",
+  path: "/all",
+  tags: ["Waitlist"],
+  summary: "List all access requests",
+  description: "Get all access requests (pending, approved, rejected). Requires admin authentication.",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description: "List of all access requests",
+      content: {
+        "application/json": {
+          schema: AccessRequestAllListSchema,
+        },
+      },
+    },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorSchema } },
+    },
+    403: {
+      description: "Forbidden - Admin access required",
+      content: { "application/json": { schema: ErrorSchema } },
+    },
+    500: {
+      description: "Internal server error",
+      content: { "application/json": { schema: ErrorSchema } },
+    },
+  },
+});
+
+waitlist.use("/all", clerkAuth, requireDbUser, requireAdmin);
+
+waitlist.openapi(listAllRequestsRoute, async (c) => {
+  try {
+    const requests = accessRequestQueries.findAll();
+    return c.json({ requests }, 200);
+  } catch (error) {
+    console.error("Error fetching all access requests:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });

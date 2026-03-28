@@ -95,6 +95,22 @@ export interface UserResponse {
 }
 
 // ============================================
+// Rate Limit Types
+// ============================================
+
+export class RateLimitError extends Error {
+  constructor(
+    message: string,
+    public limit: number,
+    public used: number,
+    public resetAt: number
+  ) {
+    super(message);
+    this.name = "RateLimitError";
+  }
+}
+
+// ============================================
 // SSE Event Types
 // ============================================
 
