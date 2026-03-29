@@ -2,19 +2,13 @@ FROM oven/bun:1.1-alpine AS base
 WORKDIR /app
 
 # Install Node.js for MCP server execution
-# MCP servers use @modelcontextprotocol/sdk which requires Node
+# MCP server uses @modelcontextprotocol/sdk which requires Node
 RUN apk add --no-cache nodejs npm
 
-# Build MCP servers
+# Build MCP server
 FROM base AS mcp-build
-COPY mcp-servers ./servers/
-RUN for dir in servers/*/; do \
-      echo "Building $dir..." && \
-      cd "$dir" && \
-      bun install && \
-      bun run build && \
-      cd ../.. ; \
-    done
+COPY mcp-server ./mcp-server
+RUN cd mcp-server && bun install && bun run build
 
 # Build web UI (static export)
 FROM base AS web-build
@@ -33,13 +27,14 @@ RUN cd web && bun install && bun run build
 FROM base AS server-build
 COPY app/server ./server
 COPY app/package.json ./
+COPY app/config.yaml ./
 RUN bun install
 
 # Final image
 FROM base AS runner
 
-# Copy MCP servers (built artifacts)
-COPY --from=mcp-build /app/servers ./servers
+# Copy MCP server (built artifacts)
+COPY --from=mcp-build /app/mcp-server ./mcp-server
 
 # Copy web static files (served by Hono)
 COPY --from=web-build /app/web/out ./public
@@ -47,6 +42,7 @@ COPY --from=web-build /app/web/out ./public
 # Copy server
 COPY --from=server-build /app/server ./server
 COPY --from=server-build /app/node_modules ./node_modules
+COPY --from=server-build /app/config.yaml ./
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data
@@ -54,7 +50,7 @@ RUN mkdir -p /app/data
 # Environment
 ENV PORT=3000
 ENV DATABASE_URL=/app/data/app.db
-ENV MCP_SERVERS_BASE=/app/servers
+ENV MCP_SERVERS_BASE=/app/mcp-server
 
 EXPOSE 3000
 

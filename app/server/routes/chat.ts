@@ -6,8 +6,9 @@ import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import { rateLimitMiddleware } from "../middleware/rateLimit";
 import { processChat as processChatLegacy, generateSessionTitle as titleLegacy } from "../orchestration/chat";
 import { processChat as processChatV2, generateSessionTitle as titleV2 } from "../orchestration/chat-v2";
+import { appConfig } from "../config";
 
-const USE_V2 = process.env.USE_VERCEL_AI !== "false"; // Default ON
+const USE_V2 = appConfig.features.use_vercel_ai;
 const processChat = USE_V2 ? processChatV2 : processChatLegacy;
 const generateSessionTitle = USE_V2 ? titleV2 : titleLegacy;
 import { chatSessionQueries, messageQueries } from "../db";

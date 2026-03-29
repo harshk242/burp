@@ -2,8 +2,17 @@
   "name": "super-bio-agent",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "app",
+    "app/web",
+    "mcp-server"
+  ],
   "scripts": {
-    "build:servers": "cd mcp-servers/unified && bun install && bun run build",
+    "build": "bun run --filter bio-mcp-unified build && bun run --filter super-bio-agent-web build",
+    "dev": "bun run --filter bio-mcp-unified build && concurrently -n mcp,backend,frontend -c cyan,green,blue \"bun run --filter bio-mcp-unified dev\" \"bun run --filter super-bio-agent dev\" \"bun run --filter super-bio-agent-web dev\"",
     "generate:embeddings": "bun run scripts/generate-tool-embeddings.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

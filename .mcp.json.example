@@ -2,7 +2,7 @@
   "mcpServers": {
     "bio": {
       "command": "node",
-      "args": ["/path/to/super-bio-agent/mcp-servers/unified/dist/index.js"],
+      "args": ["/path/to/super-bio-agent/mcp-server/dist/index.js"],
       "env": {
         "NCBI_API_KEY": "YOUR_NCBI_API_KEY_HERE"
       }

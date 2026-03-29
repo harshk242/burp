@@ -1,114 +1,34 @@
 /**
- * MCP Platforms Configuration — Single Source of Truth
+ * MCP Platforms Configuration — derived from app/config.yaml.
  *
- * To disable a platform: set `enabled: false`
- * To add a new platform: add an entry to PLATFORMS
+ * To enable/disable a platform or change always-loaded tools,
+ * edit app/config.yaml instead of this file.
  *
- * Both the MCP manager (server spawning) and the tool registry
- * (always-loaded tools) read from this file.
+ * Secrets (NCBI_API_KEY) are injected here from process.env because
+ * they must not appear in the YAML config file.
  */
 
+import { appConfig } from "../config";
+
 export interface PlatformConfig {
-  /** Display / registry name (e.g. "uniprot") */
   name: string;
-  /** Directory name under mcp-servers/ (no longer used for spawning — kept for reference) */
-  dir?: string;
-  /** Whether this platform is active */
   enabled: boolean;
-  /** Optional env vars forwarded to the unified server process */
   env?: Record<string, string | undefined>;
-  /**
-   * Tools from this platform that should always be loaded (non-deferred).
-   * Use the bare tool name (without the server prefix).
-   */
   alwaysLoadedTools?: string[];
 }
 
-export const PLATFORMS: PlatformConfig[] = [
-  {
-    name: "ensembl",
-    dir: "ensembl",
-    enabled: true,
-    alwaysLoadedTools: [
-      "search_genes",   // Gene symbol -> ENSG (foundation ID)
-      "get_xrefs",      // Ensembl -> UniProt cross-refs
-    ],
-  },
-  {
-    name: "open-targets",
-    dir: "open-targets",
-    enabled: true,
-    alwaysLoadedTools: [
-      "search_entities", // Gene/disease -> ENSG/EFO (most connected hub)
-    ],
-  },
-  // {
-  //   name: "uniprot",
-  //   dir: "uniprot",
-  //   enabled: true,
-  //   alwaysLoadedTools: [
-  //     "search_by_gene",        // Gene symbol -> UniProt accession
-  //     "get_external_references", // UniProt -> Ensembl cross-refs
-  //   ],
-  // },
-  {
-    name: "chembl",
-    dir: "chembl",
-    enabled: true,
-    alwaysLoadedTools: [
-      "search_compounds", // Drug name -> ChEMBL ID
-    ],
-  },
-  {
-    name: "pubchem",
-    dir: "pubchem",
-    enabled: true,
-    alwaysLoadedTools: [
-      "search_by_smiles", // SMILES -> PubChem CID
-    ],
-  },
-  {
-    name: "clinvar",
-    dir: "clinvar",
-    enabled: true,
-    env: { NCBI_API_KEY: process.env.NCBI_API_KEY },
-    alwaysLoadedTools: [
-      "lookup_by_rsid", // rsID -> clinical context + gene
-    ],
-  },
-  {
-    name: "reactome",
-    dir: "reactome",
-    enabled: true,
-  },
-  {
-    name: "clinicaltrials",
-    dir: "clinical-trials",
-    enabled: true,
-    alwaysLoadedTools: [
-      "search_by_intervention", // Drug -> NCT IDs
-      "search_by_condition",    // Condition -> NCT IDs
-    ],
-  },
-  {
-    name: "pubmed",
-    dir: "pubmed",
-    enabled: true,
-    env: { NCBI_API_KEY: process.env.NCBI_API_KEY },
-    alwaysLoadedTools: [
-      "search_pubmed", // Quick PMID discovery
-    ],
-  },
-  {
-    name: "clinpgx",
-    dir: "clinpgx",
-    enabled: true,
-  },
-];
+/** Platforms that require NCBI API key forwarded to the MCP process */
+const NCBI_PLATFORMS = new Set(["clinvar", "pubmed"]);
 
-// ── Derived helpers (consumed by manager.ts and registry.ts) ──
+export const PLATFORMS: PlatformConfig[] = Object.entries(appConfig.platforms).map(
+  ([name, cfg]) => ({
+    name,
+    enabled: cfg.enabled,
+    alwaysLoadedTools: cfg.always_loaded_tools,
+    ...(NCBI_PLATFORMS.has(name) && { env: { NCBI_API_KEY: process.env.NCBI_API_KEY } }),
+  })
+);
 
-/** Only the platforms that are enabled */
 export const enabledPlatforms = PLATFORMS.filter((p) => p.enabled);
 
 /**

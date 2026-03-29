@@ -292,6 +292,7 @@ export async function* processChat(
 
     let continueLoop = true;
     let fullAssistantContent = "";
+    let persistedAssistantText = ""; // accumulates all text across iterations for DB storage
     const allToolCalls: ToolCallRecord[] = [];
     let loopIteration = 0;
 
@@ -351,6 +352,13 @@ export async function* processChat(
       });
 
       if (finishReason === "tool-calls" && toolCalls && toolCalls.length > 0) {
+        // Flush current iteration's text into the persistent accumulator with a
+        // paragraph separator so that pre-tool and post-tool segments render
+        // as distinct paragraphs in markdown (model output may not end in \n).
+        if (fullAssistantContent) {
+          persistedAssistantText +=
+            (persistedAssistantText ? "\n\n" : "") + fullAssistantContent;
+        }
         // Reset text for next iteration (already streamed via SSE)
         fullAssistantContent = "";
 
@@ -512,6 +520,11 @@ export async function* processChat(
         // Append our manually constructed tool results
         messages.push({ role: "tool", content: toolResultParts });
       } else {
+        // Final iteration — flush remaining text into the persisted accumulator.
+        if (fullAssistantContent) {
+          persistedAssistantText +=
+            (persistedAssistantText ? "\n\n" : "") + fullAssistantContent;
+        }
         continueLoop = false;
       }
     }
@@ -522,7 +535,7 @@ export async function* processChat(
       assistantMsgId,
       sessionId,
       "assistant",
-      fullAssistantContent,
+      persistedAssistantText,
       allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null
     );
 
@@ -538,7 +551,7 @@ export async function* processChat(
         iterations: loopIteration,
         tool_calls_total: allToolCalls.length,
         tool_calls_failed: allToolCalls.filter((t) => t.error).length,
-        response_length: fullAssistantContent.length,
+        response_length: persistedAssistantText.length,
         message_id: assistantMsgId,
       },
     });

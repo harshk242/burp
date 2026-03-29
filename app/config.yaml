@@ -1,0 +1,92 @@
+# ============================================================
+# Super Bio Agent — Application Configuration
+# Non-secret settings. Secrets (API keys, Clerk) go in .env
+# All values here can be overridden by environment variables.
+# ============================================================
+
+# ── LLM ──────────────────────────────────────────────────────
+llm:
+  provider: anthropic           # "anthropic" | "google" — env: LLM_PROVIDER
+  chat_model: claude-haiku-4-5  # env: LLM_CHAT_MODEL
+  title_model: claude-haiku-4-5 # env: LLM_TITLE_MODEL
+  summarizer_model: claude-haiku-4-5 # env: LLM_SUMMARIZER_MODEL
+  max_retries: 3                # env: LLM_MAX_RETRIES
+  tool_output_summary_threshold: 15000 # chars — env: TOOL_OUTPUT_SUMMARY_THRESHOLD
+
+# ── Feature flags ────────────────────────────────────────────
+features:
+  use_vercel_ai: true           # false = legacy Anthropic-only orchestration — env: USE_VERCEL_AI
+
+# ── Server ───────────────────────────────────────────────────
+server:
+  port: 3000                    # env: PORT
+  database_url: ./data/app.db    # env: DATABASE_URL
+  mcp_servers_base: ../mcp-server # relative to app/ cwd; /app/mcp-server in Docker — env: MCP_SERVERS_BASE
+  cors_origins:                 # env: CORS_ORIGINS (comma-separated)
+    - http://localhost:3000
+    - http://localhost:3001
+  log_dir: ../logs              # env: LOG_DIR
+  log_level: DEBUG              # DEBUG | INFO | WARN | ERROR — env: LOG_LEVEL
+
+# ── Tool search tuning ───────────────────────────────────────
+tool_search:
+  bm25_weight: 1.0              # env: TOOL_SEARCH_BM25_WEIGHT
+  semantic_weight: 1.0          # env: TOOL_SEARCH_SEMANTIC_WEIGHT
+  short_query_threshold: 4      # queries with ≤ N words bias toward BM25 — env: TOOL_SEARCH_SHORT_QUERY_THRESHOLD
+  short_query_bm25_weight: 2.0  # BM25 weight multiplier for short queries — env: TOOL_SEARCH_SHORT_QUERY_BM25_WEIGHT
+  top_k: 15                     # env: TOOL_SEARCH_TOP_K
+
+# ── Platforms ────────────────────────────────────────────────
+# enabled: toggle a platform on/off without code changes
+# always_loaded_tools: tools pre-loaded into the LLM context on every request
+platforms:
+  ensembl:
+    enabled: true
+    always_loaded_tools:
+      - search_genes    # Gene symbol → ENSG (foundation ID)
+      - get_xrefs       # Ensembl → UniProt cross-refs
+
+  open-targets:
+    enabled: true
+    always_loaded_tools:
+      - search_entities # Gene/disease → ENSG/EFO (most connected hub)
+
+  chembl:
+    enabled: true
+    always_loaded_tools:
+      - search_compounds # Drug name → ChEMBL ID
+
+  pubchem:
+    enabled: true
+    always_loaded_tools:
+      - search_by_smiles # SMILES → PubChem CID
+
+  clinvar:
+    enabled: true
+    always_loaded_tools:
+      - lookup_by_rsid   # rsID → clinical context + gene
+
+  reactome:
+    enabled: true
+    always_loaded_tools: []
+
+  clinicaltrials:
+    enabled: true
+    always_loaded_tools:
+      - search_by_intervention # Drug → NCT IDs
+      - search_by_condition    # Condition → NCT IDs
+
+  pubmed:
+    enabled: true
+    always_loaded_tools:
+      - search_pubmed    # Quick PMID discovery
+
+  clinpgx:
+    enabled: true
+    always_loaded_tools: []
+
+  uniprot:
+    enabled: false
+    always_loaded_tools:
+      - search_by_gene
+      - get_external_references

@@ -8,6 +8,7 @@
 
 import fs from "fs";
 import path from "path";
+import { appConfig } from "./config";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ export interface LogContext {
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
-const LOG_DIR = process.env.LOG_DIR || path.resolve(process.cwd(), "../logs");
+const LOG_DIR = path.resolve(process.cwd(), appConfig.server.log_dir);
 const LOG_FILE = path.join(LOG_DIR, "app.log");
 const MAX_LOG_SIZE = 50 * 1024 * 1024; // 50 MB before rotation
 const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
@@ -44,7 +45,7 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   WARN: 2,
   ERROR: 3,
 };
-const MIN_LOG_LEVEL: LogLevel = (process.env.LOG_LEVEL as LogLevel) || "DEBUG";
+const MIN_LOG_LEVEL: LogLevel = appConfig.server.log_level;
 
 // ── Ensure log directory exists ────────────────────────────────────────────
 

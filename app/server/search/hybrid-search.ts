@@ -7,6 +7,7 @@
 import { embed } from "ai";
 import { toolSearchQueries } from "../db";
 import { logger, startTimer } from "../logger";
+import { appConfig } from "../config";
 
 export interface SearchResult {
   fullName: string;
@@ -35,12 +36,13 @@ export interface HybridSearchConfig {
 }
 
 function loadConfig(): HybridSearchConfig {
+  const ts = appConfig.tool_search;
   return {
-    bm25Weight: parseFloat(process.env.TOOL_SEARCH_BM25_WEIGHT || "1.0"),
-    semanticWeight: parseFloat(process.env.TOOL_SEARCH_SEMANTIC_WEIGHT || "1.0"),
-    shortQueryTokenThreshold: parseInt(process.env.TOOL_SEARCH_SHORT_QUERY_THRESHOLD || "4", 10),
-    shortQueryBm25Weight: parseFloat(process.env.TOOL_SEARCH_SHORT_QUERY_BM25_WEIGHT || "2.0"),
-    topK: parseInt(process.env.TOOL_SEARCH_TOP_K || "15", 10),
+    bm25Weight: ts.bm25_weight,
+    semanticWeight: ts.semantic_weight,
+    shortQueryTokenThreshold: ts.short_query_threshold,
+    shortQueryBm25Weight: ts.short_query_bm25_weight,
+    topK: ts.top_k,
     rrfK: 60,
   };
 }

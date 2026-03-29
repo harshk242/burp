@@ -21,7 +21,7 @@ if (!GEMINI_API_KEY) {
   process.exit(1);
 }
 
-const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || "mcp-servers";
+const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || "mcp-server";
 const OUTPUT_PATH = join(process.cwd(), "data", "tool-embeddings.json");
 const BATCH_SIZE = 100;
 
@@ -30,7 +30,7 @@ async function main() {
 
   const transport = new StdioClientTransport({
     command: "node",
-    args: [`${MCP_SERVERS_BASE}/unified/dist/index.js`],
+    args: [`${MCP_SERVERS_BASE}/dist/index.js`],
     env: { ...process.env } as Record<string, string>,
   });
 

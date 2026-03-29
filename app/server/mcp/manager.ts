@@ -8,11 +8,12 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { toolRegistry } from "./registry";
 import { enabledPlatforms } from "./platforms.config";
 import { logger, startTimer, estimateTokens } from "../logger";
+import { appConfig } from "../config";
 
-// Environment-aware base path for MCP servers
-// Default: "../mcp-servers" because app runs from app/ directory, servers are at project root in mcp-servers/
-// In container: "/app/servers" where Dockerfile copies them
-const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || "../mcp-servers";
+// Environment-aware base path for the unified MCP server
+// Default: "../mcp-server" because app runs from app/ directory, server is at project root in mcp-server/
+// In container: "/app/mcp-server" where Dockerfile copies it
+const MCP_SERVERS_BASE = appConfig.server.mcp_servers_base;
 
 export interface MCPServerConfig {
   name: string;
@@ -33,7 +34,7 @@ export const MCP_SERVERS: MCPServerConfig[] = [
   {
     name: "unified",
     command: "node",
-    args: [`${MCP_SERVERS_BASE}/unified/dist/index.js`],
+    args: [`${MCP_SERVERS_BASE}/dist/index.js`],
     env: unifiedEnv,
   },
 ];

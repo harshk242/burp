@@ -9,6 +9,7 @@ import { toolRegistry } from "./mcp/registry";
 import { hybridSearch } from "./search";
 import { getEmbeddingModel } from "./llm";
 import { logger, startTimer, generateRequestId } from "./logger";
+import { appConfig } from "./config";
 
 // Initialize database on startup
 initializeSchema();
@@ -111,9 +112,7 @@ app.use(
   "*",
   cors({
     origin: (origin) => {
-      const allowed = (process.env.CORS_ORIGINS || "http://localhost:3000,http://localhost:3001")
-        .split(",")
-        .map((o) => o.trim());
+      const allowed = appConfig.server.cors_origins;
       return allowed.includes(origin) ? origin : allowed[0];
     },
     credentials: true,
@@ -140,7 +139,7 @@ app.use("*", serveStatic({ root: "./public" }));
 // Fallback to index.html for client-side routing
 app.use("*", serveStatic({ root: "./public", path: "index.html" }));
 
-const port = parseInt(process.env.PORT || "3000");
+const port = appConfig.server.port;
 
 console.log(`
 ╔═══════════════════════════════════════════════════════════╗

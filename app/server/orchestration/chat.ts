@@ -9,23 +9,19 @@ import { mcpManager } from "../mcp/manager";
 import { toolRegistry } from "../mcp/registry";
 import { messageQueries, chatSessionQueries, userQueries } from "../db";
 import { logger, startTimer, estimateTokens, type LogContext } from "../logger";
+import { appConfig } from "../config";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic();
 
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
-const TITLE_MODEL = process.env.CLAUDE_TITLE_MODEL || "claude-haiku-4-5";
-const SUMMARIZER_MODEL = process.env.TOOL_SUMMARIZER_MODEL || "claude-haiku-4-5";
-
-// Tool output summarization threshold (bytes). Outputs larger than this
-// are compressed via a Haiku side-call before entering the main conversation.
-const TOOL_OUTPUT_SUMMARY_THRESHOLD = parseInt(
-  process.env.TOOL_OUTPUT_SUMMARY_THRESHOLD || "15000",
-  10
-);
+const { llm } = appConfig;
+const CLAUDE_MODEL = llm.chat_model;
+const TITLE_MODEL = llm.title_model;
+const SUMMARIZER_MODEL = llm.summarizer_model;
+const TOOL_OUTPUT_SUMMARY_THRESHOLD = llm.tool_output_summary_threshold;
 
 // 429 retry configuration
-const MAX_RETRIES = parseInt(process.env.LLM_MAX_RETRIES || "3", 10);
+const MAX_RETRIES = llm.max_retries;
 const INITIAL_RETRY_DELAY_MS = 5000; // 5 seconds
 const RETRY_BACKOFF_MULTIPLIER = 2;
 

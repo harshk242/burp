@@ -1,8 +1,9 @@
 /**
- * LLM provider configuration.
+ * LLM configuration — reads from the central appConfig singleton.
  * Supports Anthropic and Google as providers.
- * Legacy env vars (CLAUDE_MODEL, etc.) kept as fallbacks.
  */
+
+import { appConfig } from "../config";
 
 export type LLMProviderName = "anthropic" | "google";
 
@@ -29,29 +30,15 @@ const DEFAULTS: Record<LLMProviderName, { chat: string; title: string; summarize
 };
 
 export function loadLLMConfig(): LLMConfig {
-  const provider = (process.env.LLM_PROVIDER || "anthropic") as LLMProviderName;
-  if (!DEFAULTS[provider]) {
-    throw new Error(`Unknown LLM_PROVIDER: ${provider}. Must be "anthropic" or "google".`);
-  }
+  const { llm } = appConfig;
+  const provider = llm.provider;
 
   return {
     provider,
-    chatModel:
-      process.env.LLM_CHAT_MODEL ||
-      process.env.CLAUDE_MODEL ||
-      DEFAULTS[provider].chat,
-    titleModel:
-      process.env.LLM_TITLE_MODEL ||
-      process.env.CLAUDE_TITLE_MODEL ||
-      DEFAULTS[provider].title,
-    summarizerModel:
-      process.env.LLM_SUMMARIZER_MODEL ||
-      process.env.TOOL_SUMMARIZER_MODEL ||
-      DEFAULTS[provider].summarizer,
-    maxRetries: parseInt(process.env.LLM_MAX_RETRIES || "3", 10),
-    toolOutputSummaryThreshold: parseInt(
-      process.env.TOOL_OUTPUT_SUMMARY_THRESHOLD || "15000",
-      10
-    ),
+    chatModel: llm.chat_model || DEFAULTS[provider].chat,
+    titleModel: llm.title_model || DEFAULTS[provider].title,
+    summarizerModel: llm.summarizer_model || DEFAULTS[provider].summarizer,
+    maxRetries: llm.max_retries,
+    toolOutputSummaryThreshold: llm.tool_output_summary_threshold,
   };
 }

@@ -1,12 +1,15 @@
 import { Database } from "bun:sqlite";
 import { readFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
+import { appConfig } from "../config";
 
 // Resolve data directory relative to project root (app/../data)
 const PROJECT_ROOT = join(dirname(import.meta.dir), "..", "..");
 const DATA_DIR = join(PROJECT_ROOT, "data");
 const DEFAULT_DB_PATH = join(DATA_DIR, "app.db");
-const DB_PATH = process.env.DATABASE_URL || DEFAULT_DB_PATH;
+const DB_PATH = appConfig.server.database_url.startsWith("/")
+  ? appConfig.server.database_url
+  : join(PROJECT_ROOT, appConfig.server.database_url);
 
 // Ensure data directory exists
 const dbDir = dirname(DB_PATH);
