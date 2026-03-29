@@ -46,8 +46,36 @@ export async function streamChat(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  // Track current event type from `event:` line
+  // SSE spec: accumulate data lines per event, dispatch on empty line boundary
   let currentEventType: string | null = null;
+  let dataLines: string[] = [];
+
+  function dispatchEvent() {
+    if (currentEventType && dataLines.length > 0) {
+      const fullPayload = dataLines.join("\n");
+      try {
+        const data = JSON.parse(fullPayload);
+        handleSSEEvent(currentEventType, data, onTitle);
+      } catch {
+        handleSSEEvent(currentEventType, fullPayload, onTitle);
+      }
+    }
+    currentEventType = null;
+    dataLines = [];
+  }
+
+  function processLine(line: string) {
+    if (line.startsWith("event: ")) {
+      currentEventType = line.slice(7).trim();
+    } else if (line.startsWith("data:")) {
+      // "data: content" (with space) or "data:" (empty / no space)
+      const payload = line.startsWith("data: ") ? line.slice(6) : line.slice(5);
+      dataLines.push(payload);
+    } else if (line === "") {
+      // Empty line = end of event block per SSE spec
+      dispatchEvent();
+    }
+  }
 
   try {
     while (true) {
@@ -59,7 +87,7 @@ export async function streamChat(
       buffer = lines.pop() || "";
 
       for (const line of lines) {
-        currentEventType = processSSELine(line, currentEventType, onTitle);
+        processLine(line);
       }
     }
 
@@ -67,48 +95,14 @@ export async function streamChat(
     // This ensures the last SSE event (e.g., title) is never lost.
     if (buffer.trim()) {
       for (const line of buffer.split("\n")) {
-        currentEventType = processSSELine(line, currentEventType, onTitle);
+        processLine(line);
       }
     }
+    // Flush any pending event that wasn't terminated by an empty line
+    dispatchEvent();
   } finally {
     reader.releaseLock();
   }
-}
-
-/**
- * Process a single SSE line and return the updated event type.
- */
-function processSSELine(
-  line: string,
-  currentEventType: string | null,
-  onTitle?: (title: string) => void
-): string | null {
-  // Standard SSE format: backend sends "event: <type>" then "data: <payload>"
-  if (line.startsWith("event: ")) {
-    return line.slice(7).trim();
-  }
-
-  if (line.startsWith("data: ")) {
-    const payload = line.slice(6);
-    if (payload && currentEventType) {
-      try {
-        const data = JSON.parse(payload);
-        handleSSEEvent(currentEventType, data, onTitle);
-      } catch {
-        // Handle non-JSON data (e.g., plain text chunks)
-        handleSSEEvent(currentEventType, payload, onTitle);
-      }
-    }
-    // Reset event type after processing (SSE events are paired)
-    return null;
-  }
-
-  // Empty line marks end of an event block (SSE spec)
-  if (line === "") {
-    return null;
-  }
-
-  return currentEventType;
 }
 
 /**

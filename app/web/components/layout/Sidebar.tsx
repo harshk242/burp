@@ -49,7 +49,7 @@ export function Sidebar() {
   function handleNewChat() {
     setActiveSession(null);
     setMobileMenuOpen(false);
-    window.location.href = buildChatUrl();
+    window.history.pushState(null, "", buildChatUrl());
   }
 
   function handleStartRename(e: React.MouseEvent, sessionId: string, currentTitle: string) {
@@ -92,7 +92,7 @@ export function Sidebar() {
       await del(`/sessions/${sessionId}`);
       removeSession(sessionId);
       if (activeSessionId === sessionId) {
-        window.location.href = buildChatUrl();
+        window.history.pushState(null, "", buildChatUrl());
       }
     } catch (error) {
       console.error("Failed to delete session:", error);
@@ -155,7 +155,7 @@ export function Sidebar() {
                       e.preventDefault();
                       setActiveSession(session.id);
                       setMobileMenuOpen(false);
-                      window.location.href = buildChatUrl(session.id);
+                      window.history.pushState(null, "", buildChatUrl(session.id));
                     }}
                     className={cn(
                       "group flex items-center gap-2 rounded-md px-3 py-2 text-sm overflow-hidden hover:bg-accent",

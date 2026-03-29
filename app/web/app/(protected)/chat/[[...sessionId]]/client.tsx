@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { useChatStore } from "@/stores/chatStore";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -84,11 +84,37 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     reset,
     setError,
   } = useChatStore();
-  const { addSession, setActiveSession, updateSession } = useSessionStore();
+  const { activeSessionId, addSession, setActiveSession, updateSession } = useSessionStore();
+
+  // Sync session store → local state when sidebar changes the active session.
+  // Uses a ref to skip the initial mount (where activeSessionId may be null
+  // while currentSessionId is already set from the URL).
+  const prevActiveRef = useRef(activeSessionId);
+  useEffect(() => {
+    if (prevActiveRef.current !== activeSessionId) {
+      prevActiveRef.current = activeSessionId;
+      setCurrentSessionId(activeSessionId);
+    }
+  }, [activeSessionId]);
+
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const sessionId = extractSessionIdFromLocation(window.location);
+      setCurrentSessionId(sessionId);
+      setActiveSession(sessionId);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [setActiveSession]);
 
   // Load session messages when session ID changes
   useEffect(() => {
-    if (!currentSessionId) return;
+    // When switching to "New Chat" (null), just clear messages
+    if (!currentSessionId) {
+      reset();
+      return;
+    }
 
     setActiveSession(currentSessionId);
     reset(); // Clear previous session's messages
