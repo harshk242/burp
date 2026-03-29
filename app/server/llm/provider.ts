@@ -37,10 +37,6 @@ export function getTitleModel(): LanguageModel {
   return getModel(config.titleModel, config.provider);
 }
 
-export function getSummarizerModel(): LanguageModel {
-  return getModel(config.summarizerModel, config.provider);
-}
-
 /** Embedding model is always Gemini regardless of LLM provider */
 export function getEmbeddingModel(): EmbeddingModel {
   return google.embedding("gemini-embedding-001");

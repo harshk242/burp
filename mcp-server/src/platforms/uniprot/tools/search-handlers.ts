@@ -8,10 +8,7 @@
 
 import type { ToolHandler } from '../../../types.js';
 import { getClient } from '../client.js';
-import {
-  resolveSpeciesFilter,
-  extractSearchByGeneResponse,
-} from '../extractors.js';
+import { resolveSpeciesFilter } from '../extractors.js';
 
 // ---------------------------------------------------------------------------
 // Validation helpers
@@ -83,7 +80,7 @@ const handleSearchByGene: ToolHandler = async (args) => {
     params: { query, format: 'json', size },
   });
 
-  return extractSearchByGeneResponse(response.data, gene, species);
+  return response.data;
 };
 
 // ---------------------------------------------------------------------------

@@ -413,6 +413,23 @@ class MCPManager {
       rawText = JSON.stringify(result.content);
     }
 
+    // Hard cap: reject outputs exceeding the configured byte limit
+    const hardCapBytes = appConfig.artifact?.hard_cap_bytes ?? 1_048_576;
+    if (rawText.length > hardCapBytes) {
+      logger.warn("MCP", "tool_output_hard_cap", {
+        duration_ms: elapsed(),
+        data: {
+          tool: prefixedToolName,
+          size_bytes: rawText.length,
+          cap_bytes: hardCapBytes,
+        },
+      });
+      return {
+        content: `Error: Tool output exceeded ${(hardCapBytes / 1024 / 1024).toFixed(1)}MB hard cap (actual: ${(rawText.length / 1024 / 1024).toFixed(1)}MB). Use more specific query parameters to reduce the result set.`,
+        isError: true,
+      };
+    }
+
     const duration = elapsed();
     const outputTokens = estimateTokens(rawText);
     const outputBytes = Buffer.byteLength(rawText, "utf8");

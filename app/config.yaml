@@ -9,9 +9,7 @@ llm:
   provider: anthropic           # "anthropic" | "google" — env: LLM_PROVIDER
   chat_model: claude-haiku-4-5  # env: LLM_CHAT_MODEL
   title_model: claude-haiku-4-5 # env: LLM_TITLE_MODEL
-  summarizer_model: claude-haiku-4-5 # env: LLM_SUMMARIZER_MODEL
   max_retries: 3                # env: LLM_MAX_RETRIES
-  tool_output_summary_threshold: 15000 # chars — env: TOOL_OUTPUT_SUMMARY_THRESHOLD
 
 # ── Feature flags ────────────────────────────────────────────
 features:
@@ -90,3 +88,43 @@ platforms:
     always_loaded_tools:
       - search_by_gene
       - get_external_references
+
+# ── Artifact & Large Output Handling ─────────────────────────
+# Two-tier jq pipeline: noise reduction + artifact inspection
+artifact:
+  inline_max_chars: 15000       # single threshold for both tiers
+  hard_cap_bytes: 1048576       # 1MB — reject output entirely above this
+  ttl_minutes: 5                # artifact expiry (based on last access)
+  max_per_session: 10           # max artifacts per chat session
+  preview_sample_items: 2       # sample items in schema preview
+  preview_max_chars_per_value: 150 # truncate long strings in preview
+  jq_timeout_ms: 5000           # per-filter execution timeout
+  jq_max_output_chars: 50000    # max chars per jq filter output
+
+  # 3-layer policy system: global -> platform -> tool
+  # All layers compose (not override) — filters are concatenated
+  policies:
+    global:
+      noise_filters:
+        - "del(.. | nulls)"
+
+    platforms:
+      uniprot:
+        noise_filters:
+          - "if .results then .results |= map(del(.sequence.value)) else del(.sequence.value) end"
+          - "del(.. | .evidences?)"
+          - "if .results then .results |= .[:10] else . end"
+      chembl:
+        noise_filters:
+          - "if .molecules then .molecules |= .[:25] else . end"
+          - "if .activities then .activities |= .[:25] else . end"
+
+    tools: {}
+      # Future: per-tool semantic profiles
+      # uniprot__search_by_gene:
+      #   semantic_profile: "profile_uniprot_gene_bridge_v1"
+
+    profiles: {}
+      # Future: named, versioned jq transform sequences
+      # profile_uniprot_gene_bridge_v1:
+      #   - "..."

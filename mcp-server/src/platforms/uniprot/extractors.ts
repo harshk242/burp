@@ -5,6 +5,13 @@
  * all semantically useful fields for LLM reasoning.
  *
  * See docs/UNIPROT_EXTRACTION_PLAN.md for the full rationale.
+ *
+ * TODO: The extractor functions below (extractEntry, extractSearchByGeneResponse,
+ * pickBestEntry) are currently unused — output shaping is now handled by the
+ * orchestration-layer jq pipeline. They encode valuable semantic logic (species
+ * defaults, taxon grouping, best-reviewed-entry selection) that should be
+ * revisited when designing semantic profiles for the jq policy system.
+ * See: artifact.policies.profiles in app/config.yaml
  */
 
 // ---------------------------------------------------------------------------
