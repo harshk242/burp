@@ -16,11 +16,7 @@ export async function getDrugInfo(chemblId: string): Promise<unknown> {
         tradeNames
         drugType
         description
-        isApproved
-        hasBeenWithdrawn
-        blackBoxWarning
-        yearOfFirstApproval
-        maximumClinicalTrialPhase
+        maximumClinicalStage
         mechanismsOfAction {
           rows {
             mechanismOfAction
@@ -44,19 +40,7 @@ export async function getDrugInfo(chemblId: string): Promise<unknown> {
               name
               therapeuticAreas { id, name }
             }
-            maxPhaseForIndication
-            references {
-              source
-              ids
-            }
-          }
-          count
-        }
-        linkedTargets {
-          rows {
-            id
-            approvedSymbol
-            biotype
+            maxClinicalStage
           }
           count
         }

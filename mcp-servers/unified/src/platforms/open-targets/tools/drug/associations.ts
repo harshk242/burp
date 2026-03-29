@@ -3,7 +3,7 @@
 import { getClient } from '../../client.js';
 
 /**
- * List diseases connected to a drug across indications and mechanisms.
+ * List diseases connected to a drug across indications.
  */
 export async function getDrugLinkedDiseases(chemblId: string): Promise<unknown> {
   const client = getClient();
@@ -12,15 +12,18 @@ export async function getDrugLinkedDiseases(chemblId: string): Promise<unknown> 
       drug(chemblId: $chemblId) {
         id
         name
-        linkedDiseases {
+        indications {
           count
           rows {
-            id
-            name
-            description
-            therapeuticAreas {
+            maxClinicalStage
+            disease {
               id
               name
+              description
+              therapeuticAreas {
+                id
+                name
+              }
             }
           }
         }
@@ -40,16 +43,14 @@ export async function getDrugLinkedTargets(chemblId: string): Promise<unknown> {
       drug(chemblId: $chemblId) {
         id
         name
-        linkedTargets {
-          count
+        mechanismsOfAction {
           rows {
-            id
-            approvedSymbol
-            approvedName
-            biotype
-            proteinIds {
+            mechanismOfAction
+            targetName
+            actionType
+            targets {
               id
-              source
+              approvedSymbol
             }
           }
         }

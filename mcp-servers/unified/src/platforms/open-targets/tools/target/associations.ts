@@ -41,29 +41,23 @@ export async function getTargetKnownDrugs(
   const query = `
     query TargetKnownDrugs($ensemblId: String!) {
       target(ensemblId: $ensemblId) {
-        knownDrugs {
+        drugAndClinicalCandidates {
           count
           rows {
-            drugId
-            targetId
+            id
+            maxClinicalStage
             drug {
               id
               name
               drugType
-              maximumClinicalTrialPhase
-              isApproved
+              maximumClinicalStage
               description
             }
-            mechanismOfAction
-            disease {
-              id
-              name
-            }
-            phase
-            status
-            urls {
-              name
-              url
+            diseases {
+              disease {
+                id
+                name
+              }
             }
           }
         }

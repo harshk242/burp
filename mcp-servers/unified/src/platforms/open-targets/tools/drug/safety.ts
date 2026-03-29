@@ -42,9 +42,6 @@ export async function getDrugPharmacovigilance(chemblId: string): Promise<unknow
       drug(chemblId: $chemblId) {
         id
         name
-        isApproved
-        hasBeenWithdrawn
-        blackBoxWarning
         adverseEvents(page: {index: 0, size: 20}) {
           count
           criticalValue
@@ -71,8 +68,6 @@ export async function getDrugWarnings(chemblId: string): Promise<unknown> {
       drug(chemblId: $chemblId) {
         id
         name
-        hasBeenWithdrawn
-        blackBoxWarning
         drugWarnings {
           warningType
           description

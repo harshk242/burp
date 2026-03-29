@@ -157,7 +157,7 @@ export const toolDefinitions: Tool[] = [
       type: 'object',
       properties: {
         ensembl_id: { type: 'string', description: 'Target identifier' },
-        source_database: { type: 'string', description: 'Limit to specific interaction datasource' },
+        source_database: { type: 'string', enum: ['intact', 'reactome', 'signor', 'string'], description: 'Limit to specific interaction datasource (intact, reactome, signor, string)' },
         score_threshold: { type: 'number', description: 'Minimum confidence score (0-1)' },
         page_index: { type: 'number', description: 'Page index (default 0)' },
         page_size: { type: 'number', description: 'Page size (default 10)' },

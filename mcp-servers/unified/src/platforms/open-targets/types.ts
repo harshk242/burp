@@ -366,20 +366,14 @@ export interface Drug {
   id: string;
   name: string;
   drugType: string;
-  isApproved?: boolean;
   description?: string;
-  maximumClinicalTrialPhase?: number;
-  hasBeenWithdrawn?: boolean;
-  blackBoxWarning?: boolean;
+  maximumClinicalStage?: string;
   parentId?: string;
   childChemblIds?: string[];
   synonyms?: string[];
   tradeNames?: string[];
-  yearOfFirstApproval?: number;
   crossReferences?: DrugCrossReference;
   mechanismsOfAction?: MechanismOfAction;
-  linkedTargets?: LinkedTargets;
-  linkedDiseases?: LinkedDiseases;
   indications?: Indications;
 }
 
@@ -413,27 +407,6 @@ export interface MechanismReference {
   urls: string[];
 }
 
-export interface LinkedTargets {
-  count: number;
-  rows: LinkedTarget[];
-}
-
-export interface LinkedTarget {
-  id: string;
-  approvedSymbol: string;
-  approvedName: string;
-}
-
-export interface LinkedDiseases {
-  count: number;
-  rows: LinkedDisease[];
-}
-
-export interface LinkedDisease {
-  id: string;
-  name: string;
-}
-
 export interface Indications {
   count: number;
   rows: Indication[];
@@ -444,13 +417,7 @@ export interface Indication {
     id: string;
     name: string;
   };
-  maxPhaseForIndication: number;
-  references: IndicationReference[];
-}
-
-export interface IndicationReference {
-  source: string;
-  ids: string[];
+  maxClinicalStage: string;
 }
 
 // Adverse Event Types

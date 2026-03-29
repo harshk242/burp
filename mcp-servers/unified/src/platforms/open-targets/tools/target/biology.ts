@@ -241,7 +241,7 @@ export async function getTargetInteractions(
   const query = `
     query TargetInteractions(
       $ensemblId: String!,
-      $sourceDatabase: String,
+      $sourceDatabase: InteractionSourceEnum,
       $scoreThreshold: Float,
       $pageIndex: Int!,
       $pageSize: Int!
