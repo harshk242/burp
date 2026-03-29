@@ -123,9 +123,20 @@ interface DBMessage {
 const INSPECT_TOOL_KEY = "system__inspect_artifact";
 
 /**
- * Handle large tool outputs via the two-tier jq pipeline:
- * 1. Noise reduction (deterministic jq filters per platform/tool)
- * 2. Artifact storage + schema preview + inspect_artifact tool
+ * ── Layer 3 of 3: Noise reduce, then artifact if still big (15K) ──
+ *
+ *   MCP server  (5MB)  → prevent process death / stdio pressure
+ *   App manager (1MB)  → prevent LLM context blow-up
+ *   handleLargeOutput (15K) → noise reduce, then artifact if still big  ← YOU ARE HERE
+ *
+ * Two-tier jq pipeline:
+ *   Tier 1 — deterministic noise reduction (jq filters per platform/tool)
+ *   Tier 2 — artifact storage + schema preview + inspect_artifact tool
+ *
+ * No silent truncation of JSON at any point. Data is either:
+ *   - passed through (small enough)
+ *   - noise-reduced and passed through (reduced below threshold)
+ *   - stored as artifact with a schema preview (LLM writes jq to inspect)
  *
  * Replaces the old LLM-based maybeCompressOutput summarizer.
  */

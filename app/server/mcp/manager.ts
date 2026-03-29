@@ -29,6 +29,10 @@ for (const p of enabledPlatforms) {
   if (p.env) Object.assign(unifiedEnv, p.env);
 }
 
+// Tell the MCP server which platforms to actually register.
+// Disabled platforms won't be initialized or have tools exposed.
+unifiedEnv.ENABLED_PLATFORMS = enabledPlatforms.map((p) => p.name).join(",");
+
 // Single unified MCP server replaces the 10 individual servers
 export const MCP_SERVERS: MCPServerConfig[] = [
   {
@@ -413,26 +417,38 @@ class MCPManager {
       rawText = JSON.stringify(result.content);
     }
 
-    // Hard cap: reject outputs exceeding the configured byte limit
-    const hardCapBytes = appConfig.artifact?.hard_cap_bytes ?? 1_048_576;
-    if (rawText.length > hardCapBytes) {
-      logger.warn("MCP", "tool_output_hard_cap", {
-        duration_ms: elapsed(),
-        data: {
-          tool: prefixedToolName,
-          size_bytes: rawText.length,
-          cap_bytes: hardCapBytes,
-        },
-      });
-      return {
-        content: `Error: Tool output exceeded ${(hardCapBytes / 1024 / 1024).toFixed(1)}MB hard cap (actual: ${(rawText.length / 1024 / 1024).toFixed(1)}MB). Use more specific query parameters to reduce the result set.`,
-        isError: true,
-      };
-    }
-
     const duration = elapsed();
     const outputTokens = estimateTokens(rawText);
     const outputBytes = Buffer.byteLength(rawText, "utf8");
+
+    // ── Layer 2 of 3: Prevent LLM context blow-up (1MB) ─────────────
+    //
+    //   MCP server  (5MB)  → prevent process death / stdio pressure
+    //   App manager (1MB)  → prevent LLM context blow-up  ← YOU ARE HERE
+    //   handleLargeOutput (15K) → noise reduce, then artifact if still big
+    //
+    // Measured in real bytes (not chars) to match config semantics.
+    // No silent truncation: returns an explicit error so the user can
+    // narrow their query parameters.
+    const hardCapBytes = appConfig.artifact?.hard_cap_bytes ?? 1_048_576;
+    if (outputBytes > hardCapBytes) {
+      const actualMB = (outputBytes / 1024 / 1024).toFixed(2);
+      const capMB = (hardCapBytes / 1024 / 1024).toFixed(1);
+      logger.warn("MCP", "tool_output_hard_cap", {
+        duration_ms: duration,
+        data: {
+          tool: prefixedToolName,
+          output_bytes: outputBytes,
+          output_chars: rawText.length,
+          cap_bytes: hardCapBytes,
+          reason: "output exceeds app-side hard cap for LLM context budget",
+        },
+      });
+      return {
+        content: `Error: Tool "${prefixedToolName}" returned ${actualMB}MB which exceeds the ${capMB}MB limit. The data was NOT truncated — nothing was lost. To fix: use more specific query parameters (e.g., smaller 'size', narrower filters) to reduce the result set.`,
+        isError: true,
+      };
+    }
 
     logger.info("MCP", "tool_call_complete", {
       duration_ms: duration,
