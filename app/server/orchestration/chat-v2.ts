@@ -18,7 +18,6 @@ import { v4 as uuidv4 } from "uuid";
 import {
   getChatModel,
   getTitleModel,
-  getSummarizerModel,
   loadLLMConfig,
   sanitizeToolName,
   desanitizeToolName,
@@ -29,10 +28,18 @@ import { createSearchTool } from "./tools/search-tool";
 import { createMcpToolExecutor } from "./tools/mcp-executor";
 import { messageQueries, chatSessionQueries, userQueries } from "../db";
 import { logger, startTimer, estimateTokens, type LogContext } from "../logger";
+import { appConfig } from "../config";
+import { artifactStore } from "./tools/artifact-store";
+import { applyNoiseReduction } from "./tools/noise-reduction";
+import { generatePreview } from "./tools/schema-preview";
+import { createInspectArtifactTool } from "./tools/artifact-inspector";
+import { validatePolicies } from "./tools/policy-resolver";
 
 const llmConfig = loadLLMConfig();
 
-const SEARCH_TOOL_NAME = "search_available_tools";
+// Non-MCP tools use the "system__" prefix so they pass through parseToolName()
+// and the dispatch loop can route them by server === "system".
+const SEARCH_TOOL_NAME = "system__search_available_tools";
 
 const SYSTEM_PROMPT = `You are a biomedical research assistant with access to 10 specialized databases:
 
@@ -64,14 +71,14 @@ You have 210+ specialized tools available, organized in two tiers:
 - **clinicaltrials__search_by_intervention** - Drug → clinical trials (NCT IDs)
 - **clinicaltrials__search_by_condition** - Condition → clinical trials (NCT IDs)
 
-### Additional Specialized Tools (use search_available_tools to discover):
+### Additional Specialized Tools (use system__search_available_tools to discover):
 For specialized queries (protein structure, pathway analysis, bioactivity data, etc.),
-use the search_available_tools tool to find relevant tools by describing what you need.
+use the system__search_available_tools tool to find relevant tools by describing what you need.
 
 ## Workflow Guidelines
 
 1. **Start with core tools** for ID resolution and initial discovery
-2. **Use search_available_tools** when you need specialized analysis not covered by core tools
+2. **Use system__search_available_tools** when you need specialized analysis not covered by core tools
 3. **Cross-reference multiple databases** - use IDs from one database to query others
 4. **Cite specific identifiers** (UniProt IDs, ChEMBL IDs, PMIDs, ENSG IDs, etc.)
 5. **Explain your findings** in clear, scientific language
@@ -113,69 +120,115 @@ interface DBMessage {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function maybeCompressOutput(
+const INSPECT_TOOL_KEY = "system__inspect_artifact";
+
+/**
+ * ── Layer 3 of 3: Noise reduce, then artifact if still big (15K) ──
+ *
+ *   MCP server  (5MB)  → prevent process death / stdio pressure
+ *   App manager (1MB)  → prevent LLM context blow-up
+ *   handleLargeOutput (15K) → noise reduce, then artifact if still big  ← YOU ARE HERE
+ *
+ * Two-tier jq pipeline:
+ *   Tier 1 — deterministic noise reduction (jq filters per platform/tool)
+ *   Tier 2 — artifact storage + schema preview + inspect_artifact tool
+ *
+ * No silent truncation of JSON at any point. Data is either:
+ *   - passed through (small enough)
+ *   - noise-reduced and passed through (reduced below threshold)
+ *   - stored as artifact with a schema preview (LLM writes jq to inspect)
+ *
+ * Replaces the old LLM-based maybeCompressOutput summarizer.
+ */
+async function handleLargeOutput(
   toolName: string,
   rawOutput: string,
-  userQuery: string,
-  ctx: LogContext
+  sessionId: string,
+  activeTools: Record<string, Tool>,
+  ctx: LogContext,
 ): Promise<string> {
-  if (rawOutput.length <= llmConfig.toolOutputSummaryThreshold) return rawOutput;
+  const cfg = appConfig.artifact;
 
+  // Small output: pass through unchanged
+  if (rawOutput.length <= cfg.inline_max_chars) return rawOutput;
+
+  // Try to parse as JSON — non-JSON gets simple truncation
+  // TODO: This truncation breaks structure for non-JSON text. Acceptable for
+  // now since virtually all MCP tool outputs are JSON. Revisit if we add
+  // tools that return large non-JSON payloads (FASTA, plain text, etc.).
+  let data: unknown;
+  try {
+    data = JSON.parse(rawOutput);
+  } catch {
+    return (
+      `[Output truncated from ${(rawOutput.length / 1024).toFixed(0)}KB — not valid JSON]\n` +
+      rawOutput.slice(0, cfg.inline_max_chars)
+    );
+  }
+
+  // Tier 1: Noise reduction (deterministic, no LLM)
   const elapsed = startTimer();
-  logger.info("TOOL", "summarize_start", {
+  const { data: reduced, filtersApplied, filtersSkipped } = await applyNoiseReduction(toolName, data);
+  const reducedStr = JSON.stringify(reduced);
+
+  logger.info("TOOL", "noise_reduction_applied", {
     ctx,
+    duration_ms: elapsed(),
     data: {
       tool: toolName,
       raw_chars: rawOutput.length,
-      raw_tokens_est: estimateTokens(rawOutput),
+      reduced_chars: reducedStr.length,
+      filters_applied: filtersApplied,
+      filters_skipped: filtersSkipped,
+      reduction_pct: ((1 - reducedStr.length / rawOutput.length) * 100).toFixed(1),
     },
   });
 
-  try {
-    const { text, usage } = await generateText({
-      model: getSummarizerModel(),
-      maxOutputTokens: 4096,
-      system: `You are a biomedical data extraction assistant. Your job is to compress large tool outputs into concise summaries that preserve all essential information.
+  // Under threshold after noise reduction: return directly
+  if (reducedStr.length <= cfg.inline_max_chars) return reducedStr;
 
-Rules:
-- PRESERVE ALL identifiers exactly: ChEMBL IDs, UniProt accessions, ENSG IDs, PMIDs, CIDs, NCT IDs, rsIDs, SMILES strings, InChI keys, gene symbols, drug names
-- PRESERVE all numerical data: IC50 values, Ki values, p-values, scores, molecular weights, coordinates
-- REMOVE redundant or repetitive entries — if 50 compounds are returned, summarize the top/most relevant ones (up to 10) and note how many total were returned
-- REMOVE verbose metadata, boilerplate fields, and empty/null fields
-- Output valid JSON when the input is JSON, otherwise use concise structured text
-- Be thorough — the main assistant will rely ONLY on your summary to answer the user's question`,
-      prompt: `The user's research question: "${userQuery}"
+  // Tier 2: Store as artifact, return schema preview
+  const artifactId = artifactStore.store(
+    sessionId,
+    toolName,
+    reduced,
+    rawOutput.length,
+  );
+  const preview = generatePreview(
+    artifactId,
+    toolName,
+    reduced,
+    rawOutput.length / 1024,
+    reducedStr.length / 1024,
+  );
 
-The tool "${toolName}" returned ${rawOutput.length.toLocaleString()} characters of data. Extract the relevant information:
-
-${rawOutput}`,
-    });
-
-    const prefix = `[Summarized from ${(rawOutput.length / 1024).toFixed(0)} KB tool output — ${usage?.inputTokens ?? "?"} tokens compressed to ${usage?.outputTokens ?? "?"} tokens. Query specific tool with exact IDs for full details.]\n`;
-
-    logger.info("TOOL", "summarize_complete", {
-      ctx,
-      duration_ms: elapsed(),
-      data: {
-        tool: toolName,
-        raw_chars: rawOutput.length,
-        summary_chars: text.length,
-        compression_ratio: (rawOutput.length / text.length).toFixed(1),
-      },
-    });
-
-    return prefix + text;
-  } catch (error) {
-    logger.error("TOOL", "summarize_failed", {
-      ctx,
-      duration_ms: elapsed(),
-      data: { tool: toolName },
-      error: error instanceof Error ? error : String(error),
-    });
-    const truncated = rawOutput.slice(0, llmConfig.toolOutputSummaryThreshold);
-    return `[Summarization failed — output truncated from ${(rawOutput.length / 1024).toFixed(0)} KB to ${(llmConfig.toolOutputSummaryThreshold / 1024).toFixed(0)} KB]\n${truncated}`;
+  // Dynamically add inspect_artifact tool (session-bound)
+  if (!activeTools[INSPECT_TOOL_KEY]) {
+    activeTools[INSPECT_TOOL_KEY] = createInspectArtifactTool(sessionId);
   }
+
+  logger.info("TOOL", "artifact_stored", {
+    ctx,
+    data: {
+      artifact_id: artifactId,
+      tool: toolName,
+      raw_kb: (rawOutput.length / 1024).toFixed(1),
+      stored_kb: (reducedStr.length / 1024).toFixed(1),
+      session_artifact_count: artifactStore.getSessionCount(sessionId),
+    },
+  });
+
+  return JSON.stringify(preview);
 }
+
+// Validate artifact policies on module load (non-blocking)
+validatePolicies().then(({ valid, errors }) => {
+  if (!valid) {
+    logger.warn("STARTUP", "artifact_policy_validation_warnings", {
+      data: { error_count: errors.length, errors },
+    });
+  }
+});
 
 function buildMessages(history: DBMessage[], newMessage: string): ModelMessage[] {
   const messages: ModelMessage[] = [];
@@ -369,9 +422,9 @@ export async function* processChat(
 
           const tcInput = tc.input as Record<string, unknown>;
 
-          const parsed = originalName.includes("__")
-            ? toolRegistry.parseToolName(originalName)
-            : { server: "", name: originalName };
+          // All tools use "server__name" format — MCP tools use platform
+          // prefix (e.g. "uniprot__"), system tools use "system__" prefix
+          const parsed = toolRegistry.parseToolName(originalName);
 
           yield {
             type: "tool_start",
@@ -384,81 +437,157 @@ export async function* processChat(
             },
           };
 
-          if (tc.toolName === SEARCH_TOOL_NAME) {
-            try {
-              const searchResults = await hybridSearch.search((tcInput as { query: string }).query);
+          if (parsed.server === "system") {
+            // ── System tools (non-MCP, local execution) ─────────────────
+            if (originalName === SEARCH_TOOL_NAME) {
+              // search_available_tools — special handling: side-effects
+              // (activates discovered tools in activeTools)
+              try {
+                const searchResults = await hybridSearch.search((tcInput as { query: string }).query);
 
-              for (const found of searchResults) {
-                const sanitized = sanitize(found.fullName);
-                if (!activeTools[sanitized]) {
-                  const vTool = toolRegistry.getVercelTool(found.fullName, sanitize);
-                  if (vTool) {
-                    activeTools[vTool.key] = {
-                      ...vTool.tool,
-                      execute: createMcpToolExecutor(found.fullName),
-                    };
+                for (const found of searchResults) {
+                  const sanitized = sanitize(found.fullName);
+                  if (!activeTools[sanitized]) {
+                    const vTool = toolRegistry.getVercelTool(found.fullName, sanitize);
+                    if (vTool) {
+                      activeTools[vTool.key] = {
+                        ...vTool.tool,
+                        execute: createMcpToolExecutor(found.fullName),
+                      };
+                    }
                   }
                 }
+
+                const searchOutput = {
+                  found: Math.min(searchResults.length, 8),
+                  tools: searchResults.slice(0, 8).map((r) => ({
+                    name: sanitize(r.fullName),
+                    description: r.description,
+                    relevance_score: r.score,
+                  })),
+                  instruction: "Call the tool by its exact name with the required parameters.",
+                };
+
+                allToolCalls.push({
+                  id: tc.toolCallId,
+                  name: originalName,
+                  server: "system",
+                  toolName: parsed.name,
+                  input: tcInput,
+                  output: searchOutput,
+                });
+
+                toolResultParts.push({
+                  type: "tool-result" as const,
+                  toolCallId: tc.toolCallId,
+                  toolName: tc.toolName,
+                  output: makeToolOutput(JSON.stringify(searchOutput)),
+                });
+
+                yield {
+                  type: "tool_end",
+                  data: { id: tc.toolCallId, tool: originalName, output: searchOutput },
+                };
+
+                logger.info("TOOL", "search_tool_executed", {
+                  ctx,
+                  data: {
+                    query: (tcInput as { query: string }).query,
+                    results: searchResults.length,
+                    tools_activated: Object.keys(activeTools).length,
+                  },
+                });
+              } catch (err) {
+                const errorMsg = err instanceof Error ? err.message : String(err);
+                toolResultParts.push({
+                  type: "tool-result" as const,
+                  toolCallId: tc.toolCallId,
+                  toolName: tc.toolName,
+                  output: makeToolOutput(errorMsg, true),
+                });
+                yield {
+                  type: "tool_end",
+                  data: { id: tc.toolCallId, tool: originalName, error: errorMsg },
+                };
               }
+            } else {
+              // Generic system tool (e.g. inspect_artifact) — execute via
+              // the tool's own execute function from activeTools
+              try {
+                const localTool = activeTools[tc.toolName];
+                if (!localTool?.execute) {
+                  throw new Error(`System tool "${originalName}" not found in active tools`);
+                }
 
-              const searchOutput = {
-                found: Math.min(searchResults.length, 8),
-                tools: searchResults.slice(0, 8).map((r) => ({
-                  name: sanitize(r.fullName),
-                  description: r.description,
-                  relevance_score: r.score,
-                })),
-                instruction: "Call the tool by its exact name with the required parameters.",
-              };
+                const rawResult = await localTool.execute(tcInput, {
+                  toolCallId: tc.toolCallId,
+                  messages: [],
+                  abortSignal: undefined as unknown as AbortSignal,
+                });
+                const output = typeof rawResult === "string"
+                  ? rawResult
+                  : JSON.stringify(rawResult);
 
-              allToolCalls.push({
-                id: tc.toolCallId,
-                name: originalName,
-                server: "",
-                toolName: SEARCH_TOOL_NAME,
-                input: tcInput,
-                output: searchOutput,
-              });
+                allToolCalls.push({
+                  id: tc.toolCallId,
+                  name: originalName,
+                  server: "system",
+                  toolName: parsed.name,
+                  input: tcInput,
+                  output: output.length > 2000 ? output.slice(0, 2000) + "..." : output,
+                });
 
-              toolResultParts.push({
-                type: "tool-result" as const,
-                toolCallId: tc.toolCallId,
-                toolName: tc.toolName,
-                output: makeToolOutput(JSON.stringify(searchOutput)),
-              });
+                toolResultParts.push({
+                  type: "tool-result" as const,
+                  toolCallId: tc.toolCallId,
+                  toolName: tc.toolName,
+                  output: makeToolOutput(output),
+                });
 
-              yield {
-                type: "tool_end",
-                data: { id: tc.toolCallId, tool: SEARCH_TOOL_NAME, output: searchOutput },
-              };
+                yield {
+                  type: "tool_end",
+                  data: {
+                    id: tc.toolCallId,
+                    tool: originalName,
+                    output: tryParseJson(output),
+                    isError: false,
+                  },
+                };
 
-              logger.info("TOOL", "search_tool_executed", {
-                ctx,
-                data: {
-                  query: (tcInput as { query: string }).query,
-                  results: searchResults.length,
-                  tools_activated: Object.keys(activeTools).length,
-                },
-              });
-            } catch (err) {
-              const errorMsg = err instanceof Error ? err.message : String(err);
-              toolResultParts.push({
-                type: "tool-result" as const,
-                toolCallId: tc.toolCallId,
-                toolName: tc.toolName,
-                output: makeToolOutput(errorMsg, true),
-              });
-              yield {
-                type: "tool_end",
-                data: { id: tc.toolCallId, tool: SEARCH_TOOL_NAME, error: errorMsg },
-              };
+                logger.info("TOOL", "system_tool_executed", {
+                  ctx,
+                  data: { tool: originalName, output_chars: output.length },
+                });
+              } catch (err) {
+                const errorMsg = err instanceof Error ? err.message : String(err);
+                allToolCalls.push({
+                  id: tc.toolCallId,
+                  name: originalName,
+                  server: "system",
+                  toolName: parsed.name,
+                  input: tcInput,
+                  error: errorMsg,
+                });
+
+                toolResultParts.push({
+                  type: "tool-result" as const,
+                  toolCallId: tc.toolCallId,
+                  toolName: tc.toolName,
+                  output: makeToolOutput(errorMsg, true),
+                });
+
+                yield {
+                  type: "tool_end",
+                  data: { id: tc.toolCallId, tool: originalName, error: errorMsg },
+                };
+              }
             }
           } else {
-            // Regular MCP tool execution
+            // ── MCP tool execution ──────────────────────────────────────
             try {
               let output = await createMcpToolExecutor(originalName)(tcInput);
               const rawOutput = output;
-              output = await maybeCompressOutput(originalName, output, userMessage, ctx);
+              output = await handleLargeOutput(originalName, output, sessionId, activeTools, ctx);
 
               allToolCalls.push({
                 id: tc.toolCallId,

@@ -21,14 +21,36 @@ const PlatformSchema = z.object({
   always_loaded_tools: z.array(z.string()).default([]),
 });
 
+const ArtifactPolicySchema = z.object({
+  noise_filters: z.array(z.string()).default([]),
+  semantic_profile: z.string().optional(),
+});
+
+const ArtifactConfigSchema = z.object({
+  inline_max_chars: z.number().int().default(15000),
+  hard_cap_bytes: z.number().int().default(1_048_576),
+  ttl_minutes: z.number().default(5),
+  max_per_session: z.number().int().default(10),
+  preview_sample_items: z.number().int().default(2),
+  preview_max_chars_per_value: z.number().int().default(150),
+  jq_timeout_ms: z.number().int().default(5000),
+  jq_max_output_chars: z.number().int().default(50000),
+  policies: z
+    .object({
+      global: ArtifactPolicySchema.default({ noise_filters: ["del(.. | nulls)"] }),
+      platforms: z.record(z.string(), ArtifactPolicySchema).default({}),
+      tools: z.record(z.string(), ArtifactPolicySchema).default({}),
+      profiles: z.record(z.string(), z.array(z.string())).default({}),
+    })
+    .default({}),
+});
+
 const AppConfigSchema = z.object({
   llm: z.object({
     provider: z.enum(["anthropic", "google"]).default("anthropic"),
     chat_model: z.string().default("claude-haiku-4-5"),
     title_model: z.string().default("claude-haiku-4-5"),
-    summarizer_model: z.string().default("claude-haiku-4-5"),
     max_retries: z.number().int().default(3),
-    tool_output_summary_threshold: z.number().int().default(15000),
   }),
   features: z.object({
     use_vercel_ai: z.boolean().default(true),
@@ -49,6 +71,7 @@ const AppConfigSchema = z.object({
     top_k: z.number().int().default(15),
   }),
   platforms: z.record(z.string(), PlatformSchema).default({}),
+  artifact: ArtifactConfigSchema.default({}),
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
@@ -73,9 +96,7 @@ function applyEnvOverrides(cfg: AppConfig): AppConfig {
   if (e.LLM_PROVIDER) cfg.llm.provider = e.LLM_PROVIDER as AppConfig["llm"]["provider"];
   if (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL) cfg.llm.chat_model = (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL)!;
   if (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL) cfg.llm.title_model = (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL)!;
-  if (e.LLM_SUMMARIZER_MODEL || e.TOOL_SUMMARIZER_MODEL) cfg.llm.summarizer_model = (e.LLM_SUMMARIZER_MODEL || e.TOOL_SUMMARIZER_MODEL)!;
   if (e.LLM_MAX_RETRIES) cfg.llm.max_retries = parseInt(e.LLM_MAX_RETRIES, 10);
-  if (e.TOOL_OUTPUT_SUMMARY_THRESHOLD) cfg.llm.tool_output_summary_threshold = parseInt(e.TOOL_OUTPUT_SUMMARY_THRESHOLD, 10);
 
   // Features
   if (e.USE_VERCEL_AI !== undefined) cfg.features.use_vercel_ai = e.USE_VERCEL_AI !== "false";

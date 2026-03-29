@@ -17,8 +17,9 @@ const anthropic = new Anthropic();
 const { llm } = appConfig;
 const CLAUDE_MODEL = llm.chat_model;
 const TITLE_MODEL = llm.title_model;
-const SUMMARIZER_MODEL = llm.summarizer_model;
-const TOOL_OUTPUT_SUMMARY_THRESHOLD = llm.tool_output_summary_threshold;
+// Legacy: summarizer removed in favor of jq-based artifact pipeline (chat-v2.ts)
+const SUMMARIZER_MODEL = llm.chat_model;
+const TOOL_OUTPUT_SUMMARY_THRESHOLD = appConfig.artifact.inline_max_chars;
 
 // 429 retry configuration
 const MAX_RETRIES = llm.max_retries;

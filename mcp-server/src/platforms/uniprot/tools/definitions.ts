@@ -20,7 +20,7 @@ export const tools: Tool[] = [
   {
     name: 'search_by_gene',
     description:
-      'Search for proteins by gene name or symbol. Returns extracted, LLM-optimized data (~98% smaller than raw). Defaults to human (Homo sapiens) if no species specified.',
+      'Search for proteins by gene name or symbol. Defaults to human (Homo sapiens) if no species specified.',
     inputSchema: {
       type: 'object',
       properties: {
