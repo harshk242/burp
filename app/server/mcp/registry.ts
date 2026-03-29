@@ -1,9 +1,10 @@
 /**
  * MCP Tool Registry
- * Manages tool discovery and search across MCP servers
+ * Manages tool discovery and search across MCP servers.
+ * Supports both legacy Claude format and Vercel AI SDK format.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import { jsonSchema, type Tool } from "ai";
 import type { mcpManager as MCPManagerType } from "./manager";
 import { ALWAYS_LOADED_TOOLS } from "./platforms.config";
 import { logger, startTimer } from "../logger";
@@ -19,7 +20,7 @@ export interface MCPTool {
 export interface ClaudeTool {
   name: string;
   description: string;
-  input_schema: Anthropic.Tool.InputSchema;
+  input_schema: Record<string, unknown>;
   defer_loading?: boolean;
 }
 
@@ -122,7 +123,7 @@ class ToolRegistry {
    * Core ID-bridge tools are always loaded; others are deferred.
    * Uses server__toolname format for unique naming.
    */
-  toClaudeFormat(onlyAvailable = true): Anthropic.Tool[] {
+  toClaudeFormat(onlyAvailable = true): ClaudeTool[] {
     const tools = onlyAvailable
       ? Array.from(this.tools.values()).filter((t) => t.available)
       : Array.from(this.tools.values());
@@ -134,11 +135,60 @@ class ToolRegistry {
       return {
         name: fullName,
         description: `[${tool.server}] ${tool.description}`,
-        input_schema: tool.inputSchema as Anthropic.Tool.InputSchema,
-        // Core tools are NOT deferred; all others are
+        input_schema: tool.inputSchema,
         ...(isCore ? {} : { defer_loading: true }),
       };
     });
+  }
+
+  /**
+   * Get core (always-loaded) tools in Vercel AI SDK format.
+   * Does NOT include execute — callers attach their own executors.
+   */
+  toVercelCoreTools(
+    sanitize?: (name: string) => string
+  ): Record<string, Tool> {
+    const result: Record<string, Tool> = {};
+
+    for (const tool of this.tools.values()) {
+      if (!tool.available) continue;
+      const fullName = `${tool.server}__${tool.name}`;
+      if (!ALWAYS_LOADED_TOOLS.has(fullName)) continue;
+
+      const key = sanitize ? sanitize(fullName) : fullName;
+      result[key] = {
+        description: `[${tool.server}] ${tool.description}`,
+        inputSchema: jsonSchema(tool.inputSchema as Parameters<typeof jsonSchema>[0]),
+      };
+    }
+
+    return result;
+  }
+
+  /**
+   * Get a single tool by full name in Vercel AI SDK format.
+   * Used for dynamically activating discovered tools.
+   */
+  getVercelTool(
+    fullName: string,
+    sanitize?: (name: string) => string
+  ): { key: string; tool: Tool } | null {
+    const sep = fullName.indexOf("__");
+    if (sep === -1) return null;
+
+    const server = fullName.substring(0, sep);
+    const bareName = fullName.substring(sep + 2);
+    const mcpTool = this.tools.get(`${server}:${bareName}`);
+    if (!mcpTool) return null;
+
+    const key = sanitize ? sanitize(fullName) : fullName;
+    return {
+      key,
+      tool: {
+        description: `[${mcpTool.server}] ${mcpTool.description}`,
+        inputSchema: jsonSchema(mcpTool.inputSchema as Parameters<typeof jsonSchema>[0]),
+      },
+    };
   }
 
   /**

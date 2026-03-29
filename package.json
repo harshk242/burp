@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build:servers": "cd mcp-servers/unified && bun install && bun run build"
+    "build:servers": "cd mcp-servers/unified && bun install && bun run build",
+    "generate:embeddings": "bun run scripts/generate-tool-embeddings.ts"
   }
 }

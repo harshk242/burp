@@ -1,10 +1,13 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
+import { join } from "path";
 import { initializeSchema } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
 import { toolRegistry } from "./mcp/registry";
+import { hybridSearch } from "./search";
+import { getEmbeddingModel } from "./llm";
 import { logger, startTimer, generateRequestId } from "./logger";
 
 // Initialize database on startup
@@ -28,11 +31,33 @@ async function initializeMCP() {
   logger.info("STARTUP", "tool_discovery_start");
   await toolRegistry.discoverTools(mcpManager);
 
+  // Index tools for hybrid search
+  const allTools = toolRegistry.getAll(false).map((t) => ({
+    fullName: `${t.server}__${t.name}`,
+    server: t.server,
+    toolName: t.name,
+    description: t.description,
+  }));
+  hybridSearch.indexTools(allTools);
+
+  // Load precomputed embeddings (optional — BM25 works without them)
+  try {
+    const embPath = join(process.cwd(), "..", "data", "tool-embeddings.json");
+    hybridSearch.loadEmbeddings(embPath);
+    hybridSearch.setEmbeddingModel(getEmbeddingModel());
+  } catch (e) {
+    logger.warn("STARTUP", "embeddings_load_failed", {
+      error: e instanceof Error ? e : String(e),
+    });
+  }
+
   logger.info("STARTUP", "mcp_init_complete", {
     duration_ms: elapsed(),
     data: {
       tools_available: toolRegistry.availableCount,
       tools_total: toolRegistry.count,
+      search_indexed: hybridSearch.indexed,
+      embeddings_loaded: hybridSearch.embeddingsLoaded,
     },
   });
 }

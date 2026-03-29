@@ -81,3 +81,12 @@ CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
 CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
 CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
 CREATE INDEX IF NOT EXISTS idx_daily_usage_user_date ON daily_usage(user_id, date);
+
+-- Full-text search index for hybrid tool search (BM25 + semantic)
+CREATE VIRTUAL TABLE IF NOT EXISTS tool_search_fts USING fts5(
+  full_name,
+  server,
+  tool_name,
+  description,
+  tokenize='porter unicode61'
+);

@@ -3,6 +3,7 @@ import { ToolListSchema, ToolSearchQuerySchema, ErrorSchema, MCPToolSchema } fro
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import { toolRegistry } from "../mcp/registry";
 import { mcpManager } from "../mcp/manager";
+import { hybridSearch } from "../search";
 import { logger, startTimer } from "../logger";
 
 const tools = new OpenAPIHono();
@@ -182,6 +183,65 @@ tools.openapi(searchToolsRoute, async (c) => {
     tools: results,
     count: results.length,
   }, 200);
+});
+
+// ============================================
+// GET /api/tools/hybrid-search - Hybrid search (BM25 + semantic)
+// ============================================
+
+const hybridSearchRoute = createRoute({
+  method: "get",
+  path: "/hybrid-search",
+  tags: ["Tools"],
+  summary: "Hybrid tool search",
+  description: "Search tools using BM25 + semantic embedding fusion. For debugging and tuning.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      q: z.string().min(1).openapi({ example: "protein structure" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Hybrid search results",
+      content: {
+        "application/json": {
+          schema: z.object({
+            results: z.array(z.object({
+              fullName: z.string(),
+              server: z.string(),
+              toolName: z.string(),
+              description: z.string(),
+              score: z.number(),
+              bm25Rank: z.number().optional(),
+              semanticRank: z.number().optional(),
+            })),
+            count: z.number(),
+            query: z.string(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: "Missing query",
+      content: { "application/json": { schema: ErrorSchema } },
+    },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorSchema } },
+    },
+  },
+});
+
+tools.openapi(hybridSearchRoute, async (c) => {
+  const { q } = c.req.valid("query");
+  const elapsed = startTimer();
+  const results = await hybridSearch.search(q);
+  logger.info("TOOL", "hybrid_search_api", {
+    duration_ms: elapsed(),
+    data: { query: q, result_count: results.length },
+  });
+  return c.json({ results, count: results.length, query: q }, 200);
 });
 
 // ============================================

@@ -250,4 +250,38 @@ export const rateLimitQueries = {
   },
 };
 
+/**
+ * Tool search queries (FTS5 for hybrid BM25 search)
+ */
+export const toolSearchQueries = {
+  clearAll() {
+    db.run("DELETE FROM tool_search_fts");
+  },
+
+  insertTool(fullName: string, server: string, toolName: string, description: string) {
+    stmt(
+      "INSERT INTO tool_search_fts (full_name, server, tool_name, description) VALUES (?, ?, ?, ?)"
+    ).run(fullName, server, toolName, description);
+  },
+
+  searchBM25(
+    query: string,
+    limit: number = 20
+  ): Array<{ full_name: string; server: string; tool_name: string; description: string; rank: number }> {
+    return stmt(
+      `SELECT full_name, server, tool_name, description, rank
+       FROM tool_search_fts
+       WHERE tool_search_fts MATCH ?
+       ORDER BY rank
+       LIMIT ?`
+    ).all(query, limit) as Array<{
+      full_name: string;
+      server: string;
+      tool_name: string;
+      description: string;
+      rank: number;
+    }>;
+  },
+};
+
 export { db };
