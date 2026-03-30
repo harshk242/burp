@@ -17,7 +17,7 @@ export function StreamingText({ content, className }: StreamingTextProps) {
         className
       )}
     >
-      <div className="prose prose-sm dark:prose-invert max-w-none">
+      <div className="prose prose-sm dark:prose-invert max-w-none overflow-x-auto">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         <span className="streaming-cursor" />
       </div>

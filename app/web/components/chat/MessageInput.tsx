@@ -43,7 +43,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
   };
 
   return (
-    <div className="border-t bg-background p-4">
+    <div className="border-t bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="max-w-3xl mx-auto">
         <div className="relative flex items-end gap-2">
           <Textarea

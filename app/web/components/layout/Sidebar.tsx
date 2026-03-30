@@ -99,8 +99,6 @@ export function Sidebar() {
     }
   }
 
-  const isOpen = sidebarOpen || mobileMenuOpen;
-
   return (
     <>
       {/* Mobile overlay */}
@@ -114,8 +112,11 @@ export function Sidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-64 overflow-hidden border-r bg-background transition-all duration-200 md:relative md:top-0 md:h-full",
-          isOpen ? "translate-x-0" : "-translate-x-full md:w-0 md:translate-x-0"
+          "fixed left-0 top-14 z-40 h-[calc(100dvh-3.5rem)] w-64 overflow-hidden border-r bg-background transition-all duration-200 md:relative md:top-0 md:h-full",
+          // Mobile: slide in/out based solely on mobileMenuOpen
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full",
+          // Desktop: always translate-x-0; collapse width when sidebarOpen is false
+          sidebarOpen ? "md:translate-x-0" : "md:w-0 md:translate-x-0"
         )}
       >
         <div className="flex h-full flex-col">
@@ -190,7 +191,7 @@ export function Sidebar() {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex shrink-0 items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <Button
                             variant="ghost"
                             size="icon"

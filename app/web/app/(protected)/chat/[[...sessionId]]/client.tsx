@@ -38,7 +38,7 @@ export function ChatPageClient({ sessionId: _initialSessionId }: ChatPageClientP
 
   if (!mounted) {
     return (
-      <div className="flex h-screen flex-col">
+      <div className="flex h-dvh flex-col">
         <div className="sticky top-0 z-50 w-full border-b bg-background/95 h-14">
           <div className="flex h-full items-center px-4">
             <Skeleton className="h-8 w-32" />
@@ -207,7 +207,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
   );
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-dvh flex-col">
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />

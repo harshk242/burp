@@ -82,14 +82,14 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               {isUser ? (
                 <p className="whitespace-pre-wrap text-left">{message.content}</p>
               ) : (
-                <div className="prose prose-sm dark:prose-invert max-w-none">
+                <div className="prose prose-sm dark:prose-invert max-w-none overflow-x-auto">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
                 </div>
               )}
             </div>
             {/* Action bar below bubble */}
             <div className={cn(
-              "flex items-center mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+              "flex items-center mt-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200",
               isUser ? "justify-end" : "justify-start"
             )}>
               <CopyButton text={message.content} />

@@ -115,7 +115,7 @@ export function AdminPageClient() {
 
   if (!user || user.role !== "admin") {
     return (
-      <div className="flex h-screen flex-col">
+      <div className="flex h-dvh flex-col">
         <Header />
         <div className="flex-1 flex items-center justify-center">
           <Skeleton className="h-8 w-64" />
@@ -125,19 +125,19 @@ export function AdminPageClient() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-dvh flex-col">
       <Header />
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* Stats */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold">Access Requests</h1>
-              <p className="text-muted-foreground">
-                Manage early access requests for Super Bio Agent
+              <p className="text-sm text-muted-foreground">
+                Manage early access requests
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3">
               <StatCard
                 label="Pending"
                 count={pending.length}
@@ -261,11 +261,11 @@ function StatCard({
   icon: React.ReactNode;
 }) {
   return (
-    <Card className="px-4 py-2">
-      <div className="flex items-center gap-2">
+    <Card className="px-3 py-1.5 sm:px-4 sm:py-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         {icon}
-        <span className="text-sm text-muted-foreground">{label}</span>
-        <span className="font-semibold">{count}</span>
+        <span className="text-xs sm:text-sm text-muted-foreground">{label}</span>
+        <span className="text-sm sm:text-base font-semibold">{count}</span>
       </div>
     </Card>
   );
@@ -307,7 +307,7 @@ function RequestTable({
   }
 
   return (
-    <div className="border rounded-lg mt-2">
+    <div className="border rounded-lg mt-2 overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
@@ -326,7 +326,7 @@ function RequestTable({
           {requests.map((req) => (
             <TableRow key={req.id}>
               <TableCell className="font-medium">{req.name}</TableCell>
-              <TableCell className="text-sm">{req.email}</TableCell>
+              <TableCell className="text-sm max-w-[150px] truncate">{req.email}</TableCell>
               <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                 {req.institution || "—"}
               </TableCell>
@@ -349,8 +349,8 @@ function RequestTable({
                       disabled={actionLoading === req.id}
                       onClick={() => onApprove?.(req)}
                     >
-                      <CheckCircle2 className="h-4 w-4 mr-1" />
-                      Approve
+                      <CheckCircle2 className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Approve</span>
                     </Button>
                     <Button
                       size="sm"
@@ -359,8 +359,8 @@ function RequestTable({
                       disabled={actionLoading === req.id}
                       onClick={() => onReject?.(req)}
                     >
-                      <XCircle className="h-4 w-4 mr-1" />
-                      Reject
+                      <XCircle className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Reject</span>
                     </Button>
                   </div>
                 </TableCell>

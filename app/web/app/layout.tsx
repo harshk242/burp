@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ClerkWrapper } from "@/components/ClerkWrapper";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   title: "Super Bio Agent",
   description:
     "Query 10 biomedical databases with natural language. Proteins, drugs, genes, variants, pathways, trials, and literature.",
+};
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

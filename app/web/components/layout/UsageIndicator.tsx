@@ -48,7 +48,7 @@ export function UsageIndicator() {
           <span className="text-xs text-muted-foreground whitespace-nowrap">
             {usage.used}/{usage.limit}
           </span>
-          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className="hidden sm:block w-16 h-1.5 rounded-full bg-muted overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${barColor}`}
               style={{ width: `${Math.min(pct, 100)}%` }}

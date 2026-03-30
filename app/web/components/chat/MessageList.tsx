@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./MessageBubble";
 import { StreamingText } from "./StreamingText";
 import { ToolCallGroup } from "./ToolCallGroup";
@@ -30,7 +29,7 @@ export function MessageList({
   }, [messages, streamingContent, pendingToolCalls]);
 
   return (
-    <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+    <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
       <div className="max-w-3xl mx-auto py-4 space-y-4">
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
@@ -81,6 +80,6 @@ export function MessageList({
           </div>
         )}
       </div>
-    </ScrollArea>
+    </div>
   );
 }
