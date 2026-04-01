@@ -1,8 +1,9 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { UserSchema, ErrorSchema, MessageSchema } from "../schemas";
 import { clerkAuth, syncUserToDatabase, requireDbUser } from "../middleware/clerk";
+import type { AppEnv } from "../types";
 
-const users = new OpenAPIHono();
+const users = new OpenAPIHono<AppEnv>();
 
 // Apply Clerk auth to all user routes
 users.use("*", clerkAuth);

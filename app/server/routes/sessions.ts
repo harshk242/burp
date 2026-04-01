@@ -11,8 +11,9 @@ import {
   ErrorSchema,
   MessageSchema,
 } from "../schemas";
+import type { AppEnv } from "../types";
 
-const sessions = new OpenAPIHono();
+const sessions = new OpenAPIHono<AppEnv>();
 
 // Apply Clerk auth and user role check to all session routes
 sessions.use("*", clerkAuth, requireDbUser, requireUser);
@@ -207,7 +208,7 @@ sessions.openapi(getSessionRoute, async (c) => {
   const userId = c.get("userId") as string;
 
   try {
-    const session = chatSessionQueries.findById(id) as any;
+    const session = chatSessionQueries.findById(id);
     if (!session) {
       return c.json({ error: "Session not found" }, 404);
     }
@@ -219,8 +220,8 @@ sessions.openapi(getSessionRoute, async (c) => {
 
     const messages = messageQueries.findByChatId(id);
 
-    // Parse tool_calls JSON for each message
-    const parsedMessages = (messages as any[]).map((msg) => ({
+    // Parse tool_calls JSON string for each message
+    const parsedMessages = messages.map((msg) => ({
       ...msg,
       tool_calls: msg.tool_calls ? JSON.parse(msg.tool_calls) : null,
     }));
@@ -289,7 +290,7 @@ sessions.openapi(deleteSessionRoute, async (c) => {
   const userId = c.get("userId") as string;
 
   try {
-    const session = chatSessionQueries.findById(id) as any;
+    const session = chatSessionQueries.findById(id);
     if (!session) {
       return c.json({ error: "Session not found" }, 404);
     }
@@ -382,7 +383,7 @@ sessions.openapi(updateSessionRoute, async (c) => {
   const userId = c.get("userId") as string;
 
   try {
-    const session = chatSessionQueries.findById(id) as any;
+    const session = chatSessionQueries.findById(id);
     if (!session) {
       return c.json({ error: "Session not found" }, 404);
     }

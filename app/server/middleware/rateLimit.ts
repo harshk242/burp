@@ -7,6 +7,7 @@
 import type { Context, Next } from "hono";
 import { dailyUsageQueries, rateLimitQueries } from "../db";
 import { logger } from "../logger";
+import type { AppEnv } from "../types";
 
 /**
  * Calculate the Unix timestamp of the next midnight UTC.
@@ -24,7 +25,7 @@ function getResetTimestamp(): number {
  * Sets X-RateLimit-* headers on every response.
  * Returns 429 when the daily limit is exceeded.
  */
-export async function rateLimitMiddleware(c: Context, next: Next) {
+export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
   const userId = c.get("userId") as string;
   const role = c.get("role") as string;
 

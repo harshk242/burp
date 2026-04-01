@@ -5,8 +5,9 @@ import { toolRegistry } from "../mcp/registry";
 import { mcpManager } from "../mcp/manager";
 import { hybridSearch } from "../search";
 import { logger, startTimer } from "../logger";
+import type { AppEnv } from "../types";
 
-const tools = new OpenAPIHono();
+const tools = new OpenAPIHono<AppEnv>();
 
 // Apply Clerk auth and user role check to all tool routes
 tools.use("*", clerkAuth, requireDbUser, requireUser);
@@ -275,7 +276,7 @@ const callToolRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
-            result: z.unknown(),
+            result: z.any(),
           }),
         },
       },
@@ -314,6 +315,14 @@ const callToolRoute = createRoute({
     },
     500: {
       description: "Tool execution failed",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    503: {
+      description: "MCP server unavailable",
       content: {
         "application/json": {
           schema: ErrorSchema,

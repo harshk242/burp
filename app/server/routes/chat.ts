@@ -14,7 +14,9 @@ const generateSessionTitle = USE_V2 ? titleV2 : titleLegacy;
 import { chatSessionQueries, messageQueries } from "../db";
 import { logger } from "../logger";
 
-const chat = new OpenAPIHono();
+import type { AppEnv } from "../types";
+
+const chat = new OpenAPIHono<AppEnv>();
 
 // Apply Clerk auth and user role check to all chat routes
 chat.use("*", clerkAuth, requireDbUser, requireUser, rateLimitMiddleware);
@@ -120,16 +122,11 @@ chat.openapi(chatRoute, async (c) => {
   // Generate session ID if not provided
   const sessionId = providedSessionId || uuidv4();
 
-  const existingSession = chatSessionQueries.findById(sessionId) as
-    | { title: string | null; user_id: string }
-    | null;
+  const existingSession = chatSessionQueries.findById(sessionId);
   const canInspectSession = !existingSession || existingSession.user_id === userId;
 
   const existingMessages = canInspectSession
-    ? (messageQueries.findByChatId(sessionId) as Array<{
-        role: string;
-        content: string | null;
-      }>)
+    ? messageQueries.findByChatId(sessionId)
     : [];
   const firstUserMessage = existingMessages.find((msg) => msg.role === "user" && msg.content)
     ?.content;

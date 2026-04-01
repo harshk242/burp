@@ -10,8 +10,9 @@ import {
   ErrorSchema,
   MessageSchema,
 } from "../schemas";
+import type { AppEnv } from "../types";
 
-const waitlist = new OpenAPIHono();
+const waitlist = new OpenAPIHono<AppEnv>();
 
 // ============================================
 // POST /api/waitlist - Submit access request (public)
@@ -278,7 +279,7 @@ waitlist.openapi(approveRequestRoute, async (c) => {
   const adminUserId = c.get("userId") as string;
 
   try {
-    const request = accessRequestQueries.findById(id) as any;
+    const request = accessRequestQueries.findById(id);
     if (!request) {
       return c.json({ error: "Request not found" }, 404);
     }
@@ -287,7 +288,7 @@ waitlist.openapi(approveRequestRoute, async (c) => {
     accessRequestQueries.approve(id, adminUserId);
 
     // If user already exists with waitlist role, upgrade them to user
-    const existingUser = userQueries.findByEmail(request.email) as any;
+    const existingUser = userQueries.findByEmail(request.email);
     if (existingUser && existingUser.role === "waitlist") {
       userQueries.updateRole(existingUser.id, "user");
     }

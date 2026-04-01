@@ -6,8 +6,9 @@ import { sessions } from "./sessions";
 import { tools } from "./tools";
 import { chat } from "./chat";
 import { usage } from "./usage";
+import type { AppEnv } from "../types";
 
-const api = new OpenAPIHono();
+const api = new OpenAPIHono<AppEnv>();
 
 // Mount route modules
 api.route("/users", users);
@@ -108,7 +109,7 @@ api.get(
   "/swagger",
   swaggerUI({
     url: "/api/doc",
-    documentTitle: "BURP API",
+    title: "BURP API",
   })
 );
 

@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { readFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { appConfig } from "../config";
+import type { DbUser, DbAccessRequest, DbChatSession, DbMessageRow } from "../types";
 
 // Resolve data directory relative to project root (app/../data)
 const PROJECT_ROOT = join(dirname(import.meta.dir), "..", "..");
@@ -50,16 +51,16 @@ function stmt<T = unknown>(sql: string): ReturnType<typeof db.prepare<T, any[]>>
  * User queries
  */
 export const userQueries = {
-  findByClerkId(clerkId: string) {
-    return stmt("SELECT * FROM users WHERE clerk_id = ?").get(clerkId);
+  findByClerkId(clerkId: string): DbUser | null {
+    return stmt("SELECT * FROM users WHERE clerk_id = ?").get(clerkId) as DbUser | null;
   },
 
-  findByEmail(email: string) {
-    return stmt("SELECT * FROM users WHERE email = ?").get(email);
+  findByEmail(email: string): DbUser | null {
+    return stmt("SELECT * FROM users WHERE email = ?").get(email) as DbUser | null;
   },
 
-  findById(id: string) {
-    return stmt("SELECT * FROM users WHERE id = ?").get(id);
+  findById(id: string): DbUser | null {
+    return stmt("SELECT * FROM users WHERE id = ?").get(id) as DbUser | null;
   },
 
   create(
@@ -109,18 +110,18 @@ export const accessRequestQueries = {
     ).run(id, email, name, institution, researchArea, useCase);
   },
 
-  findByEmail(email: string) {
-    return stmt("SELECT * FROM access_requests WHERE email = ?").get(email);
+  findByEmail(email: string): DbAccessRequest | null {
+    return stmt("SELECT * FROM access_requests WHERE email = ?").get(email) as DbAccessRequest | null;
   },
 
-  findPending() {
+  findPending(): DbAccessRequest[] {
     return stmt(
       "SELECT * FROM access_requests WHERE status = 'pending' ORDER BY submitted_at DESC"
-    ).all();
+    ).all() as DbAccessRequest[];
   },
 
-  findById(id: string) {
-    return stmt("SELECT * FROM access_requests WHERE id = ?").get(id);
+  findById(id: string): DbAccessRequest | null {
+    return stmt("SELECT * FROM access_requests WHERE id = ?").get(id) as DbAccessRequest | null;
   },
 
   approve(id: string, reviewedBy: string | null) {
@@ -135,10 +136,10 @@ export const accessRequestQueries = {
     ).run(reviewedBy, id);
   },
 
-  findAll() {
+  findAll(): DbAccessRequest[] {
     return stmt(
       "SELECT * FROM access_requests ORDER BY submitted_at DESC"
-    ).all();
+    ).all() as DbAccessRequest[];
   },
 };
 
@@ -153,14 +154,14 @@ export const chatSessionQueries = {
     ).run(id, userId, title);
   },
 
-  findByUserId(userId: string) {
+  findByUserId(userId: string): DbChatSession[] {
     return stmt(
       "SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC"
-    ).all(userId);
+    ).all(userId) as DbChatSession[];
   },
 
-  findById(id: string) {
-    return stmt("SELECT * FROM chat_sessions WHERE id = ?").get(id);
+  findById(id: string): DbChatSession | null {
+    return stmt("SELECT * FROM chat_sessions WHERE id = ?").get(id) as DbChatSession | null;
   },
 
   updateTitle(id: string, title: string) {
@@ -195,12 +196,12 @@ export const messageQueries = {
     ).run(id, chatId, role, content, toolCalls);
   },
 
-  findByChatId(chatId: string) {
-    return stmt("SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC").all(chatId);
+  findByChatId(chatId: string): DbMessageRow[] {
+    return stmt("SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC").all(chatId) as DbMessageRow[];
   },
 
-  findById(id: string) {
-    return stmt("SELECT * FROM messages WHERE id = ?").get(id);
+  findById(id: string): DbMessageRow | null {
+    return stmt("SELECT * FROM messages WHERE id = ?").get(id) as DbMessageRow | null;
   },
 };
 

@@ -2,8 +2,9 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { UsageSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
 import { dailyUsageQueries, rateLimitQueries } from "../db";
+import type { AppEnv } from "../types";
 
-const usage = new OpenAPIHono();
+const usage = new OpenAPIHono<AppEnv>();
 
 // Apply auth middleware
 usage.use("*", clerkAuth, requireDbUser, requireUser);
@@ -44,7 +45,7 @@ A limit of -1 means unlimited (admin users).`,
 usage.openapi(getUsageRoute, async (c) => {
   const userId = c.get("userId") as string;
   const role = c.get("role") as string;
-  const dbUser = c.get("dbUser") as { total_queries: number };
+  const dbUser = c.get("dbUser")!; // non-null: requireDbUser runs before this handler
 
   const dailyLimit = rateLimitQueries.getForRole(role);
   const used = dailyUsageQueries.getToday(userId);

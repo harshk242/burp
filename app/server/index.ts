@@ -10,6 +10,7 @@ import { hybridSearch } from "./search";
 import { getEmbeddingModel } from "./llm";
 import { logger, startTimer, generateRequestId } from "./logger";
 import { appConfig } from "./config";
+import type { AppEnv } from "./types";
 
 // Initialize database on startup
 initializeSchema();
@@ -83,7 +84,7 @@ process.on("SIGINT", async () => {
   process.exit(0);
 });
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 
 // Middleware - HTTP request logging
 app.use("*", async (c, next) => {

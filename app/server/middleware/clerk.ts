@@ -8,6 +8,7 @@ import { createClerkClient, verifyToken } from "@clerk/backend";
 import { userQueries, accessRequestQueries } from "../db";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../logger";
+import type { AppEnv, DbUser, DbAccessRequest } from "../types";
 
 // Initialize Clerk client (lazy, only when needed)
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
@@ -25,38 +26,11 @@ function getClerkClient() {
 const userCache = new Map<string, { email: string; name: string | null; imageUrl: string | null; expiresAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-interface DbUser {
-  id: string;
-  clerk_id: string;
-  email: string;
-  name: string | null;
-  image_url: string | null;
-  role: string;
-  institution: string | null;
-  research_area: string | null;
-  total_queries: number;
-  created_at: number;
-  last_active_at: number | null;
-}
-
-interface AccessRequest {
-  id: string;
-  email: string;
-  name: string;
-  institution: string | null;
-  research_area: string | null;
-  use_case: string | null;
-  status: string;
-  submitted_at: number;
-  reviewed_at: number | null;
-  reviewed_by: string | null;
-}
-
 /**
  * Clerk JWT verification middleware
  * Sets userId, email, role, and dbUser on context
  */
-export async function clerkAuth(c: Context, next: Next) {
+export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   const clerk = getClerkClient();
 
   // Development mode - skip auth if no Clerk keys configured
@@ -66,11 +40,14 @@ export async function clerkAuth(c: Context, next: Next) {
     const devEmail = process.env.ADMIN_EMAIL || "dev@example.com";
 
     // Sync dev user to database (creates if not exists, makes them admin)
-    let dbUser = userQueries.findByClerkId(devClerkId) as DbUser | undefined;
+    let dbUser = userQueries.findByClerkId(devClerkId);
     if (!dbUser) {
       const userId = uuidv4();
       userQueries.create(userId, devClerkId, devEmail, "Dev User", null, "admin", null, null);
-      dbUser = userQueries.findById(userId) as DbUser;
+      dbUser = userQueries.findById(userId);
+      if (!dbUser) {
+        throw new Error(`[clerkAuth] Dev user create succeeded but findById(${userId}) returned null — possible DB write failure`);
+      }
     }
 
     c.set("clerkUserId", devClerkId);
@@ -128,7 +105,7 @@ export async function clerkAuth(c: Context, next: Next) {
     }
 
     // Look up user in database
-    const dbUser = userQueries.findByClerkId(clerkUserId) as DbUser | undefined;
+    const dbUser = userQueries.findByClerkId(clerkUserId);
 
     // Set context variables
     c.set("clerkUserId", clerkUserId);
@@ -172,7 +149,7 @@ export async function clerkAuth(c: Context, next: Next) {
 /**
  * Middleware to require user to exist in database
  */
-export async function requireDbUser(c: Context, next: Next) {
+export async function requireDbUser(c: Context<AppEnv>, next: Next) {
   const dbUser = c.get("dbUser");
 
   if (!dbUser) {
@@ -189,7 +166,7 @@ export async function requireDbUser(c: Context, next: Next) {
  * Role-based access control middleware
  */
 export function requireRole(...roles: string[]) {
-  return async (c: Context, next: Next) => {
+  return async (c: Context<AppEnv>, next: Next) => {
     const userRole = c.get("role") as string | undefined;
 
     if (!userRole || !roles.includes(userRole)) {
@@ -228,16 +205,16 @@ export function syncUserToDatabase(
   imageUrl: string | null
 ): DbUser {
   // Check if user already exists
-  let dbUser = userQueries.findByClerkId(clerkUserId) as DbUser | undefined;
+  let dbUser = userQueries.findByClerkId(clerkUserId);
 
   if (dbUser) {
     // User exists - check if waitlist user now has approval
     if (dbUser.role === "waitlist") {
-      const accessRequest = accessRequestQueries.findByEmail(email) as AccessRequest | undefined;
+      const accessRequest = accessRequestQueries.findByEmail(email);
       if (accessRequest?.status === "approved") {
         // Auto-promote to user
         userQueries.updateRole(dbUser.id, "user");
-        dbUser = userQueries.findByClerkId(clerkUserId) as DbUser;
+        dbUser = userQueries.findByClerkId(clerkUserId)!;
       }
     }
     // Update last active and return
@@ -254,14 +231,14 @@ export function syncUserToDatabase(
     role = "admin";
   } else {
     // Check if they have an approved access request
-    const accessRequest = accessRequestQueries.findByEmail(email) as AccessRequest | undefined;
+    const accessRequest = accessRequestQueries.findByEmail(email);
     if (accessRequest?.status === "approved") {
       role = "user";
     }
   }
 
   // Get institution and research area from access request if available
-  const accessRequest = accessRequestQueries.findByEmail(email) as AccessRequest | undefined;
+  const accessRequest: DbAccessRequest | null = accessRequestQueries.findByEmail(email);
   const institution = accessRequest?.institution || null;
   const researchArea = accessRequest?.research_area || null;
 
@@ -279,7 +256,11 @@ export function syncUserToDatabase(
   );
 
   // Return the newly created user
-  return userQueries.findById(userId) as DbUser;
+  const created = userQueries.findById(userId);
+  if (!created) {
+    throw new Error(`[syncUserToDatabase] User create succeeded but findById(${userId}) returned null — possible DB write failure`);
+  }
+  return created;
 }
 
 /**
