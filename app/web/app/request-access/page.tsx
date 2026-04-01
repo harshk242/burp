@@ -54,7 +54,7 @@ export default function RequestAccessPage() {
             <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
             <h1 className="text-2xl font-bold mb-2">Request Submitted!</h1>
             <p className="text-muted-foreground mb-6">
-              Thank you for your interest in Super Bio Agent. We&apos;ll review
+              Thank you for your interest in BURP. We&apos;ll review
               your request and get back to you soon.
             </p>
             <Button asChild>
@@ -80,7 +80,7 @@ export default function RequestAccessPage() {
           <CardHeader>
             <CardTitle>Request Access</CardTitle>
             <CardDescription>
-              Fill out this form to request access to Super Bio Agent. We&apos;ll
+              Fill out this form to request access to BURP. We&apos;ll
               review your application and get back to you.
             </CardDescription>
           </CardHeader>
@@ -147,7 +147,7 @@ export default function RequestAccessPage() {
 
               <div className="space-y-2">
                 <label htmlFor="use_case" className="text-sm font-medium">
-                  How will you use Super Bio Agent?
+                  How will you use BURP?
                 </label>
                 <Textarea
                   id="use_case"

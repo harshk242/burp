@@ -216,8 +216,8 @@ export function AdminPageClient() {
             </DialogTitle>
             <DialogDescription>
               {confirmDialog.action === "approve"
-                ? `This will grant ${confirmDialog.request?.name} (${confirmDialog.request?.email}) access to Super Bio Agent.`
-                : `This will deny ${confirmDialog.request?.name} (${confirmDialog.request?.email}) access to Super Bio Agent.`}
+                ? `This will grant ${confirmDialog.request?.name} (${confirmDialog.request?.email}) access to BURP.`
+                : `This will deny ${confirmDialog.request?.name} (${confirmDialog.request?.email}) access to BURP.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

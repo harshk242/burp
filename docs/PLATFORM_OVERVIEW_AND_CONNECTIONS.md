@@ -1,4 +1,4 @@
-# Super Bio Agent: Comprehensive Platform Overview & Connection Guide
+# BURP: Comprehensive Platform Overview & Connection Guide
 
 ## Table of Contents
 1. [Platform Overview](#platform-overview)

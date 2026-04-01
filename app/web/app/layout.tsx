@@ -4,9 +4,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Super Bio Agent",
+  title: "BURP",
   description:
     "Query 10 biomedical databases with natural language. Proteins, drugs, genes, variants, pathways, trials, and literature.",
+  icons: {
+    icon: "/burp-logo.png",
+    apple: "/burp-logo.png",
+  },
 };
 
 export const viewport: Viewport = {

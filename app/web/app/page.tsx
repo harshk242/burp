@@ -5,8 +5,8 @@ import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import Image from "next/image";
 import {
-  Dna,
   Database,
   MessageSquare,
   Sparkles,
@@ -110,12 +110,15 @@ export default function HomePage() {
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-primary/5 to-transparent" />
         <div className="container mx-auto px-4">
           <div className="flex flex-col items-center text-center">
-            <div className="flex items-center gap-3 mb-6">
-              <Dna className="h-12 w-12 text-primary" />
+            <div className="flex flex-col items-center gap-4 mb-6">
+              <Image src="/burp-logo.png" alt="BURP" width={96} height={96} className="rounded-lg" />
               <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">
-                Super Bio Agent
+                BURP
               </h1>
             </div>
+            <p className="text-lg text-muted-foreground mb-2">
+              Bio Unified Research Platform
+            </p>
 
             <p className="text-xl text-muted-foreground max-w-2xl mb-8">
               Query 10 biomedical databases with natural language. Proteins, drugs,
@@ -134,7 +137,7 @@ export default function HomePage() {
       <section className="py-16 bg-muted/30">
         <div className="container mx-auto px-4">
           <h2 className="text-2xl font-bold text-center mb-12">
-            Why Super Bio Agent?
+            Why BURP?
           </h2>
           <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             <Card>
@@ -211,7 +214,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="py-8 border-t">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>Super Bio Agent - Biomedical Research Assistant</p>
+          <p>BURP - Bio Unified Research Platform</p>
         </div>
       </footer>
     </main>

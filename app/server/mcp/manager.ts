@@ -127,7 +127,7 @@ class MCPManager {
       server.transport = transport;
 
       const client = new Client(
-        { name: "super-bio-agent", version: "1.0.0" },
+        { name: "burp", version: "1.0.0" },
         { capabilities: {} }
       );
 

@@ -70,7 +70,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
           </Button>
         </div>
         <p className="mt-2 text-xs text-center text-muted-foreground">
-          Super Bio Agent can query UniProt, ChEMBL, PubChem, Ensembl, ClinVar,
+          BURP can query UniProt, ChEMBL, PubChem, Ensembl, ClinVar,
           Open Targets, Reactome, ClinicalTrials, PubMed, and ClinPGx
         </p>
       </div>

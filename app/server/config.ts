@@ -57,7 +57,7 @@ const AppConfigSchema = z.object({
   }),
   server: z.object({
     port: z.number().int().default(3000),
-    database_url: z.string().default("./data/super-bio-agent.db"),
+    database_url: z.string().default("./data/burp.db"),
     mcp_servers_base: z.string().default("../mcp-server"),
     cors_origins: z.array(z.string()).default(["http://localhost:3000", "http://localhost:3001"]),
     log_dir: z.string().default("../logs"),

@@ -1,10 +1,10 @@
-# Super Bio Agent
+# BURP
 
 A unified AI-powered research platform that connects 10 major biomedical research databases through the Model Context Protocol (MCP). Write natural language queries that seamlessly span across biological research platforms to synthesize complex research questions and conduct end-to-end research workflows.
 
 ## Overview
 
-Super Bio Agent integrates the following biomedical research platforms into a single cohesive system:
+BURP integrates the following biomedical research platforms into a single cohesive system:
 
 | Platform | Purpose | Records | Key IDs |
 |----------|---------|---------|---------|
@@ -53,7 +53,7 @@ Super Bio Agent integrates the following biomedical research platforms into a si
 ## Project Structure
 
 ```
-super-bio-agent/
+burp/
 ├── app/
 │   ├── server/                    # Hono backend API
 │   └── web/                       # Next.js frontend
@@ -98,7 +98,7 @@ super-bio-agent/
 #### 1. **Clone & Install Dependencies**
 ```bash
 git clone <repository-url>
-cd super-bio-agent
+cd burp
 
 # Install root dependencies (if any)
 bun install
@@ -140,7 +140,7 @@ NCBI_API_KEY=<your-ncbi-key>
 # Optional
 CLAUDE_MODEL=claude-sonnet-4-6
 PORT=3000
-DATABASE_URL=./data/super-bio-agent.db
+DATABASE_URL=./data/burp.db
 MCP_SERVERS_BASE=../mcp-servers
 ADMIN_EMAIL=you@example.com
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
@@ -215,7 +215,7 @@ cd app
 bun run db:init
 ```
 
-This initializes the SQLite database at `./data/super-bio-agent.db`.
+This initializes the SQLite database at `./data/burp.db`.
 
 ### Verification Checklist
 
@@ -272,9 +272,9 @@ The `.mcp.json` file configures how all 10 servers are launched:
    ```json
    {
      "mcpServers": {
-       "super-bio-agent": {
+       "burp": {
          "command": "node",
-         "args": ["<path-to-super-bio-agent>/.mcp.json"]
+         "args": ["<path-to-burp>/.mcp.json"]
        }
      }
    }
@@ -544,11 +544,11 @@ This is a research project integrating public biomedical databases. Contribution
 
 ## Citation
 
-If you use Super Bio Agent in your research, please cite:
+If you use BURP in your research, please cite:
 
 ```bibtex
-@software{super_bio_agent,
-  title={Super Bio Agent: Unified AI-Powered Biomedical Research Platform},
+@software{burp,
+  title={BURP: Bio Unified Research Platform},
   author={[Your Name/Organization]},
   year={2024},
   url={https://github.com/[your-repo]}

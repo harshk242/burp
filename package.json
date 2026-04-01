@@ -1,5 +1,5 @@
 {
-  "name": "super-bio-agent",
+  "name": "burp",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
@@ -8,8 +8,8 @@
     "mcp-server"
   ],
   "scripts": {
-    "build": "bun run --filter bio-mcp-unified build && bun run --filter super-bio-agent-web build",
-    "dev": "bun run --filter bio-mcp-unified build && concurrently -n mcp,backend,frontend -c cyan,green,blue \"bun run --filter bio-mcp-unified dev\" \"bun run --filter super-bio-agent dev\" \"bun run --filter super-bio-agent-web dev\"",
+    "build": "bun run --filter bio-mcp-unified build && bun run --filter burp-web build",
+    "dev": "bun run --filter bio-mcp-unified build && concurrently -n mcp,backend,frontend -c cyan,green,blue \"bun run --filter bio-mcp-unified dev\" \"bun run --filter burp dev\" \"bun run --filter burp-web dev\"",
     "generate:embeddings": "bun run scripts/generate-tool-embeddings.ts"
   },
   "devDependencies": {

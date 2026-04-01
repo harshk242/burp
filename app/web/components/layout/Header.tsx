@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/clerk-react";
-import { Menu, Dna, Wrench, Shield, MessageSquare } from "lucide-react";
+import Image from "next/image";
+import { Menu, Wrench, Shield, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/stores/uiStore";
 import { useUserStore } from "@/stores/userStore";
@@ -46,8 +47,8 @@ export function Header() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Dna className="h-6 w-6 text-primary" />
-          <span className="hidden sm:inline">Super Bio Agent</span>
+          <Image src="/burp-logo.png" alt="BURP" width={28} height={28} className="rounded-sm" />
+          <span className="hidden sm:inline">BURP</span>
         </Link>
 
         {/* Spacer */}

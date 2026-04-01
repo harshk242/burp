@@ -61,7 +61,7 @@ export function MessageList({
         {messages.length === 0 && !isStreaming && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <h2 className="text-2xl font-semibold mb-2">
-              Welcome to Super Bio Agent
+              Welcome to BURP
             </h2>
             <p className="text-muted-foreground max-w-md">
               Ask questions about proteins, drugs, genes, variants, pathways,

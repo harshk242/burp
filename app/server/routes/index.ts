@@ -21,13 +21,13 @@ api.route("/usage", usage);
 api.doc("/doc", {
   openapi: "3.1.0",
   info: {
-    title: "Super Bio Agent API",
+    title: "BURP API",
     version: "1.0.0",
-    description: `API for the Super Bio Agent - a conversational AI for querying biomedical databases.
+    description: `API for BURP (Bio Unified Research Platform) - a conversational AI for querying biomedical databases.
 
 ## Overview
 
-Super Bio Agent provides a unified interface to query 10 biomedical databases using natural language:
+BURP provides a unified interface to query 10 biomedical databases using natural language:
 
 | Database | Data Type |
 |----------|-----------|
@@ -57,8 +57,8 @@ Authorization: Bearer <your-jwt-token>
 3. Start chatting via \`POST /api/chat\`
 `,
     contact: {
-      name: "Super Bio Agent",
-      url: "https://github.com/your-org/super-bio-agent",
+      name: "BURP",
+      url: "https://github.com/your-org/burp",
     },
     license: {
       name: "MIT",
@@ -108,7 +108,7 @@ api.get(
   "/swagger",
   swaggerUI({
     url: "/api/doc",
-    documentTitle: "Super Bio Agent API",
+    documentTitle: "BURP API",
   })
 );
 

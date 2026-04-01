@@ -1,4 +1,4 @@
-# Super Bio Agent: High-Value Cross-Platform Use Cases
+# BURP: High-Value Cross-Platform Use Cases
 
 This document defines research and clinical use cases that stress-test cross-platform federation across the integrated MCP servers.
 

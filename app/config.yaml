@@ -1,5 +1,5 @@
 # ============================================================
-# Super Bio Agent — Application Configuration
+# BURP — Application Configuration
 # Non-secret settings. Secrets (API keys, Clerk) go in .env
 # All values here can be overridden by environment variables.
 # ============================================================
@@ -23,6 +23,7 @@ server:
   cors_origins:                 # env: CORS_ORIGINS (comma-separated)
     - http://localhost:3000
     - http://localhost:3001
+    - http://192.168.0.27:3001
   log_dir: ../logs              # env: LOG_DIR
   log_level: DEBUG              # DEBUG | INFO | WARN | ERROR — env: LOG_LEVEL
 

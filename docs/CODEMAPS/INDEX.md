@@ -1,4 +1,4 @@
-# Super Bio Agent — Codemap Index
+# BURP — Codemap Index
 
 **Generated:** 2026-03-13 | **Files scanned:** 81 TS/TSX | **Total lines:** ~29,300
 
@@ -16,7 +16,7 @@ A unified AI research platform connecting 10 biomedical databases via MCP server
 ## Repository Structure
 
 ```
-super-bio-agent/
+burp/
 ├── app/
 │   ├── server/                  # Hono backend (Bun runtime)
 │   │   ├── orchestration/       #   LLM agentic loop

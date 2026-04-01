@@ -1,4 +1,4 @@
--- Super Bio Agent Database Schema
+-- BURP Database Schema
 -- SQLite with foreign key enforcement
 
 -- IMPORTANT: Enable foreign key enforcement (must run on each connection)

@@ -143,7 +143,7 @@ const port = appConfig.server.port;
 
 console.log(`
 ╔═══════════════════════════════════════════════════════════╗
-║           Super Bio Agent Server                          ║
+║           BURP Server                                     ║
 ╠═══════════════════════════════════════════════════════════╣
 ║  Status: Running                                          ║
 ║  Port: ${port}                                               ║

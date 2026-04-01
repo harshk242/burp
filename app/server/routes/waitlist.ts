@@ -22,7 +22,7 @@ const submitRequestRoute = createRoute({
   path: "/",
   tags: ["Waitlist"],
   summary: "Submit access request",
-  description: "Submit a request to access the Super Bio Agent platform. No authentication required.",
+  description: "Submit a request to access the BURP platform. No authentication required.",
   request: {
     body: {
       content: {
