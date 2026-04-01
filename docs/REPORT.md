@@ -1,5 +1,5 @@
 # Instruction for final output
-Super Bio Agent integrates the following biomedical research platforms.
+BURP integrates the following biomedical research platforms.
 
 - UniProt
 - ClinPGx
