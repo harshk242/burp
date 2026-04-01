@@ -231,7 +231,16 @@ export function syncUserToDatabase(
   let dbUser = userQueries.findByClerkId(clerkUserId) as DbUser | undefined;
 
   if (dbUser) {
-    // User exists - update last active and return
+    // User exists - check if waitlist user now has approval
+    if (dbUser.role === "waitlist") {
+      const accessRequest = accessRequestQueries.findByEmail(email) as AccessRequest | undefined;
+      if (accessRequest?.status === "approved") {
+        // Auto-promote to user
+        userQueries.updateRole(dbUser.id, "user");
+        dbUser = userQueries.findByClerkId(clerkUserId) as DbUser;
+      }
+    }
+    // Update last active and return
     userQueries.updateLastActive(dbUser.id);
     return dbUser;
   }
