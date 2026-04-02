@@ -196,6 +196,13 @@ describe('UsageSchema', () => {
     resetAt: 1711497600,
     total_queries: 142,
     role: 'user' as const,
+    tokens: {
+      used_today: 12400,
+      limit: 200000,
+      remaining: 187600,
+      input_today: 8200,
+      output_today: 4200,
+    },
   };
 
   it('accepts valid usage data', () => {
