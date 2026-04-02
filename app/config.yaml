@@ -15,10 +15,6 @@ llm:
   title_model: claude-haiku-4-5 # env: LLM_TITLE_MODEL
   max_retries: 3                # env: LLM_MAX_RETRIES
 
-# ── Feature flags ────────────────────────────────────────────
-features:
-  use_vercel_ai: true           # false = legacy Anthropic-only orchestration — env: USE_VERCEL_AI
-
 # ── Server ───────────────────────────────────────────────────
 server:
   port: 3000                    # env: PORT

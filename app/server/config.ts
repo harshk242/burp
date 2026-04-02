@@ -56,9 +56,6 @@ const AppConfigSchema = z.object({
     title_model: z.string().default("claude-haiku-4-5"),
     max_retries: z.number().int().default(3),
   }),
-  features: z.object({
-    use_vercel_ai: z.boolean().default(true),
-  }),
   server: z.object({
     port: z.number().int().default(3000),
     database_url: z.string().default("./data/burp.db"),
@@ -101,9 +98,6 @@ function applyEnvOverrides(cfg: AppConfig): AppConfig {
   if (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL) cfg.llm.chat_model = (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL)!;
   if (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL) cfg.llm.title_model = (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL)!;
   if (e.LLM_MAX_RETRIES) cfg.llm.max_retries = parseInt(e.LLM_MAX_RETRIES, 10);
-
-  // Features
-  if (e.USE_VERCEL_AI !== undefined) cfg.features.use_vercel_ai = e.USE_VERCEL_AI !== "false";
 
   // Server
   if (e.PORT) cfg.server.port = parseInt(e.PORT, 10);

@@ -1,7 +1,7 @@
 /**
  * MCP Tool Registry
  * Manages tool discovery and search across MCP servers.
- * Supports both legacy Claude format and Vercel AI SDK format.
+ * Provides tools in Vercel AI SDK format for the chat orchestration layer.
  */
 
 import { jsonSchema, type Tool } from "ai";
@@ -15,13 +15,6 @@ export interface MCPTool {
   server: string;
   inputSchema: Record<string, unknown>;
   available: boolean;
-}
-
-export interface ClaudeTool {
-  name: string;
-  description: string;
-  input_schema: Record<string, unknown>;
-  defer_loading?: boolean;
 }
 
 class ToolRegistry {
@@ -116,29 +109,6 @@ class ToolRegistry {
       this.tools.set(key, { ...tool, available });
     }
     logger.info("REGISTRY", "all_availability_changed", { data: { available } });
-  }
-
-  /**
-   * Convert tools to Claude API format with selective deferred loading.
-   * Core ID-bridge tools are always loaded; others are deferred.
-   * Uses server__toolname format for unique naming.
-   */
-  toClaudeFormat(onlyAvailable = true): ClaudeTool[] {
-    const tools = onlyAvailable
-      ? Array.from(this.tools.values()).filter((t) => t.available)
-      : Array.from(this.tools.values());
-
-    return tools.map((tool) => {
-      const fullName = `${tool.server}__${tool.name}`;
-      const isCore = ALWAYS_LOADED_TOOLS.has(fullName);
-
-      return {
-        name: fullName,
-        description: `[${tool.server}] ${tool.description}`,
-        input_schema: tool.inputSchema,
-        ...(isCore ? {} : { defer_loading: true }),
-      };
-    });
   }
 
   /**

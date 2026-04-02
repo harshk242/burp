@@ -90,7 +90,7 @@ tools/
 | `clinicaltrials__search_by_intervention` | Drug/intervention → trials |
 | `pubmed__search_pubmed` | Free-text → PubMed article IDs |
 
-All other tools are deferred and discovered via `tool_search_tool_bm25` at runtime.
+All other tools are discovered on demand via `system__search_available_tools` (hybrid BM25 + semantic search).
 
 ## Configuration
 

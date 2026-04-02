@@ -13,7 +13,7 @@ app/server/
 ├── index.ts                     # Server entry: Hono on port 3000
 ├── logger.ts                    # Structured logging with timers & request IDs
 ├── orchestration/
-│   └── chat.ts                  # ★ Core agentic loop (818 LOC)
+│   └── chat-v2.ts               # ★ Core agentic loop (Vercel AI SDK, ~786 LOC)
 ├── mcp/
 │   ├── manager.ts               # MCP process lifecycle (457 LOC)
 │   ├── registry.ts              # Tool discovery & search (200 LOC)
@@ -39,7 +39,7 @@ app/server/
 
 | File | Lines | Role |
 |------|-------|------|
-| `orchestration/chat.ts` | 818 | Agentic loop: Claude API ↔ tool calls ↔ result compression |
+| `orchestration/chat-v2.ts` | 786 | Agentic loop: Vercel AI SDK ↔ tool calls ↔ artifact pipeline |
 | `mcp/manager.ts` | 457 | Spawn/manage MCP child processes, exponential backoff recovery |
 | `routes/sessions.ts` | 403 | Session CRUD with pagination and deletion |
 | `routes/waitlist.ts` | 316 | Access request submission and admin review |
@@ -51,27 +51,33 @@ app/server/
 | `routes/chat.ts` | 184 | SSE endpoint: auth → session → stream orchestration events |
 | `schemas/index.ts` | 165 | Zod schemas with OpenAPI integration |
 
-## Deep Dive: Orchestration (`chat.ts`)
+## Deep Dive: Orchestration (`chat-v2.ts`)
 
-The core brain of the system. Handles the multi-turn agentic loop:
+The core brain of the system. Model-agnostic via Vercel AI SDK (supports Anthropic + Google).
 
 ```
 1. Load session history from SQLite
-2. Build system prompt (90 lines: database descriptions + workflow rules)
-3. Send to Claude API with tool_search_tool_bm25 (natural language tool search)
+2. Build system prompt (database descriptions + workflow rules)
+3. Send to LLM via streamText() with core tools + hybrid search tool
 4. Loop:
-   a. Claude returns text → stream to client via SSE
-   b. Claude returns tool_use → call mcpManager.callTool()
-      → Result > 15KB? → Haiku side-call to compress
+   a. LLM returns text → stream to client via SSE
+   b. LLM returns tool_use → dispatch:
+      - system__search_available_tools → hybrid search (BM25 + semantic), activate discovered tools
+      - system__inspect_artifact → jq query against stored artifact
+      - MCP tool → mcpManager.callTool()
+        → Result > 15KB? → noise reduction (jq) → artifact store + schema preview
       → Add tool_result to conversation
-   c. Repeat until stop_reason != "tool_use"
+   c. Repeat until finishReason != "tool-calls"
 5. Persist final message + tool_calls JSON to SQLite
+6. Yield usage event with accumulated token counts
 ```
 
 Key behaviors:
-- **429 retry**: exponential backoff, max 3 retries, up to 60s delay
-- **Title generation**: parallel Haiku call (non-blocking) on first message
-- **Tool deferral**: 8 "always-loaded" ID-bridge tools; rest via BM25 search
+- **Provider-agnostic**: Anthropic and Google via `@ai-sdk/anthropic` / `@ai-sdk/google`
+- **Hybrid tool search**: BM25 + semantic embedding fusion (replaces Claude-specific tool_search_tool_bm25)
+- **Artifact pipeline**: 3-layer output handling (MCP cap → noise reduction → artifact + inspect tool)
+- **Title generation**: parallel call (non-blocking) on first message
+- **Token budgets**: daily per-user token limits with accumulated usage tracking
 
 ## Deep Dive: MCP Manager (`manager.ts`)
 

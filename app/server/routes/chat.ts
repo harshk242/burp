@@ -4,13 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ChatRequestSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import { rateLimitMiddleware } from "../middleware/rateLimit";
-import { processChat as processChatLegacy, generateSessionTitle as titleLegacy } from "../orchestration/chat";
-import { processChat as processChatV2, generateSessionTitle as titleV2 } from "../orchestration/chat-v2";
-import { appConfig } from "../config";
-
-const USE_V2 = appConfig.features.use_vercel_ai;
-const processChat = USE_V2 ? processChatV2 : processChatLegacy;
-const generateSessionTitle = USE_V2 ? titleV2 : titleLegacy;
+import { processChat, generateSessionTitle } from "../orchestration/chat-v2";
 import { chatSessionQueries, messageQueries } from "../db";
 import { logger } from "../logger";
 

@@ -109,15 +109,16 @@ const toolConfigRoute = createRoute({
 });
 
 tools.openapi(toolConfigRoute, async (c) => {
-  const claudeTools = toolRegistry.toClaudeFormat(true);
-  const alwaysLoaded = claudeTools.filter((t) => !t.defer_loading);
-  const deferred = claudeTools.filter((t) => t.defer_loading);
+  const allTools = toolRegistry.getAll(false); // only available
+  const expectedCoreNames = new Set(toolRegistry.getAlwaysLoadedTools());
+  const alwaysLoaded = allTools.filter((t) => expectedCoreNames.has(`${t.server}__${t.name}`));
+  const deferred = allTools.filter((t) => !expectedCoreNames.has(`${t.server}__${t.name}`));
 
   return c.json({
-    total: claudeTools.length,
+    total: allTools.length,
     alwaysLoaded: {
       count: alwaysLoaded.length,
-      names: alwaysLoaded.map((t) => t.name),
+      names: alwaysLoaded.map((t) => `${t.server}__${t.name}`),
     },
     deferred: {
       count: deferred.length,
