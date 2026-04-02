@@ -6,6 +6,7 @@ import { sessions } from "./sessions";
 import { tools } from "./tools";
 import { chat } from "./chat";
 import { usage } from "./usage";
+import { admin } from "./admin";
 import type { AppEnv } from "../types";
 
 const api = new OpenAPIHono<AppEnv>();
@@ -17,6 +18,7 @@ api.route("/sessions", sessions);
 api.route("/tools", tools);
 api.route("/chat", chat);
 api.route("/usage", usage);
+api.route("/admin", admin);
 
 // Generate OpenAPI spec
 api.doc("/doc", {
@@ -91,6 +93,10 @@ Authorization: Bearer <your-jwt-token>
     {
       name: "Waitlist",
       description: "Access request management",
+    },
+    {
+      name: "Admin",
+      description: "Admin-only user management and rate limit overrides",
     },
   ],
   security: [{ bearerAuth: [] }],

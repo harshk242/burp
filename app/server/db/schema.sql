@@ -16,7 +16,10 @@ CREATE TABLE IF NOT EXISTS users (
   research_area TEXT,
   total_queries INTEGER DEFAULT 0,
   created_at INTEGER DEFAULT (unixepoch()),
-  last_active_at INTEGER
+  last_active_at INTEGER,
+  -- Per-user rate limit overrides (NULL = use role/config default)
+  daily_query_limit INTEGER,
+  daily_token_limit INTEGER
 );
 
 -- Access requests (waitlist)
@@ -49,7 +52,10 @@ CREATE TABLE IF NOT EXISTS messages (
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content TEXT,
   tool_calls TEXT, -- JSON array of tool calls
-  created_at INTEGER DEFAULT (unixepoch())
+  created_at INTEGER DEFAULT (unixepoch()),
+  -- Token counts per assistant message (0 for user messages and pre-migration rows)
+  input_tokens INTEGER DEFAULT 0,
+  output_tokens INTEGER DEFAULT 0
 );
 
 -- Daily usage tracking (one row per user per day)
@@ -59,6 +65,9 @@ CREATE TABLE IF NOT EXISTS daily_usage (
   date TEXT NOT NULL,            -- YYYY-MM-DD (UTC)
   query_count INTEGER DEFAULT 0,
   created_at INTEGER DEFAULT (unixepoch()),
+  -- Token aggregates for today (best-effort: incremented post-response)
+  input_tokens INTEGER DEFAULT 0,
+  output_tokens INTEGER DEFAULT 0,
   UNIQUE(user_id, date)
 );
 
@@ -90,3 +99,15 @@ CREATE VIRTUAL TABLE IF NOT EXISTS tool_search_fts USING fts5(
   description,
   tokenize='porter unicode61'
 );
+
+-- ── Live-DB Migrations ────────────────────────────────────────────────────────
+-- These ALTER TABLE statements are idempotent when run via the applyMigrations()
+-- helper in db/index.ts (which wraps each in try/catch). They are NO-OPs on a
+-- fresh install because the columns already exist in the CREATE TABLE above.
+--
+-- ALTER TABLE users ADD COLUMN daily_query_limit INTEGER;
+-- ALTER TABLE users ADD COLUMN daily_token_limit INTEGER;
+-- ALTER TABLE daily_usage ADD COLUMN input_tokens INTEGER DEFAULT 0;
+-- ALTER TABLE daily_usage ADD COLUMN output_tokens INTEGER DEFAULT 0;
+-- ALTER TABLE messages ADD COLUMN input_tokens INTEGER DEFAULT 0;
+-- ALTER TABLE messages ADD COLUMN output_tokens INTEGER DEFAULT 0;

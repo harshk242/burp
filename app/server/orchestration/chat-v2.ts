@@ -26,7 +26,7 @@ import { toolRegistry } from "../mcp/registry";
 import { hybridSearch } from "../search";
 import { createSearchTool } from "./tools/search-tool";
 import { createMcpToolExecutor } from "./tools/mcp-executor";
-import { messageQueries, chatSessionQueries, userQueries } from "../db";
+import { messageQueries, chatSessionQueries, userQueries, dailyUsageQueries } from "../db";
 import { logger, startTimer, estimateTokens, type LogContext } from "../logger";
 import { appConfig } from "../config";
 import { artifactStore } from "./tools/artifact-store";
@@ -95,7 +95,7 @@ Always prefer using tools over your training knowledge for biomedical facts.`;
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface StreamEvent {
-  type: "start" | "text" | "tool_start" | "tool_end" | "done" | "error";
+  type: "start" | "text" | "tool_start" | "tool_end" | "done" | "usage" | "error";
   data: unknown;
 }
 
@@ -348,6 +348,9 @@ export async function* processChat(
     let persistedAssistantText = ""; // accumulates all text across iterations for DB storage
     const allToolCalls: ToolCallRecord[] = [];
     let loopIteration = 0;
+    // Token accumulators — summed across all tool-call iterations
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     while (continueLoop) {
       loopIteration++;
@@ -391,6 +394,10 @@ export async function* processChat(
       const toolCalls = await result.toolCalls;
       const usage = await result.usage;
       const iterDuration = iterElapsed();
+
+      // Accumulate token counts across all tool-call iterations
+      totalInputTokens += usage?.inputTokens ?? 0;
+      totalOutputTokens += usage?.outputTokens ?? 0;
 
       logger.info("CHAT", "llm_response_received", {
         ctx,
@@ -658,18 +665,22 @@ export async function* processChat(
       }
     }
 
-    // Store assistant message
+    // Store assistant message with accumulated token counts
     const assistantMsgId = uuidv4();
     messageQueries.create(
       assistantMsgId,
       sessionId,
       "assistant",
       persistedAssistantText,
-      allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null
+      allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
+      totalInputTokens,
+      totalOutputTokens
     );
 
     chatSessionQueries.touch(sessionId);
     userQueries.incrementQueries(userId);
+    // Increment daily token totals (best-effort: done post-response; next request checks these)
+    dailyUsageQueries.incrementTokens(userId, totalInputTokens, totalOutputTokens);
 
     logger.info("CHAT", "process_complete", {
       ctx,
@@ -682,10 +693,16 @@ export async function* processChat(
         tool_calls_failed: allToolCalls.filter((t) => t.error).length,
         response_length: persistedAssistantText.length,
         message_id: assistantMsgId,
+        total_input_tokens: totalInputTokens,
+        total_output_tokens: totalOutputTokens,
       },
     });
 
+    // done arrives first so finalizeAssistantMessage() commits the message to
+    // state.messages before the frontend's setLastMessageTokens runs.
     yield { type: "done", data: { messageId: assistantMsgId } };
+    // usage arrives after done — safe to patch tokenUsage onto the last message
+    yield { type: "usage", data: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens } };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error("CHAT", "process_failed", {

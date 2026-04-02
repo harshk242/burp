@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { UsageSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
 import { dailyUsageQueries, rateLimitQueries } from "../db";
+import { appConfig } from "../config";
 import type { AppEnv } from "../types";
 
 const usage = new OpenAPIHono<AppEnv>();
@@ -47,8 +48,8 @@ usage.openapi(getUsageRoute, async (c) => {
   const role = c.get("role") as string;
   const dbUser = c.get("dbUser")!; // non-null: requireDbUser runs before this handler
 
-  const dailyLimit = rateLimitQueries.getForRole(role);
-  const used = dailyUsageQueries.getToday(userId);
+  const dailyLimit = dbUser.daily_query_limit ?? rateLimitQueries.getForRole(role);
+  const todayFull = dailyUsageQueries.getTodayFull(userId);
 
   // Next midnight UTC
   const now = new Date();
@@ -57,16 +58,30 @@ usage.openapi(getUsageRoute, async (c) => {
   );
   const resetAt = Math.floor(resetDate.getTime() / 1000);
 
-  const remaining = dailyLimit === -1 ? -1 : Math.max(0, dailyLimit - used);
+  const remaining = dailyLimit === -1 ? -1 : Math.max(0, dailyLimit - todayFull.query_count);
+
+  // Token budget
+  const tokenLimit: number =
+    dbUser.daily_token_limit ??
+    (role === "admin" ? -1 : appConfig.rate_limits.default_daily_tokens);
+  const tokensUsedToday = todayFull.input_tokens + todayFull.output_tokens;
+  const tokensRemaining = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - tokensUsedToday);
 
   return c.json(
     {
-      used,
+      used: todayFull.query_count,
       limit: dailyLimit,
       remaining,
       resetAt,
       total_queries: dbUser.total_queries,
       role: role as "waitlist" | "user" | "admin",
+      tokens: {
+        used_today: tokensUsedToday,
+        limit: tokenLimit,
+        remaining: tokensRemaining,
+        input_today: todayFull.input_tokens,
+        output_today: todayFull.output_tokens,
+      },
     },
     200
   );

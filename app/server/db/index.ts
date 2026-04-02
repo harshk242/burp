@@ -34,7 +34,32 @@ export function initializeSchema(): void {
   const schemaPath = join(import.meta.dir, "schema.sql");
   const schema = readFileSync(schemaPath, "utf-8");
   db.exec(schema);
+  applyMigrations();
   console.log("Database schema initialized at:", DB_PATH);
+}
+
+/**
+ * Idempotent migrations for live databases.
+ * SQLite does not support ALTER TABLE ... ADD COLUMN IF NOT EXISTS,
+ * so each statement is wrapped in try/catch — already-existing columns
+ * produce "duplicate column name" errors that are safely ignored.
+ */
+function applyMigrations(): void {
+  const migrations: string[] = [
+    "ALTER TABLE users ADD COLUMN daily_query_limit INTEGER",
+    "ALTER TABLE users ADD COLUMN daily_token_limit INTEGER",
+    "ALTER TABLE daily_usage ADD COLUMN input_tokens INTEGER DEFAULT 0",
+    "ALTER TABLE daily_usage ADD COLUMN output_tokens INTEGER DEFAULT 0",
+    "ALTER TABLE messages ADD COLUMN input_tokens INTEGER DEFAULT 0",
+    "ALTER TABLE messages ADD COLUMN output_tokens INTEGER DEFAULT 0",
+  ];
+  for (const sql of migrations) {
+    try {
+      db.run(sql);
+    } catch {
+      // Column already exists — safe to ignore
+    }
+  }
 }
 
 // Lazy statement cache to avoid preparing before schema exists
@@ -89,6 +114,20 @@ export const userQueries = {
 
   updateRole(id: string, role: string) {
     return stmt("UPDATE users SET role = ? WHERE id = ?").run(role, id);
+  },
+
+  /** Set per-user daily limits. Pass null to clear override (revert to defaults). */
+  updateLimits(id: string, dailyQueryLimit: number | null, dailyTokenLimit: number | null) {
+    return stmt(
+      "UPDATE users SET daily_query_limit = ?, daily_token_limit = ? WHERE id = ?"
+    ).run(dailyQueryLimit, dailyTokenLimit, id);
+  },
+
+  /** List all users for the admin panel (with limit overrides). */
+  listAll(): DbUser[] {
+    return stmt(
+      "SELECT * FROM users ORDER BY created_at DESC"
+    ).all() as DbUser[];
   },
 };
 
@@ -188,12 +227,14 @@ export const messageQueries = {
     chatId: string,
     role: string,
     content: string | null,
-    toolCalls: string | null
+    toolCalls: string | null,
+    inputTokens: number = 0,
+    outputTokens: number = 0
   ) {
     return stmt(
-      `INSERT INTO messages (id, chat_id, role, content, tool_calls)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(id, chatId, role, content, toolCalls);
+      `INSERT INTO messages (id, chat_id, role, content, tool_calls, input_tokens, output_tokens)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, chatId, role, content, toolCalls, inputTokens, outputTokens);
   },
 
   findByChatId(chatId: string): DbMessageRow[] {
@@ -223,13 +264,38 @@ export const dailyUsageQueries = {
     return row?.query_count ?? 1;
   },
 
-  /** Get today's usage without incrementing */
+  /** Get today's query count without incrementing */
   getToday(userId: string): number {
     const today = new Date().toISOString().slice(0, 10);
     const row = stmt(
       "SELECT query_count FROM daily_usage WHERE user_id = ? AND date = ?"
     ).get(userId, today) as { query_count: number } | undefined;
     return row?.query_count ?? 0;
+  },
+
+  /** Get today's full usage row: query count + token totals */
+  getTodayFull(userId: string): { query_count: number; input_tokens: number; output_tokens: number } {
+    const today = new Date().toISOString().slice(0, 10);
+    const row = stmt(
+      "SELECT query_count, input_tokens, output_tokens FROM daily_usage WHERE user_id = ? AND date = ?"
+    ).get(userId, today) as { query_count: number; input_tokens: number; output_tokens: number } | undefined;
+    return row ?? { query_count: 0, input_tokens: 0, output_tokens: 0 };
+  },
+
+  /**
+   * Add token counts for today's usage row (best-effort, called post-response).
+   * Token enforcement is checked pre-request via getTodayFull; incremented here
+   * after the response completes — up to 1 request of overshoot is possible.
+   */
+  incrementTokens(userId: string, inputTokens: number, outputTokens: number): void {
+    const today = new Date().toISOString().slice(0, 10);
+    stmt(
+      `INSERT INTO daily_usage (user_id, date, query_count, input_tokens, output_tokens)
+       VALUES (?, ?, 0, ?, ?)
+       ON CONFLICT(user_id, date) DO UPDATE SET
+         input_tokens = input_tokens + excluded.input_tokens,
+         output_tokens = output_tokens + excluded.output_tokens`
+    ).run(userId, today, inputTokens, outputTokens);
   },
 };
 

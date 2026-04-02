@@ -17,6 +17,13 @@ interface ChatState {
   addToolCall: (toolCall: ToolCall) => void;
   updateToolCall: (id: string, updates: Partial<ToolCall>) => void;
   finalizeAssistantMessage: () => void;
+  /**
+   * Patches tokenUsage onto the last assistant message in state.messages.
+   * Must only be called AFTER finalizeAssistantMessage() (triggered by the
+   * "done" SSE event). The "usage" SSE event arrives after "done", so by the
+   * time this runs the target message is guaranteed to be in state.messages.
+   */
+  setLastMessageTokens: (input: number, output: number) => void;
   setError: (error: string | null) => void;
   setStreaming: (isStreaming: boolean) => void;
   resetStreamingState: () => void;
@@ -71,6 +78,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
     }
   },
+
+  setLastMessageTokens: (input, output) =>
+    set((state) => {
+      // Scan from the end to find the last assistant message
+      const idx = [...state.messages].reverse().findIndex((m) => m.role === "assistant");
+      if (idx === -1) return state;
+      const realIdx = state.messages.length - 1 - idx;
+      const updated = state.messages.map((m, i) =>
+        i === realIdx ? { ...m, tokenUsage: { input, output } } : m
+      );
+      return { messages: updated };
+    }),
 
   setError: (error) => set({ error, isStreaming: false }),
 

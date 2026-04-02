@@ -12,6 +12,13 @@ interface UsageResponse {
   resetAt: number;
   total_queries: number;
   role: string;
+  tokens?: {
+    used_today: number;
+    limit: number;
+    remaining: number;
+    input_today: number;
+    output_today: number;
+  };
 }
 
 /**
@@ -32,6 +39,7 @@ export function useUsage() {
         limit: data.limit,
         remaining: data.remaining,
         resetAt: data.resetAt,
+        tokens: data.tokens,
       };
       setUsage(info);
     } catch {

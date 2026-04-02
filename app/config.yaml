@@ -4,6 +4,10 @@
 # All values here can be overridden by environment variables.
 # ============================================================
 
+# ── Rate Limits ──────────────────────────────────────────────
+rate_limits:
+  default_daily_tokens: 200000  # 200k tokens/day for 'user' role; -1 = unlimited
+
 # ── LLM ──────────────────────────────────────────────────────
 llm:
   provider: anthropic           # "anthropic" | "google" — env: LLM_PROVIDER

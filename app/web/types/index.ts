@@ -49,6 +49,8 @@ export interface Message {
   content: string;
   toolCalls?: ToolCall[];
   createdAt: number;
+  /** Token counts — set from the usage SSE event or loaded from history */
+  tokenUsage?: { input: number; output: number };
 }
 
 export interface DbMessage {
@@ -58,6 +60,9 @@ export interface DbMessage {
   content: string | null;
   tool_calls: ToolCall[] | null;
   created_at: number;
+  /** Token counts stored with the assistant message (0 for user messages) */
+  input_tokens?: number;
+  output_tokens?: number;
 }
 
 // ============================================
@@ -103,7 +108,9 @@ export class RateLimitError extends Error {
     message: string,
     public limit: number,
     public used: number,
-    public resetAt: number
+    public resetAt: number,
+    /** "query_limit_exceeded" | "token_limit_exceeded" */
+    public errorCode?: string
   ) {
     super(message);
     this.name = "RateLimitError";
@@ -121,6 +128,7 @@ export type SSEEventType =
   | "tool_end"
   | "title"
   | "done"
+  | "usage"
   | "error";
 
 export interface SSEEvent {

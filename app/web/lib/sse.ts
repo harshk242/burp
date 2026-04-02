@@ -27,11 +27,19 @@ export async function streamChat(
     store.setStreaming(false);
     const error = await response.json().catch(() => ({ error: "Request failed" }));
     if (response.status === 429) {
+      const errorCode: string = error.error ?? "";
+      let message: string;
+      if (errorCode === "token_limit_exceeded") {
+        message = error.message || `Daily token budget of ${(error.token_limit ?? 0).toLocaleString()} tokens reached. Resets at midnight UTC.`;
+      } else {
+        message = error.message || "Daily query limit reached. Resets at midnight UTC.";
+      }
       throw new RateLimitError(
-        error.message || "Rate limit exceeded",
-        error.limit ?? 0,
-        error.used ?? 0,
-        error.resetAt ?? 0
+        message,
+        error.limit ?? error.token_limit ?? 0,
+        error.used ?? error.tokens_used ?? 0,
+        error.resetAt ?? 0,
+        errorCode
       );
     }
     throw new Error(error.error || `HTTP ${response.status}`);
@@ -175,6 +183,14 @@ function handleSSEEvent(
     case "done":
       store.finalizeAssistantMessage();
       break;
+
+    case "usage": {
+      // Arrives after "done" — finalizeAssistantMessage() has already committed
+      // the assistant message to state.messages, so patching tokenUsage is safe.
+      const { inputTokens, outputTokens } = data as { inputTokens: number; outputTokens: number };
+      store.setLastMessageTokens(inputTokens, outputTokens);
+      break;
+    }
 
     case "error": {
       const errorMsg =

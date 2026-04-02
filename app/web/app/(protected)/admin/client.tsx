@@ -6,8 +6,9 @@ import { useApi } from "@/hooks/useApi";
 import { useUserStore } from "@/stores/userStore";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -26,7 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, Loader2, Clock, Users } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Clock, Users, Save } from "lucide-react";
 
 interface AccessRequest {
   id: string;
@@ -41,10 +42,25 @@ interface AccessRequest {
   reviewed_by: string | null;
 }
 
+interface AdminUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: "waitlist" | "user" | "admin";
+  total_queries: number;
+  daily_query_limit: number | null;
+  daily_token_limit: number | null;
+  created_at: number;
+  last_active_at: number | null;
+  today_queries: number;
+  today_input_tokens: number;
+  today_output_tokens: number;
+}
+
 export function AdminPageClient() {
   const router = useRouter();
   const user = useUserStore((s) => s.user);
-  const { get, post } = useApi();
+  const { get, post, patch } = useApi();
 
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,6 +70,12 @@ export function AdminPageClient() {
     action: "approve" | "reject";
     request: AccessRequest | null;
   }>({ open: false, action: "approve", request: null });
+
+  // Users tab state
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [limitEdits, setLimitEdits] = useState<Record<string, { queryLimit: string; tokenLimit: string }>>({});
+  const [savingLimits, setSavingLimits] = useState<string | null>(null);
 
   // Client-side admin guard
   useEffect(() => {
@@ -79,6 +101,46 @@ export function AdminPageClient() {
       fetchRequests();
     }
   }, [user, fetchRequests]);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      setUsersLoading(true);
+      const data = await get<{ users: AdminUser[] }>("/admin/users");
+      setAdminUsers(data.users);
+      // Pre-populate edit state with current values
+      const edits: Record<string, { queryLimit: string; tokenLimit: string }> = {};
+      for (const u of data.users) {
+        edits[u.id] = {
+          queryLimit: u.daily_query_limit != null ? String(u.daily_query_limit) : "",
+          tokenLimit: u.daily_token_limit != null ? String(u.daily_token_limit) : "",
+        };
+      }
+      setLimitEdits(edits);
+    } catch (err) {
+      console.error("Failed to fetch users:", err);
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [get]);
+
+  const handleSaveLimits = async (userId: string) => {
+    setSavingLimits(userId);
+    try {
+      const edit = limitEdits[userId];
+      const queryVal = edit.queryLimit.trim();
+      const tokenVal = edit.tokenLimit.trim();
+      await patch(`/admin/users/${userId}/limits`, {
+        daily_query_limit: queryVal === "" ? null : parseInt(queryVal, 10),
+        daily_token_limit: tokenVal === "" ? null : parseInt(tokenVal, 10),
+      });
+      // Refresh list
+      await fetchUsers();
+    } catch (err) {
+      console.error("Failed to save limits:", err);
+    } finally {
+      setSavingLimits(null);
+    }
+  };
 
   const handleAction = async (action: "approve" | "reject", id: string) => {
     setActionLoading(id);
@@ -132,9 +194,9 @@ export function AdminPageClient() {
           {/* Stats */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Access Requests</h1>
+              <h1 className="text-2xl font-bold">Admin Panel</h1>
               <p className="text-sm text-muted-foreground">
-                Manage early access requests
+                Manage access requests and user limits
               </p>
             </div>
             <div className="flex gap-2 sm:gap-3">
@@ -157,7 +219,7 @@ export function AdminPageClient() {
           </div>
 
           {/* Tabs */}
-          <Tabs defaultValue="pending">
+          <Tabs defaultValue="pending" onValueChange={(v) => { if (v === "users" && adminUsers.length === 0) fetchUsers(); }}>
             <TabsList>
               <TabsTrigger value="pending">
                 Pending{" "}
@@ -169,6 +231,7 @@ export function AdminPageClient() {
               </TabsTrigger>
               <TabsTrigger value="approved">Approved</TabsTrigger>
               <TabsTrigger value="rejected">Rejected</TabsTrigger>
+              <TabsTrigger value="users">Users</TabsTrigger>
             </TabsList>
 
             <TabsContent value="pending">
@@ -195,6 +258,22 @@ export function AdminPageClient() {
                 requests={rejected}
                 isLoading={isLoading}
                 showReviewDate
+              />
+            </TabsContent>
+
+            <TabsContent value="users">
+              <UsersTable
+                users={adminUsers}
+                isLoading={usersLoading}
+                limitEdits={limitEdits}
+                savingLimits={savingLimits}
+                onLimitChange={(userId, field, value) =>
+                  setLimitEdits((prev) => ({
+                    ...prev,
+                    [userId]: { ...prev[userId], [field]: value },
+                  }))
+                }
+                onSave={handleSaveLimits}
               />
             </TabsContent>
           </Tabs>
@@ -250,6 +329,121 @@ export function AdminPageClient() {
 }
 
 /* ─── Sub-components ──────────────────────────────────────────────── */
+
+function UsersTable({
+  users,
+  isLoading,
+  limitEdits,
+  savingLimits,
+  onLimitChange,
+  onSave,
+}: {
+  users: AdminUser[];
+  isLoading: boolean;
+  limitEdits: Record<string, { queryLimit: string; tokenLimit: string }>;
+  savingLimits: string | null;
+  onLimitChange: (userId: string, field: "queryLimit" | "tokenLimit", value: string) => void;
+  onSave: (userId: string) => void;
+}) {
+  if (isLoading) {
+    return (
+      <div className="space-y-3 pt-4">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (users.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">No users found</div>
+    );
+  }
+
+  const formatTokens = (n: number) =>
+    n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+
+  return (
+    <div className="border rounded-lg mt-2 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name / Email</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead className="text-right">Today</TableHead>
+            <TableHead className="text-right">Total</TableHead>
+            <TableHead className="w-28">Query limit</TableHead>
+            <TableHead className="w-32">Token limit</TableHead>
+            <TableHead className="w-10"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {users.map((u) => {
+            const edit = limitEdits[u.id] ?? { queryLimit: "", tokenLimit: "" };
+            const todayTokens = u.today_input_tokens + u.today_output_tokens;
+            return (
+              <TableRow key={u.id}>
+                <TableCell>
+                  <div className="font-medium">{u.name ?? "—"}</div>
+                  <div className="text-xs text-muted-foreground truncate max-w-[180px]">{u.email}</div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={u.role === "admin" ? "default" : u.role === "user" ? "secondary" : "outline"} className="text-xs">
+                    {u.role}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right text-sm">
+                  <div>{u.today_queries} queries</div>
+                  <div className="text-xs text-muted-foreground">{formatTokens(todayTokens)} tokens</div>
+                </TableCell>
+                <TableCell className="text-right text-sm text-muted-foreground">
+                  {u.total_queries}
+                </TableCell>
+                <TableCell>
+                  <Input
+                    className="h-7 text-sm"
+                    placeholder="default"
+                    value={edit.queryLimit}
+                    onChange={(e) => onLimitChange(u.id, "queryLimit", e.target.value)}
+                    type="number"
+                    min={-1}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    className="h-7 text-sm"
+                    placeholder="default"
+                    value={edit.tokenLimit}
+                    onChange={(e) => onLimitChange(u.id, "tokenLimit", e.target.value)}
+                    type="number"
+                    min={-1}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0"
+                    disabled={savingLimits === u.id}
+                    onClick={() => onSave(u.id)}
+                    title="Save limits"
+                  >
+                    {savingLimits === u.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
 
 function StatCard({
   label,

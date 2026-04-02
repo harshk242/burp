@@ -28,6 +28,9 @@ export const UserSchema = z.object({
   total_queries: z.number().int().openapi({ example: 42 }),
   created_at: z.number().int().openapi({ example: 1706371200 }),
   last_active_at: z.number().int().nullable().openapi({ example: 1706371200 }),
+  // Per-user rate limit overrides (NULL = use role/config default)
+  daily_query_limit: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use role default" }),
+  daily_token_limit: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default" }),
 });
 
 // ============================================
@@ -113,6 +116,9 @@ export const MessageSchema2 = z.object({
   content: z.string().nullable(),
   tool_calls: z.array(ToolCallSchema).nullable(),
   created_at: z.number().int(),
+  // Token counts — 0 for user messages and rows predating the migration
+  input_tokens: z.number().int().default(0).openapi({ example: 150 }),
+  output_tokens: z.number().int().default(0).openapi({ example: 300 }),
 });
 
 export const SessionWithMessagesSchema = z.object({
@@ -161,6 +167,13 @@ export const UsageSchema = z.object({
   resetAt: z.number().int().openapi({ example: 1711497600, description: "Unix timestamp of next midnight UTC" }),
   total_queries: z.number().int().openapi({ example: 142 }),
   role: z.enum(["waitlist", "user", "admin"]).openapi({ example: "user" }),
+  tokens: z.object({
+    used_today: z.number().int().openapi({ example: 12400 }),
+    limit: z.number().int().openapi({ example: 200000, description: "-1 means unlimited" }),
+    remaining: z.number().int().openapi({ example: 187600, description: "-1 means unlimited" }),
+    input_today: z.number().int().openapi({ example: 8200 }),
+    output_today: z.number().int().openapi({ example: 4200 }),
+  }).openapi({ description: "Daily token budget" }),
 });
 
 export const AccessRequestAllListSchema = z.object({

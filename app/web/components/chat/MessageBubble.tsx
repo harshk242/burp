@@ -89,10 +89,17 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             </div>
             {/* Action bar below bubble */}
             <div className={cn(
-              "flex items-center mt-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200",
+              "flex items-center gap-2 mt-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200",
               isUser ? "justify-end" : "justify-start"
             )}>
               <CopyButton text={message.content} />
+              {/* Token count — only shown for assistant messages that have usage data */}
+              {!isUser && message.tokenUsage && (
+                <span className="text-[10px] text-muted-foreground/60 select-none">
+                  {(message.tokenUsage.input + message.tokenUsage.output).toLocaleString()} tokens
+                  &nbsp;·&nbsp;↑{message.tokenUsage.input.toLocaleString()} ↓{message.tokenUsage.output.toLocaleString()}
+                </span>
+              )}
             </div>
           </div>
         )}

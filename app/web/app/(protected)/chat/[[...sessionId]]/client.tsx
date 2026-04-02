@@ -126,13 +126,21 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
         );
 
         // Convert DB messages to frontend format
-        const convertedMessages: Message[] = data.messages.map((msg) => ({
-          id: msg.id,
-          role: msg.role,
-          content: msg.content || "",
-          toolCalls: msg.tool_calls as ToolCall[] | undefined,
-          createdAt: msg.created_at * 1000,
-        }));
+        const convertedMessages: Message[] = data.messages.map((msg) => {
+          const tokenUsage =
+            msg.role === "assistant" &&
+            (msg.input_tokens ?? 0) + (msg.output_tokens ?? 0) > 0
+              ? { input: msg.input_tokens ?? 0, output: msg.output_tokens ?? 0 }
+              : undefined;
+          return {
+            id: msg.id,
+            role: msg.role,
+            content: msg.content || "",
+            toolCalls: msg.tool_calls as ToolCall[] | undefined,
+            createdAt: msg.created_at * 1000,
+            tokenUsage,
+          };
+        });
 
         setMessages(convertedMessages);
       } catch (err) {

@@ -31,15 +31,24 @@ export function UsageIndicator() {
     );
   }
 
-  const pct = usage.limit > 0 ? (usage.used / usage.limit) * 100 : 0;
+  const queryPct = usage.limit > 0 ? (usage.used / usage.limit) * 100 : 0;
+  const tokens = usage.tokens;
+  const tokenPct =
+    tokens && tokens.limit > 0 ? (tokens.used_today / tokens.limit) * 100 : 0;
+
+  // Color threshold: fire if either quota is close to exhausted
+  const worstPct = Math.max(queryPct, tokens && tokens.limit !== -1 ? tokenPct : 0);
   const barColor =
-    pct >= 90 ? "bg-destructive" : pct >= 70 ? "bg-yellow-500" : "bg-primary";
+    worstPct >= 90 ? "bg-destructive" : worstPct >= 70 ? "bg-yellow-500" : "bg-primary";
 
   const resetTime = new Date(usage.resetAt * 1000).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
     timeZoneName: "short",
   });
+
+  const formatTokens = (n: number) =>
+    n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
   return (
     <Tooltip>
@@ -51,7 +60,7 @@ export function UsageIndicator() {
           <div className="hidden sm:block w-16 h-1.5 rounded-full bg-muted overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${barColor}`}
-              style={{ width: `${Math.min(pct, 100)}%` }}
+              style={{ width: `${Math.min(worstPct, 100)}%` }}
             />
           </div>
         </div>
@@ -60,6 +69,11 @@ export function UsageIndicator() {
         <p className="text-xs">
           {usage.used} of {usage.limit} queries used today
         </p>
+        {tokens && tokens.limit !== -1 && (
+          <p className="text-xs text-muted-foreground">
+            ~{formatTokens(tokens.used_today)} / {formatTokens(tokens.limit)} tokens used today
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           Resets at {resetTime}
         </p>

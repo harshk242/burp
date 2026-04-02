@@ -46,6 +46,10 @@ const ArtifactConfigSchema = z.object({
 });
 
 const AppConfigSchema = z.object({
+  rate_limits: z.object({
+    /** Default daily token budget for 'user' role. -1 = unlimited. Admin always unlimited. */
+    default_daily_tokens: z.number().int().default(200_000),
+  }).default({}),
   llm: z.object({
     provider: z.enum(["anthropic", "google"]).default("anthropic"),
     chat_model: z.string().default("claude-haiku-4-5"),

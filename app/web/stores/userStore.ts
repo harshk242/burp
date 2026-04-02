@@ -1,11 +1,20 @@
 import { create } from "zustand";
 import type { User } from "@/types";
 
+export interface TokenUsageInfo {
+  used_today: number;
+  limit: number;       // -1 = unlimited
+  remaining: number;   // -1 = unlimited
+  input_today: number;
+  output_today: number;
+}
+
 export interface UsageInfo {
   used: number;
   limit: number;       // -1 = unlimited
   remaining: number;   // -1 = unlimited
   resetAt: number;     // Unix timestamp of next midnight UTC
+  tokens?: TokenUsageInfo;
 }
 
 interface UserState {
