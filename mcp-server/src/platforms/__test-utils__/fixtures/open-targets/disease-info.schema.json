@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "disease": {
+      "type": "null",
+      "path": "$.disease"
+    }
+  }
+}

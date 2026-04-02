@@ -1,0 +1,258 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "PC_Compounds": {
+      "type": "array",
+      "path": "$.PC_Compounds",
+      "items": {
+        "type": "object",
+        "path": "$.PC_Compounds[]",
+        "properties": {
+          "id": {
+            "type": "object",
+            "path": "$.PC_Compounds[].id",
+            "properties": {
+              "id": {
+                "type": "object",
+                "path": "$.PC_Compounds[].id.id",
+                "properties": {
+                  "cid": {
+                    "type": "number",
+                    "path": "$.PC_Compounds[].id.id.cid"
+                  }
+                }
+              }
+            }
+          },
+          "atoms": {
+            "type": "object",
+            "path": "$.PC_Compounds[].atoms",
+            "properties": {
+              "aid": {
+                "type": "array",
+                "path": "$.PC_Compounds[].atoms.aid",
+                "items": {
+                  "type": "number",
+                  "path": "$.PC_Compounds[].atoms.aid[]"
+                }
+              },
+              "element": {
+                "type": "array",
+                "path": "$.PC_Compounds[].atoms.element",
+                "items": {
+                  "type": "number",
+                  "path": "$.PC_Compounds[].atoms.element[]"
+                }
+              }
+            }
+          },
+          "bonds": {
+            "type": "object",
+            "path": "$.PC_Compounds[].bonds",
+            "properties": {
+              "aid1": {
+                "type": "array",
+                "path": "$.PC_Compounds[].bonds.aid1",
+                "items": {
+                  "type": "number",
+                  "path": "$.PC_Compounds[].bonds.aid1[]"
+                }
+              },
+              "aid2": {
+                "type": "array",
+                "path": "$.PC_Compounds[].bonds.aid2",
+                "items": {
+                  "type": "number",
+                  "path": "$.PC_Compounds[].bonds.aid2[]"
+                }
+              },
+              "order": {
+                "type": "array",
+                "path": "$.PC_Compounds[].bonds.order",
+                "items": {
+                  "type": "number",
+                  "path": "$.PC_Compounds[].bonds.order[]"
+                }
+              }
+            }
+          },
+          "coords": {
+            "type": "array",
+            "path": "$.PC_Compounds[].coords",
+            "items": {
+              "type": "object",
+              "path": "$.PC_Compounds[].coords[]",
+              "properties": {
+                "type": {
+                  "type": "array",
+                  "path": "$.PC_Compounds[].coords[].type",
+                  "items": {
+                    "type": "number",
+                    "path": "$.PC_Compounds[].coords[].type[]"
+                  }
+                },
+                "aid": {
+                  "type": "array",
+                  "path": "$.PC_Compounds[].coords[].aid",
+                  "items": {
+                    "type": "number",
+                    "path": "$.PC_Compounds[].coords[].aid[]"
+                  }
+                },
+                "conformers": {
+                  "type": "array",
+                  "path": "$.PC_Compounds[].coords[].conformers",
+                  "items": {
+                    "type": "object",
+                    "path": "$.PC_Compounds[].coords[].conformers[]",
+                    "properties": {
+                      "x": {
+                        "type": "array",
+                        "path": "$.PC_Compounds[].coords[].conformers[].x",
+                        "items": {
+                          "type": "number",
+                          "path": "$.PC_Compounds[].coords[].conformers[].x[]"
+                        }
+                      },
+                      "y": {
+                        "type": "array",
+                        "path": "$.PC_Compounds[].coords[].conformers[].y",
+                        "items": {
+                          "type": "number",
+                          "path": "$.PC_Compounds[].coords[].conformers[].y[]"
+                        }
+                      },
+                      "style": {
+                        "type": "object",
+                        "path": "$.PC_Compounds[].coords[].conformers[].style",
+                        "properties": {
+                          "annotation": {
+                            "type": "array",
+                            "path": "$.PC_Compounds[].coords[].conformers[].style.annotation",
+                            "items": {
+                              "type": "number",
+                              "path": "$.PC_Compounds[].coords[].conformers[].style.annotation[]"
+                            }
+                          },
+                          "aid1": {
+                            "type": "array",
+                            "path": "$.PC_Compounds[].coords[].conformers[].style.aid1",
+                            "items": {
+                              "type": "number",
+                              "path": "$.PC_Compounds[].coords[].conformers[].style.aid1[]"
+                            }
+                          },
+                          "aid2": {
+                            "type": "array",
+                            "path": "$.PC_Compounds[].coords[].conformers[].style.aid2",
+                            "items": {
+                              "type": "number",
+                              "path": "$.PC_Compounds[].coords[].conformers[].style.aid2[]"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "charge": {
+            "type": "number",
+            "path": "$.PC_Compounds[].charge"
+          },
+          "props": {
+            "type": "array",
+            "path": "$.PC_Compounds[].props",
+            "items": {
+              "type": "object",
+              "path": "$.PC_Compounds[].props[]",
+              "properties": {
+                "urn": {
+                  "type": "object",
+                  "path": "$.PC_Compounds[].props[].urn",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "path": "$.PC_Compounds[].props[].urn.label"
+                    },
+                    "name": {
+                      "type": "string",
+                      "path": "$.PC_Compounds[].props[].urn.name"
+                    },
+                    "datatype": {
+                      "type": "number",
+                      "path": "$.PC_Compounds[].props[].urn.datatype"
+                    },
+                    "release": {
+                      "type": "string",
+                      "path": "$.PC_Compounds[].props[].urn.release"
+                    }
+                  }
+                },
+                "value": {
+                  "type": "object",
+                  "path": "$.PC_Compounds[].props[].value",
+                  "properties": {
+                    "ival": {
+                      "type": "number",
+                      "path": "$.PC_Compounds[].props[].value.ival"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "count": {
+            "type": "object",
+            "path": "$.PC_Compounds[].count",
+            "properties": {
+              "heavy_atom": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.heavy_atom"
+              },
+              "atom_chiral": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.atom_chiral"
+              },
+              "atom_chiral_def": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.atom_chiral_def"
+              },
+              "atom_chiral_undef": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.atom_chiral_undef"
+              },
+              "bond_chiral": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.bond_chiral"
+              },
+              "bond_chiral_def": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.bond_chiral_def"
+              },
+              "bond_chiral_undef": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.bond_chiral_undef"
+              },
+              "isotope_atom": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.isotope_atom"
+              },
+              "covalent_unit": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.covalent_unit"
+              },
+              "tautomers": {
+                "type": "number",
+                "path": "$.PC_Compounds[].count.tautomers"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

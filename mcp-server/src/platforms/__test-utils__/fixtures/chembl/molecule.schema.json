@@ -1,0 +1,276 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "atc_classifications": {
+      "type": "array",
+      "path": "$.atc_classifications",
+      "items": {
+        "type": "string",
+        "path": "$.atc_classifications[]"
+      }
+    },
+    "availability_type": {
+      "type": "number",
+      "path": "$.availability_type"
+    },
+    "biotherapeutic": {
+      "type": "null",
+      "path": "$.biotherapeutic"
+    },
+    "black_box_warning": {
+      "type": "number",
+      "path": "$.black_box_warning"
+    },
+    "chemical_probe": {
+      "type": "number",
+      "path": "$.chemical_probe"
+    },
+    "chirality": {
+      "type": "number",
+      "path": "$.chirality"
+    },
+    "cross_references": {
+      "type": "array",
+      "path": "$.cross_references",
+      "items": {
+        "type": "object",
+        "path": "$.cross_references[]",
+        "properties": {
+          "xref_id": {
+            "type": "string",
+            "path": "$.cross_references[].xref_id"
+          },
+          "xref_name": {
+            "type": "string",
+            "path": "$.cross_references[].xref_name"
+          },
+          "xref_src": {
+            "type": "string",
+            "path": "$.cross_references[].xref_src"
+          }
+        }
+      }
+    },
+    "dosed_ingredient": {
+      "type": "boolean",
+      "path": "$.dosed_ingredient"
+    },
+    "first_approval": {
+      "type": "number",
+      "path": "$.first_approval"
+    },
+    "first_in_class": {
+      "type": "number",
+      "path": "$.first_in_class"
+    },
+    "helm_notation": {
+      "type": "null",
+      "path": "$.helm_notation"
+    },
+    "inorganic_flag": {
+      "type": "number",
+      "path": "$.inorganic_flag"
+    },
+    "max_phase": {
+      "type": "string",
+      "path": "$.max_phase"
+    },
+    "molecule_chembl_id": {
+      "type": "string",
+      "path": "$.molecule_chembl_id"
+    },
+    "molecule_hierarchy": {
+      "type": "object",
+      "path": "$.molecule_hierarchy",
+      "properties": {
+        "active_chembl_id": {
+          "type": "string",
+          "path": "$.molecule_hierarchy.active_chembl_id"
+        },
+        "molecule_chembl_id": {
+          "type": "string",
+          "path": "$.molecule_hierarchy.molecule_chembl_id"
+        },
+        "parent_chembl_id": {
+          "type": "string",
+          "path": "$.molecule_hierarchy.parent_chembl_id"
+        }
+      }
+    },
+    "molecule_properties": {
+      "type": "object",
+      "path": "$.molecule_properties",
+      "properties": {
+        "alogp": {
+          "type": "string",
+          "path": "$.molecule_properties.alogp"
+        },
+        "aromatic_rings": {
+          "type": "number",
+          "path": "$.molecule_properties.aromatic_rings"
+        },
+        "full_molformula": {
+          "type": "string",
+          "path": "$.molecule_properties.full_molformula"
+        },
+        "full_mwt": {
+          "type": "string",
+          "path": "$.molecule_properties.full_mwt"
+        },
+        "hba": {
+          "type": "number",
+          "path": "$.molecule_properties.hba"
+        },
+        "hbd": {
+          "type": "number",
+          "path": "$.molecule_properties.hbd"
+        },
+        "heavy_atoms": {
+          "type": "number",
+          "path": "$.molecule_properties.heavy_atoms"
+        },
+        "mw_freebase": {
+          "type": "string",
+          "path": "$.molecule_properties.mw_freebase"
+        },
+        "np_likeness_score": {
+          "type": "string",
+          "path": "$.molecule_properties.np_likeness_score"
+        },
+        "num_ro5_violations": {
+          "type": "number",
+          "path": "$.molecule_properties.num_ro5_violations"
+        },
+        "psa": {
+          "type": "string",
+          "path": "$.molecule_properties.psa"
+        },
+        "qed_weighted": {
+          "type": "string",
+          "path": "$.molecule_properties.qed_weighted"
+        },
+        "ro3_pass": {
+          "type": "string",
+          "path": "$.molecule_properties.ro3_pass"
+        },
+        "rtb": {
+          "type": "number",
+          "path": "$.molecule_properties.rtb"
+        }
+      }
+    },
+    "molecule_structures": {
+      "type": "object",
+      "path": "$.molecule_structures",
+      "properties": {
+        "canonical_smiles": {
+          "type": "string",
+          "path": "$.molecule_structures.canonical_smiles"
+        },
+        "molfile": {
+          "type": "string",
+          "path": "$.molecule_structures.molfile"
+        },
+        "standard_inchi": {
+          "type": "string",
+          "path": "$.molecule_structures.standard_inchi"
+        },
+        "standard_inchi_key": {
+          "type": "string",
+          "path": "$.molecule_structures.standard_inchi_key"
+        }
+      }
+    },
+    "molecule_synonyms": {
+      "type": "array",
+      "path": "$.molecule_synonyms",
+      "items": {
+        "type": "object",
+        "path": "$.molecule_synonyms[]",
+        "properties": {
+          "molecule_synonym": {
+            "type": "string",
+            "path": "$.molecule_synonyms[].molecule_synonym"
+          },
+          "syn_type": {
+            "type": "string",
+            "path": "$.molecule_synonyms[].syn_type"
+          },
+          "synonyms": {
+            "type": "string",
+            "path": "$.molecule_synonyms[].synonyms"
+          }
+        }
+      }
+    },
+    "molecule_type": {
+      "type": "string",
+      "path": "$.molecule_type"
+    },
+    "natural_product": {
+      "type": "number",
+      "path": "$.natural_product"
+    },
+    "oral": {
+      "type": "boolean",
+      "path": "$.oral"
+    },
+    "orphan": {
+      "type": "number",
+      "path": "$.orphan"
+    },
+    "parenteral": {
+      "type": "boolean",
+      "path": "$.parenteral"
+    },
+    "polymer_flag": {
+      "type": "number",
+      "path": "$.polymer_flag"
+    },
+    "pref_name": {
+      "type": "string",
+      "path": "$.pref_name"
+    },
+    "prodrug": {
+      "type": "number",
+      "path": "$.prodrug"
+    },
+    "structure_type": {
+      "type": "string",
+      "path": "$.structure_type"
+    },
+    "therapeutic_flag": {
+      "type": "boolean",
+      "path": "$.therapeutic_flag"
+    },
+    "topical": {
+      "type": "boolean",
+      "path": "$.topical"
+    },
+    "usan_stem": {
+      "type": "null",
+      "path": "$.usan_stem"
+    },
+    "usan_stem_definition": {
+      "type": "null",
+      "path": "$.usan_stem_definition"
+    },
+    "usan_substem": {
+      "type": "null",
+      "path": "$.usan_substem"
+    },
+    "usan_year": {
+      "type": "null",
+      "path": "$.usan_year"
+    },
+    "veterinary": {
+      "type": "number",
+      "path": "$.veterinary"
+    },
+    "withdrawn_flag": {
+      "type": "boolean",
+      "path": "$.withdrawn_flag"
+    }
+  }
+}

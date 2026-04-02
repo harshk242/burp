@@ -1,0 +1,72 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "target": {
+      "type": "object",
+      "path": "$.target",
+      "properties": {
+        "id": {
+          "type": "string",
+          "path": "$.target.id"
+        },
+        "approvedSymbol": {
+          "type": "string",
+          "path": "$.target.approvedSymbol"
+        },
+        "approvedName": {
+          "type": "string",
+          "path": "$.target.approvedName"
+        },
+        "biotype": {
+          "type": "string",
+          "path": "$.target.biotype"
+        },
+        "functionDescriptions": {
+          "type": "array",
+          "path": "$.target.functionDescriptions",
+          "items": {
+            "type": "string",
+            "path": "$.target.functionDescriptions[]"
+          }
+        },
+        "subcellularLocations": {
+          "type": "array",
+          "path": "$.target.subcellularLocations",
+          "items": {
+            "type": "object",
+            "path": "$.target.subcellularLocations[]",
+            "properties": {
+              "termSL": {
+                "type": "string",
+                "path": "$.target.subcellularLocations[].termSL"
+              },
+              "location": {
+                "type": "string",
+                "path": "$.target.subcellularLocations[].location"
+              }
+            }
+          }
+        },
+        "targetClass": {
+          "type": "array",
+          "path": "$.target.targetClass",
+          "items": {
+            "type": "object",
+            "path": "$.target.targetClass[]",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.target.targetClass[].id"
+              },
+              "label": {
+                "type": "string",
+                "path": "$.target.targetClass[].label"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

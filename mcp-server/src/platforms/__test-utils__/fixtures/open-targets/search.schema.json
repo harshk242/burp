@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "search": {
+      "type": "object",
+      "path": "$.search",
+      "properties": {
+        "total": {
+          "type": "number",
+          "path": "$.search.total"
+        },
+        "hits": {
+          "type": "array",
+          "path": "$.search.hits",
+          "items": {
+            "type": "object",
+            "path": "$.search.hits[]",
+            "properties": {
+              "id": {
+                "type": "string",
+                "path": "$.search.hits[].id"
+              },
+              "entity": {
+                "type": "string",
+                "path": "$.search.hits[].entity"
+              },
+              "name": {
+                "type": "string",
+                "path": "$.search.hits[].name"
+              },
+              "description": {
+                "type": "string",
+                "path": "$.search.hits[].description"
+              },
+              "score": {
+                "type": "number",
+                "path": "$.search.hits[].score"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

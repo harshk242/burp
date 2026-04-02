@@ -1,0 +1,47 @@
+{
+  "type": "array",
+  "path": "$",
+  "items": {
+    "type": "object",
+    "path": "$[]",
+    "properties": {
+      "description": {
+        "type": "string",
+        "path": "$[].description"
+      },
+      "db_display_name": {
+        "type": "string",
+        "path": "$[].db_display_name"
+      },
+      "synonyms": {
+        "type": "array",
+        "path": "$[].synonyms",
+        "items": null
+      },
+      "version": {
+        "type": "string",
+        "path": "$[].version"
+      },
+      "info_type": {
+        "type": "string",
+        "path": "$[].info_type"
+      },
+      "primary_id": {
+        "type": "string",
+        "path": "$[].primary_id"
+      },
+      "display_id": {
+        "type": "string",
+        "path": "$[].display_id"
+      },
+      "info_text": {
+        "type": "string",
+        "path": "$[].info_text"
+      },
+      "dbname": {
+        "type": "string",
+        "path": "$[].dbname"
+      }
+    }
+  }
+}

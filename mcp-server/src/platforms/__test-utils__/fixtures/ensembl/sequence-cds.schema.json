@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "molecule": {
+      "type": "string",
+      "path": "$.molecule"
+    },
+    "version": {
+      "type": "number",
+      "path": "$.version"
+    },
+    "id": {
+      "type": "string",
+      "path": "$.id"
+    },
+    "desc": {
+      "type": "null",
+      "path": "$.desc"
+    },
+    "seq": {
+      "type": "string",
+      "path": "$.seq"
+    },
+    "query": {
+      "type": "string",
+      "path": "$.query"
+    }
+  }
+}

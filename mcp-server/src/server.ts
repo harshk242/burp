@@ -52,7 +52,7 @@ const PLATFORMS: PlatformModule[] = [
 ];
 
 /** Build the combined tool list and handler map (prefixed with platform name) */
-function buildToolRegistry(platforms: PlatformModule[]) {
+export function buildToolRegistry(platforms: PlatformModule[]) {
   const allTools: Tool[] = [];
   const allHandlers = new Map<string, ToolHandler>();
 

@@ -1,0 +1,54 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "target": {
+      "type": "object",
+      "path": "$.target",
+      "properties": {
+        "id": {
+          "type": "string",
+          "path": "$.target.id"
+        },
+        "associatedDiseases": {
+          "type": "object",
+          "path": "$.target.associatedDiseases",
+          "properties": {
+            "count": {
+              "type": "number",
+              "path": "$.target.associatedDiseases.count"
+            },
+            "rows": {
+              "type": "array",
+              "path": "$.target.associatedDiseases.rows",
+              "items": {
+                "type": "object",
+                "path": "$.target.associatedDiseases.rows[]",
+                "properties": {
+                  "disease": {
+                    "type": "object",
+                    "path": "$.target.associatedDiseases.rows[].disease",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "path": "$.target.associatedDiseases.rows[].disease.id"
+                      },
+                      "name": {
+                        "type": "string",
+                        "path": "$.target.associatedDiseases.rows[].disease.name"
+                      }
+                    }
+                  },
+                  "score": {
+                    "type": "number",
+                    "path": "$.target.associatedDiseases.rows[].score"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "PropertyTable": {
+      "type": "object",
+      "path": "$.PropertyTable",
+      "properties": {
+        "Properties": {
+          "type": "array",
+          "path": "$.PropertyTable.Properties",
+          "items": {
+            "type": "object",
+            "path": "$.PropertyTable.Properties[]",
+            "properties": {
+              "CID": {
+                "type": "number",
+                "path": "$.PropertyTable.Properties[].CID"
+              },
+              "MolecularFormula": {
+                "type": "string",
+                "path": "$.PropertyTable.Properties[].MolecularFormula"
+              },
+              "MolecularWeight": {
+                "type": "string",
+                "path": "$.PropertyTable.Properties[].MolecularWeight"
+              },
+              "ConnectivitySMILES": {
+                "type": "string",
+                "path": "$.PropertyTable.Properties[].ConnectivitySMILES"
+              },
+              "InChI": {
+                "type": "string",
+                "path": "$.PropertyTable.Properties[].InChI"
+              },
+              "InChIKey": {
+                "type": "string",
+                "path": "$.PropertyTable.Properties[].InChIKey"
+              },
+              "XLogP": {
+                "type": "number",
+                "path": "$.PropertyTable.Properties[].XLogP"
+              },
+              "TPSA": {
+                "type": "number",
+                "path": "$.PropertyTable.Properties[].TPSA"
+              },
+              "HBondDonorCount": {
+                "type": "number",
+                "path": "$.PropertyTable.Properties[].HBondDonorCount"
+              },
+              "HBondAcceptorCount": {
+                "type": "number",
+                "path": "$.PropertyTable.Properties[].HBondAcceptorCount"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

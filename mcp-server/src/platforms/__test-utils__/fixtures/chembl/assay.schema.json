@@ -1,0 +1,124 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "aidx": {
+      "type": "string",
+      "path": "$.aidx"
+    },
+    "assay_category": {
+      "type": "null",
+      "path": "$.assay_category"
+    },
+    "assay_cell_type": {
+      "type": "string",
+      "path": "$.assay_cell_type"
+    },
+    "assay_chembl_id": {
+      "type": "string",
+      "path": "$.assay_chembl_id"
+    },
+    "assay_classifications": {
+      "type": "array",
+      "path": "$.assay_classifications",
+      "items": null
+    },
+    "assay_group": {
+      "type": "null",
+      "path": "$.assay_group"
+    },
+    "assay_organism": {
+      "type": "string",
+      "path": "$.assay_organism"
+    },
+    "assay_parameters": {
+      "type": "array",
+      "path": "$.assay_parameters",
+      "items": null
+    },
+    "assay_strain": {
+      "type": "null",
+      "path": "$.assay_strain"
+    },
+    "assay_subcellular_fraction": {
+      "type": "null",
+      "path": "$.assay_subcellular_fraction"
+    },
+    "assay_tax_id": {
+      "type": "number",
+      "path": "$.assay_tax_id"
+    },
+    "assay_test_type": {
+      "type": "null",
+      "path": "$.assay_test_type"
+    },
+    "assay_tissue": {
+      "type": "null",
+      "path": "$.assay_tissue"
+    },
+    "assay_type": {
+      "type": "string",
+      "path": "$.assay_type"
+    },
+    "assay_type_description": {
+      "type": "string",
+      "path": "$.assay_type_description"
+    },
+    "bao_format": {
+      "type": "string",
+      "path": "$.bao_format"
+    },
+    "bao_label": {
+      "type": "string",
+      "path": "$.bao_label"
+    },
+    "cell_chembl_id": {
+      "type": "string",
+      "path": "$.cell_chembl_id"
+    },
+    "confidence_description": {
+      "type": "string",
+      "path": "$.confidence_description"
+    },
+    "confidence_score": {
+      "type": "number",
+      "path": "$.confidence_score"
+    },
+    "description": {
+      "type": "string",
+      "path": "$.description"
+    },
+    "document_chembl_id": {
+      "type": "string",
+      "path": "$.document_chembl_id"
+    },
+    "relationship_description": {
+      "type": "string",
+      "path": "$.relationship_description"
+    },
+    "relationship_type": {
+      "type": "string",
+      "path": "$.relationship_type"
+    },
+    "src_assay_id": {
+      "type": "null",
+      "path": "$.src_assay_id"
+    },
+    "src_id": {
+      "type": "number",
+      "path": "$.src_id"
+    },
+    "target_chembl_id": {
+      "type": "string",
+      "path": "$.target_chembl_id"
+    },
+    "tissue_chembl_id": {
+      "type": "null",
+      "path": "$.tissue_chembl_id"
+    },
+    "variant_sequence": {
+      "type": "null",
+      "path": "$.variant_sequence"
+    }
+  }
+}

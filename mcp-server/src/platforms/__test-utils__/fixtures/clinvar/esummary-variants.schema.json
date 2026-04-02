@@ -1,0 +1,773 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "header": {
+      "type": "object",
+      "path": "$.header",
+      "properties": {
+        "type": {
+          "type": "string",
+          "path": "$.header.type"
+        },
+        "version": {
+          "type": "string",
+          "path": "$.header.version"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "path": "$.result",
+      "properties": {
+        "7105": {
+          "type": "object",
+          "path": "$.result.7105",
+          "properties": {
+            "uid": {
+              "type": "string",
+              "path": "$.result.7105.uid"
+            },
+            "obj_type": {
+              "type": "string",
+              "path": "$.result.7105.obj_type"
+            },
+            "accession": {
+              "type": "string",
+              "path": "$.result.7105.accession"
+            },
+            "accession_version": {
+              "type": "string",
+              "path": "$.result.7105.accession_version"
+            },
+            "title": {
+              "type": "string",
+              "path": "$.result.7105.title"
+            },
+            "variation_set": {
+              "type": "array",
+              "path": "$.result.7105.variation_set",
+              "items": {
+                "type": "object",
+                "path": "$.result.7105.variation_set[]",
+                "properties": {
+                  "measure_id": {
+                    "type": "string",
+                    "path": "$.result.7105.variation_set[].measure_id"
+                  },
+                  "variation_xrefs": {
+                    "type": "array",
+                    "path": "$.result.7105.variation_set[].variation_xrefs",
+                    "items": {
+                      "type": "object",
+                      "path": "$.result.7105.variation_set[].variation_xrefs[]",
+                      "properties": {
+                        "db_source": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_xrefs[].db_source"
+                        },
+                        "db_id": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_xrefs[].db_id"
+                        }
+                      }
+                    }
+                  },
+                  "variation_name": {
+                    "type": "string",
+                    "path": "$.result.7105.variation_set[].variation_name"
+                  },
+                  "cdna_change": {
+                    "type": "string",
+                    "path": "$.result.7105.variation_set[].cdna_change"
+                  },
+                  "aliases": {
+                    "type": "array",
+                    "path": "$.result.7105.variation_set[].aliases",
+                    "items": {
+                      "type": "string",
+                      "path": "$.result.7105.variation_set[].aliases[]"
+                    }
+                  },
+                  "variation_loc": {
+                    "type": "array",
+                    "path": "$.result.7105.variation_set[].variation_loc",
+                    "items": {
+                      "type": "object",
+                      "path": "$.result.7105.variation_set[].variation_loc[]",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].status"
+                        },
+                        "assembly_name": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].assembly_name"
+                        },
+                        "chr": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].chr"
+                        },
+                        "band": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].band"
+                        },
+                        "start": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].start"
+                        },
+                        "stop": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].stop"
+                        },
+                        "inner_start": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].inner_start"
+                        },
+                        "inner_stop": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].inner_stop"
+                        },
+                        "outer_start": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].outer_start"
+                        },
+                        "outer_stop": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].outer_stop"
+                        },
+                        "display_start": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].display_start"
+                        },
+                        "display_stop": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].display_stop"
+                        },
+                        "assembly_acc_ver": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].assembly_acc_ver"
+                        },
+                        "annotation_release": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].annotation_release"
+                        },
+                        "alt": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].alt"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].variation_loc[].ref"
+                        }
+                      }
+                    }
+                  },
+                  "allele_freq_set": {
+                    "type": "array",
+                    "path": "$.result.7105.variation_set[].allele_freq_set",
+                    "items": {
+                      "type": "object",
+                      "path": "$.result.7105.variation_set[].allele_freq_set[]",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].allele_freq_set[].source"
+                        },
+                        "value": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].allele_freq_set[].value"
+                        },
+                        "minor_allele": {
+                          "type": "string",
+                          "path": "$.result.7105.variation_set[].allele_freq_set[].minor_allele"
+                        }
+                      }
+                    }
+                  },
+                  "variant_type": {
+                    "type": "string",
+                    "path": "$.result.7105.variation_set[].variant_type"
+                  },
+                  "canonical_spdi": {
+                    "type": "string",
+                    "path": "$.result.7105.variation_set[].canonical_spdi"
+                  },
+                  "common_name": {
+                    "type": "string",
+                    "path": "$.result.7105.variation_set[].common_name"
+                  }
+                }
+              }
+            },
+            "supporting_submissions": {
+              "type": "object",
+              "path": "$.result.7105.supporting_submissions",
+              "properties": {
+                "scv": {
+                  "type": "array",
+                  "path": "$.result.7105.supporting_submissions.scv",
+                  "items": {
+                    "type": "string",
+                    "path": "$.result.7105.supporting_submissions.scv[]"
+                  }
+                },
+                "rcv": {
+                  "type": "array",
+                  "path": "$.result.7105.supporting_submissions.rcv",
+                  "items": {
+                    "type": "string",
+                    "path": "$.result.7105.supporting_submissions.rcv[]"
+                  }
+                }
+              }
+            },
+            "germline_classification": {
+              "type": "object",
+              "path": "$.result.7105.germline_classification",
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "path": "$.result.7105.germline_classification.description"
+                },
+                "last_evaluated": {
+                  "type": "string",
+                  "path": "$.result.7105.germline_classification.last_evaluated"
+                },
+                "review_status": {
+                  "type": "string",
+                  "path": "$.result.7105.germline_classification.review_status"
+                },
+                "fda_recognized_database": {
+                  "type": "string",
+                  "path": "$.result.7105.germline_classification.fda_recognized_database"
+                },
+                "trait_set": {
+                  "type": "array",
+                  "path": "$.result.7105.germline_classification.trait_set",
+                  "items": {
+                    "type": "object",
+                    "path": "$.result.7105.germline_classification.trait_set[]",
+                    "properties": {
+                      "trait_xrefs": {
+                        "type": "array",
+                        "path": "$.result.7105.germline_classification.trait_set[].trait_xrefs",
+                        "items": {
+                          "type": "object",
+                          "path": "$.result.7105.germline_classification.trait_set[].trait_xrefs[]",
+                          "properties": {
+                            "db_source": {
+                              "type": "string",
+                              "path": "$.result.7105.germline_classification.trait_set[].trait_xrefs[].db_source"
+                            },
+                            "db_id": {
+                              "type": "string",
+                              "path": "$.result.7105.germline_classification.trait_set[].trait_xrefs[].db_id"
+                            }
+                          }
+                        }
+                      },
+                      "trait_name": {
+                        "type": "string",
+                        "path": "$.result.7105.germline_classification.trait_set[].trait_name"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "clinical_impact_classification": {
+              "type": "object",
+              "path": "$.result.7105.clinical_impact_classification",
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "path": "$.result.7105.clinical_impact_classification.description"
+                },
+                "last_evaluated": {
+                  "type": "string",
+                  "path": "$.result.7105.clinical_impact_classification.last_evaluated"
+                },
+                "review_status": {
+                  "type": "string",
+                  "path": "$.result.7105.clinical_impact_classification.review_status"
+                },
+                "fda_recognized_database": {
+                  "type": "string",
+                  "path": "$.result.7105.clinical_impact_classification.fda_recognized_database"
+                },
+                "trait_set": {
+                  "type": "array",
+                  "path": "$.result.7105.clinical_impact_classification.trait_set",
+                  "items": null
+                }
+              }
+            },
+            "oncogenicity_classification": {
+              "type": "object",
+              "path": "$.result.7105.oncogenicity_classification",
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "path": "$.result.7105.oncogenicity_classification.description"
+                },
+                "last_evaluated": {
+                  "type": "string",
+                  "path": "$.result.7105.oncogenicity_classification.last_evaluated"
+                },
+                "review_status": {
+                  "type": "string",
+                  "path": "$.result.7105.oncogenicity_classification.review_status"
+                },
+                "fda_recognized_database": {
+                  "type": "string",
+                  "path": "$.result.7105.oncogenicity_classification.fda_recognized_database"
+                },
+                "trait_set": {
+                  "type": "array",
+                  "path": "$.result.7105.oncogenicity_classification.trait_set",
+                  "items": null
+                }
+              }
+            },
+            "record_status": {
+              "type": "string",
+              "path": "$.result.7105.record_status"
+            },
+            "gene_sort": {
+              "type": "string",
+              "path": "$.result.7105.gene_sort"
+            },
+            "chr_sort": {
+              "type": "string",
+              "path": "$.result.7105.chr_sort"
+            },
+            "location_sort": {
+              "type": "string",
+              "path": "$.result.7105.location_sort"
+            },
+            "variation_set_name": {
+              "type": "string",
+              "path": "$.result.7105.variation_set_name"
+            },
+            "variation_set_id": {
+              "type": "string",
+              "path": "$.result.7105.variation_set_id"
+            },
+            "genes": {
+              "type": "array",
+              "path": "$.result.7105.genes",
+              "items": {
+                "type": "object",
+                "path": "$.result.7105.genes[]",
+                "properties": {
+                  "symbol": {
+                    "type": "string",
+                    "path": "$.result.7105.genes[].symbol"
+                  },
+                  "geneid": {
+                    "type": "string",
+                    "path": "$.result.7105.genes[].geneid"
+                  },
+                  "strand": {
+                    "type": "string",
+                    "path": "$.result.7105.genes[].strand"
+                  },
+                  "source": {
+                    "type": "string",
+                    "path": "$.result.7105.genes[].source"
+                  }
+                }
+              }
+            },
+            "molecular_consequence_list": {
+              "type": "array",
+              "path": "$.result.7105.molecular_consequence_list",
+              "items": {
+                "type": "string",
+                "path": "$.result.7105.molecular_consequence_list[]"
+              }
+            },
+            "protein_change": {
+              "type": "string",
+              "path": "$.result.7105.protein_change"
+            },
+            "fda_recognized_database": {
+              "type": "string",
+              "path": "$.result.7105.fda_recognized_database"
+            }
+          }
+        },
+        "7106": {
+          "type": "object",
+          "path": "$.result.7106",
+          "properties": {
+            "uid": {
+              "type": "string",
+              "path": "$.result.7106.uid"
+            },
+            "obj_type": {
+              "type": "string",
+              "path": "$.result.7106.obj_type"
+            },
+            "accession": {
+              "type": "string",
+              "path": "$.result.7106.accession"
+            },
+            "accession_version": {
+              "type": "string",
+              "path": "$.result.7106.accession_version"
+            },
+            "title": {
+              "type": "string",
+              "path": "$.result.7106.title"
+            },
+            "variation_set": {
+              "type": "array",
+              "path": "$.result.7106.variation_set",
+              "items": {
+                "type": "object",
+                "path": "$.result.7106.variation_set[]",
+                "properties": {
+                  "measure_id": {
+                    "type": "string",
+                    "path": "$.result.7106.variation_set[].measure_id"
+                  },
+                  "variation_xrefs": {
+                    "type": "array",
+                    "path": "$.result.7106.variation_set[].variation_xrefs",
+                    "items": {
+                      "type": "object",
+                      "path": "$.result.7106.variation_set[].variation_xrefs[]",
+                      "properties": {
+                        "db_source": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_xrefs[].db_source"
+                        },
+                        "db_id": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_xrefs[].db_id"
+                        }
+                      }
+                    }
+                  },
+                  "variation_name": {
+                    "type": "string",
+                    "path": "$.result.7106.variation_set[].variation_name"
+                  },
+                  "cdna_change": {
+                    "type": "string",
+                    "path": "$.result.7106.variation_set[].cdna_change"
+                  },
+                  "aliases": {
+                    "type": "array",
+                    "path": "$.result.7106.variation_set[].aliases",
+                    "items": {
+                      "type": "string",
+                      "path": "$.result.7106.variation_set[].aliases[]"
+                    }
+                  },
+                  "variation_loc": {
+                    "type": "array",
+                    "path": "$.result.7106.variation_set[].variation_loc",
+                    "items": {
+                      "type": "object",
+                      "path": "$.result.7106.variation_set[].variation_loc[]",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].status"
+                        },
+                        "assembly_name": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].assembly_name"
+                        },
+                        "chr": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].chr"
+                        },
+                        "band": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].band"
+                        },
+                        "start": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].start"
+                        },
+                        "stop": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].stop"
+                        },
+                        "inner_start": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].inner_start"
+                        },
+                        "inner_stop": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].inner_stop"
+                        },
+                        "outer_start": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].outer_start"
+                        },
+                        "outer_stop": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].outer_stop"
+                        },
+                        "display_start": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].display_start"
+                        },
+                        "display_stop": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].display_stop"
+                        },
+                        "assembly_acc_ver": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].assembly_acc_ver"
+                        },
+                        "annotation_release": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].annotation_release"
+                        },
+                        "alt": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].alt"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "path": "$.result.7106.variation_set[].variation_loc[].ref"
+                        }
+                      }
+                    }
+                  },
+                  "allele_freq_set": {
+                    "type": "array",
+                    "path": "$.result.7106.variation_set[].allele_freq_set",
+                    "items": null
+                  },
+                  "variant_type": {
+                    "type": "string",
+                    "path": "$.result.7106.variation_set[].variant_type"
+                  },
+                  "canonical_spdi": {
+                    "type": "string",
+                    "path": "$.result.7106.variation_set[].canonical_spdi"
+                  },
+                  "common_name": {
+                    "type": "string",
+                    "path": "$.result.7106.variation_set[].common_name"
+                  }
+                }
+              }
+            },
+            "supporting_submissions": {
+              "type": "object",
+              "path": "$.result.7106.supporting_submissions",
+              "properties": {
+                "scv": {
+                  "type": "array",
+                  "path": "$.result.7106.supporting_submissions.scv",
+                  "items": {
+                    "type": "string",
+                    "path": "$.result.7106.supporting_submissions.scv[]"
+                  }
+                },
+                "rcv": {
+                  "type": "array",
+                  "path": "$.result.7106.supporting_submissions.rcv",
+                  "items": {
+                    "type": "string",
+                    "path": "$.result.7106.supporting_submissions.rcv[]"
+                  }
+                }
+              }
+            },
+            "germline_classification": {
+              "type": "object",
+              "path": "$.result.7106.germline_classification",
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "path": "$.result.7106.germline_classification.description"
+                },
+                "last_evaluated": {
+                  "type": "string",
+                  "path": "$.result.7106.germline_classification.last_evaluated"
+                },
+                "review_status": {
+                  "type": "string",
+                  "path": "$.result.7106.germline_classification.review_status"
+                },
+                "fda_recognized_database": {
+                  "type": "string",
+                  "path": "$.result.7106.germline_classification.fda_recognized_database"
+                },
+                "trait_set": {
+                  "type": "array",
+                  "path": "$.result.7106.germline_classification.trait_set",
+                  "items": {
+                    "type": "object",
+                    "path": "$.result.7106.germline_classification.trait_set[]",
+                    "properties": {
+                      "trait_xrefs": {
+                        "type": "array",
+                        "path": "$.result.7106.germline_classification.trait_set[].trait_xrefs",
+                        "items": {
+                          "type": "object",
+                          "path": "$.result.7106.germline_classification.trait_set[].trait_xrefs[]",
+                          "properties": {
+                            "db_source": {
+                              "type": "string",
+                              "path": "$.result.7106.germline_classification.trait_set[].trait_xrefs[].db_source"
+                            },
+                            "db_id": {
+                              "type": "string",
+                              "path": "$.result.7106.germline_classification.trait_set[].trait_xrefs[].db_id"
+                            }
+                          }
+                        }
+                      },
+                      "trait_name": {
+                        "type": "string",
+                        "path": "$.result.7106.germline_classification.trait_set[].trait_name"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "clinical_impact_classification": {
+              "type": "object",
+              "path": "$.result.7106.clinical_impact_classification",
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "path": "$.result.7106.clinical_impact_classification.description"
+                },
+                "last_evaluated": {
+                  "type": "string",
+                  "path": "$.result.7106.clinical_impact_classification.last_evaluated"
+                },
+                "review_status": {
+                  "type": "string",
+                  "path": "$.result.7106.clinical_impact_classification.review_status"
+                },
+                "fda_recognized_database": {
+                  "type": "string",
+                  "path": "$.result.7106.clinical_impact_classification.fda_recognized_database"
+                },
+                "trait_set": {
+                  "type": "array",
+                  "path": "$.result.7106.clinical_impact_classification.trait_set",
+                  "items": null
+                }
+              }
+            },
+            "oncogenicity_classification": {
+              "type": "object",
+              "path": "$.result.7106.oncogenicity_classification",
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "path": "$.result.7106.oncogenicity_classification.description"
+                },
+                "last_evaluated": {
+                  "type": "string",
+                  "path": "$.result.7106.oncogenicity_classification.last_evaluated"
+                },
+                "review_status": {
+                  "type": "string",
+                  "path": "$.result.7106.oncogenicity_classification.review_status"
+                },
+                "fda_recognized_database": {
+                  "type": "string",
+                  "path": "$.result.7106.oncogenicity_classification.fda_recognized_database"
+                },
+                "trait_set": {
+                  "type": "array",
+                  "path": "$.result.7106.oncogenicity_classification.trait_set",
+                  "items": null
+                }
+              }
+            },
+            "record_status": {
+              "type": "string",
+              "path": "$.result.7106.record_status"
+            },
+            "gene_sort": {
+              "type": "string",
+              "path": "$.result.7106.gene_sort"
+            },
+            "chr_sort": {
+              "type": "string",
+              "path": "$.result.7106.chr_sort"
+            },
+            "location_sort": {
+              "type": "string",
+              "path": "$.result.7106.location_sort"
+            },
+            "variation_set_name": {
+              "type": "string",
+              "path": "$.result.7106.variation_set_name"
+            },
+            "variation_set_id": {
+              "type": "string",
+              "path": "$.result.7106.variation_set_id"
+            },
+            "genes": {
+              "type": "array",
+              "path": "$.result.7106.genes",
+              "items": {
+                "type": "object",
+                "path": "$.result.7106.genes[]",
+                "properties": {
+                  "symbol": {
+                    "type": "string",
+                    "path": "$.result.7106.genes[].symbol"
+                  },
+                  "geneid": {
+                    "type": "string",
+                    "path": "$.result.7106.genes[].geneid"
+                  },
+                  "strand": {
+                    "type": "string",
+                    "path": "$.result.7106.genes[].strand"
+                  },
+                  "source": {
+                    "type": "string",
+                    "path": "$.result.7106.genes[].source"
+                  }
+                }
+              }
+            },
+            "molecular_consequence_list": {
+              "type": "array",
+              "path": "$.result.7106.molecular_consequence_list",
+              "items": {
+                "type": "string",
+                "path": "$.result.7106.molecular_consequence_list[]"
+              }
+            },
+            "protein_change": {
+              "type": "string",
+              "path": "$.result.7106.protein_change"
+            },
+            "fda_recognized_database": {
+              "type": "string",
+              "path": "$.result.7106.fda_recognized_database"
+            }
+          }
+        },
+        "uids": {
+          "type": "array",
+          "path": "$.result.uids",
+          "items": {
+            "type": "string",
+            "path": "$.result.uids[]"
+          }
+        }
+      }
+    }
+  }
+}

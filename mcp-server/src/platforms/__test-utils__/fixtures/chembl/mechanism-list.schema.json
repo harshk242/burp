@@ -1,0 +1,128 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "mechanisms": {
+      "type": "array",
+      "path": "$.mechanisms",
+      "items": {
+        "type": "object",
+        "path": "$.mechanisms[]",
+        "properties": {
+          "action_type": {
+            "type": "string",
+            "path": "$.mechanisms[].action_type"
+          },
+          "binding_site_comment": {
+            "type": "null",
+            "path": "$.mechanisms[].binding_site_comment"
+          },
+          "direct_interaction": {
+            "type": "number",
+            "path": "$.mechanisms[].direct_interaction"
+          },
+          "disease_efficacy": {
+            "type": "number",
+            "path": "$.mechanisms[].disease_efficacy"
+          },
+          "max_phase": {
+            "type": "number",
+            "path": "$.mechanisms[].max_phase"
+          },
+          "mec_id": {
+            "type": "number",
+            "path": "$.mechanisms[].mec_id"
+          },
+          "mechanism_comment": {
+            "type": "null",
+            "path": "$.mechanisms[].mechanism_comment"
+          },
+          "mechanism_of_action": {
+            "type": "string",
+            "path": "$.mechanisms[].mechanism_of_action"
+          },
+          "mechanism_refs": {
+            "type": "array",
+            "path": "$.mechanisms[].mechanism_refs",
+            "items": {
+              "type": "object",
+              "path": "$.mechanisms[].mechanism_refs[]",
+              "properties": {
+                "ref_id": {
+                  "type": "string",
+                  "path": "$.mechanisms[].mechanism_refs[].ref_id"
+                },
+                "ref_type": {
+                  "type": "string",
+                  "path": "$.mechanisms[].mechanism_refs[].ref_type"
+                },
+                "ref_url": {
+                  "type": "string",
+                  "path": "$.mechanisms[].mechanism_refs[].ref_url"
+                }
+              }
+            }
+          },
+          "molecular_mechanism": {
+            "type": "number",
+            "path": "$.mechanisms[].molecular_mechanism"
+          },
+          "molecule_chembl_id": {
+            "type": "string",
+            "path": "$.mechanisms[].molecule_chembl_id"
+          },
+          "parent_molecule_chembl_id": {
+            "type": "string",
+            "path": "$.mechanisms[].parent_molecule_chembl_id"
+          },
+          "record_id": {
+            "type": "number",
+            "path": "$.mechanisms[].record_id"
+          },
+          "selectivity_comment": {
+            "type": "null",
+            "path": "$.mechanisms[].selectivity_comment"
+          },
+          "site_id": {
+            "type": "null",
+            "path": "$.mechanisms[].site_id"
+          },
+          "target_chembl_id": {
+            "type": "string",
+            "path": "$.mechanisms[].target_chembl_id"
+          },
+          "variant_sequence": {
+            "type": "null",
+            "path": "$.mechanisms[].variant_sequence"
+          }
+        }
+      }
+    },
+    "page_meta": {
+      "type": "object",
+      "path": "$.page_meta",
+      "properties": {
+        "limit": {
+          "type": "number",
+          "path": "$.page_meta.limit"
+        },
+        "next": {
+          "type": "null",
+          "path": "$.page_meta.next"
+        },
+        "offset": {
+          "type": "number",
+          "path": "$.page_meta.offset"
+        },
+        "previous": {
+          "type": "null",
+          "path": "$.page_meta.previous"
+        },
+        "total_count": {
+          "type": "number",
+          "path": "$.page_meta.total_count"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "header": {
+      "type": "object",
+      "path": "$.header",
+      "properties": {
+        "type": {
+          "type": "string",
+          "path": "$.header.type"
+        },
+        "version": {
+          "type": "string",
+          "path": "$.header.version"
+        }
+      }
+    },
+    "esearchresult": {
+      "type": "object",
+      "path": "$.esearchresult",
+      "properties": {
+        "count": {
+          "type": "string",
+          "path": "$.esearchresult.count"
+        },
+        "retmax": {
+          "type": "string",
+          "path": "$.esearchresult.retmax"
+        },
+        "retstart": {
+          "type": "string",
+          "path": "$.esearchresult.retstart"
+        },
+        "idlist": {
+          "type": "array",
+          "path": "$.esearchresult.idlist",
+          "items": {
+            "type": "string",
+            "path": "$.esearchresult.idlist[]"
+          }
+        },
+        "translationset": {
+          "type": "array",
+          "path": "$.esearchresult.translationset",
+          "items": null
+        },
+        "translationstack": {
+          "type": "array",
+          "path": "$.esearchresult.translationstack",
+          "items": {
+            "type": "object",
+            "path": "$.esearchresult.translationstack[]",
+            "properties": {
+              "term": {
+                "type": "string",
+                "path": "$.esearchresult.translationstack[].term"
+              },
+              "field": {
+                "type": "string",
+                "path": "$.esearchresult.translationstack[].field"
+              },
+              "count": {
+                "type": "string",
+                "path": "$.esearchresult.translationstack[].count"
+              },
+              "explode": {
+                "type": "string",
+                "path": "$.esearchresult.translationstack[].explode"
+              }
+            }
+          }
+        },
+        "querytranslation": {
+          "type": "string",
+          "path": "$.esearchresult.querytranslation"
+        }
+      }
+    }
+  }
+}

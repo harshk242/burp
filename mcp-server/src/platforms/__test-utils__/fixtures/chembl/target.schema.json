@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "cross_references": {
+      "type": "array",
+      "path": "$.cross_references",
+      "items": null
+    },
+    "organism": {
+      "type": "string",
+      "path": "$.organism"
+    },
+    "pref_name": {
+      "type": "string",
+      "path": "$.pref_name"
+    },
+    "species_group_flag": {
+      "type": "boolean",
+      "path": "$.species_group_flag"
+    },
+    "target_chembl_id": {
+      "type": "string",
+      "path": "$.target_chembl_id"
+    },
+    "target_components": {
+      "type": "array",
+      "path": "$.target_components",
+      "items": {
+        "type": "object",
+        "path": "$.target_components[]",
+        "properties": {
+          "accession": {
+            "type": "string",
+            "path": "$.target_components[].accession"
+          },
+          "component_description": {
+            "type": "string",
+            "path": "$.target_components[].component_description"
+          },
+          "component_id": {
+            "type": "number",
+            "path": "$.target_components[].component_id"
+          },
+          "component_type": {
+            "type": "string",
+            "path": "$.target_components[].component_type"
+          },
+          "relationship": {
+            "type": "string",
+            "path": "$.target_components[].relationship"
+          },
+          "target_component_synonyms": {
+            "type": "array",
+            "path": "$.target_components[].target_component_synonyms",
+            "items": {
+              "type": "object",
+              "path": "$.target_components[].target_component_synonyms[]",
+              "properties": {
+                "component_synonym": {
+                  "type": "string",
+                  "path": "$.target_components[].target_component_synonyms[].component_synonym"
+                },
+                "syn_type": {
+                  "type": "string",
+                  "path": "$.target_components[].target_component_synonyms[].syn_type"
+                }
+              }
+            }
+          },
+          "target_component_xrefs": {
+            "type": "array",
+            "path": "$.target_components[].target_component_xrefs",
+            "items": {
+              "type": "object",
+              "path": "$.target_components[].target_component_xrefs[]",
+              "properties": {
+                "xref_id": {
+                  "type": "string",
+                  "path": "$.target_components[].target_component_xrefs[].xref_id"
+                },
+                "xref_name": {
+                  "type": "string",
+                  "path": "$.target_components[].target_component_xrefs[].xref_name"
+                },
+                "xref_src_db": {
+                  "type": "string",
+                  "path": "$.target_components[].target_component_xrefs[].xref_src_db"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "target_type": {
+      "type": "string",
+      "path": "$.target_type"
+    },
+    "tax_id": {
+      "type": "number",
+      "path": "$.tax_id"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "InformationList": {
+      "type": "object",
+      "path": "$.InformationList",
+      "properties": {
+        "Information": {
+          "type": "array",
+          "path": "$.InformationList.Information",
+          "items": {
+            "type": "object",
+            "path": "$.InformationList.Information[]",
+            "properties": {
+              "CID": {
+                "type": "number",
+                "path": "$.InformationList.Information[].CID"
+              },
+              "Synonym": {
+                "type": "array",
+                "path": "$.InformationList.Information[].Synonym",
+                "items": {
+                  "type": "string",
+                  "path": "$.InformationList.Information[].Synonym[]"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

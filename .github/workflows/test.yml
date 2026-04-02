@@ -1,0 +1,77 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Contract tests: weekly Monday 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  # ── Unit Tests (every PR + push) ────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Typecheck mcp-server
+        working-directory: mcp-server
+        run: npx tsc --noEmit --project tsconfig.json
+
+      - name: Run mcp-server unit tests
+        working-directory: mcp-server
+        run: npx vitest run --reporter=verbose
+
+      - name: Run app tests
+        working-directory: app
+        run: bun test
+
+  # ── Contract Tests (weekly schedule + manual dispatch) ──────────────────────
+  contract-tests:
+    name: API Contract Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mcp-server dependencies
+        working-directory: mcp-server
+        run: bun install
+
+      - name: Run contract tests
+        working-directory: mcp-server
+        run: npx vitest run --config vitest.contracts.config.ts --reporter=verbose
+        env:
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+
+      - name: Upload drift report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-drift-report
+          path: mcp-server/src/platforms/__test-utils__/fixtures/
+          retention-days: 14

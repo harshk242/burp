@@ -1,0 +1,70 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "source": {
+      "type": "string",
+      "path": "$.source"
+    },
+    "db_type": {
+      "type": "string",
+      "path": "$.db_type"
+    },
+    "description": {
+      "type": "string",
+      "path": "$.description"
+    },
+    "logic_name": {
+      "type": "string",
+      "path": "$.logic_name"
+    },
+    "display_name": {
+      "type": "string",
+      "path": "$.display_name"
+    },
+    "seq_region_name": {
+      "type": "string",
+      "path": "$.seq_region_name"
+    },
+    "object_type": {
+      "type": "string",
+      "path": "$.object_type"
+    },
+    "version": {
+      "type": "number",
+      "path": "$.version"
+    },
+    "strand": {
+      "type": "number",
+      "path": "$.strand"
+    },
+    "biotype": {
+      "type": "string",
+      "path": "$.biotype"
+    },
+    "assembly_name": {
+      "type": "string",
+      "path": "$.assembly_name"
+    },
+    "start": {
+      "type": "number",
+      "path": "$.start"
+    },
+    "species": {
+      "type": "string",
+      "path": "$.species"
+    },
+    "canonical_transcript": {
+      "type": "string",
+      "path": "$.canonical_transcript"
+    },
+    "id": {
+      "type": "string",
+      "path": "$.id"
+    },
+    "end": {
+      "type": "number",
+      "path": "$.end"
+    }
+  }
+}

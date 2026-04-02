@@ -1,0 +1,122 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "data": {
+      "type": "array",
+      "path": "$.data",
+      "items": {
+        "type": "object",
+        "path": "$.data[]",
+        "properties": {
+          "id": {
+            "type": "string",
+            "path": "$.data[].id"
+          },
+          "homologies": {
+            "type": "array",
+            "path": "$.data[].homologies",
+            "items": {
+              "type": "object",
+              "path": "$.data[].homologies[]",
+              "properties": {
+                "dn_ds": {
+                  "type": "null",
+                  "path": "$.data[].homologies[].dn_ds"
+                },
+                "type": {
+                  "type": "string",
+                  "path": "$.data[].homologies[].type"
+                },
+                "method_link_type": {
+                  "type": "string",
+                  "path": "$.data[].homologies[].method_link_type"
+                },
+                "target": {
+                  "type": "object",
+                  "path": "$.data[].homologies[].target",
+                  "properties": {
+                    "species": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].target.species"
+                    },
+                    "align_seq": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].target.align_seq"
+                    },
+                    "perc_id": {
+                      "type": "number",
+                      "path": "$.data[].homologies[].target.perc_id"
+                    },
+                    "protein_id": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].target.protein_id"
+                    },
+                    "id": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].target.id"
+                    },
+                    "taxon_id": {
+                      "type": "number",
+                      "path": "$.data[].homologies[].target.taxon_id"
+                    },
+                    "perc_pos": {
+                      "type": "number",
+                      "path": "$.data[].homologies[].target.perc_pos"
+                    },
+                    "cigar_line": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].target.cigar_line"
+                    }
+                  }
+                },
+                "source": {
+                  "type": "object",
+                  "path": "$.data[].homologies[].source",
+                  "properties": {
+                    "cigar_line": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].source.cigar_line"
+                    },
+                    "taxon_id": {
+                      "type": "number",
+                      "path": "$.data[].homologies[].source.taxon_id"
+                    },
+                    "perc_pos": {
+                      "type": "number",
+                      "path": "$.data[].homologies[].source.perc_pos"
+                    },
+                    "id": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].source.id"
+                    },
+                    "protein_id": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].source.protein_id"
+                    },
+                    "perc_id": {
+                      "type": "number",
+                      "path": "$.data[].homologies[].source.perc_id"
+                    },
+                    "align_seq": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].source.align_seq"
+                    },
+                    "species": {
+                      "type": "string",
+                      "path": "$.data[].homologies[].source.species"
+                    }
+                  }
+                },
+                "taxonomy_level": {
+                  "type": "string",
+                  "path": "$.data[].homologies[].taxonomy_level"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

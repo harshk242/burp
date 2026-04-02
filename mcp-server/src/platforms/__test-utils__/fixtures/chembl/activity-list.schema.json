@@ -1,0 +1,227 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "activities": {
+      "type": "array",
+      "path": "$.activities",
+      "items": {
+        "type": "object",
+        "path": "$.activities[]",
+        "properties": {
+          "action_type": {
+            "type": "null",
+            "path": "$.activities[].action_type"
+          },
+          "activity_comment": {
+            "type": "null",
+            "path": "$.activities[].activity_comment"
+          },
+          "activity_id": {
+            "type": "number",
+            "path": "$.activities[].activity_id"
+          },
+          "activity_properties": {
+            "type": "array",
+            "path": "$.activities[].activity_properties",
+            "items": null
+          },
+          "assay_chembl_id": {
+            "type": "string",
+            "path": "$.activities[].assay_chembl_id"
+          },
+          "assay_description": {
+            "type": "string",
+            "path": "$.activities[].assay_description"
+          },
+          "assay_type": {
+            "type": "string",
+            "path": "$.activities[].assay_type"
+          },
+          "assay_variant_accession": {
+            "type": "null",
+            "path": "$.activities[].assay_variant_accession"
+          },
+          "assay_variant_mutation": {
+            "type": "null",
+            "path": "$.activities[].assay_variant_mutation"
+          },
+          "bao_endpoint": {
+            "type": "string",
+            "path": "$.activities[].bao_endpoint"
+          },
+          "bao_format": {
+            "type": "string",
+            "path": "$.activities[].bao_format"
+          },
+          "bao_label": {
+            "type": "string",
+            "path": "$.activities[].bao_label"
+          },
+          "canonical_smiles": {
+            "type": "string",
+            "path": "$.activities[].canonical_smiles"
+          },
+          "data_validity_comment": {
+            "type": "null",
+            "path": "$.activities[].data_validity_comment"
+          },
+          "data_validity_description": {
+            "type": "null",
+            "path": "$.activities[].data_validity_description"
+          },
+          "document_chembl_id": {
+            "type": "string",
+            "path": "$.activities[].document_chembl_id"
+          },
+          "document_journal": {
+            "type": "string",
+            "path": "$.activities[].document_journal"
+          },
+          "document_year": {
+            "type": "number",
+            "path": "$.activities[].document_year"
+          },
+          "ligand_efficiency": {
+            "type": "null",
+            "path": "$.activities[].ligand_efficiency"
+          },
+          "molecule_chembl_id": {
+            "type": "string",
+            "path": "$.activities[].molecule_chembl_id"
+          },
+          "molecule_pref_name": {
+            "type": "string",
+            "path": "$.activities[].molecule_pref_name"
+          },
+          "parent_molecule_chembl_id": {
+            "type": "string",
+            "path": "$.activities[].parent_molecule_chembl_id"
+          },
+          "pchembl_value": {
+            "type": "null",
+            "path": "$.activities[].pchembl_value"
+          },
+          "potential_duplicate": {
+            "type": "number",
+            "path": "$.activities[].potential_duplicate"
+          },
+          "qudt_units": {
+            "type": "null",
+            "path": "$.activities[].qudt_units"
+          },
+          "record_id": {
+            "type": "number",
+            "path": "$.activities[].record_id"
+          },
+          "relation": {
+            "type": "string",
+            "path": "$.activities[].relation"
+          },
+          "src_id": {
+            "type": "number",
+            "path": "$.activities[].src_id"
+          },
+          "standard_flag": {
+            "type": "number",
+            "path": "$.activities[].standard_flag"
+          },
+          "standard_relation": {
+            "type": "string",
+            "path": "$.activities[].standard_relation"
+          },
+          "standard_text_value": {
+            "type": "null",
+            "path": "$.activities[].standard_text_value"
+          },
+          "standard_type": {
+            "type": "string",
+            "path": "$.activities[].standard_type"
+          },
+          "standard_units": {
+            "type": "null",
+            "path": "$.activities[].standard_units"
+          },
+          "standard_upper_value": {
+            "type": "null",
+            "path": "$.activities[].standard_upper_value"
+          },
+          "standard_value": {
+            "type": "string",
+            "path": "$.activities[].standard_value"
+          },
+          "target_chembl_id": {
+            "type": "string",
+            "path": "$.activities[].target_chembl_id"
+          },
+          "target_organism": {
+            "type": "string",
+            "path": "$.activities[].target_organism"
+          },
+          "target_pref_name": {
+            "type": "string",
+            "path": "$.activities[].target_pref_name"
+          },
+          "target_tax_id": {
+            "type": "string",
+            "path": "$.activities[].target_tax_id"
+          },
+          "text_value": {
+            "type": "null",
+            "path": "$.activities[].text_value"
+          },
+          "toid": {
+            "type": "null",
+            "path": "$.activities[].toid"
+          },
+          "type": {
+            "type": "string",
+            "path": "$.activities[].type"
+          },
+          "units": {
+            "type": "null",
+            "path": "$.activities[].units"
+          },
+          "uo_units": {
+            "type": "null",
+            "path": "$.activities[].uo_units"
+          },
+          "upper_value": {
+            "type": "null",
+            "path": "$.activities[].upper_value"
+          },
+          "value": {
+            "type": "string",
+            "path": "$.activities[].value"
+          }
+        }
+      }
+    },
+    "page_meta": {
+      "type": "object",
+      "path": "$.page_meta",
+      "properties": {
+        "limit": {
+          "type": "number",
+          "path": "$.page_meta.limit"
+        },
+        "next": {
+          "type": "string",
+          "path": "$.page_meta.next"
+        },
+        "offset": {
+          "type": "number",
+          "path": "$.page_meta.offset"
+        },
+        "previous": {
+          "type": "null",
+          "path": "$.page_meta.previous"
+        },
+        "total_count": {
+          "type": "number",
+          "path": "$.page_meta.total_count"
+        }
+      }
+    }
+  }
+}

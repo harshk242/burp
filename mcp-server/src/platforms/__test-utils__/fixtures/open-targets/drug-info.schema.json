@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "drug": {
+      "type": "object",
+      "path": "$.drug",
+      "properties": {
+        "id": {
+          "type": "string",
+          "path": "$.drug.id"
+        },
+        "name": {
+          "type": "string",
+          "path": "$.drug.name"
+        },
+        "drugType": {
+          "type": "string",
+          "path": "$.drug.drugType"
+        },
+        "maximumClinicalStage": {
+          "type": "string",
+          "path": "$.drug.maximumClinicalStage"
+        },
+        "description": {
+          "type": "string",
+          "path": "$.drug.description"
+        },
+        "tradeNames": {
+          "type": "array",
+          "path": "$.drug.tradeNames",
+          "items": {
+            "type": "string",
+            "path": "$.drug.tradeNames[]"
+          }
+        }
+      }
+    }
+  }
+}

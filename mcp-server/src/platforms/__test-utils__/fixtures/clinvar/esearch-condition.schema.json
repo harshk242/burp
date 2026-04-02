@@ -1,0 +1,95 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "header": {
+      "type": "object",
+      "path": "$.header",
+      "properties": {
+        "type": {
+          "type": "string",
+          "path": "$.header.type"
+        },
+        "version": {
+          "type": "string",
+          "path": "$.header.version"
+        }
+      }
+    },
+    "esearchresult": {
+      "type": "object",
+      "path": "$.esearchresult",
+      "properties": {
+        "count": {
+          "type": "string",
+          "path": "$.esearchresult.count"
+        },
+        "retmax": {
+          "type": "string",
+          "path": "$.esearchresult.retmax"
+        },
+        "retstart": {
+          "type": "string",
+          "path": "$.esearchresult.retstart"
+        },
+        "idlist": {
+          "type": "array",
+          "path": "$.esearchresult.idlist",
+          "items": null
+        },
+        "translationset": {
+          "type": "array",
+          "path": "$.esearchresult.translationset",
+          "items": null
+        },
+        "querytranslation": {
+          "type": "string",
+          "path": "$.esearchresult.querytranslation"
+        },
+        "errorlist": {
+          "type": "object",
+          "path": "$.esearchresult.errorlist",
+          "properties": {
+            "phrasesnotfound": {
+              "type": "array",
+              "path": "$.esearchresult.errorlist.phrasesnotfound",
+              "items": {
+                "type": "string",
+                "path": "$.esearchresult.errorlist.phrasesnotfound[]"
+              }
+            },
+            "fieldsnotfound": {
+              "type": "array",
+              "path": "$.esearchresult.errorlist.fieldsnotfound",
+              "items": null
+            }
+          }
+        },
+        "warninglist": {
+          "type": "object",
+          "path": "$.esearchresult.warninglist",
+          "properties": {
+            "phrasesignored": {
+              "type": "array",
+              "path": "$.esearchresult.warninglist.phrasesignored",
+              "items": null
+            },
+            "quotedphrasesnotfound": {
+              "type": "array",
+              "path": "$.esearchresult.warninglist.quotedphrasesnotfound",
+              "items": null
+            },
+            "outputmessages": {
+              "type": "array",
+              "path": "$.esearchresult.warninglist.outputmessages",
+              "items": {
+                "type": "string",
+                "path": "$.esearchresult.warninglist.outputmessages[]"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
