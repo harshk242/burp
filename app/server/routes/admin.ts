@@ -37,11 +37,21 @@ const AdminUserListSchema = z.object({
   users: z.array(AdminUserSchema),
 });
 
+// Valid values: null (clear override), -1 (unlimited), or a positive integer.
+// Negative values other than -1 would make the check `count >= -5` always true,
+// permanently locking out the user until manually corrected.
+const limitValue = () =>
+  z.union([
+    z.null(),
+    z.literal(-1),
+    z.number().int().min(1),
+  ]);
+
 const PatchLimitsSchema = z.object({
-  daily_query_limit: z.number().int().nullable().optional()
-    .openapi({ example: 100, description: "null clears override — reverts to role default" }),
-  daily_token_limit: z.number().int().nullable().optional()
-    .openapi({ example: 500000, description: "null clears override — reverts to config default" }),
+  daily_query_limit: limitValue().optional()
+    .openapi({ example: 100, description: "null = role default, -1 = unlimited, >0 = hard cap" }),
+  daily_token_limit: limitValue().optional()
+    .openapi({ example: 500000, description: "null = config default, -1 = unlimited, >0 = hard cap" }),
 });
 
 // ── GET /api/admin/users ──────────────────────────────────────────────────────

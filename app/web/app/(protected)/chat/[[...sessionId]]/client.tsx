@@ -201,8 +201,12 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
             minute: "2-digit",
             timeZoneName: "short",
           });
+          const message =
+            err.errorCode === "token_limit_exceeded"
+              ? `You've used your daily token budget of ${err.limit.toLocaleString()} tokens. Resets at ${resetTime}.`
+              : `You've used all ${err.limit} queries for today. Resets at ${resetTime}.`;
           setRateLimitInfo({
-            message: `You've used all ${err.limit} queries for today. Resets at ${resetTime}.`,
+            message,
             resetAt: err.resetAt,
           });
         } else {

@@ -7,7 +7,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { v4 as uuidv4 } from "uuid";
 import { mcpManager } from "../mcp/manager";
 import { toolRegistry } from "../mcp/registry";
-import { messageQueries, chatSessionQueries, userQueries } from "../db";
+import { messageQueries, chatSessionQueries, userQueries, dailyUsageQueries } from "../db";
 import { logger, startTimer, estimateTokens, type LogContext } from "../logger";
 import { appConfig } from "../config";
 
@@ -364,6 +364,9 @@ export async function* processChat(
     let fullAssistantContent = "";
     const allToolCalls: ToolCall[] = [];
     let loopIteration = 0;
+    // Token accumulators — mirrors chat-v2.ts so token budget is enforced on legacy path too
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     while (continueLoop) {
       loopIteration++;
@@ -477,6 +480,10 @@ export async function* processChat(
       assistantContentBlocks = finalMessage.content;
 
       const iterDuration = iterElapsed();
+      // Accumulate token counts across all tool-call iterations (mirrors chat-v2.ts)
+      totalInputTokens += finalMessage.usage?.input_tokens ?? 0;
+      totalOutputTokens += finalMessage.usage?.output_tokens ?? 0;
+
       logger.info("CHAT", "llm_response_received", {
         ctx,
         duration_ms: iterDuration,
@@ -654,19 +661,23 @@ export async function* processChat(
       }
     }
 
-    // Store assistant message with tool calls
+    // Store assistant message with accumulated token counts
     const assistantMsgId = uuidv4();
     messageQueries.create(
       assistantMsgId,
       sessionId,
       "assistant",
       fullAssistantContent,
-      allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null
+      allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
+      totalInputTokens,
+      totalOutputTokens
     );
 
-    // Update session timestamp and user query count
+    // Update session timestamp, user query count, and daily token totals
     chatSessionQueries.touch(sessionId);
     userQueries.incrementQueries(userId);
+    // Increment daily token totals — ensures token budget is enforced even on the legacy path
+    dailyUsageQueries.incrementTokens(userId, totalInputTokens, totalOutputTokens);
 
     logger.info("CHAT", "process_complete", {
       ctx,
