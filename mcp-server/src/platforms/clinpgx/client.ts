@@ -495,12 +495,19 @@ export class PharmGKBClient {
    * PharmGKB API uses 'relatedGenes.symbol' parameter for guidelineAnnotation
    */
   async getDosingGuidelinesForGene(gene: string): Promise<DosingGuideline[]> {
-    const response = await this.request<AnyObject>('/data/guidelineAnnotation', {
-      'relatedGenes.symbol': gene,
-    });
+    try {
+      const response = await this.request<AnyObject>('/data/guidelineAnnotation', {
+        'relatedGenes.symbol': gene,
+      });
 
-    const data = response.data || [];
-    return data.map((guideline: AnyObject) => this.parseDosingGuideline(guideline));
+      const data = response.data || [];
+      return data.map((guideline: AnyObject) => this.parseDosingGuideline(guideline));
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   /**
@@ -508,12 +515,19 @@ export class PharmGKBClient {
    * PharmGKB API uses 'relatedChemicals.name' parameter for guidelineAnnotation
    */
   async getDosingGuidelinesForDrug(drug: string): Promise<DosingGuideline[]> {
-    const response = await this.request<AnyObject>('/data/guidelineAnnotation', {
-      'relatedChemicals.name': drug,
-    });
+    try {
+      const response = await this.request<AnyObject>('/data/guidelineAnnotation', {
+        'relatedChemicals.name': drug,
+      });
 
-    const data = response.data || [];
-    return data.map((guideline: AnyObject) => this.parseDosingGuideline(guideline));
+      const data = response.data || [];
+      return data.map((guideline: AnyObject) => this.parseDosingGuideline(guideline));
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   private parseDosingGuideline(data: AnyObject): DosingGuideline {
@@ -540,12 +554,19 @@ export class PharmGKBClient {
    * PharmGKB API uses 'relatedChemicals.name' parameter for labelAnnotation
    */
   async getDrugLabels(drug: string): Promise<DrugLabel[]> {
-    const response = await this.request<AnyObject>('/data/labelAnnotation', {
-      'relatedChemicals.name': drug,
-    });
+    try {
+      const response = await this.request<AnyObject>('/data/labelAnnotation', {
+        'relatedChemicals.name': drug,
+      });
 
-    const data = response.data || [];
-    return data.map((label: AnyObject) => this.parseDrugLabel(label));
+      const data = response.data || [];
+      return data.map((label: AnyObject) => this.parseDrugLabel(label));
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   private parseDrugLabel(data: AnyObject): DrugLabel {
@@ -571,20 +592,27 @@ export class PharmGKBClient {
    * PharmGKB API uses 'genes.symbol' parameter
    */
   async getPathways(query?: string): Promise<Pathway[]> {
-    // If query provided, search by gene symbol; otherwise get CPIC gene pathways
-    const params = query ? { 'genes.symbol': query } : { cpicGene: true };
-    const response = await this.request<AnyObject>('/data/pathway', params);
+    try {
+      // If query provided, search by gene symbol; otherwise get CPIC gene pathways
+      const params = query ? { 'genes.symbol': query } : { cpicGene: true };
+      const response = await this.request<AnyObject>('/data/pathway', params);
 
-    const data = response.data || [];
-    return data.map((pathway: AnyObject) => ({
-      id: pathway.id,
-      name: pathway.name,
-      type: pathway.type,
-      description: pathway.description,
-      genes: pathway.genes?.map((g: AnyObject) => g.symbol),
-      drugs: pathway.chemicals?.map((c: AnyObject) => c.name),
-      url: pathway.url || `https://www.pharmgkb.org/pathway/${pathway.id}`,
-    }));
+      const data = response.data || [];
+      return data.map((pathway: AnyObject) => ({
+        id: pathway.id,
+        name: pathway.name,
+        type: pathway.type,
+        description: pathway.description,
+        genes: pathway.genes?.map((g: AnyObject) => g.symbol),
+        drugs: pathway.chemicals?.map((c: AnyObject) => c.name),
+        url: pathway.url || `https://www.pharmgkb.org/pathway/${pathway.id}`,
+      }));
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   /**
@@ -592,20 +620,27 @@ export class PharmGKBClient {
    * PharmGKB API uses 'genes.symbol' parameter
    */
   async getGenePathways(gene: string): Promise<Pathway[]> {
-    const response = await this.request<AnyObject>('/data/pathway', {
-      'genes.symbol': gene,
-    });
+    try {
+      const response = await this.request<AnyObject>('/data/pathway', {
+        'genes.symbol': gene,
+      });
 
-    const data = response.data || [];
-    return data.map((pathway: AnyObject) => ({
-      id: pathway.id,
-      name: pathway.name,
-      type: pathway.type,
-      description: pathway.description,
-      genes: pathway.genes?.map((g: AnyObject) => g.symbol),
-      drugs: pathway.chemicals?.map((c: AnyObject) => c.name),
-      url: pathway.url || `https://www.pharmgkb.org/pathway/${pathway.id}`,
-    }));
+      const data = response.data || [];
+      return data.map((pathway: AnyObject) => ({
+        id: pathway.id,
+        name: pathway.name,
+        type: pathway.type,
+        description: pathway.description,
+        genes: pathway.genes?.map((g: AnyObject) => g.symbol),
+        drugs: pathway.chemicals?.map((c: AnyObject) => c.name),
+        url: pathway.url || `https://www.pharmgkb.org/pathway/${pathway.id}`,
+      }));
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   // =============== Drug-Gene Interaction Methods ===============
