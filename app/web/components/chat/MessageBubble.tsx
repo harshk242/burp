@@ -95,7 +95,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               <CopyButton text={message.content} />
               {/* Token count — only shown for assistant messages that have usage data */}
               {!isUser && message.tokenUsage && (
-                <span className="text-[10px] text-muted-foreground/60 select-none">
+                <span className="text-[10px] text-foreground/60 select-none">
                   {(message.tokenUsage.input + message.tokenUsage.output).toLocaleString()} tokens
                   &nbsp;·&nbsp;↑{message.tokenUsage.input.toLocaleString()} ↓{message.tokenUsage.output.toLocaleString()}
                 </span>

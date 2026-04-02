@@ -1,5 +1,5 @@
 # Fly.io configuration for BURP
-app = "burp"
+app = "super-bio-agent"
 primary_region = "iad"
 
 [build]

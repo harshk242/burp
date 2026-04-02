@@ -70,11 +70,11 @@ export function UsageIndicator() {
           {usage.used} of {usage.limit} queries used today
         </p>
         {tokens && tokens.limit !== -1 && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs">
             ~{formatTokens(tokens.used_today)} / {formatTokens(tokens.limit)} tokens used today
           </p>
         )}
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs opacity-75">
           Resets at {resetTime}
         </p>
       </TooltipContent>
