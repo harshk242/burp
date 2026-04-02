@@ -32,11 +32,11 @@ jobs:
 
       - name: Typecheck mcp-server
         working-directory: mcp-server
-        run: npx tsc --noEmit --project tsconfig.json
+        run: bunx tsc --noEmit --project tsconfig.json
 
       - name: Run mcp-server unit tests
         working-directory: mcp-server
-        run: npx vitest run --reporter=verbose
+        run: bunx vitest run --reporter=verbose
 
       - name: Run app tests
         working-directory: app
@@ -64,7 +64,7 @@ jobs:
 
       - name: Run contract tests
         working-directory: mcp-server
-        run: npx vitest run --config vitest.contracts.config.ts --reporter=verbose
+        run: bunx vitest run --config vitest.contracts.config.ts --reporter=verbose
         env:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
 
