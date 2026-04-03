@@ -1,0 +1,267 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "data": {
+      "type": "array",
+      "path": "$.data",
+      "items": {
+        "type": "object",
+        "path": "$.data[]",
+        "properties": {
+          "objCls": {
+            "type": "string",
+            "path": "$.data[].objCls"
+          },
+          "id": {
+            "type": "string",
+            "path": "$.data[].id"
+          },
+          "symbol": {
+            "type": "string",
+            "path": "$.data[].symbol"
+          },
+          "name": {
+            "type": "string",
+            "path": "$.data[].name"
+          },
+          "alleleFile": {
+            "type": "string",
+            "path": "$.data[].alleleFile"
+          },
+          "alleleFunctionSource": {
+            "type": "string",
+            "path": "$.data[].alleleFunctionSource"
+          },
+          "alleleType": {
+            "type": "string",
+            "path": "$.data[].alleleType"
+          },
+          "amp": {
+            "type": "boolean",
+            "path": "$.data[].amp"
+          },
+          "buildVersion": {
+            "type": "string",
+            "path": "$.data[].buildVersion"
+          },
+          "cbStart": {
+            "type": "string",
+            "path": "$.data[].cbStart"
+          },
+          "cbStop": {
+            "type": "string",
+            "path": "$.data[].cbStop"
+          },
+          "chr": {
+            "type": "object",
+            "path": "$.data[].chr",
+            "properties": {
+              "objCls": {
+                "type": "string",
+                "path": "$.data[].chr.objCls"
+              },
+              "id": {
+                "type": "string",
+                "path": "$.data[].chr.id"
+              },
+              "name": {
+                "type": "string",
+                "path": "$.data[].chr.name"
+              }
+            }
+          },
+          "chrStartPosB37": {
+            "type": "number",
+            "path": "$.data[].chrStartPosB37"
+          },
+          "chrStartPosB38": {
+            "type": "number",
+            "path": "$.data[].chrStartPosB38"
+          },
+          "chrStopPosB37": {
+            "type": "number",
+            "path": "$.data[].chrStopPosB37"
+          },
+          "chrStopPosB38": {
+            "type": "number",
+            "path": "$.data[].chrStopPosB38"
+          },
+          "cpicGene": {
+            "type": "boolean",
+            "path": "$.data[].cpicGene"
+          },
+          "hasNonStandardHaplotypes": {
+            "type": "boolean",
+            "path": "$.data[].hasNonStandardHaplotypes"
+          },
+          "hideHaplotypes": {
+            "type": "boolean",
+            "path": "$.data[].hideHaplotypes"
+          },
+          "pharmVarGene": {
+            "type": "boolean",
+            "path": "$.data[].pharmVarGene"
+          },
+          "strand": {
+            "type": "string",
+            "path": "$.data[].strand"
+          },
+          "vipCitation": {
+            "type": "object",
+            "path": "$.data[].vipCitation",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].vipCitation.id"
+              },
+              "title": {
+                "type": "string",
+                "path": "$.data[].vipCitation.title"
+              },
+              "_sameAs": {
+                "type": "string",
+                "path": "$.data[].vipCitation._sameAs"
+              },
+              "authors": {
+                "type": "array",
+                "path": "$.data[].vipCitation.authors",
+                "items": {
+                  "type": "string",
+                  "path": "$.data[].vipCitation.authors[]"
+                }
+              },
+              "crossReferences": {
+                "type": "array",
+                "path": "$.data[].vipCitation.crossReferences",
+                "items": {
+                  "type": "object",
+                  "path": "$.data[].vipCitation.crossReferences[]",
+                  "properties": {
+                    "id": {
+                      "type": "number",
+                      "path": "$.data[].vipCitation.crossReferences[].id"
+                    },
+                    "resource": {
+                      "type": "string",
+                      "path": "$.data[].vipCitation.crossReferences[].resource"
+                    },
+                    "resourceId": {
+                      "type": "string",
+                      "path": "$.data[].vipCitation.crossReferences[].resourceId"
+                    },
+                    "_url": {
+                      "type": "string",
+                      "path": "$.data[].vipCitation.crossReferences[]._url"
+                    }
+                  }
+                }
+              },
+              "day": {
+                "type": "number",
+                "path": "$.data[].vipCitation.day"
+              },
+              "journal": {
+                "type": "string",
+                "path": "$.data[].vipCitation.journal"
+              },
+              "month": {
+                "type": "number",
+                "path": "$.data[].vipCitation.month"
+              },
+              "objCls": {
+                "type": "string",
+                "path": "$.data[].vipCitation.objCls"
+              },
+              "page": {
+                "type": "string",
+                "path": "$.data[].vipCitation.page"
+              },
+              "pediatric": {
+                "type": "boolean",
+                "path": "$.data[].vipCitation.pediatric"
+              },
+              "pgkbPublication": {
+                "type": "boolean",
+                "path": "$.data[].vipCitation.pgkbPublication"
+              },
+              "pubDate": {
+                "type": "string",
+                "path": "$.data[].vipCitation.pubDate"
+              },
+              "pubmedMeshTerms": {
+                "type": "array",
+                "path": "$.data[].vipCitation.pubmedMeshTerms",
+                "items": null
+              },
+              "terms": {
+                "type": "array",
+                "path": "$.data[].vipCitation.terms",
+                "items": {
+                  "type": "object",
+                  "path": "$.data[].vipCitation.terms[]",
+                  "properties": {
+                    "id": {
+                      "type": "number",
+                      "path": "$.data[].vipCitation.terms[].id"
+                    },
+                    "resource": {
+                      "type": "string",
+                      "path": "$.data[].vipCitation.terms[].resource"
+                    },
+                    "term": {
+                      "type": "string",
+                      "path": "$.data[].vipCitation.terms[].term"
+                    },
+                    "termId": {
+                      "type": "string",
+                      "path": "$.data[].vipCitation.terms[].termId"
+                    }
+                  }
+                }
+              },
+              "type": {
+                "type": "string",
+                "path": "$.data[].vipCitation.type"
+              },
+              "volume": {
+                "type": "string",
+                "path": "$.data[].vipCitation.volume"
+              },
+              "year": {
+                "type": "number",
+                "path": "$.data[].vipCitation.year"
+              }
+            }
+          },
+          "vipId": {
+            "type": "string",
+            "path": "$.data[].vipId"
+          },
+          "vipSummary": {
+            "type": "object",
+            "path": "$.data[].vipSummary",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].vipSummary.id"
+              },
+              "html": {
+                "type": "string",
+                "path": "$.data[].vipSummary.html"
+              }
+            }
+          },
+          "vipTier": {
+            "type": "string",
+            "path": "$.data[].vipTier"
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "path": "$.status"
+    }
+  }
+}

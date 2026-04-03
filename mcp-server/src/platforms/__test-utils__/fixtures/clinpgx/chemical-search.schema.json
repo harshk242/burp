@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "data": {
+      "type": "array",
+      "path": "$.data",
+      "items": {
+        "type": "object",
+        "path": "$.data[]",
+        "properties": {
+          "objCls": {
+            "type": "string",
+            "path": "$.data[].objCls"
+          },
+          "id": {
+            "type": "string",
+            "path": "$.data[].id"
+          },
+          "name": {
+            "type": "string",
+            "path": "$.data[].name"
+          },
+          "inChi": {
+            "type": "string",
+            "path": "$.data[].inChi"
+          },
+          "pediatric": {
+            "type": "boolean",
+            "path": "$.data[].pediatric"
+          },
+          "smiles": {
+            "type": "string",
+            "path": "$.data[].smiles"
+          },
+          "types": {
+            "type": "array",
+            "path": "$.data[].types",
+            "items": {
+              "type": "string",
+              "path": "$.data[].types[]"
+            }
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "path": "$.status"
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "header": {
+      "type": "object",
+      "path": "$.header",
+      "properties": {
+        "type": {
+          "type": "string",
+          "path": "$.header.type"
+        },
+        "version": {
+          "type": "string",
+          "path": "$.header.version"
+        }
+      }
+    },
+    "linksets": {
+      "type": "array",
+      "path": "$.linksets",
+      "items": {
+        "type": "object",
+        "path": "$.linksets[]",
+        "properties": {
+          "dbfrom": {
+            "type": "string",
+            "path": "$.linksets[].dbfrom"
+          },
+          "ids": {
+            "type": "array",
+            "path": "$.linksets[].ids",
+            "items": {
+              "type": "string",
+              "path": "$.linksets[].ids[]"
+            }
+          },
+          "linksetdbs": {
+            "type": "array",
+            "path": "$.linksets[].linksetdbs",
+            "items": {
+              "type": "object",
+              "path": "$.linksets[].linksetdbs[]",
+              "properties": {
+                "dbto": {
+                  "type": "string",
+                  "path": "$.linksets[].linksetdbs[].dbto"
+                },
+                "linkname": {
+                  "type": "string",
+                  "path": "$.linksets[].linksetdbs[].linkname"
+                },
+                "links": {
+                  "type": "array",
+                  "path": "$.linksets[].linksetdbs[].links",
+                  "items": {
+                    "type": "string",
+                    "path": "$.linksets[].linksetdbs[].links[]"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

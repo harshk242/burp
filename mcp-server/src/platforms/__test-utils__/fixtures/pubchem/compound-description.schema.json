@@ -19,7 +19,23 @@
               },
               "Title": {
                 "type": "string",
-                "path": "$.InformationList.Information[].Title"
+                "path": "$.InformationList.Information[].Title",
+                "optional": true
+              },
+              "Description": {
+                "type": "string",
+                "path": "$.InformationList.Information[].Description",
+                "optional": true
+              },
+              "DescriptionSourceName": {
+                "type": "string",
+                "path": "$.InformationList.Information[].DescriptionSourceName",
+                "optional": true
+              },
+              "DescriptionURL": {
+                "type": "string",
+                "path": "$.InformationList.Information[].DescriptionURL",
+                "optional": true
               }
             }
           }

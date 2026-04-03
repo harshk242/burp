@@ -49,26 +49,8 @@
           "type": "array",
           "path": "$.esearchresult.translationstack",
           "items": {
-            "type": "object",
-            "path": "$.esearchresult.translationstack[]",
-            "properties": {
-              "term": {
-                "type": "string",
-                "path": "$.esearchresult.translationstack[].term"
-              },
-              "field": {
-                "type": "string",
-                "path": "$.esearchresult.translationstack[].field"
-              },
-              "count": {
-                "type": "string",
-                "path": "$.esearchresult.translationstack[].count"
-              },
-              "explode": {
-                "type": "string",
-                "path": "$.esearchresult.translationstack[].explode"
-              }
-            }
+            "type": "unknown",
+            "path": "$.esearchresult.translationstack[]"
           }
         },
         "querytranslation": {

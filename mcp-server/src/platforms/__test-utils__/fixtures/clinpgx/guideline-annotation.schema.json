@@ -1,0 +1,288 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "data": {
+      "type": "array",
+      "path": "$.data",
+      "items": {
+        "type": "object",
+        "path": "$.data[]",
+        "properties": {
+          "objCls": {
+            "type": "string",
+            "path": "$.data[].objCls"
+          },
+          "id": {
+            "type": "string",
+            "path": "$.data[].id"
+          },
+          "name": {
+            "type": "string",
+            "path": "$.data[].name"
+          },
+          "alternateDrugAvailable": {
+            "type": "boolean",
+            "path": "$.data[].alternateDrugAvailable"
+          },
+          "cancerGenome": {
+            "type": "boolean",
+            "path": "$.data[].cancerGenome"
+          },
+          "crossReferences": {
+            "type": "array",
+            "path": "$.data[].crossReferences",
+            "items": null
+          },
+          "dosingInformation": {
+            "type": "boolean",
+            "path": "$.data[].dosingInformation"
+          },
+          "hasTestingInfo": {
+            "type": "boolean",
+            "path": "$.data[].hasTestingInfo"
+          },
+          "history": {
+            "type": "array",
+            "path": "$.data[].history",
+            "items": {
+              "type": "object",
+              "path": "$.data[].history[]",
+              "properties": {
+                "id": {
+                  "type": "number",
+                  "path": "$.data[].history[].id"
+                },
+                "date": {
+                  "type": "string",
+                  "path": "$.data[].history[].date"
+                },
+                "type": {
+                  "type": "string",
+                  "path": "$.data[].history[].type"
+                },
+                "version": {
+                  "type": "number",
+                  "path": "$.data[].history[].version"
+                },
+                "description": {
+                  "type": "string",
+                  "path": "$.data[].history[].description",
+                  "optional": true
+                }
+              }
+            }
+          },
+          "literature": {
+            "type": "array",
+            "path": "$.data[].literature",
+            "items": {
+              "type": "object",
+              "path": "$.data[].literature[]",
+              "properties": {
+                "id": {
+                  "type": "number",
+                  "path": "$.data[].literature[].id"
+                },
+                "title": {
+                  "type": "string",
+                  "path": "$.data[].literature[].title"
+                },
+                "_sameAs": {
+                  "type": "string",
+                  "path": "$.data[].literature[]._sameAs"
+                },
+                "crossReferences": {
+                  "type": "array",
+                  "path": "$.data[].literature[].crossReferences",
+                  "items": {
+                    "type": "object",
+                    "path": "$.data[].literature[].crossReferences[]",
+                    "properties": {
+                      "id": {
+                        "type": "number",
+                        "path": "$.data[].literature[].crossReferences[].id"
+                      },
+                      "resource": {
+                        "type": "string",
+                        "path": "$.data[].literature[].crossReferences[].resource"
+                      },
+                      "resourceId": {
+                        "type": "string",
+                        "path": "$.data[].literature[].crossReferences[].resourceId"
+                      },
+                      "_url": {
+                        "type": "string",
+                        "path": "$.data[].literature[].crossReferences[]._url"
+                      }
+                    }
+                  }
+                },
+                "objCls": {
+                  "type": "string",
+                  "path": "$.data[].literature[].objCls"
+                },
+                "pubDate": {
+                  "type": "string",
+                  "path": "$.data[].literature[].pubDate",
+                  "optional": true
+                },
+                "terms": {
+                  "type": "array",
+                  "path": "$.data[].literature[].terms",
+                  "items": {
+                    "type": "object",
+                    "path": "$.data[].literature[].terms[]",
+                    "properties": {
+                      "id": {
+                        "type": "number",
+                        "path": "$.data[].literature[].terms[].id"
+                      },
+                      "resource": {
+                        "type": "string",
+                        "path": "$.data[].literature[].terms[].resource"
+                      },
+                      "term": {
+                        "type": "string",
+                        "path": "$.data[].literature[].terms[].term"
+                      },
+                      "termId": {
+                        "type": "string",
+                        "path": "$.data[].literature[].terms[].termId"
+                      }
+                    }
+                  }
+                },
+                "type": {
+                  "type": "string",
+                  "path": "$.data[].literature[].type"
+                }
+              }
+            }
+          },
+          "otherPrescribingGuidance": {
+            "type": "boolean",
+            "path": "$.data[].otherPrescribingGuidance"
+          },
+          "pediatric": {
+            "type": "boolean",
+            "path": "$.data[].pediatric"
+          },
+          "recommendation": {
+            "type": "boolean",
+            "path": "$.data[].recommendation"
+          },
+          "relatedAlleles": {
+            "type": "array",
+            "path": "$.data[].relatedAlleles",
+            "items": null
+          },
+          "relatedChemicals": {
+            "type": "array",
+            "path": "$.data[].relatedChemicals",
+            "items": {
+              "type": "object",
+              "path": "$.data[].relatedChemicals[]",
+              "properties": {
+                "objCls": {
+                  "type": "string",
+                  "path": "$.data[].relatedChemicals[].objCls"
+                },
+                "id": {
+                  "type": "string",
+                  "path": "$.data[].relatedChemicals[].id"
+                },
+                "name": {
+                  "type": "string",
+                  "path": "$.data[].relatedChemicals[].name"
+                }
+              }
+            }
+          },
+          "relatedGenes": {
+            "type": "array",
+            "path": "$.data[].relatedGenes",
+            "items": {
+              "type": "object",
+              "path": "$.data[].relatedGenes[]",
+              "properties": {
+                "objCls": {
+                  "type": "string",
+                  "path": "$.data[].relatedGenes[].objCls"
+                },
+                "id": {
+                  "type": "string",
+                  "path": "$.data[].relatedGenes[].id"
+                },
+                "symbol": {
+                  "type": "string",
+                  "path": "$.data[].relatedGenes[].symbol"
+                },
+                "name": {
+                  "type": "string",
+                  "path": "$.data[].relatedGenes[].name"
+                }
+              }
+            }
+          },
+          "source": {
+            "type": "string",
+            "path": "$.data[].source"
+          },
+          "summaryMarkdown": {
+            "type": "object",
+            "path": "$.data[].summaryMarkdown",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].summaryMarkdown.id"
+              },
+              "html": {
+                "type": "string",
+                "path": "$.data[].summaryMarkdown.html"
+              }
+            }
+          },
+          "textMarkdown": {
+            "type": "object",
+            "path": "$.data[].textMarkdown",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].textMarkdown.id"
+              },
+              "html": {
+                "type": "string",
+                "path": "$.data[].textMarkdown.html"
+              }
+            }
+          },
+          "descriptiveVideoId": {
+            "type": "string",
+            "path": "$.data[].descriptiveVideoId",
+            "optional": true
+          },
+          "pediatricMarkdown": {
+            "type": "object",
+            "path": "$.data[].pediatricMarkdown",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].pediatricMarkdown.id"
+              },
+              "html": {
+                "type": "string",
+                "path": "$.data[].pediatricMarkdown.html"
+              }
+            },
+            "optional": true
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "path": "$.status"
+    }
+  }
+}

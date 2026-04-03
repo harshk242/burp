@@ -5,42 +5,45 @@
     "type": "object",
     "path": "$[]",
     "properties": {
-      "description": {
+      "dbname": {
         "type": "string",
-        "path": "$[].description"
-      },
-      "db_display_name": {
-        "type": "string",
-        "path": "$[].db_display_name"
-      },
-      "synonyms": {
-        "type": "array",
-        "path": "$[].synonyms",
-        "items": null
-      },
-      "version": {
-        "type": "string",
-        "path": "$[].version"
+        "path": "$[].dbname"
       },
       "info_type": {
         "type": "string",
         "path": "$[].info_type"
       },
-      "primary_id": {
-        "type": "string",
-        "path": "$[].primary_id"
-      },
-      "display_id": {
-        "type": "string",
-        "path": "$[].display_id"
+      "synonyms": {
+        "type": "array",
+        "path": "$[].synonyms",
+        "items": {
+          "type": "string",
+          "path": "$[].synonyms[]"
+        }
       },
       "info_text": {
         "type": "string",
         "path": "$[].info_text"
       },
-      "dbname": {
+      "display_id": {
         "type": "string",
-        "path": "$[].dbname"
+        "path": "$[].display_id"
+      },
+      "description": {
+        "type": "unknown",
+        "path": "$[].description"
+      },
+      "primary_id": {
+        "type": "string",
+        "path": "$[].primary_id"
+      },
+      "version": {
+        "type": "string",
+        "path": "$[].version"
+      },
+      "db_display_name": {
+        "type": "string",
+        "path": "$[].db_display_name"
       }
     }
   }

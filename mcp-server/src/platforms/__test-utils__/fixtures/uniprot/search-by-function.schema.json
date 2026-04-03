@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "results": {
+      "type": "array",
+      "path": "$.results",
+      "items": null
+    }
+  }
+}

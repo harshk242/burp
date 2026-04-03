@@ -1,0 +1,74 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "data": {
+      "type": "array",
+      "path": "$.data",
+      "items": {
+        "type": "object",
+        "path": "$.data[]",
+        "properties": {
+          "objCls": {
+            "type": "string",
+            "path": "$.data[].objCls"
+          },
+          "id": {
+            "type": "string",
+            "path": "$.data[].id"
+          },
+          "symbol": {
+            "type": "string",
+            "path": "$.data[].symbol"
+          },
+          "name": {
+            "type": "string",
+            "path": "$.data[].name"
+          },
+          "changeClassification": {
+            "type": "string",
+            "path": "$.data[].changeClassification"
+          },
+          "clinicalSignificance": {
+            "type": "string",
+            "path": "$.data[].clinicalSignificance"
+          },
+          "history": {
+            "type": "array",
+            "path": "$.data[].history",
+            "items": null
+          },
+          "lastUpdatedFromDbsnp": {
+            "type": "string",
+            "path": "$.data[].lastUpdatedFromDbsnp"
+          },
+          "obsolete": {
+            "type": "boolean",
+            "path": "$.data[].obsolete"
+          },
+          "rare": {
+            "type": "boolean",
+            "path": "$.data[].rare"
+          },
+          "raritySource": {
+            "type": "string",
+            "path": "$.data[].raritySource"
+          },
+          "terms": {
+            "type": "array",
+            "path": "$.data[].terms",
+            "items": null
+          },
+          "type": {
+            "type": "string",
+            "path": "$.data[].type"
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "path": "$.status"
+    }
+  }
+}

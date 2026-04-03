@@ -2,29 +2,29 @@
   "type": "object",
   "path": "$",
   "properties": {
-    "molecule": {
+    "query": {
       "type": "string",
-      "path": "$.molecule"
+      "path": "$.query"
     },
     "version": {
       "type": "number",
       "path": "$.version"
     },
-    "id": {
+    "molecule": {
       "type": "string",
-      "path": "$.id"
+      "path": "$.molecule"
     },
     "desc": {
       "type": "null",
       "path": "$.desc"
     },
+    "id": {
+      "type": "string",
+      "path": "$.id"
+    },
     "seq": {
       "type": "string",
       "path": "$.seq"
-    },
-    "query": {
-      "type": "string",
-      "path": "$.query"
     }
   }
 }

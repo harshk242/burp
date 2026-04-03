@@ -1,0 +1,79 @@
+{
+  "type": "array",
+  "path": "$",
+  "items": {
+    "type": "object",
+    "path": "$[]",
+    "properties": {
+      "dbId": {
+        "type": "number",
+        "path": "$[].dbId"
+      },
+      "displayName": {
+        "type": "string",
+        "path": "$[].displayName"
+      },
+      "stId": {
+        "type": "string",
+        "path": "$[].stId"
+      },
+      "stIdVersion": {
+        "type": "string",
+        "path": "$[].stIdVersion"
+      },
+      "isInDisease": {
+        "type": "boolean",
+        "path": "$[].isInDisease"
+      },
+      "isInferred": {
+        "type": "boolean",
+        "path": "$[].isInferred"
+      },
+      "maxDepth": {
+        "type": "number",
+        "path": "$[].maxDepth"
+      },
+      "name": {
+        "type": "array",
+        "path": "$[].name",
+        "items": {
+          "type": "string",
+          "path": "$[].name[]"
+        }
+      },
+      "releaseDate": {
+        "type": "string",
+        "path": "$[].releaseDate"
+      },
+      "speciesName": {
+        "type": "string",
+        "path": "$[].speciesName"
+      },
+      "doi": {
+        "type": "string",
+        "path": "$[].doi",
+        "optional": true
+      },
+      "hasDiagram": {
+        "type": "boolean",
+        "path": "$[].hasDiagram"
+      },
+      "hasEHLD": {
+        "type": "boolean",
+        "path": "$[].hasEHLD"
+      },
+      "lastUpdatedDate": {
+        "type": "string",
+        "path": "$[].lastUpdatedDate"
+      },
+      "schemaClass": {
+        "type": "string",
+        "path": "$[].schemaClass"
+      },
+      "className": {
+        "type": "string",
+        "path": "$[].className"
+      }
+    }
+  }
+}

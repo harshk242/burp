@@ -2,9 +2,9 @@
   "type": "object",
   "path": "$",
   "properties": {
-    "name": {
+    "ambiguity": {
       "type": "string",
-      "path": "$.name"
+      "path": "$.ambiguity"
     },
     "mappings": {
       "type": "array",
@@ -17,37 +17,37 @@
             "type": "string",
             "path": "$.mappings[].assembly_name"
           },
-          "seq_region_name": {
+          "ancestral_allele": {
             "type": "string",
-            "path": "$.mappings[].seq_region_name"
+            "path": "$.mappings[].ancestral_allele"
           },
           "start": {
             "type": "number",
             "path": "$.mappings[].start"
           },
-          "allele_string": {
-            "type": "string",
-            "path": "$.mappings[].allele_string"
-          },
           "strand": {
             "type": "number",
             "path": "$.mappings[].strand"
-          },
-          "location": {
-            "type": "string",
-            "path": "$.mappings[].location"
-          },
-          "ancestral_allele": {
-            "type": "string",
-            "path": "$.mappings[].ancestral_allele"
           },
           "end": {
             "type": "number",
             "path": "$.mappings[].end"
           },
+          "location": {
+            "type": "string",
+            "path": "$.mappings[].location"
+          },
           "coord_system": {
             "type": "string",
             "path": "$.mappings[].coord_system"
+          },
+          "allele_string": {
+            "type": "string",
+            "path": "$.mappings[].allele_string"
+          },
+          "seq_region_name": {
+            "type": "string",
+            "path": "$.mappings[].seq_region_name"
           }
         }
       }
@@ -56,13 +56,21 @@
       "type": "null",
       "path": "$.MAF"
     },
-    "ambiguity": {
-      "type": "string",
-      "path": "$.ambiguity"
+    "synonyms": {
+      "type": "array",
+      "path": "$.synonyms",
+      "items": {
+        "type": "string",
+        "path": "$.synonyms[]"
+      }
     },
-    "source": {
-      "type": "string",
-      "path": "$.source"
+    "clinical_significance": {
+      "type": "array",
+      "path": "$.clinical_significance",
+      "items": {
+        "type": "string",
+        "path": "$.clinical_significance[]"
+      }
     },
     "var_class": {
       "type": "string",
@@ -80,25 +88,17 @@
       "type": "null",
       "path": "$.minor_allele"
     },
-    "clinical_significance": {
-      "type": "array",
-      "path": "$.clinical_significance",
-      "items": {
-        "type": "string",
-        "path": "$.clinical_significance[]"
-      }
-    },
-    "synonyms": {
-      "type": "array",
-      "path": "$.synonyms",
-      "items": {
-        "type": "string",
-        "path": "$.synonyms[]"
-      }
-    },
     "most_severe_consequence": {
       "type": "string",
       "path": "$.most_severe_consequence"
+    },
+    "source": {
+      "type": "string",
+      "path": "$.source"
+    },
+    "name": {
+      "type": "string",
+      "path": "$.name"
     }
   }
 }

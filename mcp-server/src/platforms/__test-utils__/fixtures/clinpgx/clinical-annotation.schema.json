@@ -1,0 +1,346 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "data": {
+      "type": "array",
+      "path": "$.data",
+      "items": {
+        "type": "object",
+        "path": "$.data[]",
+        "properties": {
+          "id": {
+            "type": "number",
+            "path": "$.data[].id"
+          },
+          "accessionId": {
+            "type": "string",
+            "path": "$.data[].accessionId"
+          },
+          "allelePhenotypes": {
+            "type": "array",
+            "path": "$.data[].allelePhenotypes",
+            "items": {
+              "type": "object",
+              "path": "$.data[].allelePhenotypes[]",
+              "properties": {
+                "id": {
+                  "type": "number",
+                  "path": "$.data[].allelePhenotypes[].id"
+                },
+                "allele": {
+                  "type": "string",
+                  "path": "$.data[].allelePhenotypes[].allele"
+                },
+                "limitedEvidence": {
+                  "type": "boolean",
+                  "path": "$.data[].allelePhenotypes[].limitedEvidence"
+                },
+                "phenotype": {
+                  "type": "string",
+                  "path": "$.data[].allelePhenotypes[].phenotype"
+                }
+              }
+            }
+          },
+          "conflictingVariantAnnotationIds": {
+            "type": "array",
+            "path": "$.data[].conflictingVariantAnnotationIds",
+            "items": null
+          },
+          "history": {
+            "type": "array",
+            "path": "$.data[].history",
+            "items": {
+              "type": "object",
+              "path": "$.data[].history[]",
+              "properties": {
+                "id": {
+                  "type": "number",
+                  "path": "$.data[].history[].id"
+                },
+                "date": {
+                  "type": "string",
+                  "path": "$.data[].history[].date"
+                },
+                "description": {
+                  "type": "string",
+                  "path": "$.data[].history[].description",
+                  "optional": true
+                },
+                "type": {
+                  "type": "string",
+                  "path": "$.data[].history[].type"
+                },
+                "version": {
+                  "type": "number",
+                  "path": "$.data[].history[].version"
+                }
+              }
+            }
+          },
+          "levelOfEvidence": {
+            "type": "object",
+            "path": "$.data[].levelOfEvidence",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].levelOfEvidence.id"
+              },
+              "resource": {
+                "type": "string",
+                "path": "$.data[].levelOfEvidence.resource"
+              },
+              "synonyms": {
+                "type": "array",
+                "path": "$.data[].levelOfEvidence.synonyms",
+                "items": null
+              },
+              "term": {
+                "type": "string",
+                "path": "$.data[].levelOfEvidence.term"
+              },
+              "termId": {
+                "type": "string",
+                "path": "$.data[].levelOfEvidence.termId"
+              },
+              "valid": {
+                "type": "boolean",
+                "path": "$.data[].levelOfEvidence.valid"
+              }
+            }
+          },
+          "location": {
+            "type": "object",
+            "path": "$.data[].location",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].location.id"
+              },
+              "copyNumber": {
+                "type": "string",
+                "path": "$.data[].location.copyNumber"
+              },
+              "diplotypes": {
+                "type": "array",
+                "path": "$.data[].location.diplotypes",
+                "items": {
+                  "type": "object",
+                  "path": "$.data[].location.diplotypes[]",
+                  "properties": {
+                    "id": {
+                      "type": "number",
+                      "path": "$.data[].location.diplotypes[].id"
+                    },
+                    "allele1": {
+                      "type": "string",
+                      "path": "$.data[].location.diplotypes[].allele1"
+                    }
+                  }
+                }
+              },
+              "displayName": {
+                "type": "string",
+                "path": "$.data[].location.displayName"
+              },
+              "genes": {
+                "type": "array",
+                "path": "$.data[].location.genes",
+                "items": {
+                  "type": "object",
+                  "path": "$.data[].location.genes[]",
+                  "properties": {
+                    "objCls": {
+                      "type": "string",
+                      "path": "$.data[].location.genes[].objCls"
+                    },
+                    "id": {
+                      "type": "string",
+                      "path": "$.data[].location.genes[].id"
+                    },
+                    "symbol": {
+                      "type": "string",
+                      "path": "$.data[].location.genes[].symbol"
+                    },
+                    "name": {
+                      "type": "string",
+                      "path": "$.data[].location.genes[].name"
+                    }
+                  }
+                }
+              },
+              "gpPosition": {
+                "type": "number",
+                "path": "$.data[].location.gpPosition"
+              },
+              "haplotypes": {
+                "type": "array",
+                "path": "$.data[].location.haplotypes",
+                "items": {
+                  "type": "object",
+                  "path": "$.data[].location.haplotypes[]",
+                  "properties": {
+                    "objCls": {
+                      "type": "string",
+                      "path": "$.data[].location.haplotypes[].objCls"
+                    },
+                    "id": {
+                      "type": "string",
+                      "path": "$.data[].location.haplotypes[].id"
+                    },
+                    "symbol": {
+                      "type": "string",
+                      "path": "$.data[].location.haplotypes[].symbol"
+                    },
+                    "name": {
+                      "type": "string",
+                      "path": "$.data[].location.haplotypes[].name"
+                    }
+                  }
+                }
+              },
+              "linkedObjects": {
+                "type": "array",
+                "path": "$.data[].location.linkedObjects",
+                "items": {
+                  "type": "object",
+                  "path": "$.data[].location.linkedObjects[]",
+                  "properties": {
+                    "objCls": {
+                      "type": "string",
+                      "path": "$.data[].location.linkedObjects[].objCls"
+                    },
+                    "id": {
+                      "type": "string",
+                      "path": "$.data[].location.linkedObjects[].id"
+                    },
+                    "symbol": {
+                      "type": "string",
+                      "path": "$.data[].location.linkedObjects[].symbol"
+                    },
+                    "name": {
+                      "type": "string",
+                      "path": "$.data[].location.linkedObjects[].name"
+                    }
+                  }
+                }
+              },
+              "refSeqPosition": {
+                "type": "number",
+                "path": "$.data[].location.refSeqPosition"
+              },
+              "tagGene": {
+                "type": "boolean",
+                "path": "$.data[].location.tagGene"
+              },
+              "type": {
+                "type": "string",
+                "path": "$.data[].location.type"
+              }
+            }
+          },
+          "name": {
+            "type": "string",
+            "path": "$.data[].name"
+          },
+          "objCls": {
+            "type": "string",
+            "path": "$.data[].objCls"
+          },
+          "overrideLevel": {
+            "type": "boolean",
+            "path": "$.data[].overrideLevel"
+          },
+          "pediatric": {
+            "type": "boolean",
+            "path": "$.data[].pediatric"
+          },
+          "relatedChemicals": {
+            "type": "array",
+            "path": "$.data[].relatedChemicals",
+            "items": {
+              "type": "object",
+              "path": "$.data[].relatedChemicals[]",
+              "properties": {
+                "objCls": {
+                  "type": "string",
+                  "path": "$.data[].relatedChemicals[].objCls"
+                },
+                "id": {
+                  "type": "string",
+                  "path": "$.data[].relatedChemicals[].id"
+                },
+                "name": {
+                  "type": "string",
+                  "path": "$.data[].relatedChemicals[].name"
+                }
+              }
+            }
+          },
+          "relatedChemicalsLogic": {
+            "type": "string",
+            "path": "$.data[].relatedChemicalsLogic"
+          },
+          "relatedDiseases": {
+            "type": "array",
+            "path": "$.data[].relatedDiseases",
+            "items": {
+              "type": "object",
+              "path": "$.data[].relatedDiseases[]",
+              "properties": {
+                "objCls": {
+                  "type": "string",
+                  "path": "$.data[].relatedDiseases[].objCls"
+                },
+                "id": {
+                  "type": "string",
+                  "path": "$.data[].relatedDiseases[].id"
+                },
+                "name": {
+                  "type": "string",
+                  "path": "$.data[].relatedDiseases[].name"
+                }
+              }
+            }
+          },
+          "relatedGuidelines": {
+            "type": "array",
+            "path": "$.data[].relatedGuidelines",
+            "items": null
+          },
+          "relatedLabels": {
+            "type": "array",
+            "path": "$.data[].relatedLabels",
+            "items": null
+          },
+          "relatedVariations": {
+            "type": "array",
+            "path": "$.data[].relatedVariations",
+            "items": null
+          },
+          "score": {
+            "type": "number",
+            "path": "$.data[].score"
+          },
+          "scoreDetails": {
+            "type": "string",
+            "path": "$.data[].scoreDetails"
+          },
+          "types": {
+            "type": "array",
+            "path": "$.data[].types",
+            "items": {
+              "type": "string",
+              "path": "$.data[].types[]"
+            }
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "path": "$.status"
+    }
+  }
+}

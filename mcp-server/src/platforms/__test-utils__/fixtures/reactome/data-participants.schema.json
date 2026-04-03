@@ -1,0 +1,60 @@
+{
+  "type": "array",
+  "path": "$",
+  "items": {
+    "type": "object",
+    "path": "$[]",
+    "properties": {
+      "peDbId": {
+        "type": "number",
+        "path": "$[].peDbId"
+      },
+      "displayName": {
+        "type": "string",
+        "path": "$[].displayName"
+      },
+      "schemaClass": {
+        "type": "string",
+        "path": "$[].schemaClass"
+      },
+      "refEntities": {
+        "type": "array",
+        "path": "$[].refEntities",
+        "items": {
+          "type": "object",
+          "path": "$[].refEntities[]",
+          "properties": {
+            "dbId": {
+              "type": "number",
+              "path": "$[].refEntities[].dbId"
+            },
+            "stId": {
+              "type": "string",
+              "path": "$[].refEntities[].stId"
+            },
+            "identifier": {
+              "type": "string",
+              "path": "$[].refEntities[].identifier"
+            },
+            "schemaClass": {
+              "type": "string",
+              "path": "$[].refEntities[].schemaClass"
+            },
+            "displayName": {
+              "type": "string",
+              "path": "$[].refEntities[].displayName"
+            },
+            "icon": {
+              "type": "string",
+              "path": "$[].refEntities[].icon"
+            },
+            "url": {
+              "type": "string",
+              "path": "$[].refEntities[].url"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "header": {
+      "type": "object",
+      "path": "$.header",
+      "properties": {
+        "type": {
+          "type": "string",
+          "path": "$.header.type"
+        },
+        "version": {
+          "type": "string",
+          "path": "$.header.version"
+        }
+      }
+    },
+    "esearchresult": {
+      "type": "object",
+      "path": "$.esearchresult",
+      "properties": {
+        "count": {
+          "type": "string",
+          "path": "$.esearchresult.count"
+        },
+        "retmax": {
+          "type": "string",
+          "path": "$.esearchresult.retmax"
+        },
+        "retstart": {
+          "type": "string",
+          "path": "$.esearchresult.retstart"
+        },
+        "idlist": {
+          "type": "array",
+          "path": "$.esearchresult.idlist",
+          "items": {
+            "type": "string",
+            "path": "$.esearchresult.idlist[]"
+          }
+        },
+        "translationset": {
+          "type": "array",
+          "path": "$.esearchresult.translationset",
+          "items": {
+            "type": "object",
+            "path": "$.esearchresult.translationset[]",
+            "properties": {
+              "from": {
+                "type": "string",
+                "path": "$.esearchresult.translationset[].from"
+              },
+              "to": {
+                "type": "string",
+                "path": "$.esearchresult.translationset[].to"
+              }
+            }
+          }
+        },
+        "querytranslation": {
+          "type": "string",
+          "path": "$.esearchresult.querytranslation"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,178 @@
+{
+  "type": "array",
+  "path": "$",
+  "items": {
+    "type": "object",
+    "path": "$[]",
+    "properties": {
+      "dbId": {
+        "type": "number",
+        "path": "$[].dbId"
+      },
+      "displayName": {
+        "type": "string",
+        "path": "$[].displayName"
+      },
+      "stId": {
+        "type": "string",
+        "path": "$[].stId"
+      },
+      "stIdVersion": {
+        "type": "string",
+        "path": "$[].stIdVersion"
+      },
+      "isInDisease": {
+        "type": "boolean",
+        "path": "$[].isInDisease"
+      },
+      "isInferred": {
+        "type": "boolean",
+        "path": "$[].isInferred"
+      },
+      "maxDepth": {
+        "type": "number",
+        "path": "$[].maxDepth"
+      },
+      "name": {
+        "type": "array",
+        "path": "$[].name",
+        "items": {
+          "type": "string",
+          "path": "$[].name[]"
+        }
+      },
+      "releaseDate": {
+        "type": "string",
+        "path": "$[].releaseDate"
+      },
+      "speciesName": {
+        "type": "string",
+        "path": "$[].speciesName"
+      },
+      "eventOf": {
+        "type": "array",
+        "path": "$[].eventOf",
+        "items": {
+          "type": "object",
+          "path": "$[].eventOf[]",
+          "properties": {
+            "dbId": {
+              "type": "number",
+              "path": "$[].eventOf[].dbId"
+            },
+            "displayName": {
+              "type": "string",
+              "path": "$[].eventOf[].displayName"
+            },
+            "stId": {
+              "type": "string",
+              "path": "$[].eventOf[].stId"
+            },
+            "stIdVersion": {
+              "type": "string",
+              "path": "$[].eventOf[].stIdVersion"
+            },
+            "definition": {
+              "type": "string",
+              "path": "$[].eventOf[].definition"
+            },
+            "isInDisease": {
+              "type": "boolean",
+              "path": "$[].eventOf[].isInDisease"
+            },
+            "isInferred": {
+              "type": "boolean",
+              "path": "$[].eventOf[].isInferred"
+            },
+            "maxDepth": {
+              "type": "number",
+              "path": "$[].eventOf[].maxDepth"
+            },
+            "name": {
+              "type": "array",
+              "path": "$[].eventOf[].name",
+              "items": {
+                "type": "string",
+                "path": "$[].eventOf[].name[]"
+              }
+            },
+            "releaseDate": {
+              "type": "string",
+              "path": "$[].eventOf[].releaseDate"
+            },
+            "speciesName": {
+              "type": "string",
+              "path": "$[].eventOf[].speciesName"
+            },
+            "doi": {
+              "type": "string",
+              "path": "$[].eventOf[].doi"
+            },
+            "hasDiagram": {
+              "type": "boolean",
+              "path": "$[].eventOf[].hasDiagram"
+            },
+            "hasEHLD": {
+              "type": "boolean",
+              "path": "$[].eventOf[].hasEHLD"
+            },
+            "lastUpdatedDate": {
+              "type": "string",
+              "path": "$[].eventOf[].lastUpdatedDate"
+            },
+            "hasEvent": {
+              "type": "array",
+              "path": "$[].eventOf[].hasEvent",
+              "items": {
+                "type": "unknown",
+                "path": "$[].eventOf[].hasEvent[]"
+              }
+            },
+            "schemaClass": {
+              "type": "string",
+              "path": "$[].eventOf[].schemaClass"
+            },
+            "className": {
+              "type": "string",
+              "path": "$[].eventOf[].className"
+            }
+          }
+        },
+        "optional": true
+      },
+      "hasDiagram": {
+        "type": "boolean",
+        "path": "$[].hasDiagram",
+        "optional": true
+      },
+      "hasEHLD": {
+        "type": "boolean",
+        "path": "$[].hasEHLD",
+        "optional": true
+      },
+      "lastUpdatedDate": {
+        "type": "string",
+        "path": "$[].lastUpdatedDate",
+        "optional": true
+      },
+      "schemaClass": {
+        "type": "string",
+        "path": "$[].schemaClass"
+      },
+      "className": {
+        "type": "string",
+        "path": "$[].className"
+      },
+      "definition": {
+        "type": "string",
+        "path": "$[].definition",
+        "optional": true
+      },
+      "category": {
+        "type": "string",
+        "path": "$[].category",
+        "optional": true
+      }
+    }
+  }
+}

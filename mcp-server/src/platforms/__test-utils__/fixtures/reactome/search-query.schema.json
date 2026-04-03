@@ -1,0 +1,102 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "results": {
+      "type": "array",
+      "path": "$.results",
+      "items": {
+        "type": "object",
+        "path": "$.results[]",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "path": "$.results[].entries",
+            "items": {
+              "type": "object",
+              "path": "$.results[].entries[]",
+              "properties": {
+                "dbId": {
+                  "type": "string",
+                  "path": "$.results[].entries[].dbId"
+                },
+                "stId": {
+                  "type": "string",
+                  "path": "$.results[].entries[].stId"
+                },
+                "id": {
+                  "type": "string",
+                  "path": "$.results[].entries[].id"
+                },
+                "name": {
+                  "type": "string",
+                  "path": "$.results[].entries[].name"
+                },
+                "type": {
+                  "type": "string",
+                  "path": "$.results[].entries[].type"
+                },
+                "exactType": {
+                  "type": "string",
+                  "path": "$.results[].entries[].exactType"
+                },
+                "species": {
+                  "type": "array",
+                  "path": "$.results[].entries[].species",
+                  "items": {
+                    "type": "string",
+                    "path": "$.results[].entries[].species[]"
+                  }
+                },
+                "summation": {
+                  "type": "string",
+                  "path": "$.results[].entries[].summation"
+                },
+                "isDisease": {
+                  "type": "boolean",
+                  "path": "$.results[].entries[].isDisease"
+                },
+                "hasReferenceEntity": {
+                  "type": "boolean",
+                  "path": "$.results[].entries[].hasReferenceEntity"
+                },
+                "hasEHLD": {
+                  "type": "boolean",
+                  "path": "$.results[].entries[].hasEHLD"
+                },
+                "disease": {
+                  "type": "boolean",
+                  "path": "$.results[].entries[].disease"
+                }
+              }
+            }
+          },
+          "typeName": {
+            "type": "string",
+            "path": "$.results[].typeName"
+          },
+          "entriesCount": {
+            "type": "number",
+            "path": "$.results[].entriesCount"
+          },
+          "rowCount": {
+            "type": "number",
+            "path": "$.results[].rowCount"
+          }
+        }
+      }
+    },
+    "rowCount": {
+      "type": "number",
+      "path": "$.rowCount"
+    },
+    "numberOfGroups": {
+      "type": "number",
+      "path": "$.numberOfGroups"
+    },
+    "numberOfMatches": {
+      "type": "number",
+      "path": "$.numberOfMatches"
+    }
+  }
+}

@@ -1,0 +1,511 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "dbId": {
+      "type": "number",
+      "path": "$.dbId"
+    },
+    "displayName": {
+      "type": "string",
+      "path": "$.displayName"
+    },
+    "stId": {
+      "type": "string",
+      "path": "$.stId"
+    },
+    "stIdVersion": {
+      "type": "string",
+      "path": "$.stIdVersion"
+    },
+    "definition": {
+      "type": "string",
+      "path": "$.definition"
+    },
+    "isInDisease": {
+      "type": "boolean",
+      "path": "$.isInDisease"
+    },
+    "isInferred": {
+      "type": "boolean",
+      "path": "$.isInferred"
+    },
+    "maxDepth": {
+      "type": "number",
+      "path": "$.maxDepth"
+    },
+    "name": {
+      "type": "array",
+      "path": "$.name",
+      "items": {
+        "type": "string",
+        "path": "$.name[]"
+      }
+    },
+    "releaseDate": {
+      "type": "string",
+      "path": "$.releaseDate"
+    },
+    "speciesName": {
+      "type": "string",
+      "path": "$.speciesName"
+    },
+    "figure": {
+      "type": "array",
+      "path": "$.figure",
+      "items": {
+        "type": "object",
+        "path": "$.figure[]",
+        "properties": {
+          "dbId": {
+            "type": "number",
+            "path": "$.figure[].dbId"
+          },
+          "displayName": {
+            "type": "string",
+            "path": "$.figure[].displayName"
+          },
+          "url": {
+            "type": "string",
+            "path": "$.figure[].url"
+          },
+          "className": {
+            "type": "string",
+            "path": "$.figure[].className"
+          },
+          "schemaClass": {
+            "type": "string",
+            "path": "$.figure[].schemaClass"
+          }
+        }
+      }
+    },
+    "precedingEvent": {
+      "type": "array",
+      "path": "$.precedingEvent",
+      "items": {
+        "type": "object",
+        "path": "$.precedingEvent[]",
+        "properties": {
+          "dbId": {
+            "type": "number",
+            "path": "$.precedingEvent[].dbId"
+          },
+          "displayName": {
+            "type": "string",
+            "path": "$.precedingEvent[].displayName"
+          },
+          "stId": {
+            "type": "string",
+            "path": "$.precedingEvent[].stId"
+          },
+          "stIdVersion": {
+            "type": "string",
+            "path": "$.precedingEvent[].stIdVersion"
+          },
+          "definition": {
+            "type": "string",
+            "path": "$.precedingEvent[].definition"
+          },
+          "isInDisease": {
+            "type": "boolean",
+            "path": "$.precedingEvent[].isInDisease"
+          },
+          "isInferred": {
+            "type": "boolean",
+            "path": "$.precedingEvent[].isInferred"
+          },
+          "maxDepth": {
+            "type": "number",
+            "path": "$.precedingEvent[].maxDepth"
+          },
+          "name": {
+            "type": "array",
+            "path": "$.precedingEvent[].name",
+            "items": {
+              "type": "string",
+              "path": "$.precedingEvent[].name[]"
+            }
+          },
+          "releaseDate": {
+            "type": "string",
+            "path": "$.precedingEvent[].releaseDate"
+          },
+          "speciesName": {
+            "type": "string",
+            "path": "$.precedingEvent[].speciesName"
+          },
+          "followingEvent": {
+            "type": "array",
+            "path": "$.precedingEvent[].followingEvent",
+            "items": {
+              "type": "number",
+              "path": "$.precedingEvent[].followingEvent[]"
+            }
+          },
+          "doi": {
+            "type": "string",
+            "path": "$.precedingEvent[].doi"
+          },
+          "hasDiagram": {
+            "type": "boolean",
+            "path": "$.precedingEvent[].hasDiagram"
+          },
+          "hasEHLD": {
+            "type": "boolean",
+            "path": "$.precedingEvent[].hasEHLD"
+          },
+          "lastUpdatedDate": {
+            "type": "string",
+            "path": "$.precedingEvent[].lastUpdatedDate"
+          },
+          "schemaClass": {
+            "type": "string",
+            "path": "$.precedingEvent[].schemaClass"
+          },
+          "className": {
+            "type": "string",
+            "path": "$.precedingEvent[].className"
+          }
+        }
+      }
+    },
+    "goBiologicalProcess": {
+      "type": "object",
+      "path": "$.goBiologicalProcess",
+      "properties": {
+        "dbId": {
+          "type": "number",
+          "path": "$.goBiologicalProcess.dbId"
+        },
+        "displayName": {
+          "type": "string",
+          "path": "$.goBiologicalProcess.displayName"
+        },
+        "accession": {
+          "type": "string",
+          "path": "$.goBiologicalProcess.accession"
+        },
+        "databaseName": {
+          "type": "string",
+          "path": "$.goBiologicalProcess.databaseName"
+        },
+        "definition": {
+          "type": "string",
+          "path": "$.goBiologicalProcess.definition"
+        },
+        "name": {
+          "type": "string",
+          "path": "$.goBiologicalProcess.name"
+        },
+        "url": {
+          "type": "string",
+          "path": "$.goBiologicalProcess.url"
+        },
+        "className": {
+          "type": "string",
+          "path": "$.goBiologicalProcess.className"
+        },
+        "schemaClass": {
+          "type": "string",
+          "path": "$.goBiologicalProcess.schemaClass"
+        }
+      }
+    },
+    "orthologousEvent": {
+      "type": "array",
+      "path": "$.orthologousEvent",
+      "items": {
+        "type": "object",
+        "path": "$.orthologousEvent[]",
+        "properties": {
+          "dbId": {
+            "type": "number",
+            "path": "$.orthologousEvent[].dbId"
+          },
+          "displayName": {
+            "type": "string",
+            "path": "$.orthologousEvent[].displayName"
+          },
+          "stId": {
+            "type": "string",
+            "path": "$.orthologousEvent[].stId"
+          },
+          "stIdVersion": {
+            "type": "string",
+            "path": "$.orthologousEvent[].stIdVersion"
+          },
+          "isInDisease": {
+            "type": "boolean",
+            "path": "$.orthologousEvent[].isInDisease"
+          },
+          "isInferred": {
+            "type": "boolean",
+            "path": "$.orthologousEvent[].isInferred"
+          },
+          "maxDepth": {
+            "type": "number",
+            "path": "$.orthologousEvent[].maxDepth"
+          },
+          "name": {
+            "type": "array",
+            "path": "$.orthologousEvent[].name",
+            "items": {
+              "type": "string",
+              "path": "$.orthologousEvent[].name[]"
+            }
+          },
+          "releaseDate": {
+            "type": "string",
+            "path": "$.orthologousEvent[].releaseDate"
+          },
+          "speciesName": {
+            "type": "string",
+            "path": "$.orthologousEvent[].speciesName"
+          },
+          "inferredFrom": {
+            "type": "array",
+            "path": "$.orthologousEvent[].inferredFrom",
+            "items": {
+              "type": "number",
+              "path": "$.orthologousEvent[].inferredFrom[]"
+            }
+          },
+          "hasDiagram": {
+            "type": "boolean",
+            "path": "$.orthologousEvent[].hasDiagram"
+          },
+          "hasEHLD": {
+            "type": "boolean",
+            "path": "$.orthologousEvent[].hasEHLD"
+          },
+          "schemaClass": {
+            "type": "string",
+            "path": "$.orthologousEvent[].schemaClass"
+          },
+          "className": {
+            "type": "string",
+            "path": "$.orthologousEvent[].className"
+          }
+        }
+      }
+    },
+    "species": {
+      "type": "array",
+      "path": "$.species",
+      "items": {
+        "type": "object",
+        "path": "$.species[]",
+        "properties": {
+          "dbId": {
+            "type": "number",
+            "path": "$.species[].dbId"
+          },
+          "displayName": {
+            "type": "string",
+            "path": "$.species[].displayName"
+          },
+          "name": {
+            "type": "array",
+            "path": "$.species[].name",
+            "items": {
+              "type": "string",
+              "path": "$.species[].name[]"
+            }
+          },
+          "taxId": {
+            "type": "string",
+            "path": "$.species[].taxId"
+          },
+          "abbreviation": {
+            "type": "string",
+            "path": "$.species[].abbreviation"
+          },
+          "className": {
+            "type": "string",
+            "path": "$.species[].className"
+          },
+          "schemaClass": {
+            "type": "string",
+            "path": "$.species[].schemaClass"
+          }
+        }
+      }
+    },
+    "summation": {
+      "type": "array",
+      "path": "$.summation",
+      "items": {
+        "type": "object",
+        "path": "$.summation[]",
+        "properties": {
+          "dbId": {
+            "type": "number",
+            "path": "$.summation[].dbId"
+          },
+          "displayName": {
+            "type": "string",
+            "path": "$.summation[].displayName"
+          },
+          "text": {
+            "type": "string",
+            "path": "$.summation[].text"
+          },
+          "className": {
+            "type": "string",
+            "path": "$.summation[].className"
+          },
+          "schemaClass": {
+            "type": "string",
+            "path": "$.summation[].schemaClass"
+          }
+        }
+      }
+    },
+    "reviewStatus": {
+      "type": "object",
+      "path": "$.reviewStatus",
+      "properties": {
+        "dbId": {
+          "type": "number",
+          "path": "$.reviewStatus.dbId"
+        },
+        "displayName": {
+          "type": "string",
+          "path": "$.reviewStatus.displayName"
+        },
+        "definition": {
+          "type": "string",
+          "path": "$.reviewStatus.definition"
+        },
+        "name": {
+          "type": "array",
+          "path": "$.reviewStatus.name",
+          "items": {
+            "type": "string",
+            "path": "$.reviewStatus.name[]"
+          }
+        },
+        "className": {
+          "type": "string",
+          "path": "$.reviewStatus.className"
+        },
+        "schemaClass": {
+          "type": "string",
+          "path": "$.reviewStatus.schemaClass"
+        }
+      }
+    },
+    "doi": {
+      "type": "string",
+      "path": "$.doi"
+    },
+    "hasDiagram": {
+      "type": "boolean",
+      "path": "$.hasDiagram"
+    },
+    "hasEHLD": {
+      "type": "boolean",
+      "path": "$.hasEHLD"
+    },
+    "lastUpdatedDate": {
+      "type": "string",
+      "path": "$.lastUpdatedDate"
+    },
+    "hasEvent": {
+      "type": "array",
+      "path": "$.hasEvent",
+      "items": {
+        "type": "object",
+        "path": "$.hasEvent[]",
+        "properties": {
+          "dbId": {
+            "type": "number",
+            "path": "$.hasEvent[].dbId"
+          },
+          "displayName": {
+            "type": "string",
+            "path": "$.hasEvent[].displayName"
+          },
+          "stId": {
+            "type": "string",
+            "path": "$.hasEvent[].stId"
+          },
+          "stIdVersion": {
+            "type": "string",
+            "path": "$.hasEvent[].stIdVersion"
+          },
+          "definition": {
+            "type": "string",
+            "path": "$.hasEvent[].definition",
+            "optional": true
+          },
+          "isInDisease": {
+            "type": "boolean",
+            "path": "$.hasEvent[].isInDisease"
+          },
+          "isInferred": {
+            "type": "boolean",
+            "path": "$.hasEvent[].isInferred"
+          },
+          "maxDepth": {
+            "type": "number",
+            "path": "$.hasEvent[].maxDepth"
+          },
+          "name": {
+            "type": "array",
+            "path": "$.hasEvent[].name",
+            "items": {
+              "type": "string",
+              "path": "$.hasEvent[].name[]"
+            }
+          },
+          "releaseDate": {
+            "type": "string",
+            "path": "$.hasEvent[].releaseDate"
+          },
+          "speciesName": {
+            "type": "string",
+            "path": "$.hasEvent[].speciesName"
+          },
+          "eventOf": {
+            "type": "array",
+            "path": "$.hasEvent[].eventOf",
+            "items": {
+              "type": "number",
+              "path": "$.hasEvent[].eventOf[]"
+            }
+          },
+          "hasDiagram": {
+            "type": "boolean",
+            "path": "$.hasEvent[].hasDiagram"
+          },
+          "hasEHLD": {
+            "type": "boolean",
+            "path": "$.hasEvent[].hasEHLD"
+          },
+          "lastUpdatedDate": {
+            "type": "string",
+            "path": "$.hasEvent[].lastUpdatedDate"
+          },
+          "schemaClass": {
+            "type": "string",
+            "path": "$.hasEvent[].schemaClass"
+          },
+          "className": {
+            "type": "string",
+            "path": "$.hasEvent[].className"
+          }
+        }
+      }
+    },
+    "schemaClass": {
+      "type": "string",
+      "path": "$.schemaClass"
+    },
+    "className": {
+      "type": "string",
+      "path": "$.className"
+    }
+  }
+}

@@ -1,0 +1,274 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "data": {
+      "type": "array",
+      "path": "$.data",
+      "items": {
+        "type": "object",
+        "path": "$.data[]",
+        "properties": {
+          "objCls": {
+            "type": "string",
+            "path": "$.data[].objCls"
+          },
+          "id": {
+            "type": "string",
+            "path": "$.data[].id"
+          },
+          "name": {
+            "type": "string",
+            "path": "$.data[].name"
+          },
+          "authors": {
+            "type": "string",
+            "path": "$.data[].authors",
+            "optional": true
+          },
+          "biopaxLink": {
+            "type": "string",
+            "path": "$.data[].biopaxLink"
+          },
+          "description": {
+            "type": "object",
+            "path": "$.data[].description",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].description.id"
+              },
+              "html": {
+                "type": "string",
+                "path": "$.data[].description.html"
+              }
+            }
+          },
+          "formatVersion": {
+            "type": "number",
+            "path": "$.data[].formatVersion"
+          },
+          "gpmlLink": {
+            "type": "string",
+            "path": "$.data[].gpmlLink"
+          },
+          "history": {
+            "type": "array",
+            "path": "$.data[].history",
+            "items": {
+              "type": "object",
+              "path": "$.data[].history[]",
+              "properties": {
+                "id": {
+                  "type": "number",
+                  "path": "$.data[].history[].id"
+                },
+                "date": {
+                  "type": "string",
+                  "path": "$.data[].history[].date"
+                },
+                "type": {
+                  "type": "string",
+                  "path": "$.data[].history[].type"
+                },
+                "version": {
+                  "type": "number",
+                  "path": "$.data[].history[].version"
+                },
+                "description": {
+                  "type": "string",
+                  "path": "$.data[].history[].description",
+                  "optional": true
+                }
+              }
+            }
+          },
+          "illustratorLink": {
+            "type": "string",
+            "path": "$.data[].illustratorLink"
+          },
+          "imageLink": {
+            "type": "string",
+            "path": "$.data[].imageLink"
+          },
+          "pdfLink": {
+            "type": "string",
+            "path": "$.data[].pdfLink"
+          },
+          "pediatric": {
+            "type": "boolean",
+            "path": "$.data[].pediatric"
+          },
+          "pharmacodynamic": {
+            "type": "boolean",
+            "path": "$.data[].pharmacodynamic"
+          },
+          "pharmacokinetic": {
+            "type": "boolean",
+            "path": "$.data[].pharmacokinetic"
+          },
+          "summary": {
+            "type": "object",
+            "path": "$.data[].summary",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].summary.id"
+              },
+              "html": {
+                "type": "string",
+                "path": "$.data[].summary.html"
+              }
+            }
+          },
+          "thumbnailLink": {
+            "type": "string",
+            "path": "$.data[].thumbnailLink"
+          },
+          "citation": {
+            "type": "object",
+            "path": "$.data[].citation",
+            "properties": {
+              "id": {
+                "type": "number",
+                "path": "$.data[].citation.id"
+              },
+              "title": {
+                "type": "string",
+                "path": "$.data[].citation.title"
+              },
+              "_sameAs": {
+                "type": "string",
+                "path": "$.data[].citation._sameAs"
+              },
+              "authors": {
+                "type": "array",
+                "path": "$.data[].citation.authors",
+                "items": {
+                  "type": "string",
+                  "path": "$.data[].citation.authors[]"
+                }
+              },
+              "crossReferences": {
+                "type": "array",
+                "path": "$.data[].citation.crossReferences",
+                "items": {
+                  "type": "object",
+                  "path": "$.data[].citation.crossReferences[]",
+                  "properties": {
+                    "id": {
+                      "type": "number",
+                      "path": "$.data[].citation.crossReferences[].id"
+                    },
+                    "resource": {
+                      "type": "string",
+                      "path": "$.data[].citation.crossReferences[].resource"
+                    },
+                    "resourceId": {
+                      "type": "string",
+                      "path": "$.data[].citation.crossReferences[].resourceId"
+                    },
+                    "_url": {
+                      "type": "string",
+                      "path": "$.data[].citation.crossReferences[]._url"
+                    }
+                  }
+                }
+              },
+              "day": {
+                "type": "number",
+                "path": "$.data[].citation.day"
+              },
+              "journal": {
+                "type": "string",
+                "path": "$.data[].citation.journal"
+              },
+              "month": {
+                "type": "number",
+                "path": "$.data[].citation.month"
+              },
+              "objCls": {
+                "type": "string",
+                "path": "$.data[].citation.objCls"
+              },
+              "page": {
+                "type": "string",
+                "path": "$.data[].citation.page"
+              },
+              "pediatric": {
+                "type": "boolean",
+                "path": "$.data[].citation.pediatric"
+              },
+              "pgkbPublication": {
+                "type": "boolean",
+                "path": "$.data[].citation.pgkbPublication"
+              },
+              "pubDate": {
+                "type": "string",
+                "path": "$.data[].citation.pubDate"
+              },
+              "pubmedMeshTerms": {
+                "type": "array",
+                "path": "$.data[].citation.pubmedMeshTerms",
+                "items": null
+              },
+              "terms": {
+                "type": "array",
+                "path": "$.data[].citation.terms",
+                "items": {
+                  "type": "object",
+                  "path": "$.data[].citation.terms[]",
+                  "properties": {
+                    "id": {
+                      "type": "number",
+                      "path": "$.data[].citation.terms[].id"
+                    },
+                    "resource": {
+                      "type": "string",
+                      "path": "$.data[].citation.terms[].resource"
+                    },
+                    "term": {
+                      "type": "string",
+                      "path": "$.data[].citation.terms[].term"
+                    },
+                    "termId": {
+                      "type": "string",
+                      "path": "$.data[].citation.terms[].termId"
+                    }
+                  }
+                }
+              },
+              "type": {
+                "type": "string",
+                "path": "$.data[].citation.type"
+              },
+              "volume": {
+                "type": "string",
+                "path": "$.data[].citation.volume"
+              },
+              "year": {
+                "type": "number",
+                "path": "$.data[].citation.year"
+              }
+            },
+            "optional": true
+          },
+          "pggPmid": {
+            "type": "string",
+            "path": "$.data[].pggPmid",
+            "optional": true
+          },
+          "svgLink": {
+            "type": "string",
+            "path": "$.data[].svgLink",
+            "optional": true
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "path": "$.status"
+    }
+  }
+}

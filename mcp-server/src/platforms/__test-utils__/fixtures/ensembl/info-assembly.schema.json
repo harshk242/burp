@@ -2,6 +2,10 @@
   "type": "object",
   "path": "$",
   "properties": {
+    "golden_path": {
+      "type": "number",
+      "path": "$.golden_path"
+    },
     "top_level_region": {
       "type": "array",
       "path": "$.top_level_region",
@@ -9,44 +13,24 @@
         "type": "object",
         "path": "$.top_level_region[]",
         "properties": {
-          "name": {
+          "coord_system": {
             "type": "string",
-            "path": "$.top_level_region[].name"
+            "path": "$.top_level_region[].coord_system"
           },
           "length": {
             "type": "number",
             "path": "$.top_level_region[].length"
           },
-          "coord_system": {
+          "name": {
             "type": "string",
-            "path": "$.top_level_region[].coord_system"
+            "path": "$.top_level_region[].name"
           }
         }
-      }
-    },
-    "coord_system_versions": {
-      "type": "array",
-      "path": "$.coord_system_versions",
-      "items": {
-        "type": "string",
-        "path": "$.coord_system_versions[]"
       }
     },
     "default_coord_system_version": {
       "type": "string",
       "path": "$.default_coord_system_version"
-    },
-    "assembly_date": {
-      "type": "string",
-      "path": "$.assembly_date"
-    },
-    "genebuild_initial_release_date": {
-      "type": "string",
-      "path": "$.genebuild_initial_release_date"
-    },
-    "genebuild_method": {
-      "type": "string",
-      "path": "$.genebuild_method"
     },
     "karyotype": {
       "type": "array",
@@ -56,25 +40,41 @@
         "path": "$.karyotype[]"
       }
     },
-    "golden_path": {
-      "type": "number",
-      "path": "$.golden_path"
+    "assembly_name": {
+      "type": "string",
+      "path": "$.assembly_name"
+    },
+    "genebuild_method": {
+      "type": "string",
+      "path": "$.genebuild_method"
+    },
+    "genebuild_last_geneset_update": {
+      "type": "string",
+      "path": "$.genebuild_last_geneset_update"
+    },
+    "coord_system_versions": {
+      "type": "array",
+      "path": "$.coord_system_versions",
+      "items": {
+        "type": "string",
+        "path": "$.coord_system_versions[]"
+      }
     },
     "genebuild_start_date": {
       "type": "string",
       "path": "$.genebuild_start_date"
     },
-    "assembly_name": {
+    "assembly_date": {
       "type": "string",
-      "path": "$.assembly_name"
+      "path": "$.assembly_date"
+    },
+    "genebuild_initial_release_date": {
+      "type": "string",
+      "path": "$.genebuild_initial_release_date"
     },
     "assembly_accession": {
       "type": "string",
       "path": "$.assembly_accession"
-    },
-    "genebuild_last_geneset_update": {
-      "type": "string",
-      "path": "$.genebuild_last_geneset_update"
     }
   }
 }

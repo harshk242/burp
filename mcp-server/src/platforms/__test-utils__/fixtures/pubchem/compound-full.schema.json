@@ -180,7 +180,8 @@
                     },
                     "name": {
                       "type": "string",
-                      "path": "$.PC_Compounds[].props[].urn.name"
+                      "path": "$.PC_Compounds[].props[].urn.name",
+                      "optional": true
                     },
                     "datatype": {
                       "type": "number",
@@ -189,6 +190,26 @@
                     "release": {
                       "type": "string",
                       "path": "$.PC_Compounds[].props[].urn.release"
+                    },
+                    "implementation": {
+                      "type": "string",
+                      "path": "$.PC_Compounds[].props[].urn.implementation",
+                      "optional": true
+                    },
+                    "version": {
+                      "type": "string",
+                      "path": "$.PC_Compounds[].props[].urn.version",
+                      "optional": true
+                    },
+                    "software": {
+                      "type": "string",
+                      "path": "$.PC_Compounds[].props[].urn.software",
+                      "optional": true
+                    },
+                    "source": {
+                      "type": "string",
+                      "path": "$.PC_Compounds[].props[].urn.source",
+                      "optional": true
                     }
                   }
                 },
@@ -198,7 +219,13 @@
                   "properties": {
                     "ival": {
                       "type": "number",
-                      "path": "$.PC_Compounds[].props[].value.ival"
+                      "path": "$.PC_Compounds[].props[].value.ival",
+                      "optional": true
+                    },
+                    "fval": {
+                      "type": "number",
+                      "path": "$.PC_Compounds[].props[].value.fval",
+                      "optional": true
                     }
                   }
                 }

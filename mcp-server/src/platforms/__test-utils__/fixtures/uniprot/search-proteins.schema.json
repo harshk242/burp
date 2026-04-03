@@ -1,0 +1,1002 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "results": {
+      "type": "array",
+      "path": "$.results",
+      "items": {
+        "type": "object",
+        "path": "$.results[]",
+        "properties": {
+          "entryType": {
+            "type": "string",
+            "path": "$.results[].entryType"
+          },
+          "primaryAccession": {
+            "type": "string",
+            "path": "$.results[].primaryAccession"
+          },
+          "secondaryAccessions": {
+            "type": "array",
+            "path": "$.results[].secondaryAccessions",
+            "items": {
+              "type": "string",
+              "path": "$.results[].secondaryAccessions[]"
+            }
+          },
+          "uniProtkbId": {
+            "type": "string",
+            "path": "$.results[].uniProtkbId"
+          },
+          "entryAudit": {
+            "type": "object",
+            "path": "$.results[].entryAudit",
+            "properties": {
+              "firstPublicDate": {
+                "type": "string",
+                "path": "$.results[].entryAudit.firstPublicDate"
+              },
+              "lastAnnotationUpdateDate": {
+                "type": "string",
+                "path": "$.results[].entryAudit.lastAnnotationUpdateDate"
+              },
+              "lastSequenceUpdateDate": {
+                "type": "string",
+                "path": "$.results[].entryAudit.lastSequenceUpdateDate"
+              },
+              "entryVersion": {
+                "type": "number",
+                "path": "$.results[].entryAudit.entryVersion"
+              },
+              "sequenceVersion": {
+                "type": "number",
+                "path": "$.results[].entryAudit.sequenceVersion"
+              }
+            }
+          },
+          "annotationScore": {
+            "type": "number",
+            "path": "$.results[].annotationScore"
+          },
+          "organism": {
+            "type": "object",
+            "path": "$.results[].organism",
+            "properties": {
+              "scientificName": {
+                "type": "string",
+                "path": "$.results[].organism.scientificName"
+              },
+              "commonName": {
+                "type": "string",
+                "path": "$.results[].organism.commonName"
+              },
+              "taxonId": {
+                "type": "number",
+                "path": "$.results[].organism.taxonId"
+              },
+              "lineage": {
+                "type": "array",
+                "path": "$.results[].organism.lineage",
+                "items": {
+                  "type": "string",
+                  "path": "$.results[].organism.lineage[]"
+                }
+              }
+            }
+          },
+          "proteinExistence": {
+            "type": "string",
+            "path": "$.results[].proteinExistence"
+          },
+          "proteinDescription": {
+            "type": "object",
+            "path": "$.results[].proteinDescription",
+            "properties": {
+              "recommendedName": {
+                "type": "object",
+                "path": "$.results[].proteinDescription.recommendedName",
+                "properties": {
+                  "fullName": {
+                    "type": "object",
+                    "path": "$.results[].proteinDescription.recommendedName.fullName",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "path": "$.results[].proteinDescription.recommendedName.fullName.value"
+                      },
+                      "evidences": {
+                        "type": "array",
+                        "path": "$.results[].proteinDescription.recommendedName.fullName.evidences",
+                        "items": {
+                          "type": "object",
+                          "path": "$.results[].proteinDescription.recommendedName.fullName.evidences[]",
+                          "properties": {
+                            "evidenceCode": {
+                              "type": "string",
+                              "path": "$.results[].proteinDescription.recommendedName.fullName.evidences[].evidenceCode"
+                            },
+                            "source": {
+                              "type": "string",
+                              "path": "$.results[].proteinDescription.recommendedName.fullName.evidences[].source"
+                            },
+                            "id": {
+                              "type": "string",
+                              "path": "$.results[].proteinDescription.recommendedName.fullName.evidences[].id"
+                            }
+                          }
+                        },
+                        "optional": true
+                      }
+                    }
+                  },
+                  "ecNumbers": {
+                    "type": "array",
+                    "path": "$.results[].proteinDescription.recommendedName.ecNumbers",
+                    "items": {
+                      "type": "object",
+                      "path": "$.results[].proteinDescription.recommendedName.ecNumbers[]",
+                      "properties": {
+                        "evidences": {
+                          "type": "array",
+                          "path": "$.results[].proteinDescription.recommendedName.ecNumbers[].evidences",
+                          "items": {
+                            "type": "object",
+                            "path": "$.results[].proteinDescription.recommendedName.ecNumbers[].evidences[]",
+                            "properties": {
+                              "evidenceCode": {
+                                "type": "string",
+                                "path": "$.results[].proteinDescription.recommendedName.ecNumbers[].evidences[].evidenceCode"
+                              },
+                              "source": {
+                                "type": "string",
+                                "path": "$.results[].proteinDescription.recommendedName.ecNumbers[].evidences[].source"
+                              },
+                              "id": {
+                                "type": "string",
+                                "path": "$.results[].proteinDescription.recommendedName.ecNumbers[].evidences[].id"
+                              }
+                            }
+                          },
+                          "optional": true
+                        },
+                        "value": {
+                          "type": "string",
+                          "path": "$.results[].proteinDescription.recommendedName.ecNumbers[].value"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "alternativeNames": {
+                "type": "array",
+                "path": "$.results[].proteinDescription.alternativeNames",
+                "items": {
+                  "type": "object",
+                  "path": "$.results[].proteinDescription.alternativeNames[]",
+                  "properties": {
+                    "fullName": {
+                      "type": "object",
+                      "path": "$.results[].proteinDescription.alternativeNames[].fullName",
+                      "properties": {
+                        "value": {
+                          "type": "string",
+                          "path": "$.results[].proteinDescription.alternativeNames[].fullName.value"
+                        },
+                        "evidences": {
+                          "type": "array",
+                          "path": "$.results[].proteinDescription.alternativeNames[].fullName.evidences",
+                          "items": {
+                            "type": "object",
+                            "path": "$.results[].proteinDescription.alternativeNames[].fullName.evidences[]",
+                            "properties": {
+                              "evidenceCode": {
+                                "type": "string",
+                                "path": "$.results[].proteinDescription.alternativeNames[].fullName.evidences[].evidenceCode"
+                              },
+                              "source": {
+                                "type": "string",
+                                "path": "$.results[].proteinDescription.alternativeNames[].fullName.evidences[].source",
+                                "optional": true
+                              },
+                              "id": {
+                                "type": "string",
+                                "path": "$.results[].proteinDescription.alternativeNames[].fullName.evidences[].id",
+                                "optional": true
+                              }
+                            }
+                          },
+                          "optional": true
+                        }
+                      }
+                    },
+                    "shortNames": {
+                      "type": "array",
+                      "path": "$.results[].proteinDescription.alternativeNames[].shortNames",
+                      "items": {
+                        "type": "object",
+                        "path": "$.results[].proteinDescription.alternativeNames[].shortNames[]",
+                        "properties": {
+                          "evidences": {
+                            "type": "array",
+                            "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences",
+                            "items": {
+                              "type": "object",
+                              "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences[]",
+                              "properties": {
+                                "evidenceCode": {
+                                  "type": "string",
+                                  "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences[].evidenceCode"
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences[].source"
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences[].id"
+                                }
+                              }
+                            },
+                            "optional": true
+                          },
+                          "value": {
+                            "type": "string",
+                            "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].value"
+                          }
+                        }
+                      },
+                      "optional": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "genes": {
+            "type": "array",
+            "path": "$.results[].genes",
+            "items": {
+              "type": "object",
+              "path": "$.results[].genes[]",
+              "properties": {
+                "geneName": {
+                  "type": "object",
+                  "path": "$.results[].genes[].geneName",
+                  "properties": {
+                    "value": {
+                      "type": "string",
+                      "path": "$.results[].genes[].geneName.value"
+                    },
+                    "evidences": {
+                      "type": "array",
+                      "path": "$.results[].genes[].geneName.evidences",
+                      "items": {
+                        "type": "object",
+                        "path": "$.results[].genes[].geneName.evidences[]",
+                        "properties": {
+                          "evidenceCode": {
+                            "type": "string",
+                            "path": "$.results[].genes[].geneName.evidences[].evidenceCode"
+                          },
+                          "source": {
+                            "type": "string",
+                            "path": "$.results[].genes[].geneName.evidences[].source"
+                          },
+                          "id": {
+                            "type": "string",
+                            "path": "$.results[].genes[].geneName.evidences[].id"
+                          }
+                        }
+                      },
+                      "optional": true
+                    }
+                  }
+                },
+                "synonyms": {
+                  "type": "array",
+                  "path": "$.results[].genes[].synonyms",
+                  "items": {
+                    "type": "object",
+                    "path": "$.results[].genes[].synonyms[]",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "path": "$.results[].genes[].synonyms[].value"
+                      },
+                      "evidences": {
+                        "type": "array",
+                        "path": "$.results[].genes[].synonyms[].evidences",
+                        "items": {
+                          "type": "object",
+                          "path": "$.results[].genes[].synonyms[].evidences[]",
+                          "properties": {
+                            "evidenceCode": {
+                              "type": "string",
+                              "path": "$.results[].genes[].synonyms[].evidences[].evidenceCode"
+                            },
+                            "source": {
+                              "type": "string",
+                              "path": "$.results[].genes[].synonyms[].evidences[].source"
+                            },
+                            "id": {
+                              "type": "string",
+                              "path": "$.results[].genes[].synonyms[].evidences[].id"
+                            }
+                          }
+                        },
+                        "optional": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "comments": {
+            "type": "array",
+            "path": "$.results[].comments",
+            "items": {
+              "type": "object",
+              "path": "$.results[].comments[]",
+              "properties": {
+                "texts": {
+                  "type": "array",
+                  "path": "$.results[].comments[].texts",
+                  "items": {
+                    "type": "object",
+                    "path": "$.results[].comments[].texts[]",
+                    "properties": {
+                      "evidences": {
+                        "type": "array",
+                        "path": "$.results[].comments[].texts[].evidences",
+                        "items": {
+                          "type": "object",
+                          "path": "$.results[].comments[].texts[].evidences[]",
+                          "properties": {
+                            "evidenceCode": {
+                              "type": "string",
+                              "path": "$.results[].comments[].texts[].evidences[].evidenceCode"
+                            },
+                            "source": {
+                              "type": "string",
+                              "path": "$.results[].comments[].texts[].evidences[].source",
+                              "optional": true
+                            },
+                            "id": {
+                              "type": "string",
+                              "path": "$.results[].comments[].texts[].evidences[].id",
+                              "optional": true
+                            }
+                          }
+                        }
+                      },
+                      "value": {
+                        "type": "string",
+                        "path": "$.results[].comments[].texts[].value"
+                      }
+                    }
+                  },
+                  "optional": true
+                },
+                "commentType": {
+                  "type": "string",
+                  "path": "$.results[].comments[].commentType"
+                },
+                "reaction": {
+                  "type": "object",
+                  "path": "$.results[].comments[].reaction",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "path": "$.results[].comments[].reaction.name"
+                    },
+                    "reactionCrossReferences": {
+                      "type": "array",
+                      "path": "$.results[].comments[].reaction.reactionCrossReferences",
+                      "items": {
+                        "type": "object",
+                        "path": "$.results[].comments[].reaction.reactionCrossReferences[]",
+                        "properties": {
+                          "database": {
+                            "type": "string",
+                            "path": "$.results[].comments[].reaction.reactionCrossReferences[].database"
+                          },
+                          "id": {
+                            "type": "string",
+                            "path": "$.results[].comments[].reaction.reactionCrossReferences[].id"
+                          }
+                        }
+                      }
+                    },
+                    "ecNumber": {
+                      "type": "string",
+                      "path": "$.results[].comments[].reaction.ecNumber"
+                    },
+                    "evidences": {
+                      "type": "array",
+                      "path": "$.results[].comments[].reaction.evidences",
+                      "items": {
+                        "type": "object",
+                        "path": "$.results[].comments[].reaction.evidences[]",
+                        "properties": {
+                          "evidenceCode": {
+                            "type": "string",
+                            "path": "$.results[].comments[].reaction.evidences[].evidenceCode"
+                          },
+                          "source": {
+                            "type": "string",
+                            "path": "$.results[].comments[].reaction.evidences[].source"
+                          },
+                          "id": {
+                            "type": "string",
+                            "path": "$.results[].comments[].reaction.evidences[].id"
+                          }
+                        }
+                      },
+                      "optional": true
+                    }
+                  },
+                  "optional": true
+                },
+                "cofactors": {
+                  "type": "array",
+                  "path": "$.results[].comments[].cofactors",
+                  "items": {
+                    "type": "object",
+                    "path": "$.results[].comments[].cofactors[]",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "path": "$.results[].comments[].cofactors[].name"
+                      },
+                      "evidences": {
+                        "type": "array",
+                        "path": "$.results[].comments[].cofactors[].evidences",
+                        "items": {
+                          "type": "object",
+                          "path": "$.results[].comments[].cofactors[].evidences[]",
+                          "properties": {
+                            "evidenceCode": {
+                              "type": "string",
+                              "path": "$.results[].comments[].cofactors[].evidences[].evidenceCode"
+                            },
+                            "source": {
+                              "type": "string",
+                              "path": "$.results[].comments[].cofactors[].evidences[].source"
+                            },
+                            "id": {
+                              "type": "string",
+                              "path": "$.results[].comments[].cofactors[].evidences[].id"
+                            }
+                          }
+                        }
+                      },
+                      "cofactorCrossReference": {
+                        "type": "object",
+                        "path": "$.results[].comments[].cofactors[].cofactorCrossReference",
+                        "properties": {
+                          "database": {
+                            "type": "string",
+                            "path": "$.results[].comments[].cofactors[].cofactorCrossReference.database"
+                          },
+                          "id": {
+                            "type": "string",
+                            "path": "$.results[].comments[].cofactors[].cofactorCrossReference.id"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "optional": true
+                },
+                "note": {
+                  "type": "object",
+                  "path": "$.results[].comments[].note",
+                  "properties": {
+                    "texts": {
+                      "type": "array",
+                      "path": "$.results[].comments[].note.texts",
+                      "items": {
+                        "type": "object",
+                        "path": "$.results[].comments[].note.texts[]",
+                        "properties": {
+                          "evidences": {
+                            "type": "array",
+                            "path": "$.results[].comments[].note.texts[].evidences",
+                            "items": {
+                              "type": "object",
+                              "path": "$.results[].comments[].note.texts[].evidences[]",
+                              "properties": {
+                                "evidenceCode": {
+                                  "type": "string",
+                                  "path": "$.results[].comments[].note.texts[].evidences[].evidenceCode"
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "path": "$.results[].comments[].note.texts[].evidences[].source"
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "path": "$.results[].comments[].note.texts[].evidences[].id"
+                                }
+                              }
+                            }
+                          },
+                          "value": {
+                            "type": "string",
+                            "path": "$.results[].comments[].note.texts[].value"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "optional": true
+                }
+              }
+            }
+          },
+          "features": {
+            "type": "array",
+            "path": "$.results[].features",
+            "items": {
+              "type": "object",
+              "path": "$.results[].features[]",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "path": "$.results[].features[].type"
+                },
+                "location": {
+                  "type": "object",
+                  "path": "$.results[].features[].location",
+                  "properties": {
+                    "start": {
+                      "type": "object",
+                      "path": "$.results[].features[].location.start",
+                      "properties": {
+                        "value": {
+                          "type": "number",
+                          "path": "$.results[].features[].location.start.value"
+                        },
+                        "modifier": {
+                          "type": "string",
+                          "path": "$.results[].features[].location.start.modifier"
+                        }
+                      }
+                    },
+                    "end": {
+                      "type": "object",
+                      "path": "$.results[].features[].location.end",
+                      "properties": {
+                        "value": {
+                          "type": "number",
+                          "path": "$.results[].features[].location.end.value"
+                        },
+                        "modifier": {
+                          "type": "string",
+                          "path": "$.results[].features[].location.end.modifier"
+                        }
+                      }
+                    }
+                  }
+                },
+                "description": {
+                  "type": "string",
+                  "path": "$.results[].features[].description"
+                },
+                "featureId": {
+                  "type": "string",
+                  "path": "$.results[].features[].featureId",
+                  "optional": true
+                },
+                "evidences": {
+                  "type": "array",
+                  "path": "$.results[].features[].evidences",
+                  "items": {
+                    "type": "object",
+                    "path": "$.results[].features[].evidences[]",
+                    "properties": {
+                      "evidenceCode": {
+                        "type": "string",
+                        "path": "$.results[].features[].evidences[].evidenceCode"
+                      },
+                      "source": {
+                        "type": "string",
+                        "path": "$.results[].features[].evidences[].source"
+                      },
+                      "id": {
+                        "type": "string",
+                        "path": "$.results[].features[].evidences[].id"
+                      }
+                    }
+                  },
+                  "optional": true
+                },
+                "featureCrossReferences": {
+                  "type": "array",
+                  "path": "$.results[].features[].featureCrossReferences",
+                  "items": {
+                    "type": "object",
+                    "path": "$.results[].features[].featureCrossReferences[]",
+                    "properties": {
+                      "database": {
+                        "type": "string",
+                        "path": "$.results[].features[].featureCrossReferences[].database"
+                      },
+                      "id": {
+                        "type": "string",
+                        "path": "$.results[].features[].featureCrossReferences[].id"
+                      }
+                    }
+                  },
+                  "optional": true
+                },
+                "ligand": {
+                  "type": "object",
+                  "path": "$.results[].features[].ligand",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "path": "$.results[].features[].ligand.name"
+                    },
+                    "id": {
+                      "type": "string",
+                      "path": "$.results[].features[].ligand.id"
+                    }
+                  },
+                  "optional": true
+                }
+              }
+            }
+          },
+          "keywords": {
+            "type": "array",
+            "path": "$.results[].keywords",
+            "items": {
+              "type": "object",
+              "path": "$.results[].keywords[]",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "path": "$.results[].keywords[].id"
+                },
+                "category": {
+                  "type": "string",
+                  "path": "$.results[].keywords[].category"
+                },
+                "name": {
+                  "type": "string",
+                  "path": "$.results[].keywords[].name"
+                }
+              }
+            }
+          },
+          "references": {
+            "type": "array",
+            "path": "$.results[].references",
+            "items": {
+              "type": "object",
+              "path": "$.results[].references[]",
+              "properties": {
+                "referenceNumber": {
+                  "type": "number",
+                  "path": "$.results[].references[].referenceNumber"
+                },
+                "citation": {
+                  "type": "object",
+                  "path": "$.results[].references[].citation",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "path": "$.results[].references[].citation.id"
+                    },
+                    "citationType": {
+                      "type": "string",
+                      "path": "$.results[].references[].citation.citationType"
+                    },
+                    "authors": {
+                      "type": "array",
+                      "path": "$.results[].references[].citation.authors",
+                      "items": {
+                        "type": "string",
+                        "path": "$.results[].references[].citation.authors[]"
+                      }
+                    },
+                    "citationCrossReferences": {
+                      "type": "array",
+                      "path": "$.results[].references[].citation.citationCrossReferences",
+                      "items": {
+                        "type": "object",
+                        "path": "$.results[].references[].citation.citationCrossReferences[]",
+                        "properties": {
+                          "database": {
+                            "type": "string",
+                            "path": "$.results[].references[].citation.citationCrossReferences[].database"
+                          },
+                          "id": {
+                            "type": "string",
+                            "path": "$.results[].references[].citation.citationCrossReferences[].id"
+                          }
+                        }
+                      },
+                      "optional": true
+                    },
+                    "title": {
+                      "type": "string",
+                      "path": "$.results[].references[].citation.title",
+                      "optional": true
+                    },
+                    "publicationDate": {
+                      "type": "string",
+                      "path": "$.results[].references[].citation.publicationDate"
+                    },
+                    "journal": {
+                      "type": "string",
+                      "path": "$.results[].references[].citation.journal",
+                      "optional": true
+                    },
+                    "firstPage": {
+                      "type": "string",
+                      "path": "$.results[].references[].citation.firstPage",
+                      "optional": true
+                    },
+                    "lastPage": {
+                      "type": "string",
+                      "path": "$.results[].references[].citation.lastPage",
+                      "optional": true
+                    },
+                    "volume": {
+                      "type": "string",
+                      "path": "$.results[].references[].citation.volume",
+                      "optional": true
+                    },
+                    "submissionDatabase": {
+                      "type": "string",
+                      "path": "$.results[].references[].citation.submissionDatabase",
+                      "optional": true
+                    }
+                  }
+                },
+                "referencePositions": {
+                  "type": "array",
+                  "path": "$.results[].references[].referencePositions",
+                  "items": {
+                    "type": "string",
+                    "path": "$.results[].references[].referencePositions[]"
+                  }
+                },
+                "referenceComments": {
+                  "type": "array",
+                  "path": "$.results[].references[].referenceComments",
+                  "items": {
+                    "type": "object",
+                    "path": "$.results[].references[].referenceComments[]",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "path": "$.results[].references[].referenceComments[].value"
+                      },
+                      "type": {
+                        "type": "string",
+                        "path": "$.results[].references[].referenceComments[].type"
+                      }
+                    }
+                  },
+                  "optional": true
+                }
+              }
+            }
+          },
+          "uniProtKBCrossReferences": {
+            "type": "array",
+            "path": "$.results[].uniProtKBCrossReferences",
+            "items": {
+              "type": "object",
+              "path": "$.results[].uniProtKBCrossReferences[]",
+              "properties": {
+                "database": {
+                  "type": "string",
+                  "path": "$.results[].uniProtKBCrossReferences[].database"
+                },
+                "id": {
+                  "type": "string",
+                  "path": "$.results[].uniProtKBCrossReferences[].id"
+                },
+                "properties": {
+                  "type": "array",
+                  "path": "$.results[].uniProtKBCrossReferences[].properties",
+                  "items": {
+                    "type": "object",
+                    "path": "$.results[].uniProtKBCrossReferences[].properties[]",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "path": "$.results[].uniProtKBCrossReferences[].properties[].key"
+                      },
+                      "value": {
+                        "type": "string",
+                        "path": "$.results[].uniProtKBCrossReferences[].properties[].value"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "sequence": {
+            "type": "object",
+            "path": "$.results[].sequence",
+            "properties": {
+              "value": {
+                "type": "string",
+                "path": "$.results[].sequence.value"
+              },
+              "length": {
+                "type": "number",
+                "path": "$.results[].sequence.length"
+              },
+              "molWeight": {
+                "type": "number",
+                "path": "$.results[].sequence.molWeight"
+              },
+              "crc64": {
+                "type": "string",
+                "path": "$.results[].sequence.crc64"
+              },
+              "md5": {
+                "type": "string",
+                "path": "$.results[].sequence.md5"
+              }
+            }
+          },
+          "extraAttributes": {
+            "type": "object",
+            "path": "$.results[].extraAttributes",
+            "properties": {
+              "countByCommentType": {
+                "type": "object",
+                "path": "$.results[].extraAttributes.countByCommentType",
+                "properties": {
+                  "FUNCTION": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.FUNCTION"
+                  },
+                  "CATALYTIC ACTIVITY": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.CATALYTIC ACTIVITY"
+                  },
+                  "COFACTOR": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.COFACTOR",
+                    "optional": true
+                  },
+                  "ACTIVITY REGULATION": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.ACTIVITY REGULATION"
+                  },
+                  "SUBUNIT": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.SUBUNIT"
+                  },
+                  "INTERACTION": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.INTERACTION"
+                  },
+                  "SUBCELLULAR LOCATION": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.SUBCELLULAR LOCATION"
+                  },
+                  "ALTERNATIVE PRODUCTS": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.ALTERNATIVE PRODUCTS",
+                    "optional": true
+                  },
+                  "INDUCTION": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.INDUCTION",
+                    "optional": true
+                  },
+                  "PTM": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.PTM"
+                  },
+                  "SIMILARITY": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.SIMILARITY"
+                  },
+                  "TISSUE SPECIFICITY": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.TISSUE SPECIFICITY",
+                    "optional": true
+                  },
+                  "DISEASE": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.DISEASE",
+                    "optional": true
+                  },
+                  "MISCELLANEOUS": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.MISCELLANEOUS",
+                    "optional": true
+                  }
+                }
+              },
+              "countByFeatureType": {
+                "type": "object",
+                "path": "$.results[].extraAttributes.countByFeatureType",
+                "properties": {
+                  "Chain": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Chain"
+                  },
+                  "Domain": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Domain"
+                  },
+                  "Active site": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Active site"
+                  },
+                  "Binding site": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Binding site"
+                  },
+                  "Site": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Site",
+                    "optional": true
+                  },
+                  "Modified residue": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Modified residue"
+                  },
+                  "Alternative sequence": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Alternative sequence",
+                    "optional": true
+                  },
+                  "Natural variant": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Natural variant"
+                  },
+                  "Mutagenesis": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Mutagenesis"
+                  },
+                  "Sequence conflict": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Sequence conflict",
+                    "optional": true
+                  },
+                  "Beta strand": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Beta strand"
+                  },
+                  "Turn": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Turn"
+                  },
+                  "Helix": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Helix"
+                  },
+                  "Initiator methionine": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Initiator methionine",
+                    "optional": true
+                  }
+                }
+              },
+              "uniParcId": {
+                "type": "string",
+                "path": "$.results[].extraAttributes.uniParcId"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

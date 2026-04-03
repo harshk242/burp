@@ -1,0 +1,277 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "header": {
+      "type": "object",
+      "path": "$.header",
+      "properties": {
+        "type": {
+          "type": "string",
+          "path": "$.header.type"
+        },
+        "version": {
+          "type": "string",
+          "path": "$.header.version"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "path": "$.result",
+      "properties": {
+        "28485846": {
+          "type": "object",
+          "path": "$.result.28485846",
+          "properties": {
+            "uid": {
+              "type": "string",
+              "path": "$.result.28485846.uid"
+            },
+            "pubdate": {
+              "type": "string",
+              "path": "$.result.28485846.pubdate"
+            },
+            "epubdate": {
+              "type": "string",
+              "path": "$.result.28485846.epubdate"
+            },
+            "source": {
+              "type": "string",
+              "path": "$.result.28485846.source"
+            },
+            "authors": {
+              "type": "array",
+              "path": "$.result.28485846.authors",
+              "items": {
+                "type": "object",
+                "path": "$.result.28485846.authors[]",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "path": "$.result.28485846.authors[].name"
+                  },
+                  "authtype": {
+                    "type": "string",
+                    "path": "$.result.28485846.authors[].authtype"
+                  },
+                  "clusterid": {
+                    "type": "string",
+                    "path": "$.result.28485846.authors[].clusterid"
+                  }
+                }
+              }
+            },
+            "lastauthor": {
+              "type": "string",
+              "path": "$.result.28485846.lastauthor"
+            },
+            "title": {
+              "type": "string",
+              "path": "$.result.28485846.title"
+            },
+            "sorttitle": {
+              "type": "string",
+              "path": "$.result.28485846.sorttitle"
+            },
+            "volume": {
+              "type": "string",
+              "path": "$.result.28485846.volume"
+            },
+            "issue": {
+              "type": "string",
+              "path": "$.result.28485846.issue"
+            },
+            "pages": {
+              "type": "string",
+              "path": "$.result.28485846.pages"
+            },
+            "lang": {
+              "type": "array",
+              "path": "$.result.28485846.lang",
+              "items": {
+                "type": "string",
+                "path": "$.result.28485846.lang[]"
+              }
+            },
+            "nlmuniqueid": {
+              "type": "string",
+              "path": "$.result.28485846.nlmuniqueid"
+            },
+            "issn": {
+              "type": "string",
+              "path": "$.result.28485846.issn"
+            },
+            "essn": {
+              "type": "string",
+              "path": "$.result.28485846.essn"
+            },
+            "pubtype": {
+              "type": "array",
+              "path": "$.result.28485846.pubtype",
+              "items": {
+                "type": "string",
+                "path": "$.result.28485846.pubtype[]"
+              }
+            },
+            "recordstatus": {
+              "type": "string",
+              "path": "$.result.28485846.recordstatus"
+            },
+            "pubstatus": {
+              "type": "string",
+              "path": "$.result.28485846.pubstatus"
+            },
+            "articleids": {
+              "type": "array",
+              "path": "$.result.28485846.articleids",
+              "items": {
+                "type": "object",
+                "path": "$.result.28485846.articleids[]",
+                "properties": {
+                  "idtype": {
+                    "type": "string",
+                    "path": "$.result.28485846.articleids[].idtype"
+                  },
+                  "idtypen": {
+                    "type": "number",
+                    "path": "$.result.28485846.articleids[].idtypen"
+                  },
+                  "value": {
+                    "type": "string",
+                    "path": "$.result.28485846.articleids[].value"
+                  }
+                }
+              }
+            },
+            "history": {
+              "type": "array",
+              "path": "$.result.28485846.history",
+              "items": {
+                "type": "object",
+                "path": "$.result.28485846.history[]",
+                "properties": {
+                  "pubstatus": {
+                    "type": "string",
+                    "path": "$.result.28485846.history[].pubstatus"
+                  },
+                  "date": {
+                    "type": "string",
+                    "path": "$.result.28485846.history[].date"
+                  }
+                }
+              }
+            },
+            "references": {
+              "type": "array",
+              "path": "$.result.28485846.references",
+              "items": null
+            },
+            "attributes": {
+              "type": "array",
+              "path": "$.result.28485846.attributes",
+              "items": {
+                "type": "string",
+                "path": "$.result.28485846.attributes[]"
+              }
+            },
+            "pmcrefcount": {
+              "type": "string",
+              "path": "$.result.28485846.pmcrefcount"
+            },
+            "fulljournalname": {
+              "type": "string",
+              "path": "$.result.28485846.fulljournalname"
+            },
+            "elocationid": {
+              "type": "string",
+              "path": "$.result.28485846.elocationid"
+            },
+            "doctype": {
+              "type": "string",
+              "path": "$.result.28485846.doctype"
+            },
+            "srccontriblist": {
+              "type": "array",
+              "path": "$.result.28485846.srccontriblist",
+              "items": null
+            },
+            "booktitle": {
+              "type": "string",
+              "path": "$.result.28485846.booktitle"
+            },
+            "medium": {
+              "type": "string",
+              "path": "$.result.28485846.medium"
+            },
+            "edition": {
+              "type": "string",
+              "path": "$.result.28485846.edition"
+            },
+            "publisherlocation": {
+              "type": "string",
+              "path": "$.result.28485846.publisherlocation"
+            },
+            "publishername": {
+              "type": "string",
+              "path": "$.result.28485846.publishername"
+            },
+            "srcdate": {
+              "type": "string",
+              "path": "$.result.28485846.srcdate"
+            },
+            "reportnumber": {
+              "type": "string",
+              "path": "$.result.28485846.reportnumber"
+            },
+            "availablefromurl": {
+              "type": "string",
+              "path": "$.result.28485846.availablefromurl"
+            },
+            "locationlabel": {
+              "type": "string",
+              "path": "$.result.28485846.locationlabel"
+            },
+            "doccontriblist": {
+              "type": "array",
+              "path": "$.result.28485846.doccontriblist",
+              "items": null
+            },
+            "docdate": {
+              "type": "string",
+              "path": "$.result.28485846.docdate"
+            },
+            "bookname": {
+              "type": "string",
+              "path": "$.result.28485846.bookname"
+            },
+            "chapter": {
+              "type": "string",
+              "path": "$.result.28485846.chapter"
+            },
+            "sortpubdate": {
+              "type": "string",
+              "path": "$.result.28485846.sortpubdate"
+            },
+            "sortfirstauthor": {
+              "type": "string",
+              "path": "$.result.28485846.sortfirstauthor"
+            },
+            "vernaculartitle": {
+              "type": "string",
+              "path": "$.result.28485846.vernaculartitle"
+            }
+          }
+        },
+        "uids": {
+          "type": "array",
+          "path": "$.result.uids",
+          "items": {
+            "type": "string",
+            "path": "$.result.uids[]"
+          }
+        }
+      }
+    }
+  }
+}
