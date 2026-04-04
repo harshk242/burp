@@ -1,10 +1,5 @@
 /**
  * Chat Orchestration v2 — Model-Agnostic via Vercel AI SDK
- *
- * Replaces the Anthropic-coupled chat.ts with a provider-agnostic
- * implementation using streamText/generateText. Supports Anthropic
- * and Google as providers. Uses hybrid search instead of
- * Claude's built-in tool_search_tool_bm25.
  */
 
 import {

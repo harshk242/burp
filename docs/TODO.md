@@ -23,3 +23,7 @@ Users can dynamically select the platforms. Then the agent will only use those p
 For research papers add hyperlink
 Building a testing framework
 Implement rate limiting per user. Add transparency around rate limits so that users use it wisely. 
+Langfuse integration for tracing and evals.
+Download report as pdf feature
+Hide initial stream response behind thinking dropdown/toggle and hide it from the report
+Inspect token usage from the model api. Use that to set user limits. Set user limits in money rather than tokens?
