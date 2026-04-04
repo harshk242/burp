@@ -163,6 +163,39 @@ describe('lists', () => {
     expect(nestedList.ul).toBeDefined();
     expect(nestedList.ul[0]).toBe('Child');
   });
+
+  it('keeps mixed bold+plain inline on one line (wraps in { text })', () => {
+    const result = mdastToPdfmakeContent(
+      makeRoot({
+        type: 'list',
+        ordered: false,
+        children: [
+          {
+            type: 'listItem',
+            children: [
+              {
+                type: 'paragraph',
+                children: [
+                  { type: 'strong', children: [text('ERLOTINIB')] },
+                  text(' (CHEMBL553) - Approved 2004; oral TKI'),
+                ],
+              },
+            ],
+          },
+        ],
+      })
+    );
+    const list = result[0] as any;
+    const item = list.ul[0];
+    // Must be an object with .text (not a bare array), so pdfmake
+    // keeps the bold + plain parts flowing on one line.
+    expect(typeof item).toBe('object');
+    expect(item).not.toBeNull();
+    expect(item.text).toBeDefined();
+    expect(Array.isArray(item.text)).toBe(true);
+    expect(item.text[0]).toMatchObject({ bold: true, text: 'ERLOTINIB' });
+    expect(item.text[1]).toBe(' (CHEMBL553) - Approved 2004; oral TKI');
+  });
 });
 
 // ─── Table ────────────────────────────────────────────────────────────────────

@@ -174,7 +174,11 @@ function convertListItem(node: any): PdfContent {
       first !== null &&
       (first as any).style === 'body'
     ) {
-      return (first as any).text;
+      const inline = (first as any).text;
+      // Always wrap in { text } so pdfmake keeps mixed inline parts
+      // (e.g. bold + plain) on the same line instead of stacking them.
+      if (typeof inline === 'string') return inline;
+      return { text: inline };
     }
   }
 

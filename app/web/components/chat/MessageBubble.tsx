@@ -109,7 +109,7 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
           isUser && "flex flex-col items-end"
         )}
       >
-        <div className="w-full space-y-2">
+        <div className={cn("w-full", isUser ? "flex justify-end" : "space-y-2")}>
           {/* Reasoning block (assistant only) */}
           {!isUser && message.reasoning && (
             <ReasoningBlock content={message.reasoning} defaultExpanded={false} />
