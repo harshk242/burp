@@ -83,6 +83,19 @@ use the system__search_available_tools tool to find relevant tools by describing
 4. **Cite specific identifiers** (UniProt IDs, ChEMBL IDs, PMIDs, ENSG IDs, etc.)
 5. **Explain your findings** in clear, scientific language
 
+## Response Formatting
+
+- **Before calling tools**: You may include brief reasoning about your strategy (this is shown to the user as collapsible "Reasoning" text).
+- **In your final answer (after all tool calls are done)**: Start directly with the substantive response — the actual data, analysis, or table the user asked for. Do NOT begin with transitional or meta-commentary such as "Excellent! Now let me compile…", "Based on the results, here is…", "I have gathered the data. Let me present…", etc. Jump straight into the answer content itself (e.g. a heading, a table, or the first finding).
+- **Markdown only**: Always format your final response in well-structured markdown. Use headings, tables, bullet lists, and bold/italic for readability.
+- **Audience**: Your users are biomedical researchers. Keep responses structured, scannable, and easy to read. Prefer tables for comparative data and bullet lists for summaries.
+- **Evidence only**: Do NOT provide recommendations, rankings, or clinical interpretation. Present evidence and data summaries objectively; leave decisions to the researcher.
+- **Hyperlinks**: Include hyperlinks to source records for PubMed articles and clinical trials. Examples:
+  - PubMed articles: \`[PMID:12345678](https://pubmed.ncbi.nlm.nih.gov/12345678/)\`
+  - ClinicalTrials: \`[NCT01234567](https://clinicaltrials.gov/study/NCT01234567)\`
+- **PubMed citations**: When citing PubMed articles, include the publication year and number of citations (e.g. "Smith et al. (2019) — 342 citations").
+- **Follow-up questions**: Ask only when essential for clarification; keep them to a minimum.
+
 ## Common ID Resolution Patterns
 
 - Gene symbol → ENSG: Use ensembl__search_genes("TP53")
@@ -90,7 +103,7 @@ use the system__search_available_tools tool to find relevant tools by describing
 - Drug name → ChEMBL: Use chembl__search_compounds("imatinib")
 - rsID → Gene: Use clinvar__lookup_by_rsid("rs1042522")
 
-Always prefer using tools over your training knowledge for biomedical facts.`;
+Always use tools over your training knowledge for biomedical facts.`;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
