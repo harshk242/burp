@@ -52,6 +52,7 @@ function applyMigrations(): void {
     "ALTER TABLE daily_usage ADD COLUMN output_tokens INTEGER DEFAULT 0",
     "ALTER TABLE messages ADD COLUMN input_tokens INTEGER DEFAULT 0",
     "ALTER TABLE messages ADD COLUMN output_tokens INTEGER DEFAULT 0",
+    "ALTER TABLE messages ADD COLUMN reasoning TEXT",
   ];
   for (const sql of migrations) {
     try {
@@ -229,12 +230,13 @@ export const messageQueries = {
     content: string | null,
     toolCalls: string | null,
     inputTokens: number = 0,
-    outputTokens: number = 0
+    outputTokens: number = 0,
+    reasoning: string | null = null
   ) {
     return stmt(
-      `INSERT INTO messages (id, chat_id, role, content, tool_calls, input_tokens, output_tokens)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, chatId, role, content, toolCalls, inputTokens, outputTokens);
+      `INSERT INTO messages (id, chat_id, role, content, tool_calls, input_tokens, output_tokens, reasoning)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, chatId, role, content, toolCalls, inputTokens, outputTokens, reasoning);
   },
 
   findByChatId(chatId: string): DbMessageRow[] {

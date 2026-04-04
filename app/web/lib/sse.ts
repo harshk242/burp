@@ -180,6 +180,14 @@ function handleSSEEvent(
       break;
     }
 
+    case "text_block_end": {
+      const { isReasoning } = data as { isReasoning: boolean };
+      if (isReasoning) {
+        store.moveStreamingToReasoning();
+      }
+      break;
+    }
+
     case "done":
       store.finalizeAssistantMessage();
       break;

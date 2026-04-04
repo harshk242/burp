@@ -7,6 +7,8 @@ interface ChatState {
   isStreaming: boolean;
   streamingContent: string;
   pendingToolCalls: ToolCall[];
+  /** Completed reasoning text blocks accumulated during streaming */
+  reasoningSegments: string[];
   error: string | null;
 
   // Actions
@@ -16,6 +18,12 @@ interface ChatState {
   appendStreamingContent: (chunk: string) => void;
   addToolCall: (toolCall: ToolCall) => void;
   updateToolCall: (id: string, updates: Partial<ToolCall>) => void;
+  /**
+   * Moves current streamingContent into reasoningSegments and resets it.
+   * Called when text_block_end { isReasoning: true } is received — the streamed
+   * text is reclassified as reasoning and collapses into the ReasoningBlock.
+   */
+  moveStreamingToReasoning: () => void;
   finalizeAssistantMessage: () => void;
   /**
    * Patches tokenUsage onto the last assistant message in state.messages.
@@ -35,6 +43,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isStreaming: false,
   streamingContent: "",
   pendingToolCalls: [],
+  reasoningSegments: [],
   error: null,
 
   setMessages: (messages) => set({ messages }),
@@ -58,9 +67,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ),
     })),
 
+  moveStreamingToReasoning: () =>
+    set((state) => {
+      if (!state.streamingContent) return state;
+      return {
+        reasoningSegments: [...state.reasoningSegments, state.streamingContent],
+        streamingContent: "",
+      };
+    }),
+
   finalizeAssistantMessage: () => {
-    const { streamingContent, pendingToolCalls } = get();
+    const { streamingContent, pendingToolCalls, reasoningSegments } = get();
     if (streamingContent || pendingToolCalls.length > 0) {
+      const reasoning =
+        reasoningSegments.length > 0 ? reasoningSegments.join("\n\n") : undefined;
       set((state) => ({
         messages: [
           ...state.messages,
@@ -70,10 +90,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
             content: streamingContent,
             toolCalls: pendingToolCalls.length > 0 ? pendingToolCalls : undefined,
             createdAt: Date.now(),
+            reasoning,
           },
         ],
         streamingContent: "",
         pendingToolCalls: [],
+        reasoningSegments: [],
         isStreaming: false,
       }));
     }
@@ -100,6 +122,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       streamingContent: "",
       pendingToolCalls: [],
+      reasoningSegments: [],
       error: null,
       isStreaming: false,
     }),
@@ -110,6 +133,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [],
       streamingContent: "",
       pendingToolCalls: [],
+      reasoningSegments: [],
       error: null,
       isStreaming: false,
     }),

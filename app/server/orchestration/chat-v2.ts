@@ -95,7 +95,7 @@ Always prefer using tools over your training knowledge for biomedical facts.`;
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface StreamEvent {
-  type: "start" | "text" | "tool_start" | "tool_end" | "done" | "usage" | "error";
+  type: "start" | "text" | "tool_start" | "tool_end" | "text_block_end" | "done" | "usage" | "error";
   data: unknown;
 }
 
@@ -345,7 +345,8 @@ export async function* processChat(
 
     let continueLoop = true;
     let fullAssistantContent = "";
-    let persistedAssistantText = ""; // accumulates all text across iterations for DB storage
+    let persistedAssistantText = ""; // final response text only (last iteration)
+    let reasoningText = "";           // pre-tool-call reasoning text (all non-final iterations)
     const allToolCalls: ToolCallRecord[] = [];
     let loopIteration = 0;
     // Token accumulators — summed across all tool-call iterations
@@ -412,12 +413,11 @@ export async function* processChat(
       });
 
       if (finishReason === "tool-calls" && toolCalls && toolCalls.length > 0) {
-        // Flush current iteration's text into the persistent accumulator with a
-        // paragraph separator so that pre-tool and post-tool segments render
-        // as distinct paragraphs in markdown (model output may not end in \n).
+        // This iteration's text is reasoning (pre-tool-call).
+        // Signal the client to reclassify it, then accumulate into reasoningText.
         if (fullAssistantContent) {
-          persistedAssistantText +=
-            (persistedAssistantText ? "\n\n" : "") + fullAssistantContent;
+          yield { type: "text_block_end", data: { isReasoning: true } };
+          reasoningText += (reasoningText ? "\n\n" : "") + fullAssistantContent;
         }
         // Reset text for next iteration (already streamed via SSE)
         fullAssistantContent = "";
@@ -656,16 +656,15 @@ export async function* processChat(
         // Append our manually constructed tool results
         messages.push({ role: "tool", content: toolResultParts });
       } else {
-        // Final iteration — flush remaining text into the persisted accumulator.
+        // Final iteration — this text is the actual response.
         if (fullAssistantContent) {
-          persistedAssistantText +=
-            (persistedAssistantText ? "\n\n" : "") + fullAssistantContent;
+          persistedAssistantText = fullAssistantContent;
         }
         continueLoop = false;
       }
     }
 
-    // Store assistant message with accumulated token counts
+    // Store assistant message with accumulated token counts and reasoning
     const assistantMsgId = uuidv4();
     messageQueries.create(
       assistantMsgId,
@@ -674,7 +673,8 @@ export async function* processChat(
       persistedAssistantText,
       allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
       totalInputTokens,
-      totalOutputTokens
+      totalOutputTokens,
+      reasoningText || null
     );
 
     chatSessionQueries.touch(sessionId);
