@@ -215,6 +215,11 @@ export default function HomePage() {
       <footer className="py-8 border-t">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>BURP - Bio Unified Research Platform</p>
+          <div className="mt-2 flex justify-center gap-4">
+            <Link href="/help" className="hover:text-foreground transition-colors">
+              Help & User Guide
+            </Link>
+          </div>
         </div>
       </footer>
     </main>
