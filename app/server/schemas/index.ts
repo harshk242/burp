@@ -119,6 +119,8 @@ export const MessageSchema2 = z.object({
   // Token counts — 0 for user messages and rows predating the migration
   input_tokens: z.number().int().default(0).openapi({ example: 150 }),
   output_tokens: z.number().int().default(0).openapi({ example: 300 }),
+  // Pre-tool-call reasoning text, stored separately to keep model context clean
+  reasoning: z.string().nullable().default(null).openapi({ example: null }),
 });
 
 export const SessionWithMessagesSchema = z.object({

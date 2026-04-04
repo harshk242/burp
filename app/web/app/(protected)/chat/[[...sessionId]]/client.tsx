@@ -78,13 +78,18 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     isStreaming,
     streamingContent,
     pendingToolCalls,
+    reasoningSegments,
     error,
     setMessages,
     addMessage,
     reset,
     setError,
   } = useChatStore();
-  const { activeSessionId, addSession, setActiveSession, updateSession } = useSessionStore();
+  const { sessions, activeSessionId, addSession, setActiveSession, updateSession } = useSessionStore();
+
+  // Resolve the title of the active session for PDF export filenames
+  const sessionTitle =
+    sessions.find((s) => s.id === currentSessionId)?.title ?? "Chat";
 
   // Sync session store → local state when sidebar changes the active session.
   // Uses a ref to skip the initial mount (where activeSessionId may be null
@@ -139,6 +144,8 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
             toolCalls: msg.tool_calls as ToolCall[] | undefined,
             createdAt: msg.created_at * 1000,
             tokenUsage,
+            // Load reasoning from DB column (null/undefined → omit field)
+            reasoning: msg.reasoning || undefined,
           };
         });
 
@@ -229,6 +236,8 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
             streamingContent={streamingContent}
             pendingToolCalls={pendingToolCalls}
             isStreaming={isStreaming}
+            reasoningSegments={reasoningSegments}
+            sessionTitle={sessionTitle}
           />
           {rateLimitInfo && (
             <div className="px-4 pb-2">

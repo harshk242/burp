@@ -83,6 +83,19 @@ use the system__search_available_tools tool to find relevant tools by describing
 4. **Cite specific identifiers** (UniProt IDs, ChEMBL IDs, PMIDs, ENSG IDs, etc.)
 5. **Explain your findings** in clear, scientific language
 
+## Response Formatting
+
+- **Before calling tools**: You may include brief reasoning about your strategy (this is shown to the user as collapsible "Reasoning" text).
+- **In your final answer (after all tool calls are done)**: Start directly with the substantive response — the actual data, analysis, or table the user asked for. Do NOT begin with transitional or meta-commentary such as "Excellent! Now let me compile…", "Based on the results, here is…", "I have gathered the data. Let me present…", etc. Jump straight into the answer content itself (e.g. a heading, a table, or the first finding).
+- **Markdown only**: Always format your final response in well-structured markdown. Use headings, tables, bullet lists, and bold/italic for readability.
+- **Audience**: Your users are biomedical researchers. Keep responses structured, scannable, and easy to read. Prefer tables for comparative data and bullet lists for summaries.
+- **Evidence only**: Do NOT provide recommendations, rankings, or clinical interpretation. Present evidence and data summaries objectively; leave decisions to the researcher.
+- **Hyperlinks**: Include hyperlinks to source records for PubMed articles and clinical trials. Examples:
+  - PubMed articles: \`[PMID:12345678](https://pubmed.ncbi.nlm.nih.gov/12345678/)\`
+  - ClinicalTrials: \`[NCT01234567](https://clinicaltrials.gov/study/NCT01234567)\`
+- **PubMed citations**: When citing PubMed articles, include the publication year and number of citations (e.g. "Smith et al. (2019) — 342 citations").
+- **Follow-up questions**: Ask only when essential for clarification; keep them to a minimum.
+
 ## Common ID Resolution Patterns
 
 - Gene symbol → ENSG: Use ensembl__search_genes("TP53")
@@ -90,12 +103,12 @@ use the system__search_available_tools tool to find relevant tools by describing
 - Drug name → ChEMBL: Use chembl__search_compounds("imatinib")
 - rsID → Gene: Use clinvar__lookup_by_rsid("rs1042522")
 
-Always prefer using tools over your training knowledge for biomedical facts.`;
+Always use tools over your training knowledge for biomedical facts.`;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface StreamEvent {
-  type: "start" | "text" | "tool_start" | "tool_end" | "done" | "usage" | "error";
+  type: "start" | "text" | "tool_start" | "tool_end" | "text_block_end" | "done" | "usage" | "error";
   data: unknown;
 }
 
@@ -345,7 +358,8 @@ export async function* processChat(
 
     let continueLoop = true;
     let fullAssistantContent = "";
-    let persistedAssistantText = ""; // accumulates all text across iterations for DB storage
+    let persistedAssistantText = ""; // final response text only (last iteration)
+    let reasoningText = "";           // pre-tool-call reasoning text (all non-final iterations)
     const allToolCalls: ToolCallRecord[] = [];
     let loopIteration = 0;
     // Token accumulators — summed across all tool-call iterations
@@ -412,12 +426,11 @@ export async function* processChat(
       });
 
       if (finishReason === "tool-calls" && toolCalls && toolCalls.length > 0) {
-        // Flush current iteration's text into the persistent accumulator with a
-        // paragraph separator so that pre-tool and post-tool segments render
-        // as distinct paragraphs in markdown (model output may not end in \n).
+        // This iteration's text is reasoning (pre-tool-call).
+        // Signal the client to reclassify it, then accumulate into reasoningText.
         if (fullAssistantContent) {
-          persistedAssistantText +=
-            (persistedAssistantText ? "\n\n" : "") + fullAssistantContent;
+          yield { type: "text_block_end", data: { isReasoning: true } };
+          reasoningText += (reasoningText ? "\n\n" : "") + fullAssistantContent;
         }
         // Reset text for next iteration (already streamed via SSE)
         fullAssistantContent = "";
@@ -656,16 +669,15 @@ export async function* processChat(
         // Append our manually constructed tool results
         messages.push({ role: "tool", content: toolResultParts });
       } else {
-        // Final iteration — flush remaining text into the persisted accumulator.
+        // Final iteration — this text is the actual response.
         if (fullAssistantContent) {
-          persistedAssistantText +=
-            (persistedAssistantText ? "\n\n" : "") + fullAssistantContent;
+          persistedAssistantText = fullAssistantContent;
         }
         continueLoop = false;
       }
     }
 
-    // Store assistant message with accumulated token counts
+    // Store assistant message with accumulated token counts and reasoning
     const assistantMsgId = uuidv4();
     messageQueries.create(
       assistantMsgId,
@@ -674,7 +686,8 @@ export async function* processChat(
       persistedAssistantText,
       allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
       totalInputTokens,
-      totalOutputTokens
+      totalOutputTokens,
+      reasoningText || null
     );
 
     chatSessionQueries.touch(sessionId);

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { StreamingText } from "./StreamingText";
 import { ToolCallGroup } from "./ToolCallGroup";
+import { ReasoningBlock } from "./ReasoningBlock";
 import type { Message, ToolCall } from "@/types";
 
 interface MessageListProps {
@@ -11,6 +12,9 @@ interface MessageListProps {
   streamingContent: string;
   pendingToolCalls: ToolCall[];
   isStreaming: boolean;
+  /** Completed reasoning segments accumulated during streaming */
+  reasoningSegments: string[];
+  sessionTitle?: string;
 }
 
 export function MessageList({
@@ -18,6 +22,8 @@ export function MessageList({
   streamingContent,
   pendingToolCalls,
   isStreaming,
+  reasoningSegments,
+  sessionTitle,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -26,24 +32,32 @@ export function MessageList({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, streamingContent, pendingToolCalls]);
+  }, [messages, streamingContent, pendingToolCalls, reasoningSegments]);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
       <div className="max-w-3xl mx-auto py-4 space-y-4">
         {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble key={message.id} message={message} sessionTitle={sessionTitle} />
         ))}
 
         {/* Streaming content */}
-        {isStreaming && (streamingContent || pendingToolCalls.length > 0) && (
+        {isStreaming && (streamingContent || pendingToolCalls.length > 0 || reasoningSegments.length > 0) && (
           <div className="space-y-2">
+            {/* Collapsed reasoning (text that was reclassified via text_block_end) */}
+            {reasoningSegments.length > 0 && (
+              <ReasoningBlock
+                content={reasoningSegments.join("\n\n")}
+                defaultExpanded={false}
+              />
+            )}
+
             {/* Pending tool calls */}
             {pendingToolCalls.length > 0 && (
               <ToolCallGroup toolCalls={pendingToolCalls} />
             )}
 
-            {/* Streaming text */}
+            {/* Streaming text (current chunk — reasoning or final response) */}
             {streamingContent && (
               <div className="flex gap-3">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">

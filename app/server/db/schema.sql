@@ -55,7 +55,9 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at INTEGER DEFAULT (unixepoch()),
   -- Token counts per assistant message (0 for user messages and pre-migration rows)
   input_tokens INTEGER DEFAULT 0,
-  output_tokens INTEGER DEFAULT 0
+  output_tokens INTEGER DEFAULT 0,
+  -- Reasoning text (pre-tool-call text) stored separately to avoid model context contamination
+  reasoning TEXT
 );
 
 -- Daily usage tracking (one row per user per day)
@@ -111,3 +113,4 @@ CREATE VIRTUAL TABLE IF NOT EXISTS tool_search_fts USING fts5(
 -- ALTER TABLE daily_usage ADD COLUMN output_tokens INTEGER DEFAULT 0;
 -- ALTER TABLE messages ADD COLUMN input_tokens INTEGER DEFAULT 0;
 -- ALTER TABLE messages ADD COLUMN output_tokens INTEGER DEFAULT 0;
+-- ALTER TABLE messages ADD COLUMN reasoning TEXT;

@@ -51,6 +51,8 @@ export interface Message {
   createdAt: number;
   /** Token counts — set from the usage SSE event or loaded from history */
   tokenUsage?: { input: number; output: number };
+  /** Pre-tool-call reasoning text (separate from final response) */
+  reasoning?: string;
 }
 
 export interface DbMessage {
@@ -63,6 +65,8 @@ export interface DbMessage {
   /** Token counts stored with the assistant message (0 for user messages) */
   input_tokens?: number;
   output_tokens?: number;
+  /** Pre-tool-call reasoning text stored separately to avoid model context contamination */
+  reasoning?: string | null;
 }
 
 // ============================================
@@ -126,6 +130,7 @@ export type SSEEventType =
   | "text"
   | "tool_start"
   | "tool_end"
+  | "text_block_end"
   | "title"
   | "done"
   | "usage"

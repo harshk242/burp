@@ -39,7 +39,7 @@ export function ToolCallGroup({ toolCalls }: ToolCallGroupProps) {
   const hasErrors = errors > 0;
 
   return (
-    <div className="border rounded-lg overflow-hidden bg-card text-card-foreground">
+    <div className="tool-call-group border rounded-lg overflow-hidden bg-card text-card-foreground">
       {/* Clickable summary header */}
       <button
         onClick={() => setExpanded(!expanded)}
