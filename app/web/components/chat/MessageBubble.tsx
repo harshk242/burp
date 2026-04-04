@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { User, Copy, Check, Download, Loader2 } from "lucide-react";
@@ -43,21 +43,21 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
 }
 
 function DownloadButton({
-  contentRef,
+  content,
   sessionTitle,
   className,
 }: {
-  contentRef: React.RefObject<HTMLDivElement | null>;
+  content: string;
   sessionTitle: string;
   className?: string;
 }) {
   const [isExporting, setIsExporting] = useState(false);
 
   const handleDownload = async () => {
-    if (!contentRef.current || isExporting) return;
+    if (!content || isExporting) return;
     setIsExporting(true);
     try {
-      const result = await exportMessageAsPdf(contentRef.current, sessionTitle);
+      const result = await exportMessageAsPdf(content, sessionTitle);
       if (!result.success) {
         console.error("PDF export failed:", result.error);
       }
@@ -69,7 +69,7 @@ function DownloadButton({
   return (
     <button
       onClick={handleDownload}
-      disabled={isExporting || !contentRef.current}
+      disabled={isExporting}
       className={cn(
         "p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",
         className
@@ -87,7 +87,6 @@ function DownloadButton({
 
 export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleProps) {
   const isUser = message.role === "user";
-  const contentRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className={cn("flex gap-3", isUser && "flex-row-reverse")}>
@@ -110,8 +109,7 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
           isUser && "flex flex-col items-end"
         )}
       >
-        {/* Ref wraps the full assistant message content for PDF capture */}
-        <div ref={contentRef} className="w-full space-y-2">
+        <div className="w-full space-y-2">
           {/* Reasoning block (assistant only) */}
           {!isUser && message.reasoning && (
             <ReasoningBlock content={message.reasoning} defaultExpanded={false} />
@@ -126,7 +124,7 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
 
           {/* Message content */}
           {message.content && (
-            <div className={cn("group", isUser && "max-w-[85%]")}>
+            <div className={cn(isUser && "max-w-[85%]")}>
               <div
                 className={cn(
                   "rounded-lg px-4 py-2 max-w-full",
@@ -143,12 +141,12 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
               </div>
               {/* Action bar below bubble */}
               <div className={cn(
-                "action-bar flex items-center gap-2 mt-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200",
+                "action-bar flex items-center gap-2 mt-1",
                 isUser ? "justify-end" : "justify-start"
               )}>
                 <CopyButton text={message.content} />
                 {!isUser && (
-                  <DownloadButton contentRef={contentRef} sessionTitle={sessionTitle} />
+                  <DownloadButton content={message.content} sessionTitle={sessionTitle} />
                 )}
                 {/* Token count — only shown for assistant messages that have usage data */}
                 {!isUser && message.tokenUsage && (
