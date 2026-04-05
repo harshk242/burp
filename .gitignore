@@ -2,7 +2,7 @@ node_modules/
 package-lock.json
 .env.local
 .DS_Store
-bun.lock
+# bun.lock — tracked for reproducible builds
 .mcp.json
 build/
 dist/
