@@ -206,35 +206,28 @@ export function syncUserToDatabase(
 ): DbUser {
   // Check if user already exists
   let dbUser = userQueries.findByClerkId(clerkUserId);
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const isAdminEmail = Boolean(adminEmail && email.toLowerCase() === adminEmail.toLowerCase());
 
   if (dbUser) {
-    // User exists - check if waitlist user now has approval
-    if (dbUser.role === "waitlist") {
-      const accessRequest = accessRequestQueries.findByEmail(email);
-      if (accessRequest?.status === "approved") {
-        // Auto-promote to user
-        userQueries.updateRole(dbUser.id, "user");
-        dbUser = userQueries.findByClerkId(clerkUserId)!;
-      }
+    // Open access: existing waitlist users should not remain stranded after launch.
+    if (isAdminEmail && dbUser.role !== "admin") {
+      userQueries.updateRole(dbUser.id, "admin");
+      dbUser = userQueries.findByClerkId(clerkUserId)!;
+    } else if (dbUser.role === "waitlist") {
+      userQueries.updateRole(dbUser.id, "user");
+      dbUser = userQueries.findByClerkId(clerkUserId)!;
     }
     // Update last active and return
     userQueries.updateLastActive(dbUser.id);
     return dbUser;
   }
 
-  // New user - determine role based on access request and admin email
-  let role: "waitlist" | "user" | "admin" = "waitlist";
+  // New users are open-access by default; ADMIN_EMAIL still receives admin role.
+  let role: "waitlist" | "user" | "admin" = "user";
 
-  // Check if this is the admin email
-  const adminEmail = process.env.ADMIN_EMAIL;
-  if (adminEmail && email.toLowerCase() === adminEmail.toLowerCase()) {
+  if (isAdminEmail) {
     role = "admin";
-  } else {
-    // Check if they have an approved access request
-    const accessRequest = accessRequestQueries.findByEmail(email);
-    if (accessRequest?.status === "approved") {
-      role = "user";
-    }
   }
 
   // Get institution and research area from access request if available

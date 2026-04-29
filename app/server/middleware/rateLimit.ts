@@ -1,17 +1,17 @@
 /**
  * Rate Limiting Middleware
- * Checks daily query usage AND daily token budget before processing each request.
+ * Checks daily query usage and daily/monthly dollar budgets before each request.
  *
  * Priority order for limits:
- *   1. Per-user override (users.daily_query_limit / users.daily_token_limit)
+ *   1. Per-user override (users.daily_query_limit / users.*_cost_limit_microusd)
  *   2. Role-based default from rate_limits table (query count)
- *   3. App config default (token budget)
+ *   3. App config default (dollar budget)
  *
  * Enforcement semantics:
  *   - Query count  = STRICT  — atomic upsert, no race window.
- *   - Token budget = BEST-EFFORT — tokens are unknown until the response
- *     completes, so they are checked against *prior* requests. A single
- *     request can overshoot by at most its own token count before the
+ *   - Cost budget  = BEST-EFFORT — cost is unknown until the response
+ *     completes, so spend is checked against *prior* requests. A single
+ *     request can overshoot by at most its own model cost before the
  *     *next* request is blocked. This is standard behaviour for streaming
  *     APIs and is clearly documented here.
  *
@@ -19,33 +19,29 @@
  */
 
 import type { Context, Next } from "hono";
-import { dailyUsageQueries, rateLimitQueries } from "../db";
+import { dailyUsageQueries, rateLimitQueries, usageEventQueries } from "../db";
 import { appConfig } from "../config";
 import { logger } from "../logger";
 import type { AppEnv } from "../types";
-
-/**
- * Calculate the Unix timestamp of the next midnight UTC.
- */
-function getResetTimestamp(): number {
-  const now = new Date();
-  const resetDate = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
-  );
-  return Math.floor(resetDate.getTime() / 1000);
-}
+import {
+  calculateChatCost,
+  defaultCostLimitMicrousd,
+  getNextUtcMidnight,
+  getNextUtcMonthStart,
+} from "../usage";
 
 /**
  * Rate limiting middleware for the chat endpoint.
  * Sets X-RateLimit-* headers on every response.
- * Returns 429 when either the daily query limit or token budget is exceeded.
+ * Returns 429 when either the daily query limit or cost budget is exceeded.
  */
 export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
   const userId = c.get("userId") as string;
   const role = c.get("role") as string;
   const dbUser = c.get("dbUser")!;
 
-  const resetAt = getResetTimestamp();
+  const resetAt = getNextUtcMidnight();
+  const monthlyResetAt = getNextUtcMonthStart();
   const todayFull = dailyUsageQueries.getTodayFull(userId);
 
   // ── 1. Query count — STRICT enforcement ──────────────────────────────────
@@ -74,39 +70,94 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
     );
   }
 
-  // ── 2. Token budget — BEST-EFFORT enforcement ────────────────────────────
-  // Tokens are unknown until the response completes, so we check accumulated
-  // tokens from *prior* requests. The current request can overshoot by at most
-  // its own token count before the *next* request is blocked.
-  // Priority: user override > config default; admin always -1 (unlimited).
-  const tokenLimit: number =
-    dbUser.daily_token_limit ??
-    (role === "admin" ? -1 : appConfig.rate_limits.default_daily_tokens);
-
-  const todayTokens = todayFull.input_tokens + todayFull.output_tokens;
-
-  if (tokenLimit !== -1 && todayTokens >= tokenLimit) {
-    logger.warn("AUTH", "token_limit_exceeded", {
+  // ── 2. Dollar budget — BEST-EFFORT enforcement ───────────────────────────
+  // Pricing must exist for the active chat model before we spend provider API.
+  try {
+    calculateChatCost({
+      provider: appConfig.llm.provider,
+      model: appConfig.llm.chat_model,
+      inputTokens: 0,
+      outputTokens: 0,
+    });
+  } catch (error) {
+    logger.error("AUTH", "pricing_not_configured", {
       ctx: { user_id: userId },
-      data: { tokens_used: todayTokens, limit: tokenLimit, role },
+      error: error instanceof Error ? error : String(error),
     });
 
-    c.header("X-RateLimit-Token-Limit", String(tokenLimit));
-    c.header("X-RateLimit-Token-Remaining", "0");
-    c.header("X-RateLimit-Token-Used", String(todayTokens));
+    return c.json(
+      {
+        error: "pricing_not_configured",
+        message: "Usage pricing is not configured for the active chat model.",
+      },
+      500
+    );
+  }
+
+  const isAdmin = role === "admin";
+  const dailyCostLimit =
+    dbUser.daily_cost_limit_microusd ??
+    defaultCostLimitMicrousd(appConfig.usage.default_daily_cost_limit_usd, isAdmin);
+  const monthlyCostLimit =
+    dbUser.monthly_cost_limit_microusd ??
+    defaultCostLimitMicrousd(appConfig.usage.default_monthly_cost_limit_usd, isAdmin);
+  const todayCost = usageEventQueries.getTotalsForDate(userId).cost_microusd;
+  const monthCost = usageEventQueries.getTotalsForMonth(userId).cost_microusd;
+
+  if (dailyCostLimit !== -1 && todayCost >= dailyCostLimit) {
+    logger.warn("AUTH", "daily_cost_limit_exceeded", {
+      ctx: { user_id: userId },
+      data: { cost_used_microusd: todayCost, limit_microusd: dailyCostLimit, role },
+    });
+
+    c.header("X-RateLimit-Cost-Daily-Limit", String(dailyCostLimit));
+    c.header("X-RateLimit-Cost-Daily-Remaining", "0");
+    c.header("X-RateLimit-Cost-Daily-Used", String(todayCost));
     c.header("X-RateLimit-Reset", String(resetAt));
 
     return c.json(
       {
-        error: "token_limit_exceeded",
-        message: `You have used your daily token budget of ${tokenLimit.toLocaleString()} tokens. Limits reset at midnight UTC.`,
-        token_limit: tokenLimit,
-        tokens_used: todayTokens,
+        error: "cost_limit_exceeded",
+        scope: "daily",
+        message: "You have used your daily dollar budget. Limits reset at midnight UTC.",
+        cost_limit_microusd: dailyCostLimit,
+        cost_used_microusd: todayCost,
         resetAt,
       },
       429
     );
   }
+
+  if (monthlyCostLimit !== -1 && monthCost >= monthlyCostLimit) {
+    logger.warn("AUTH", "monthly_cost_limit_exceeded", {
+      ctx: { user_id: userId },
+      data: { cost_used_microusd: monthCost, limit_microusd: monthlyCostLimit, role },
+    });
+
+    c.header("X-RateLimit-Cost-Monthly-Limit", String(monthlyCostLimit));
+    c.header("X-RateLimit-Cost-Monthly-Remaining", "0");
+    c.header("X-RateLimit-Cost-Monthly-Used", String(monthCost));
+    c.header("X-RateLimit-Monthly-Reset", String(monthlyResetAt));
+
+    return c.json(
+      {
+        error: "cost_limit_exceeded",
+        scope: "monthly",
+        message: "You have used your monthly dollar budget. Limits reset next month.",
+        cost_limit_microusd: monthlyCostLimit,
+        cost_used_microusd: monthCost,
+        resetAt: monthlyResetAt,
+      },
+      429
+    );
+  }
+
+  // Tokens are still tracked for observability, but dollars are the launch gate.
+  const tokenLimit: number =
+    dbUser.daily_token_limit ??
+    (role === "admin" ? -1 : appConfig.rate_limits.default_daily_tokens);
+
+  const todayTokens = todayFull.input_tokens + todayFull.output_tokens;
 
   // ── Increment query count atomically before processing ───────────────────
   // Token increment happens inside processChat after the response completes.
@@ -125,6 +176,19 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
     String(tokenLimit === -1 ? 999999 : Math.max(0, tokenLimit - todayTokens))
   );
   c.header("X-RateLimit-Token-Used", String(todayTokens));
+  c.header("X-RateLimit-Cost-Daily-Limit", String(dailyCostLimit));
+  c.header(
+    "X-RateLimit-Cost-Daily-Remaining",
+    String(dailyCostLimit === -1 ? 999999 : Math.max(0, dailyCostLimit - todayCost))
+  );
+  c.header("X-RateLimit-Cost-Daily-Used", String(todayCost));
+  c.header("X-RateLimit-Cost-Monthly-Limit", String(monthlyCostLimit));
+  c.header(
+    "X-RateLimit-Cost-Monthly-Remaining",
+    String(monthlyCostLimit === -1 ? 999999 : Math.max(0, monthlyCostLimit - monthCost))
+  );
+  c.header("X-RateLimit-Cost-Monthly-Used", String(monthCost));
+  c.header("X-RateLimit-Monthly-Reset", String(monthlyResetAt));
 
   await next();
 }

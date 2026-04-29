@@ -50,11 +50,26 @@ interface AdminUser {
   total_queries: number;
   daily_query_limit: number | null;
   daily_token_limit: number | null;
+  daily_cost_limit_microusd: number | null;
+  monthly_cost_limit_microusd: number | null;
   created_at: number;
   last_active_at: number | null;
   today_queries: number;
   today_input_tokens: number;
   today_output_tokens: number;
+  today_cost_microusd: number;
+  month_cost_microusd: number;
+}
+
+function microusdToInput(microusd: number): string {
+  if (microusd === -1) return "-1";
+  return String(microusd / 1_000_000);
+}
+
+function usdInputToMicrousd(value: string): number {
+  const usd = parseFloat(value);
+  if (usd === -1) return -1;
+  return Math.round(usd * 1_000_000);
 }
 
 export function AdminPageClient() {
@@ -74,7 +89,12 @@ export function AdminPageClient() {
   // Users tab state
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [limitEdits, setLimitEdits] = useState<Record<string, { queryLimit: string; tokenLimit: string }>>({});
+  const [limitEdits, setLimitEdits] = useState<Record<string, {
+    queryLimit: string;
+    tokenLimit: string;
+    dailyCostLimit: string;
+    monthlyCostLimit: string;
+  }>>({});
   const [savingLimits, setSavingLimits] = useState<string | null>(null);
 
   // Client-side admin guard
@@ -108,11 +128,18 @@ export function AdminPageClient() {
       const data = await get<{ users: AdminUser[] }>("/admin/users");
       setAdminUsers(data.users);
       // Pre-populate edit state with current values
-      const edits: Record<string, { queryLimit: string; tokenLimit: string }> = {};
+      const edits: Record<string, {
+        queryLimit: string;
+        tokenLimit: string;
+        dailyCostLimit: string;
+        monthlyCostLimit: string;
+      }> = {};
       for (const u of data.users) {
         edits[u.id] = {
           queryLimit: u.daily_query_limit != null ? String(u.daily_query_limit) : "",
           tokenLimit: u.daily_token_limit != null ? String(u.daily_token_limit) : "",
+          dailyCostLimit: u.daily_cost_limit_microusd != null ? microusdToInput(u.daily_cost_limit_microusd) : "",
+          monthlyCostLimit: u.monthly_cost_limit_microusd != null ? microusdToInput(u.monthly_cost_limit_microusd) : "",
         };
       }
       setLimitEdits(edits);
@@ -129,9 +156,13 @@ export function AdminPageClient() {
       const edit = limitEdits[userId];
       const queryVal = edit.queryLimit.trim();
       const tokenVal = edit.tokenLimit.trim();
+      const dailyCostVal = edit.dailyCostLimit.trim();
+      const monthlyCostVal = edit.monthlyCostLimit.trim();
       await patch(`/admin/users/${userId}/limits`, {
         daily_query_limit: queryVal === "" ? null : parseInt(queryVal, 10),
         daily_token_limit: tokenVal === "" ? null : parseInt(tokenVal, 10),
+        daily_cost_limit_microusd: dailyCostVal === "" ? null : usdInputToMicrousd(dailyCostVal),
+        monthly_cost_limit_microusd: monthlyCostVal === "" ? null : usdInputToMicrousd(monthlyCostVal),
       });
       // Refresh list
       await fetchUsers();
@@ -340,9 +371,14 @@ function UsersTable({
 }: {
   users: AdminUser[];
   isLoading: boolean;
-  limitEdits: Record<string, { queryLimit: string; tokenLimit: string }>;
+  limitEdits: Record<string, {
+    queryLimit: string;
+    tokenLimit: string;
+    dailyCostLimit: string;
+    monthlyCostLimit: string;
+  }>;
   savingLimits: string | null;
-  onLimitChange: (userId: string, field: "queryLimit" | "tokenLimit", value: string) => void;
+  onLimitChange: (userId: string, field: "queryLimit" | "tokenLimit" | "dailyCostLimit" | "monthlyCostLimit", value: string) => void;
   onSave: (userId: string) => void;
 }) {
   if (isLoading) {
@@ -363,6 +399,10 @@ function UsersTable({
 
   const formatTokens = (n: number) =>
     n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+  const formatUsd = (microusd: number) => {
+    const usd = microusd / 1_000_000;
+    return usd < 0.01 && usd > 0 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
+  };
 
   return (
     <div className="border rounded-lg mt-2 overflow-x-auto">
@@ -372,15 +412,23 @@ function UsersTable({
             <TableHead>Name / Email</TableHead>
             <TableHead>Role</TableHead>
             <TableHead className="text-right">Today</TableHead>
+            <TableHead className="text-right">Month</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead className="w-28">Query limit</TableHead>
             <TableHead className="w-32">Token limit</TableHead>
+            <TableHead className="w-28">Daily $</TableHead>
+            <TableHead className="w-28">Monthly $</TableHead>
             <TableHead className="w-10"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {users.map((u) => {
-            const edit = limitEdits[u.id] ?? { queryLimit: "", tokenLimit: "" };
+            const edit = limitEdits[u.id] ?? {
+              queryLimit: "",
+              tokenLimit: "",
+              dailyCostLimit: "",
+              monthlyCostLimit: "",
+            };
             const todayTokens = u.today_input_tokens + u.today_output_tokens;
             return (
               <TableRow key={u.id}>
@@ -396,6 +444,10 @@ function UsersTable({
                 <TableCell className="text-right text-sm">
                   <div>{u.today_queries} queries</div>
                   <div className="text-xs text-muted-foreground">{formatTokens(todayTokens)} tokens</div>
+                  <div className="text-xs text-muted-foreground">{formatUsd(u.today_cost_microusd)}</div>
+                </TableCell>
+                <TableCell className="text-right text-sm text-muted-foreground">
+                  {formatUsd(u.month_cost_microusd)}
                 </TableCell>
                 <TableCell className="text-right text-sm text-muted-foreground">
                   {u.total_queries}
@@ -418,6 +470,28 @@ function UsersTable({
                     onChange={(e) => onLimitChange(u.id, "tokenLimit", e.target.value)}
                     type="number"
                     min={-1}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    className="h-7 text-sm"
+                    placeholder="default"
+                    value={edit.dailyCostLimit}
+                    onChange={(e) => onLimitChange(u.id, "dailyCostLimit", e.target.value)}
+                    type="number"
+                    min={-1}
+                    step="0.01"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    className="h-7 text-sm"
+                    placeholder="default"
+                    value={edit.monthlyCostLimit}
+                    onChange={(e) => onLimitChange(u.id, "monthlyCostLimit", e.target.value)}
+                    type="number"
+                    min={-1}
+                    step="0.01"
                   />
                 </TableCell>
                 <TableCell>

@@ -29,15 +29,17 @@ export async function streamChat(
     if (response.status === 429) {
       const errorCode: string = error.error ?? "";
       let message: string;
-      if (errorCode === "token_limit_exceeded") {
+      if (errorCode === "cost_limit_exceeded") {
+        message = error.message || "Dollar usage budget reached. Resets when the active budget window resets.";
+      } else if (errorCode === "token_limit_exceeded") {
         message = error.message || `Daily token budget of ${(error.token_limit ?? 0).toLocaleString()} tokens reached. Resets at midnight UTC.`;
       } else {
         message = error.message || "Daily query limit reached. Resets at midnight UTC.";
       }
       throw new RateLimitError(
         message,
-        error.limit ?? error.token_limit ?? 0,
-        error.used ?? error.tokens_used ?? 0,
+        error.limit ?? error.token_limit ?? error.cost_limit_microusd ?? 0,
+        error.used ?? error.tokens_used ?? error.cost_used_microusd ?? 0,
         error.resetAt ?? 0,
         errorCode
       );

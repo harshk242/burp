@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { readFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { appConfig } from "../config";
-import type { DbUser, DbAccessRequest, DbChatSession, DbMessageRow } from "../types";
+import type { DbUser, DbAccessRequest, DbChatSession, DbMessageRow, DbUsageEvent } from "../types";
 
 // Resolve data directory relative to project root (app/../data)
 const PROJECT_ROOT = join(dirname(import.meta.dir), "..", "..");
@@ -48,11 +48,35 @@ function applyMigrations(): void {
   const migrations: string[] = [
     "ALTER TABLE users ADD COLUMN daily_query_limit INTEGER",
     "ALTER TABLE users ADD COLUMN daily_token_limit INTEGER",
+    "ALTER TABLE users ADD COLUMN daily_cost_limit_microusd INTEGER",
+    "ALTER TABLE users ADD COLUMN monthly_cost_limit_microusd INTEGER",
     "ALTER TABLE daily_usage ADD COLUMN input_tokens INTEGER DEFAULT 0",
     "ALTER TABLE daily_usage ADD COLUMN output_tokens INTEGER DEFAULT 0",
     "ALTER TABLE messages ADD COLUMN input_tokens INTEGER DEFAULT 0",
     "ALTER TABLE messages ADD COLUMN output_tokens INTEGER DEFAULT 0",
     "ALTER TABLE messages ADD COLUMN reasoning TEXT",
+    "ALTER TABLE messages ADD COLUMN cost_microusd INTEGER DEFAULT 0",
+    `CREATE TABLE IF NOT EXISTS usage_events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,
+      month TEXT NOT NULL,
+      operation TEXT NOT NULL DEFAULT 'chat' CHECK (operation = 'chat'),
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      input_cost_per_mtok_microusd INTEGER NOT NULL,
+      output_cost_per_mtok_microusd INTEGER NOT NULL,
+      cost_microusd INTEGER NOT NULL DEFAULT 0,
+      session_id TEXT REFERENCES chat_sessions(id) ON DELETE SET NULL,
+      message_id TEXT REFERENCES messages(id) ON DELETE SET NULL,
+      created_at INTEGER DEFAULT (unixepoch())
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_usage_events_user_date ON usage_events(user_id, date)",
+    "CREATE INDEX IF NOT EXISTS idx_usage_events_user_month ON usage_events(user_id, month)",
+    "CREATE INDEX IF NOT EXISTS idx_usage_events_message_id ON usage_events(message_id)",
+    "UPDATE users SET role = 'user' WHERE role = 'waitlist'",
   ];
   for (const sql of migrations) {
     try {
@@ -117,11 +141,22 @@ export const userQueries = {
     return stmt("UPDATE users SET role = ? WHERE id = ?").run(role, id);
   },
 
-  /** Set per-user daily limits. Pass null to clear override (revert to defaults). */
-  updateLimits(id: string, dailyQueryLimit: number | null, dailyTokenLimit: number | null) {
+  /** Set per-user limits. Pass null to clear override (revert to defaults). */
+  updateLimits(
+    id: string,
+    dailyQueryLimit: number | null,
+    dailyTokenLimit: number | null,
+    dailyCostLimitMicrousd: number | null,
+    monthlyCostLimitMicrousd: number | null
+  ) {
     return stmt(
-      "UPDATE users SET daily_query_limit = ?, daily_token_limit = ? WHERE id = ?"
-    ).run(dailyQueryLimit, dailyTokenLimit, id);
+      `UPDATE users
+       SET daily_query_limit = ?,
+           daily_token_limit = ?,
+           daily_cost_limit_microusd = ?,
+           monthly_cost_limit_microusd = ?
+       WHERE id = ?`
+    ).run(dailyQueryLimit, dailyTokenLimit, dailyCostLimitMicrousd, monthlyCostLimitMicrousd, id);
   },
 
   /** List all users for the admin panel (with limit overrides). */
@@ -231,12 +266,13 @@ export const messageQueries = {
     toolCalls: string | null,
     inputTokens: number = 0,
     outputTokens: number = 0,
-    reasoning: string | null = null
+    reasoning: string | null = null,
+    costMicrousd: number = 0
   ) {
     return stmt(
-      `INSERT INTO messages (id, chat_id, role, content, tool_calls, input_tokens, output_tokens, reasoning)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, chatId, role, content, toolCalls, inputTokens, outputTokens, reasoning);
+      `INSERT INTO messages (id, chat_id, role, content, tool_calls, input_tokens, output_tokens, reasoning, cost_microusd)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, chatId, role, content, toolCalls, inputTokens, outputTokens, reasoning, costMicrousd);
   },
 
   findByChatId(chatId: string): DbMessageRow[] {
@@ -298,6 +334,73 @@ export const dailyUsageQueries = {
          input_tokens = input_tokens + excluded.input_tokens,
          output_tokens = output_tokens + excluded.output_tokens`
     ).run(userId, today, inputTokens, outputTokens);
+  },
+};
+
+/**
+ * Main chat usage cost ledger queries.
+ */
+export const usageEventQueries = {
+  create(event: Omit<DbUsageEvent, "created_at">): void {
+    stmt(
+      `INSERT INTO usage_events (
+        id,
+        user_id,
+        date,
+        month,
+        operation,
+        provider,
+        model,
+        input_tokens,
+        output_tokens,
+        input_cost_per_mtok_microusd,
+        output_cost_per_mtok_microusd,
+        cost_microusd,
+        session_id,
+        message_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      event.id,
+      event.user_id,
+      event.date,
+      event.month,
+      event.operation,
+      event.provider,
+      event.model,
+      event.input_tokens,
+      event.output_tokens,
+      event.input_cost_per_mtok_microusd,
+      event.output_cost_per_mtok_microusd,
+      event.cost_microusd,
+      event.session_id,
+      event.message_id
+    );
+  },
+
+  getTotalsForDate(userId: string, date = new Date().toISOString().slice(0, 10)) {
+    const row = stmt(
+      `SELECT
+         COALESCE(SUM(cost_microusd), 0) AS cost_microusd,
+         COALESCE(SUM(input_tokens), 0) AS input_tokens,
+         COALESCE(SUM(output_tokens), 0) AS output_tokens,
+         COUNT(*) AS query_count
+       FROM usage_events
+       WHERE user_id = ? AND date = ?`
+    ).get(userId, date) as { cost_microusd: number; input_tokens: number; output_tokens: number; query_count: number };
+    return row;
+  },
+
+  getTotalsForMonth(userId: string, month = new Date().toISOString().slice(0, 7)) {
+    const row = stmt(
+      `SELECT
+         COALESCE(SUM(cost_microusd), 0) AS cost_microusd,
+         COALESCE(SUM(input_tokens), 0) AS input_tokens,
+         COALESCE(SUM(output_tokens), 0) AS output_tokens,
+         COUNT(*) AS query_count
+       FROM usage_events
+       WHERE user_id = ? AND month = ?`
+    ).get(userId, month) as { cost_microusd: number; input_tokens: number; output_tokens: number; query_count: number };
+    return row;
   },
 };
 

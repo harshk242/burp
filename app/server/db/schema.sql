@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS users (
   last_active_at INTEGER,
   -- Per-user rate limit overrides (NULL = use role/config default)
   daily_query_limit INTEGER,
-  daily_token_limit INTEGER
+  daily_token_limit INTEGER,
+  daily_cost_limit_microusd INTEGER,
+  monthly_cost_limit_microusd INTEGER
 );
 
 -- Access requests (waitlist)
@@ -57,7 +59,9 @@ CREATE TABLE IF NOT EXISTS messages (
   input_tokens INTEGER DEFAULT 0,
   output_tokens INTEGER DEFAULT 0,
   -- Reasoning text (pre-tool-call text) stored separately to avoid model context contamination
-  reasoning TEXT
+  reasoning TEXT,
+  -- Dollar cost charged for this assistant turn (main chat model only)
+  cost_microusd INTEGER DEFAULT 0
 );
 
 -- Daily usage tracking (one row per user per day)
@@ -84,6 +88,25 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 INSERT OR IGNORE INTO rate_limits (role, daily_limit) VALUES ('user', 50);
 INSERT OR IGNORE INTO rate_limits (role, daily_limit) VALUES ('admin', -1);  -- -1 = unlimited
 
+-- Per-query usage ledger for main chat model billing
+CREATE TABLE IF NOT EXISTS usage_events (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,             -- YYYY-MM-DD (UTC)
+  month TEXT NOT NULL,            -- YYYY-MM (UTC)
+  operation TEXT NOT NULL DEFAULT 'chat' CHECK (operation = 'chat'),
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  input_cost_per_mtok_microusd INTEGER NOT NULL,
+  output_cost_per_mtok_microusd INTEGER NOT NULL,
+  cost_microusd INTEGER NOT NULL DEFAULT 0,
+  session_id TEXT REFERENCES chat_sessions(id) ON DELETE SET NULL,
+  message_id TEXT REFERENCES messages(id) ON DELETE SET NULL,
+  created_at INTEGER DEFAULT (unixepoch())
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -92,6 +115,9 @@ CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
 CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
 CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
 CREATE INDEX IF NOT EXISTS idx_daily_usage_user_date ON daily_usage(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_usage_events_user_date ON usage_events(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_usage_events_user_month ON usage_events(user_id, month);
+CREATE INDEX IF NOT EXISTS idx_usage_events_message_id ON usage_events(message_id);
 
 -- Full-text search index for hybrid tool search (BM25 + semantic)
 CREATE VIRTUAL TABLE IF NOT EXISTS tool_search_fts USING fts5(
@@ -109,8 +135,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS tool_search_fts USING fts5(
 --
 -- ALTER TABLE users ADD COLUMN daily_query_limit INTEGER;
 -- ALTER TABLE users ADD COLUMN daily_token_limit INTEGER;
+-- ALTER TABLE users ADD COLUMN daily_cost_limit_microusd INTEGER;
+-- ALTER TABLE users ADD COLUMN monthly_cost_limit_microusd INTEGER;
 -- ALTER TABLE daily_usage ADD COLUMN input_tokens INTEGER DEFAULT 0;
 -- ALTER TABLE daily_usage ADD COLUMN output_tokens INTEGER DEFAULT 0;
 -- ALTER TABLE messages ADD COLUMN input_tokens INTEGER DEFAULT 0;
 -- ALTER TABLE messages ADD COLUMN output_tokens INTEGER DEFAULT 0;
 -- ALTER TABLE messages ADD COLUMN reasoning TEXT;
+-- ALTER TABLE messages ADD COLUMN cost_microusd INTEGER DEFAULT 0;

@@ -5,7 +5,7 @@
  */
 
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { userQueries, dailyUsageQueries } from "../db";
+import { userQueries, dailyUsageQueries, usageEventQueries } from "../db";
 import { clerkAuth, requireDbUser, requireAdmin } from "../middleware/clerk";
 import { ErrorSchema } from "../schemas";
 import type { AppEnv } from "../types";
@@ -25,12 +25,16 @@ const AdminUserSchema = z.object({
   total_queries: z.number().int(),
   daily_query_limit: z.number().int().nullable(),
   daily_token_limit: z.number().int().nullable(),
+  daily_cost_limit_microusd: z.number().int().nullable(),
+  monthly_cost_limit_microusd: z.number().int().nullable(),
   created_at: z.number().int(),
   last_active_at: z.number().int().nullable(),
   // Today's usage — joined from daily_usage
   today_queries: z.number().int(),
   today_input_tokens: z.number().int(),
   today_output_tokens: z.number().int(),
+  today_cost_microusd: z.number().int(),
+  month_cost_microusd: z.number().int(),
 });
 
 const AdminUserListSchema = z.object({
@@ -52,6 +56,10 @@ const PatchLimitsSchema = z.object({
     .openapi({ example: 100, description: "null = role default, -1 = unlimited, >0 = hard cap" }),
   daily_token_limit: limitValue().optional()
     .openapi({ example: 500000, description: "null = config default, -1 = unlimited, >0 = hard cap" }),
+  daily_cost_limit_microusd: limitValue().optional()
+    .openapi({ example: 250000, description: "null = config default, -1 = unlimited, >0 = hard cap in microdollars" }),
+  monthly_cost_limit_microusd: limitValue().optional()
+    .openapi({ example: 3000000, description: "null = config default, -1 = unlimited, >0 = hard cap in microdollars" }),
 });
 
 // ── GET /api/admin/users ──────────────────────────────────────────────────────
@@ -80,6 +88,8 @@ admin.openapi(listUsersRoute, (c) => {
 
   const users = allUsers.map((u) => {
     const today = dailyUsageQueries.getTodayFull(u.id);
+    const todayCost = usageEventQueries.getTotalsForDate(u.id);
+    const monthCost = usageEventQueries.getTotalsForMonth(u.id);
     return {
       id: u.id,
       email: u.email,
@@ -88,11 +98,15 @@ admin.openapi(listUsersRoute, (c) => {
       total_queries: u.total_queries,
       daily_query_limit: u.daily_query_limit ?? null,
       daily_token_limit: u.daily_token_limit ?? null,
+      daily_cost_limit_microusd: u.daily_cost_limit_microusd ?? null,
+      monthly_cost_limit_microusd: u.monthly_cost_limit_microusd ?? null,
       created_at: u.created_at,
       last_active_at: u.last_active_at,
       today_queries: today.query_count,
       today_input_tokens: today.input_tokens,
       today_output_tokens: today.output_tokens,
+      today_cost_microusd: todayCost.cost_microusd,
+      month_cost_microusd: monthCost.cost_microusd,
     };
   });
 
@@ -106,7 +120,7 @@ const patchLimitsRoute = createRoute({
   path: "/users/{id}/limits",
   tags: ["Admin"],
   summary: "Set per-user rate limit overrides",
-  description: "Override daily_query_limit and/or daily_token_limit for a user. Pass null to clear and revert to defaults. Admin only.",
+  description: "Override query, token, and dollar cost limits for a user. Pass null to clear and revert to defaults. Admin only.",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -149,8 +163,14 @@ admin.openapi(patchLimitsRoute, async (c) => {
   // Use existing value when a field is absent from the request body
   const newQueryLimit = "daily_query_limit" in body ? (body.daily_query_limit ?? null) : user.daily_query_limit ?? null;
   const newTokenLimit = "daily_token_limit" in body ? (body.daily_token_limit ?? null) : user.daily_token_limit ?? null;
+  const newDailyCostLimit = "daily_cost_limit_microusd" in body
+    ? (body.daily_cost_limit_microusd ?? null)
+    : user.daily_cost_limit_microusd ?? null;
+  const newMonthlyCostLimit = "monthly_cost_limit_microusd" in body
+    ? (body.monthly_cost_limit_microusd ?? null)
+    : user.monthly_cost_limit_microusd ?? null;
 
-  userQueries.updateLimits(id, newQueryLimit, newTokenLimit);
+  userQueries.updateLimits(id, newQueryLimit, newTokenLimit, newDailyCostLimit, newMonthlyCostLimit);
 
   return c.json({ message: "Limits updated" }, 200);
 });

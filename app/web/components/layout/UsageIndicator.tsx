@@ -11,7 +11,7 @@ import {
 
 /**
  * Compact usage indicator for the header.
- * Shows "X / Y" queries with a color-coded bar, or "Unlimited" for admins.
+ * Shows daily dollar spend with a color-coded bar, or "Unlimited" for admins.
  */
 export function UsageIndicator() {
   // Hook triggers fetch on mount and after each stream
@@ -22,8 +22,10 @@ export function UsageIndicator() {
 
   if (!user || !usage) return null;
 
-  // Admin (unlimited)
-  if (usage.limit === -1) {
+  const cost = usage.cost;
+
+  // Admin / unlimited cost budget
+  if (cost?.daily_limit_microusd === -1 && cost.monthly_limit_microusd === -1) {
     return (
       <Badge variant="secondary" className="text-xs font-normal">
         Unlimited
@@ -35,9 +37,19 @@ export function UsageIndicator() {
   const tokens = usage.tokens;
   const tokenPct =
     tokens && tokens.limit > 0 ? (tokens.used_today / tokens.limit) * 100 : 0;
+  const dailyCostPct =
+    cost && cost.daily_limit_microusd > 0
+      ? (cost.daily_used_microusd / cost.daily_limit_microusd) * 100
+      : 0;
+  const monthlyCostPct =
+    cost && cost.monthly_limit_microusd > 0
+      ? (cost.monthly_used_microusd / cost.monthly_limit_microusd) * 100
+      : 0;
 
   // Color threshold: fire if either quota is close to exhausted
-  const worstPct = Math.max(queryPct, tokens && tokens.limit !== -1 ? tokenPct : 0);
+  const worstPct = cost
+    ? Math.max(dailyCostPct, monthlyCostPct)
+    : Math.max(queryPct, tokens && tokens.limit !== -1 ? tokenPct : 0);
   const barColor =
     worstPct >= 90 ? "bg-destructive" : worstPct >= 70 ? "bg-yellow-500" : "bg-primary";
 
@@ -49,13 +61,23 @@ export function UsageIndicator() {
 
   const formatTokens = (n: number) =>
     n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+  const formatUsd = (microusd: number) => {
+    if (microusd === -1) return "Unlimited";
+    const usd = microusd / 1_000_000;
+    return usd < 0.01 && usd > 0 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
+  };
+  const label = cost
+    ? cost.daily_limit_microusd === -1
+      ? `${formatUsd(cost.monthly_used_microusd)}/${formatUsd(cost.monthly_limit_microusd)}`
+      : `${formatUsd(cost.daily_used_microusd)}/${formatUsd(cost.daily_limit_microusd)}`
+    : `${usage.used}/${usage.limit}`;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="flex items-center gap-2 px-2 cursor-default">
           <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {usage.used}/{usage.limit}
+            {label}
           </span>
           <div className="hidden sm:block w-16 h-1.5 rounded-full bg-muted overflow-hidden">
             <div
@@ -66,9 +88,25 @@ export function UsageIndicator() {
         </div>
       </TooltipTrigger>
       <TooltipContent side="bottom">
-        <p className="text-xs">
-          {usage.used} of {usage.limit} queries used today
-        </p>
+        {cost ? (
+          <>
+            <p className="text-xs">
+              {formatUsd(cost.daily_used_microusd)} of {formatUsd(cost.daily_limit_microusd)} used today
+            </p>
+            <p className="text-xs">
+              {formatUsd(cost.monthly_used_microusd)} of {formatUsd(cost.monthly_limit_microusd)} used this month
+            </p>
+          </>
+        ) : (
+          <p className="text-xs">
+            {usage.used} of {usage.limit} queries used today
+          </p>
+        )}
+        {cost && (
+          <p className="text-xs opacity-75">
+            {usage.used} of {usage.limit} queries used today
+          </p>
+        )}
         {tokens && tokens.limit !== -1 && (
           <p className="text-xs">
             ~{formatTokens(tokens.used_today)} / {formatTokens(tokens.limit)} tokens used today

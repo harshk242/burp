@@ -7,6 +7,7 @@ import { rateLimitMiddleware } from "../middleware/rateLimit";
 import { processChat, generateSessionTitle } from "../orchestration/chat-v2";
 import { chatSessionQueries, messageQueries } from "../db";
 import { logger } from "../logger";
+import { appConfig } from "../config";
 
 import type { AppEnv } from "../types";
 
@@ -112,6 +113,16 @@ data: {"message":"Complete"}`,
 chat.openapi(chatRoute, async (c) => {
   const { message, sessionId: providedSessionId } = c.req.valid("json");
   const userId = c.get("userId") as string;
+
+  if (message.length > appConfig.usage.max_chat_input_chars) {
+    return c.json(
+      {
+        error: "message_too_large",
+        message: `Message must be ${appConfig.usage.max_chat_input_chars.toLocaleString()} characters or fewer.`,
+      },
+      400
+    );
+  }
 
   // Generate session ID if not provided
   const sessionId = providedSessionId || uuidv4();

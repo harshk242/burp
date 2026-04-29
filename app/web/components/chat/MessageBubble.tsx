@@ -15,13 +15,41 @@ interface MessageBubbleProps {
   sessionTitle?: string;
 }
 
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-9999px";
+  document.body.appendChild(textarea);
+
+  try {
+    textarea.select();
+    const didCopy = document.execCommand("copy");
+    if (!didCopy) {
+      throw new Error("Copy command was not accepted");
+    }
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 function CopyButton({ text, className }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await copyTextToClipboard(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy message:", error);
+    }
   };
 
   return (

@@ -4,6 +4,7 @@ import {
   AccessRequestSchema,
   ChatSessionSchema,
   MessageSchema2,
+  UsageEventSchema,
 } from "./schemas";
 
 // ============================================
@@ -13,6 +14,7 @@ import {
 export type DbUser = z.infer<typeof UserSchema>;
 export type DbAccessRequest = z.infer<typeof AccessRequestSchema>;
 export type DbChatSession = z.infer<typeof ChatSessionSchema>;
+export type DbUsageEvent = z.infer<typeof UsageEventSchema>;
 
 /**
  * Raw message row as stored in SQLite.

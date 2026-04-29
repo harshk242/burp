@@ -19,6 +19,16 @@ interface UsageResponse {
     input_today: number;
     output_today: number;
   };
+  cost?: {
+    daily_used_microusd: number;
+    daily_limit_microusd: number;
+    daily_remaining_microusd: number;
+    daily_reset_at: number;
+    monthly_used_microusd: number;
+    monthly_limit_microusd: number;
+    monthly_remaining_microusd: number;
+    monthly_reset_at: number;
+  };
 }
 
 /**
@@ -40,6 +50,7 @@ export function useUsage() {
         remaining: data.remaining,
         resetAt: data.resetAt,
         tokens: data.tokens,
+        cost: data.cost,
       };
       setUsage(info);
     } catch {

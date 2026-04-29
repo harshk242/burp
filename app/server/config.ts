@@ -45,16 +45,44 @@ const ArtifactConfigSchema = z.object({
     .default({}),
 });
 
+const ModelPricingSchema = z.object({
+  input_usd_per_mtok: z.number().nonnegative(),
+  output_usd_per_mtok: z.number().nonnegative(),
+});
+
 const AppConfigSchema = z.object({
   rate_limits: z.object({
     /** Default daily token budget for 'user' role. -1 = unlimited. Admin always unlimited. */
     default_daily_tokens: z.number().int().default(200_000),
+  }).default({}),
+  usage: z.object({
+    /** Default dollar budgets for 'user' role. -1 = unlimited. Admin always unlimited. */
+    default_daily_cost_limit_usd: z.number().default(0.25),
+    default_monthly_cost_limit_usd: z.number().default(3),
+    /** Bounds worst-case overshoot because final usage is only known post-stream. */
+    max_chat_input_chars: z.number().int().positive().default(20_000),
+    pricing: z.record(z.string(), z.record(z.string(), ModelPricingSchema)).default({
+      anthropic: {
+        "claude-haiku-4-5": {
+          input_usd_per_mtok: 1,
+          output_usd_per_mtok: 5,
+        },
+      },
+      google: {
+        "gemini-3-flash-preview": {
+          input_usd_per_mtok: 0.5,
+          output_usd_per_mtok: 3,
+        },
+      },
+    }),
   }).default({}),
   llm: z.object({
     provider: z.enum(["anthropic", "google"]).default("anthropic"),
     chat_model: z.string().default("claude-haiku-4-5"),
     title_model: z.string().default("claude-haiku-4-5"),
     max_retries: z.number().int().default(3),
+    max_output_tokens: z.number().int().positive().default(4096),
+    max_tool_iterations: z.number().int().positive().default(6),
   }),
   server: z.object({
     port: z.number().int().default(3000),
@@ -98,6 +126,13 @@ function applyEnvOverrides(cfg: AppConfig): AppConfig {
   if (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL) cfg.llm.chat_model = (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL)!;
   if (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL) cfg.llm.title_model = (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL)!;
   if (e.LLM_MAX_RETRIES) cfg.llm.max_retries = parseInt(e.LLM_MAX_RETRIES, 10);
+  if (e.LLM_MAX_OUTPUT_TOKENS) cfg.llm.max_output_tokens = parseInt(e.LLM_MAX_OUTPUT_TOKENS, 10);
+  if (e.LLM_MAX_TOOL_ITERATIONS) cfg.llm.max_tool_iterations = parseInt(e.LLM_MAX_TOOL_ITERATIONS, 10);
+
+  // Usage / cost limits
+  if (e.DEFAULT_DAILY_COST_LIMIT_USD) cfg.usage.default_daily_cost_limit_usd = parseFloat(e.DEFAULT_DAILY_COST_LIMIT_USD);
+  if (e.DEFAULT_MONTHLY_COST_LIMIT_USD) cfg.usage.default_monthly_cost_limit_usd = parseFloat(e.DEFAULT_MONTHLY_COST_LIMIT_USD);
+  if (e.MAX_CHAT_INPUT_CHARS) cfg.usage.max_chat_input_chars = parseInt(e.MAX_CHAT_INPUT_CHARS, 10);
 
   // Server
   if (e.PORT) cfg.server.port = parseInt(e.PORT, 10);

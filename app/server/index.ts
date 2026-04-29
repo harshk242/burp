@@ -114,7 +114,7 @@ app.use(
   cors({
     origin: (origin) => {
       const allowed = appConfig.server.cors_origins;
-      return allowed.includes(origin) ? origin : allowed[0];
+      return allowed.includes(origin) ? origin : undefined;
     },
     credentials: true,
   })

@@ -203,6 +203,16 @@ describe('UsageSchema', () => {
       input_today: 8200,
       output_today: 4200,
     },
+    cost: {
+      daily_used_microusd: 12000,
+      daily_limit_microusd: 250000,
+      daily_remaining_microusd: 238000,
+      daily_reset_at: 1711497600,
+      monthly_used_microusd: 45000,
+      monthly_limit_microusd: 3000000,
+      monthly_remaining_microusd: 2955000,
+      monthly_reset_at: 1711929600,
+    },
   };
 
   it('accepts valid usage data', () => {

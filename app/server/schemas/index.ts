@@ -31,6 +31,8 @@ export const UserSchema = z.object({
   // Per-user rate limit overrides (NULL = use role/config default)
   daily_query_limit: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use role default" }),
   daily_token_limit: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default" }),
+  daily_cost_limit_microusd: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default, -1 = unlimited" }),
+  monthly_cost_limit_microusd: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default, -1 = unlimited" }),
 });
 
 // ============================================
@@ -121,6 +123,26 @@ export const MessageSchema2 = z.object({
   output_tokens: z.number().int().default(0).openapi({ example: 300 }),
   // Pre-tool-call reasoning text, stored separately to keep model context clean
   reasoning: z.string().nullable().default(null).openapi({ example: null }),
+  // Main chat model cost charged for this assistant response
+  cost_microusd: z.number().int().default(0).openapi({ example: 1200 }),
+});
+
+export const UsageEventSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  date: z.string(),
+  month: z.string(),
+  operation: z.literal("chat"),
+  provider: z.string(),
+  model: z.string(),
+  input_tokens: z.number().int(),
+  output_tokens: z.number().int(),
+  input_cost_per_mtok_microusd: z.number().int(),
+  output_cost_per_mtok_microusd: z.number().int(),
+  cost_microusd: z.number().int(),
+  session_id: z.string().uuid().nullable(),
+  message_id: z.string().uuid().nullable(),
+  created_at: z.number().int(),
 });
 
 export const SessionWithMessagesSchema = z.object({
@@ -176,6 +198,16 @@ export const UsageSchema = z.object({
     input_today: z.number().int().openapi({ example: 8200 }),
     output_today: z.number().int().openapi({ example: 4200 }),
   }).openapi({ description: "Daily token budget" }),
+  cost: z.object({
+    daily_used_microusd: z.number().int().openapi({ example: 12000 }),
+    daily_limit_microusd: z.number().int().openapi({ example: 250000, description: "-1 means unlimited" }),
+    daily_remaining_microusd: z.number().int().openapi({ example: 238000, description: "-1 means unlimited" }),
+    daily_reset_at: z.number().int().openapi({ example: 1711497600 }),
+    monthly_used_microusd: z.number().int().openapi({ example: 45000 }),
+    monthly_limit_microusd: z.number().int().openapi({ example: 3000000, description: "-1 means unlimited" }),
+    monthly_remaining_microusd: z.number().int().openapi({ example: 2955000, description: "-1 means unlimited" }),
+    monthly_reset_at: z.number().int().openapi({ example: 1711929600 }),
+  }).openapi({ description: "Daily and monthly dollar budgets in microdollars" }),
 });
 
 export const AccessRequestAllListSchema = z.object({

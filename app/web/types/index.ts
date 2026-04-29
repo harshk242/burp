@@ -14,6 +14,10 @@ export interface User {
   total_queries: number;
   created_at: number;
   last_active_at: number | null;
+  daily_query_limit?: number | null;
+  daily_token_limit?: number | null;
+  daily_cost_limit_microusd?: number | null;
+  monthly_cost_limit_microusd?: number | null;
 }
 
 // ============================================
@@ -65,6 +69,8 @@ export interface DbMessage {
   /** Token counts stored with the assistant message (0 for user messages) */
   input_tokens?: number;
   output_tokens?: number;
+  /** Main chat model cost stored in microdollars */
+  cost_microusd?: number;
   /** Pre-tool-call reasoning text stored separately to avoid model context contamination */
   reasoning?: string | null;
 }
@@ -113,7 +119,7 @@ export class RateLimitError extends Error {
     public limit: number,
     public used: number,
     public resetAt: number,
-    /** "query_limit_exceeded" | "token_limit_exceeded" */
+    /** "query_limit_exceeded" | "token_limit_exceeded" | "cost_limit_exceeded" */
     public errorCode?: string
   ) {
     super(message);

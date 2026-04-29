@@ -208,8 +208,11 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
             minute: "2-digit",
             timeZoneName: "short",
           });
+          const formatUsd = (microusd: number) => `$${(microusd / 1_000_000).toFixed(2)}`;
           const message =
-            err.errorCode === "token_limit_exceeded"
+            err.errorCode === "cost_limit_exceeded"
+              ? `You've used your dollar budget of ${formatUsd(err.limit)}. Resets at ${resetTime}.`
+              : err.errorCode === "token_limit_exceeded"
               ? `You've used your daily token budget of ${err.limit.toLocaleString()} tokens. Resets at ${resetTime}.`
               : `You've used all ${err.limit} queries for today. Resets at ${resetTime}.`;
           setRateLimitInfo({

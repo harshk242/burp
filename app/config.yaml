@@ -8,12 +8,29 @@
 rate_limits:
   default_daily_tokens: 200000  # 200k tokens/day for 'user' role; -1 = unlimited
 
+# ── Dollar Usage Limits ──────────────────────────────────────
+usage:
+  default_daily_cost_limit_usd: 0.50    # env: DEFAULT_DAILY_COST_LIMIT_USD
+  default_monthly_cost_limit_usd: 16.00  # env: DEFAULT_MONTHLY_COST_LIMIT_USD
+  max_chat_input_chars: 20000           # env: MAX_CHAT_INPUT_CHARS
+  pricing:
+    anthropic:
+      claude-haiku-4-5:
+        input_usd_per_mtok: 1.00
+        output_usd_per_mtok: 5.00
+    google:
+      gemini-3-flash-preview:
+        input_usd_per_mtok: 0.50
+        output_usd_per_mtok: 3.00
+
 # ── LLM ──────────────────────────────────────────────────────
 llm:
   provider: anthropic           # "anthropic" | "google" — env: LLM_PROVIDER
   chat_model: claude-haiku-4-5  # env: LLM_CHAT_MODEL
   title_model: claude-haiku-4-5 # env: LLM_TITLE_MODEL
   max_retries: 3                # env: LLM_MAX_RETRIES
+  max_output_tokens: 4096       # env: LLM_MAX_OUTPUT_TOKENS
+  max_tool_iterations: 20        # env: LLM_MAX_TOOL_ITERATIONS
 
 # ── Server ───────────────────────────────────────────────────
 server:
@@ -24,6 +41,7 @@ server:
     - http://localhost:3000
     - http://localhost:3001
     - http://192.168.0.27:3001
+    - http://100.127.112.7:3001
   log_dir: ../logs              # env: LOG_DIR
   log_level: DEBUG              # DEBUG | INFO | WARN | ERROR — env: LOG_LEVEL
 

@@ -12,6 +12,8 @@ export interface LLMConfig {
   chatModel: string;
   titleModel: string;
   maxRetries: number;
+  maxOutputTokens: number;
+  maxToolIterations: number;
 }
 
 const DEFAULTS: Record<LLMProviderName, { chat: string; title: string }> = {
@@ -34,5 +36,7 @@ export function loadLLMConfig(): LLMConfig {
     chatModel: llm.chat_model || DEFAULTS[provider].chat,
     titleModel: llm.title_model || DEFAULTS[provider].title,
     maxRetries: llm.max_retries,
+    maxOutputTokens: llm.max_output_tokens,
+    maxToolIterations: llm.max_tool_iterations,
   };
 }

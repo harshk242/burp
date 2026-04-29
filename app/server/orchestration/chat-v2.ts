@@ -21,7 +21,7 @@ import { toolRegistry } from "../mcp/registry";
 import { hybridSearch } from "../search";
 import { createSearchTool } from "./tools/search-tool";
 import { createMcpToolExecutor } from "./tools/mcp-executor";
-import { messageQueries, chatSessionQueries, userQueries, dailyUsageQueries } from "../db";
+import { db, messageQueries, chatSessionQueries, userQueries, dailyUsageQueries, usageEventQueries } from "../db";
 import { logger, startTimer, estimateTokens, type LogContext } from "../logger";
 import { appConfig } from "../config";
 import { artifactStore } from "./tools/artifact-store";
@@ -29,6 +29,7 @@ import { applyNoiseReduction } from "./tools/noise-reduction";
 import { generatePreview } from "./tools/schema-preview";
 import { createInspectArtifactTool } from "./tools/artifact-inspector";
 import { validatePolicies } from "./tools/policy-resolver";
+import { calculateChatCost, getUtcDate, getUtcMonth } from "../usage";
 
 const llmConfig = loadLLMConfig();
 
@@ -363,6 +364,9 @@ export async function* processChat(
 
     while (continueLoop) {
       loopIteration++;
+      if (loopIteration > llmConfig.maxToolIterations) {
+        throw new Error(`Maximum tool iterations exceeded (${llmConfig.maxToolIterations})`);
+      }
       const iterElapsed = startTimer();
 
       logger.info("CHAT", "llm_request_start", {
@@ -390,6 +394,7 @@ export async function* processChat(
         messages,
         tools: declarationTools,
         maxRetries: llmConfig.maxRetries,
+        maxOutputTokens: llmConfig.maxOutputTokens,
       });
 
       // Stream text chunks
@@ -659,7 +664,9 @@ export async function* processChat(
         // provider metadata (Gemini 3 thought signatures) that the model
         // requires on subsequent turns.
         const { messages: responseMessages } = await result.response;
-        messages.push(...responseMessages);
+        // SDK response messages may include tool-result messages. We execute
+        // tools manually for SSE/control, so only keep assistant metadata here.
+        messages.push(...responseMessages.filter((msg) => msg.role !== "tool"));
 
         // Append our manually constructed tool results
         messages.push({ role: "tool", content: toolResultParts });
@@ -672,23 +679,54 @@ export async function* processChat(
       }
     }
 
-    // Store assistant message with accumulated token counts and reasoning
-    const assistantMsgId = uuidv4();
-    messageQueries.create(
-      assistantMsgId,
-      sessionId,
-      "assistant",
-      persistedAssistantText,
-      allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
-      totalInputTokens,
-      totalOutputTokens,
-      reasoningText || null
-    );
+    const chatCost = calculateChatCost({
+      provider: llmConfig.provider,
+      model: llmConfig.chatModel,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+    });
 
-    chatSessionQueries.touch(sessionId);
-    userQueries.incrementQueries(userId);
-    // Increment daily token totals (best-effort: done post-response; next request checks these)
-    dailyUsageQueries.incrementTokens(userId, totalInputTokens, totalOutputTokens);
+    const assistantMsgId = uuidv4();
+    const usageEventId = uuidv4();
+    const usageDate = getUtcDate();
+    const usageMonth = getUtcMonth();
+
+    db.transaction(() => {
+      // Store assistant message with accumulated token counts, cost, and reasoning.
+      messageQueries.create(
+        assistantMsgId,
+        sessionId,
+        "assistant",
+        persistedAssistantText,
+        allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
+        totalInputTokens,
+        totalOutputTokens,
+        reasoningText || null,
+        chatCost.costMicrousd
+      );
+
+      usageEventQueries.create({
+        id: usageEventId,
+        user_id: userId,
+        date: usageDate,
+        month: usageMonth,
+        operation: "chat",
+        provider: chatCost.provider,
+        model: chatCost.model,
+        input_tokens: chatCost.inputTokens,
+        output_tokens: chatCost.outputTokens,
+        input_cost_per_mtok_microusd: chatCost.inputCostPerMtokMicrousd,
+        output_cost_per_mtok_microusd: chatCost.outputCostPerMtokMicrousd,
+        cost_microusd: chatCost.costMicrousd,
+        session_id: sessionId,
+        message_id: assistantMsgId,
+      });
+
+      chatSessionQueries.touch(sessionId);
+      userQueries.incrementQueries(userId);
+      // Increment daily token totals (best-effort: done post-response; next request checks these)
+      dailyUsageQueries.incrementTokens(userId, totalInputTokens, totalOutputTokens);
+    })();
 
     logger.info("CHAT", "process_complete", {
       ctx,
@@ -703,6 +741,7 @@ export async function* processChat(
         message_id: assistantMsgId,
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
+        cost_microusd: chatCost.costMicrousd,
       },
     });
 
