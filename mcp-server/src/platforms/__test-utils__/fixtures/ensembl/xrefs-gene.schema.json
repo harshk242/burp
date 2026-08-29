@@ -9,10 +9,6 @@
         "type": "string",
         "path": "$[].dbname"
       },
-      "info_type": {
-        "type": "string",
-        "path": "$[].info_type"
-      },
       "synonyms": {
         "type": "array",
         "path": "$[].synonyms",
@@ -21,29 +17,43 @@
           "path": "$[].synonyms[]"
         }
       },
+      "db_display_name": {
+        "type": "string",
+        "path": "$[].db_display_name"
+      },
       "info_text": {
         "type": "string",
         "path": "$[].info_text"
       },
-      "display_id": {
+      "info_type": {
         "type": "string",
-        "path": "$[].display_id"
-      },
-      "description": {
-        "type": "unknown",
-        "path": "$[].description"
+        "path": "$[].info_type"
       },
       "primary_id": {
         "type": "string",
         "path": "$[].primary_id"
       },
+      "description": {
+        "type": "union",
+        "path": "$[].description",
+        "variants": [
+          {
+            "type": "string",
+            "path": "$[].description"
+          },
+          {
+            "type": "null",
+            "path": "$[].description"
+          }
+        ]
+      },
+      "display_id": {
+        "type": "string",
+        "path": "$[].display_id"
+      },
       "version": {
         "type": "string",
         "path": "$[].version"
-      },
-      "db_display_name": {
-        "type": "string",
-        "path": "$[].db_display_name"
       }
     }
   }

@@ -25,10 +25,11 @@ import { expect } from 'vitest';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface SchemaNode {
-  type: 'string' | 'number' | 'boolean' | 'null' | 'object' | 'array' | 'unknown';
+  type: 'string' | 'number' | 'boolean' | 'null' | 'object' | 'array' | 'union' | 'unknown';
   path: string;
   properties?: Record<string, SchemaNode>; // present when type === 'object'
   items?: SchemaNode | null;               // present when type === 'array'; null if empty array
+  variants?: SchemaNode[];                 // present when type === 'union'
   optional?: boolean;
 }
 
@@ -92,11 +93,15 @@ function mergeItemSchemas(items: unknown[], arrayPath: string): SchemaNode {
  *   side are marked optional.
  * - Same type, both arrays: recurse into items.
  * - Same primitive type: return node `a` unchanged.
- * - Mismatched types: collapse to `unknown`.
+ * - Mismatched types: retain every observed type as an explicit union.
  */
 function mergeNodes(a: SchemaNode, b: SchemaNode): SchemaNode {
+  if (a.type === 'union' || b.type === 'union') {
+    return mergeUnionNodes(a, b);
+  }
+
   if (a.type !== b.type) {
-    return { type: 'unknown', path: a.path };
+    return { type: 'union', path: a.path, variants: [a, b] };
   }
 
   if (a.type === 'object' && b.type === 'object') {
@@ -136,6 +141,30 @@ function mergeNodes(a: SchemaNode, b: SchemaNode): SchemaNode {
   return a;
 }
 
+/**
+ * Flatten and normalize a union. Variants of the same type are merged so an
+ * object or array alternative retains its nested structural contract.
+ */
+function mergeUnionNodes(a: SchemaNode, b: SchemaNode): SchemaNode {
+  const variants = [...getVariants(a), ...getVariants(b)];
+  const merged: SchemaNode[] = [];
+
+  for (const variant of variants) {
+    const matchingIndex = merged.findIndex((candidate) => candidate.type === variant.type);
+    if (matchingIndex === -1) {
+      merged.push(variant);
+    } else {
+      merged[matchingIndex] = mergeNodes(merged[matchingIndex], variant);
+    }
+  }
+
+  return { type: 'union', path: a.path, variants: merged };
+}
+
+function getVariants(node: SchemaNode): SchemaNode[] {
+  return node.type === 'union' ? (node.variants ?? []) : [node];
+}
+
 // ── Schema comparison ─────────────────────────────────────────────────────────
 
 /**
@@ -162,6 +191,16 @@ function compareNodes(
   typeChanges: string[],
   addedKeys: string[],
 ): void {
+  if (baseline.type === 'union') {
+    compareUnionBaseline(baseline, current, removedKeys, typeChanges, addedKeys);
+    return;
+  }
+
+  if (current.type === 'union') {
+    compareUnionCurrent(baseline, current, removedKeys, typeChanges, addedKeys);
+    return;
+  }
+
   if (baseline.type !== current.type) {
     typeChanges.push(`${baseline.path}: was '${baseline.type}', now '${current.type}'`);
     return;
@@ -194,6 +233,49 @@ function compareNodes(
       compareNodes(baseline.items, current.items, removedKeys, typeChanges, addedKeys);
     }
   }
+}
+
+function compareUnionBaseline(
+  baseline: SchemaNode,
+  current: SchemaNode,
+  removedKeys: string[],
+  typeChanges: string[],
+  addedKeys: string[],
+): void {
+  for (const currentVariant of getVariants(current)) {
+    const baselineVariant = getVariants(baseline)
+      .find((variant) => variant.type === currentVariant.type);
+
+    if (!baselineVariant) {
+      typeChanges.push(
+        `${baseline.path}: was one of ${describeVariants(baseline)}, now '${currentVariant.type}'`,
+      );
+    } else {
+      compareNodes(baselineVariant, currentVariant, removedKeys, typeChanges, addedKeys);
+    }
+  }
+}
+
+function compareUnionCurrent(
+  baseline: SchemaNode,
+  current: SchemaNode,
+  removedKeys: string[],
+  typeChanges: string[],
+  addedKeys: string[],
+): void {
+  for (const currentVariant of getVariants(current)) {
+    if (currentVariant.type !== baseline.type) {
+      typeChanges.push(
+        `${baseline.path}: was '${baseline.type}', now '${currentVariant.type}'`,
+      );
+    } else {
+      compareNodes(baseline, currentVariant, removedKeys, typeChanges, addedKeys);
+    }
+  }
+}
+
+function describeVariants(node: SchemaNode): string {
+  return getVariants(node).map((variant) => `'${variant.type}'`).join(' | ');
 }
 
 // ── Fixture I/O ───────────────────────────────────────────────────────────────

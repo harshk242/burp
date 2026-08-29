@@ -124,8 +124,96 @@
               "type": "array",
               "path": "$[].eventOf[].hasEvent",
               "items": {
-                "type": "unknown",
-                "path": "$[].eventOf[].hasEvent[]"
+                "type": "union",
+                "path": "$[].eventOf[].hasEvent[]",
+                "variants": [
+                  {
+                    "type": "object",
+                    "path": "$[].eventOf[].hasEvent[]",
+                    "properties": {
+                      "dbId": {
+                        "type": "number",
+                        "path": "$[].eventOf[].hasEvent[].dbId"
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "path": "$[].eventOf[].hasEvent[].displayName"
+                      },
+                      "stId": {
+                        "type": "string",
+                        "path": "$[].eventOf[].hasEvent[].stId"
+                      },
+                      "stIdVersion": {
+                        "type": "string",
+                        "path": "$[].eventOf[].hasEvent[].stIdVersion"
+                      },
+                      "definition": {
+                        "type": "string",
+                        "path": "$[].eventOf[].hasEvent[].definition"
+                      },
+                      "isInDisease": {
+                        "type": "boolean",
+                        "path": "$[].eventOf[].hasEvent[].isInDisease"
+                      },
+                      "isInferred": {
+                        "type": "boolean",
+                        "path": "$[].eventOf[].hasEvent[].isInferred"
+                      },
+                      "maxDepth": {
+                        "type": "number",
+                        "path": "$[].eventOf[].hasEvent[].maxDepth"
+                      },
+                      "name": {
+                        "type": "array",
+                        "path": "$[].eventOf[].hasEvent[].name",
+                        "items": {
+                          "type": "string",
+                          "path": "$[].eventOf[].hasEvent[].name[]"
+                        }
+                      },
+                      "releaseDate": {
+                        "type": "string",
+                        "path": "$[].eventOf[].hasEvent[].releaseDate"
+                      },
+                      "speciesName": {
+                        "type": "string",
+                        "path": "$[].eventOf[].hasEvent[].speciesName"
+                      },
+                      "eventOf": {
+                        "type": "array",
+                        "path": "$[].eventOf[].hasEvent[].eventOf",
+                        "items": {
+                          "type": "number",
+                          "path": "$[].eventOf[].hasEvent[].eventOf[]"
+                        }
+                      },
+                      "hasDiagram": {
+                        "type": "boolean",
+                        "path": "$[].eventOf[].hasEvent[].hasDiagram"
+                      },
+                      "hasEHLD": {
+                        "type": "boolean",
+                        "path": "$[].eventOf[].hasEvent[].hasEHLD"
+                      },
+                      "lastUpdatedDate": {
+                        "type": "string",
+                        "path": "$[].eventOf[].hasEvent[].lastUpdatedDate"
+                      },
+                      "schemaClass": {
+                        "type": "string",
+                        "path": "$[].eventOf[].hasEvent[].schemaClass"
+                      },
+                      "className": {
+                        "type": "string",
+                        "path": "$[].eventOf[].hasEvent[].className"
+                      }
+                    }
+                  },
+                  {
+                    "type": "number",
+                    "path": "$[].eventOf[].hasEvent[]"
+                  }
+                ]
               }
             },
             "schemaClass": {

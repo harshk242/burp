@@ -94,6 +94,10 @@
             "type": "string",
             "path": "$.activities[].molecule_pref_name"
           },
+          "modality": {
+            "type": "null",
+            "path": "$.activities[].modality"
+          },
           "parent_molecule_chembl_id": {
             "type": "string",
             "path": "$.activities[].parent_molecule_chembl_id"
@@ -107,8 +111,18 @@
             "path": "$.activities[].potential_duplicate"
           },
           "qudt_units": {
-            "type": "null",
-            "path": "$.activities[].qudt_units"
+            "type": "union",
+            "path": "$.activities[].qudt_units",
+            "variants": [
+              {
+                "type": "null",
+                "path": "$.activities[].qudt_units"
+              },
+              {
+                "type": "string",
+                "path": "$.activities[].qudt_units"
+              }
+            ]
           },
           "record_id": {
             "type": "number",
@@ -139,8 +153,18 @@
             "path": "$.activities[].standard_type"
           },
           "standard_units": {
-            "type": "null",
-            "path": "$.activities[].standard_units"
+            "type": "union",
+            "path": "$.activities[].standard_units",
+            "variants": [
+              {
+                "type": "null",
+                "path": "$.activities[].standard_units"
+              },
+              {
+                "type": "string",
+                "path": "$.activities[].standard_units"
+              }
+            ]
           },
           "standard_upper_value": {
             "type": "null",
@@ -179,12 +203,32 @@
             "path": "$.activities[].type"
           },
           "units": {
-            "type": "null",
-            "path": "$.activities[].units"
+            "type": "union",
+            "path": "$.activities[].units",
+            "variants": [
+              {
+                "type": "null",
+                "path": "$.activities[].units"
+              },
+              {
+                "type": "string",
+                "path": "$.activities[].units"
+              }
+            ]
           },
           "uo_units": {
-            "type": "null",
-            "path": "$.activities[].uo_units"
+            "type": "union",
+            "path": "$.activities[].uo_units",
+            "variants": [
+              {
+                "type": "null",
+                "path": "$.activities[].uo_units"
+              },
+              {
+                "type": "string",
+                "path": "$.activities[].uo_units"
+              }
+            ]
           },
           "upper_value": {
             "type": "null",
