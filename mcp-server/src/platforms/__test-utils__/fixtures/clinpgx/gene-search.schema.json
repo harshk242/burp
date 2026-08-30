@@ -99,6 +99,11 @@
             "type": "boolean",
             "path": "$.data[].hideHaplotypes"
           },
+          "history": {
+            "type": "array",
+            "path": "$.data[].history",
+            "items": null
+          },
           "pharmVarGene": {
             "type": "boolean",
             "path": "$.data[].pharmVarGene"

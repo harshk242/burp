@@ -362,6 +362,11 @@ export interface Phenotype {
 }
 
 // Drug Types
+export interface DrugLabelAndSource {
+  label: string;
+  source: string;
+}
+
 export interface Drug {
   id: string;
   name: string;
@@ -370,8 +375,8 @@ export interface Drug {
   maximumClinicalStage?: string;
   parentId?: string;
   childChemblIds?: string[];
-  synonyms?: string[];
-  tradeNames?: string[];
+  synonyms?: DrugLabelAndSource[];
+  tradeNames?: DrugLabelAndSource[];
   crossReferences?: DrugCrossReference;
   mechanismsOfAction?: MechanismOfAction;
   indications?: Indications;
