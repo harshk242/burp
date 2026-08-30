@@ -21,52 +21,6 @@
                     "type": "string",
                     "path": "$.studies[].protocolSection.identificationModule.nctId"
                   },
-                  "orgStudyIdInfo": {
-                    "type": "object",
-                    "path": "$.studies[].protocolSection.identificationModule.orgStudyIdInfo",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.identificationModule.orgStudyIdInfo.id"
-                      }
-                    }
-                  },
-                  "secondaryIdInfos": {
-                    "type": "array",
-                    "path": "$.studies[].protocolSection.identificationModule.secondaryIdInfos",
-                    "items": {
-                      "type": "object",
-                      "path": "$.studies[].protocolSection.identificationModule.secondaryIdInfos[]",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.identificationModule.secondaryIdInfos[].id"
-                        },
-                        "type": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.identificationModule.secondaryIdInfos[].type"
-                        },
-                        "link": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.identificationModule.secondaryIdInfos[].link"
-                        }
-                      }
-                    }
-                  },
-                  "organization": {
-                    "type": "object",
-                    "path": "$.studies[].protocolSection.identificationModule.organization",
-                    "properties": {
-                      "fullName": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.identificationModule.organization.fullName"
-                      },
-                      "class": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.identificationModule.organization.class"
-                      }
-                    }
-                  },
                   "briefTitle": {
                     "type": "string",
                     "path": "$.studies[].protocolSection.identificationModule.briefTitle"
@@ -81,10 +35,6 @@
                 "type": "object",
                 "path": "$.studies[].protocolSection.statusModule",
                 "properties": {
-                  "statusVerifiedDate": {
-                    "type": "string",
-                    "path": "$.studies[].protocolSection.statusModule.statusVerifiedDate"
-                  },
                   "overallStatus": {
                     "type": "string",
                     "path": "$.studies[].protocolSection.statusModule.overallStatus"
@@ -99,53 +49,13 @@
                       }
                     }
                   },
-                  "completionDateStruct": {
+                  "primaryCompletionDateStruct": {
                     "type": "object",
-                    "path": "$.studies[].protocolSection.statusModule.completionDateStruct",
+                    "path": "$.studies[].protocolSection.statusModule.primaryCompletionDateStruct",
                     "properties": {
                       "date": {
                         "type": "string",
-                        "path": "$.studies[].protocolSection.statusModule.completionDateStruct.date"
-                      }
-                    }
-                  },
-                  "studyFirstSubmitDate": {
-                    "type": "string",
-                    "path": "$.studies[].protocolSection.statusModule.studyFirstSubmitDate"
-                  },
-                  "studyFirstSubmitQcDate": {
-                    "type": "string",
-                    "path": "$.studies[].protocolSection.statusModule.studyFirstSubmitQcDate"
-                  },
-                  "studyFirstPostDateStruct": {
-                    "type": "object",
-                    "path": "$.studies[].protocolSection.statusModule.studyFirstPostDateStruct",
-                    "properties": {
-                      "date": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.statusModule.studyFirstPostDateStruct.date"
-                      },
-                      "type": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.statusModule.studyFirstPostDateStruct.type"
-                      }
-                    }
-                  },
-                  "lastUpdateSubmitDate": {
-                    "type": "string",
-                    "path": "$.studies[].protocolSection.statusModule.lastUpdateSubmitDate"
-                  },
-                  "lastUpdatePostDateStruct": {
-                    "type": "object",
-                    "path": "$.studies[].protocolSection.statusModule.lastUpdatePostDateStruct",
-                    "properties": {
-                      "date": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.statusModule.lastUpdatePostDateStruct.date"
-                      },
-                      "type": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.statusModule.lastUpdatePostDateStruct.type"
+                        "path": "$.studies[].protocolSection.statusModule.primaryCompletionDateStruct.date"
                       }
                     }
                   }
@@ -168,38 +78,6 @@
                         "path": "$.studies[].protocolSection.sponsorCollaboratorsModule.leadSponsor.class"
                       }
                     }
-                  },
-                  "collaborators": {
-                    "type": "array",
-                    "path": "$.studies[].protocolSection.sponsorCollaboratorsModule.collaborators",
-                    "items": {
-                      "type": "object",
-                      "path": "$.studies[].protocolSection.sponsorCollaboratorsModule.collaborators[]",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.sponsorCollaboratorsModule.collaborators[].name"
-                        },
-                        "class": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.sponsorCollaboratorsModule.collaborators[].class"
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "descriptionModule": {
-                "type": "object",
-                "path": "$.studies[].protocolSection.descriptionModule",
-                "properties": {
-                  "briefSummary": {
-                    "type": "string",
-                    "path": "$.studies[].protocolSection.descriptionModule.briefSummary"
-                  },
-                  "detailedDescription": {
-                    "type": "string",
-                    "path": "$.studies[].protocolSection.descriptionModule.detailedDescription"
                   }
                 }
               },
@@ -213,14 +91,6 @@
                     "items": {
                       "type": "string",
                       "path": "$.studies[].protocolSection.conditionsModule.conditions[]"
-                    }
-                  },
-                  "keywords": {
-                    "type": "array",
-                    "path": "$.studies[].protocolSection.conditionsModule.keywords",
-                    "items": {
-                      "type": "string",
-                      "path": "$.studies[].protocolSection.conditionsModule.keywords[]"
                     }
                   }
                 }
@@ -239,68 +109,6 @@
                     "items": {
                       "type": "string",
                       "path": "$.studies[].protocolSection.designModule.phases[]"
-                    }
-                  },
-                  "designInfo": {
-                    "type": "object",
-                    "path": "$.studies[].protocolSection.designModule.designInfo",
-                    "properties": {
-                      "allocation": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.designModule.designInfo.allocation"
-                      },
-                      "interventionModel": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.designModule.designInfo.interventionModel"
-                      },
-                      "primaryPurpose": {
-                        "type": "string",
-                        "path": "$.studies[].protocolSection.designModule.designInfo.primaryPurpose"
-                      },
-                      "maskingInfo": {
-                        "type": "object",
-                        "path": "$.studies[].protocolSection.designModule.designInfo.maskingInfo",
-                        "properties": {
-                          "masking": {
-                            "type": "string",
-                            "path": "$.studies[].protocolSection.designModule.designInfo.maskingInfo.masking"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "enrollmentInfo": {
-                    "type": "object",
-                    "path": "$.studies[].protocolSection.designModule.enrollmentInfo",
-                    "properties": {
-                      "count": {
-                        "type": "number",
-                        "path": "$.studies[].protocolSection.designModule.enrollmentInfo.count"
-                      }
-                    }
-                  }
-                }
-              },
-              "armsInterventionsModule": {
-                "type": "object",
-                "path": "$.studies[].protocolSection.armsInterventionsModule",
-                "properties": {
-                  "interventions": {
-                    "type": "array",
-                    "path": "$.studies[].protocolSection.armsInterventionsModule.interventions",
-                    "items": {
-                      "type": "object",
-                      "path": "$.studies[].protocolSection.armsInterventionsModule.interventions[]",
-                      "properties": {
-                        "type": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.armsInterventionsModule.interventions[].type"
-                        },
-                        "name": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.armsInterventionsModule.interventions[].name"
-                        }
-                      }
                     }
                   }
                 }
@@ -324,18 +132,6 @@
                   "minimumAge": {
                     "type": "string",
                     "path": "$.studies[].protocolSection.eligibilityModule.minimumAge"
-                  },
-                  "maximumAge": {
-                    "type": "string",
-                    "path": "$.studies[].protocolSection.eligibilityModule.maximumAge"
-                  },
-                  "stdAges": {
-                    "type": "array",
-                    "path": "$.studies[].protocolSection.eligibilityModule.stdAges",
-                    "items": {
-                      "type": "string",
-                      "path": "$.studies[].protocolSection.eligibilityModule.stdAges[]"
-                    }
                   }
                 }
               },
@@ -343,28 +139,6 @@
                 "type": "object",
                 "path": "$.studies[].protocolSection.contactsLocationsModule",
                 "properties": {
-                  "overallOfficials": {
-                    "type": "array",
-                    "path": "$.studies[].protocolSection.contactsLocationsModule.overallOfficials",
-                    "items": {
-                      "type": "object",
-                      "path": "$.studies[].protocolSection.contactsLocationsModule.overallOfficials[]",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.contactsLocationsModule.overallOfficials[].name"
-                        },
-                        "affiliation": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.contactsLocationsModule.overallOfficials[].affiliation"
-                        },
-                        "role": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.contactsLocationsModule.overallOfficials[].role"
-                        }
-                      }
-                    }
-                  },
                   "locations": {
                     "type": "array",
                     "path": "$.studies[].protocolSection.contactsLocationsModule.locations",
@@ -384,55 +158,9 @@
                           "type": "string",
                           "path": "$.studies[].protocolSection.contactsLocationsModule.locations[].state"
                         },
-                        "zip": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.contactsLocationsModule.locations[].zip"
-                        },
                         "country": {
                           "type": "string",
                           "path": "$.studies[].protocolSection.contactsLocationsModule.locations[].country"
-                        },
-                        "geoPoint": {
-                          "type": "object",
-                          "path": "$.studies[].protocolSection.contactsLocationsModule.locations[].geoPoint",
-                          "properties": {
-                            "lat": {
-                              "type": "number",
-                              "path": "$.studies[].protocolSection.contactsLocationsModule.locations[].geoPoint.lat"
-                            },
-                            "lon": {
-                              "type": "number",
-                              "path": "$.studies[].protocolSection.contactsLocationsModule.locations[].geoPoint.lon"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "referencesModule": {
-                "type": "object",
-                "path": "$.studies[].protocolSection.referencesModule",
-                "properties": {
-                  "references": {
-                    "type": "array",
-                    "path": "$.studies[].protocolSection.referencesModule.references",
-                    "items": {
-                      "type": "object",
-                      "path": "$.studies[].protocolSection.referencesModule.references[]",
-                      "properties": {
-                        "pmid": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.referencesModule.references[].pmid"
-                        },
-                        "type": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.referencesModule.references[].type"
-                        },
-                        "citation": {
-                          "type": "string",
-                          "path": "$.studies[].protocolSection.referencesModule.references[].citation"
                         }
                       }
                     }
@@ -440,110 +168,6 @@
                 }
               }
             }
-          },
-          "derivedSection": {
-            "type": "object",
-            "path": "$.studies[].derivedSection",
-            "properties": {
-              "miscInfoModule": {
-                "type": "object",
-                "path": "$.studies[].derivedSection.miscInfoModule",
-                "properties": {
-                  "versionHolder": {
-                    "type": "string",
-                    "path": "$.studies[].derivedSection.miscInfoModule.versionHolder"
-                  }
-                }
-              },
-              "conditionBrowseModule": {
-                "type": "object",
-                "path": "$.studies[].derivedSection.conditionBrowseModule",
-                "properties": {
-                  "meshes": {
-                    "type": "array",
-                    "path": "$.studies[].derivedSection.conditionBrowseModule.meshes",
-                    "items": {
-                      "type": "object",
-                      "path": "$.studies[].derivedSection.conditionBrowseModule.meshes[]",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "path": "$.studies[].derivedSection.conditionBrowseModule.meshes[].id"
-                        },
-                        "term": {
-                          "type": "string",
-                          "path": "$.studies[].derivedSection.conditionBrowseModule.meshes[].term"
-                        }
-                      }
-                    }
-                  },
-                  "ancestors": {
-                    "type": "array",
-                    "path": "$.studies[].derivedSection.conditionBrowseModule.ancestors",
-                    "items": {
-                      "type": "object",
-                      "path": "$.studies[].derivedSection.conditionBrowseModule.ancestors[]",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "path": "$.studies[].derivedSection.conditionBrowseModule.ancestors[].id"
-                        },
-                        "term": {
-                          "type": "string",
-                          "path": "$.studies[].derivedSection.conditionBrowseModule.ancestors[].term"
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "interventionBrowseModule": {
-                "type": "object",
-                "path": "$.studies[].derivedSection.interventionBrowseModule",
-                "properties": {
-                  "meshes": {
-                    "type": "array",
-                    "path": "$.studies[].derivedSection.interventionBrowseModule.meshes",
-                    "items": {
-                      "type": "object",
-                      "path": "$.studies[].derivedSection.interventionBrowseModule.meshes[]",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "path": "$.studies[].derivedSection.interventionBrowseModule.meshes[].id"
-                        },
-                        "term": {
-                          "type": "string",
-                          "path": "$.studies[].derivedSection.interventionBrowseModule.meshes[].term"
-                        }
-                      }
-                    }
-                  },
-                  "ancestors": {
-                    "type": "array",
-                    "path": "$.studies[].derivedSection.interventionBrowseModule.ancestors",
-                    "items": {
-                      "type": "object",
-                      "path": "$.studies[].derivedSection.interventionBrowseModule.ancestors[]",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "path": "$.studies[].derivedSection.interventionBrowseModule.ancestors[].id"
-                        },
-                        "term": {
-                          "type": "string",
-                          "path": "$.studies[].derivedSection.interventionBrowseModule.ancestors[].term"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "hasResults": {
-            "type": "boolean",
-            "path": "$.studies[].hasResults"
           }
         }
       }
