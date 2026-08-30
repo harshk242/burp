@@ -1,27 +1,14 @@
 // Target Identity API Tools
 
 import { getClient } from '../../client.js';
+import { TARGET_INFO_OPERATION } from './operations.js';
 
 /**
  * Retrieve core identity details for a target gene.
  */
 export async function getTargetInfo(ensemblId: string): Promise<unknown> {
   const client = getClient();
-  const query = `
-    query TargetInfo($ensemblId: String!) {
-      target(ensemblId: $ensemblId) {
-        id
-        approvedSymbol
-        approvedName
-        biotype
-        functionDescriptions
-        synonyms { label, source }
-        genomicLocation { chromosome, start, end, strand }
-        proteinIds { id, source }
-      }
-    }
-  `;
-  return client.query(query, { ensemblId });
+  return client.query(TARGET_INFO_OPERATION, { ensemblId });
 }
 
 /**

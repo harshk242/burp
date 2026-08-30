@@ -6,10 +6,6 @@
       "type": "object",
       "path": "$.target",
       "properties": {
-        "id": {
-          "type": "string",
-          "path": "$.target.id"
-        },
         "associatedDiseases": {
           "type": "object",
           "path": "$.target.associatedDiseases",
@@ -36,12 +32,52 @@
                       "name": {
                         "type": "string",
                         "path": "$.target.associatedDiseases.rows[].disease.name"
+                      },
+                      "description": {
+                        "type": "string",
+                        "path": "$.target.associatedDiseases.rows[].disease.description"
+                      },
+                      "therapeuticAreas": {
+                        "type": "array",
+                        "path": "$.target.associatedDiseases.rows[].disease.therapeuticAreas",
+                        "items": {
+                          "type": "object",
+                          "path": "$.target.associatedDiseases.rows[].disease.therapeuticAreas[]",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "path": "$.target.associatedDiseases.rows[].disease.therapeuticAreas[].id"
+                            },
+                            "name": {
+                              "type": "string",
+                              "path": "$.target.associatedDiseases.rows[].disease.therapeuticAreas[].name"
+                            }
+                          }
+                        }
                       }
                     }
                   },
                   "score": {
                     "type": "number",
                     "path": "$.target.associatedDiseases.rows[].score"
+                  },
+                  "datatypeScores": {
+                    "type": "array",
+                    "path": "$.target.associatedDiseases.rows[].datatypeScores",
+                    "items": {
+                      "type": "object",
+                      "path": "$.target.associatedDiseases.rows[].datatypeScores[]",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "path": "$.target.associatedDiseases.rows[].datatypeScores[].id"
+                        },
+                        "score": {
+                          "type": "number",
+                          "path": "$.target.associatedDiseases.rows[].datatypeScores[].score"
+                        }
+                      }
+                    }
                   }
                 }
               }

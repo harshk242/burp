@@ -1,6 +1,7 @@
 // Disease API Tools
 
 import { getClient } from '../client.js';
+import { DISEASE_INFO_OPERATION } from './operations.js';
 
 /**
  * Retrieve core metadata for an Open Targets disease entity.
@@ -9,25 +10,7 @@ import { getClient } from '../client.js';
  */
 export async function getDiseaseInfo(efoId: string): Promise<unknown> {
   const client = getClient();
-  const query = `
-    query DiseaseInfo($efoId: String!) {
-      disease(efoId: $efoId) {
-        id
-        name
-        description
-        synonyms {
-          relation
-          terms
-        }
-        therapeuticAreas {
-          id
-          name
-        }
-        dbXRefs
-      }
-    }
-  `;
-  const result = await client.query(query, { efoId });
+  const result = await client.query(DISEASE_INFO_OPERATION, { efoId });
 
   // Check if disease was found and provide helpful error
   if (result && typeof result === 'object' && 'disease' in result && result.disease === null) {

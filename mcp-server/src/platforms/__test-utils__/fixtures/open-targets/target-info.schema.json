@@ -30,38 +30,60 @@
             "path": "$.target.functionDescriptions[]"
           }
         },
-        "subcellularLocations": {
+        "synonyms": {
           "type": "array",
-          "path": "$.target.subcellularLocations",
+          "path": "$.target.synonyms",
           "items": {
             "type": "object",
-            "path": "$.target.subcellularLocations[]",
+            "path": "$.target.synonyms[]",
             "properties": {
-              "termSL": {
+              "label": {
                 "type": "string",
-                "path": "$.target.subcellularLocations[].termSL"
+                "path": "$.target.synonyms[].label"
               },
-              "location": {
+              "source": {
                 "type": "string",
-                "path": "$.target.subcellularLocations[].location"
+                "path": "$.target.synonyms[].source"
               }
             }
           }
         },
-        "targetClass": {
+        "genomicLocation": {
+          "type": "object",
+          "path": "$.target.genomicLocation",
+          "properties": {
+            "chromosome": {
+              "type": "string",
+              "path": "$.target.genomicLocation.chromosome"
+            },
+            "start": {
+              "type": "number",
+              "path": "$.target.genomicLocation.start"
+            },
+            "end": {
+              "type": "number",
+              "path": "$.target.genomicLocation.end"
+            },
+            "strand": {
+              "type": "number",
+              "path": "$.target.genomicLocation.strand"
+            }
+          }
+        },
+        "proteinIds": {
           "type": "array",
-          "path": "$.target.targetClass",
+          "path": "$.target.proteinIds",
           "items": {
             "type": "object",
-            "path": "$.target.targetClass[]",
+            "path": "$.target.proteinIds[]",
             "properties": {
               "id": {
-                "type": "number",
-                "path": "$.target.targetClass[].id"
-              },
-              "label": {
                 "type": "string",
-                "path": "$.target.targetClass[].label"
+                "path": "$.target.proteinIds[].id"
+              },
+              "source": {
+                "type": "string",
+                "path": "$.target.proteinIds[].source"
               }
             }
           }

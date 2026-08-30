@@ -14,24 +14,184 @@
           "type": "string",
           "path": "$.drug.name"
         },
-        "drugType": {
-          "type": "string",
-          "path": "$.drug.drugType"
-        },
-        "maximumClinicalStage": {
-          "type": "string",
-          "path": "$.drug.maximumClinicalStage"
-        },
-        "description": {
-          "type": "string",
-          "path": "$.drug.description"
+        "synonyms": {
+          "type": "array",
+          "path": "$.drug.synonyms",
+          "items": {
+            "type": "object",
+            "path": "$.drug.synonyms[]",
+            "properties": {
+              "label": {
+                "type": "string",
+                "path": "$.drug.synonyms[].label"
+              },
+              "source": {
+                "type": "string",
+                "path": "$.drug.synonyms[].source"
+              }
+            }
+          }
         },
         "tradeNames": {
           "type": "array",
           "path": "$.drug.tradeNames",
           "items": {
-            "type": "string",
-            "path": "$.drug.tradeNames[]"
+            "type": "object",
+            "path": "$.drug.tradeNames[]",
+            "properties": {
+              "label": {
+                "type": "string",
+                "path": "$.drug.tradeNames[].label"
+              },
+              "source": {
+                "type": "string",
+                "path": "$.drug.tradeNames[].source"
+              }
+            }
+          }
+        },
+        "drugType": {
+          "type": "string",
+          "path": "$.drug.drugType"
+        },
+        "description": {
+          "type": "string",
+          "path": "$.drug.description"
+        },
+        "maximumClinicalStage": {
+          "type": "string",
+          "path": "$.drug.maximumClinicalStage"
+        },
+        "mechanismsOfAction": {
+          "type": "object",
+          "path": "$.drug.mechanismsOfAction",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "path": "$.drug.mechanismsOfAction.rows",
+              "items": {
+                "type": "object",
+                "path": "$.drug.mechanismsOfAction.rows[]",
+                "properties": {
+                  "mechanismOfAction": {
+                    "type": "string",
+                    "path": "$.drug.mechanismsOfAction.rows[].mechanismOfAction"
+                  },
+                  "targetName": {
+                    "type": "string",
+                    "path": "$.drug.mechanismsOfAction.rows[].targetName"
+                  },
+                  "targets": {
+                    "type": "array",
+                    "path": "$.drug.mechanismsOfAction.rows[].targets",
+                    "items": {
+                      "type": "object",
+                      "path": "$.drug.mechanismsOfAction.rows[].targets[]",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "path": "$.drug.mechanismsOfAction.rows[].targets[].id"
+                        },
+                        "approvedSymbol": {
+                          "type": "string",
+                          "path": "$.drug.mechanismsOfAction.rows[].targets[].approvedSymbol"
+                        }
+                      }
+                    }
+                  },
+                  "actionType": {
+                    "type": "string",
+                    "path": "$.drug.mechanismsOfAction.rows[].actionType"
+                  },
+                  "references": {
+                    "type": "array",
+                    "path": "$.drug.mechanismsOfAction.rows[].references",
+                    "items": {
+                      "type": "object",
+                      "path": "$.drug.mechanismsOfAction.rows[].references[]",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "path": "$.drug.mechanismsOfAction.rows[].references[].source"
+                        },
+                        "ids": {
+                          "type": "array",
+                          "path": "$.drug.mechanismsOfAction.rows[].references[].ids",
+                          "items": {
+                            "type": "string",
+                            "path": "$.drug.mechanismsOfAction.rows[].references[].ids[]"
+                          }
+                        },
+                        "urls": {
+                          "type": "array",
+                          "path": "$.drug.mechanismsOfAction.rows[].references[].urls",
+                          "items": {
+                            "type": "string",
+                            "path": "$.drug.mechanismsOfAction.rows[].references[].urls[]"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "indications": {
+          "type": "object",
+          "path": "$.drug.indications",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "path": "$.drug.indications.rows",
+              "items": {
+                "type": "object",
+                "path": "$.drug.indications.rows[]",
+                "properties": {
+                  "disease": {
+                    "type": "object",
+                    "path": "$.drug.indications.rows[].disease",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "path": "$.drug.indications.rows[].disease.id"
+                      },
+                      "name": {
+                        "type": "string",
+                        "path": "$.drug.indications.rows[].disease.name"
+                      },
+                      "therapeuticAreas": {
+                        "type": "array",
+                        "path": "$.drug.indications.rows[].disease.therapeuticAreas",
+                        "items": {
+                          "type": "object",
+                          "path": "$.drug.indications.rows[].disease.therapeuticAreas[]",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "path": "$.drug.indications.rows[].disease.therapeuticAreas[].id"
+                            },
+                            "name": {
+                              "type": "string",
+                              "path": "$.drug.indications.rows[].disease.therapeuticAreas[].name"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "maxClinicalStage": {
+                    "type": "string",
+                    "path": "$.drug.indications.rows[].maxClinicalStage"
+                  }
+                }
+              }
+            },
+            "count": {
+              "type": "number",
+              "path": "$.drug.indications.count"
+            }
           }
         }
       }

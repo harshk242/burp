@@ -9,6 +9,19 @@
 import { describe, it } from 'vitest';
 import axios from 'axios';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
+import {
+  DRUG_CROSS_REFERENCES_OPERATION,
+  DRUG_INFO_OPERATION,
+} from '../tools/drug/operations.js';
+import {
+  DISEASE_INFO_OPERATION,
+  DEFAULT_SEARCH_ENTITY_NAMES,
+  SEARCH_ENTITIES_OPERATION,
+} from '../tools/operations.js';
+import {
+  TARGET_ASSOCIATED_DISEASES_OPERATION,
+  TARGET_INFO_OPERATION,
+} from '../tools/target/operations.js';
 
 const GRAPHQL_URL = 'https://api.platform.opentargets.org/api/v4/graphql';
 
@@ -30,98 +43,48 @@ async function query(gql: string, variables: Record<string, unknown>): Promise<u
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('Open Targets GraphQL API Contracts', () => {
-  // 1. Target info — most used query shape
+  // 1. Target info — shared with get_target_info handler
   it('target(ensemblId) schema is stable (BRAF)', async () => {
-    const data = await query(
-      `query TargetInfo($ensemblId: String!) {
-        target(ensemblId: $ensemblId) {
-          id
-          approvedSymbol
-          approvedName
-          biotype
-          functionDescriptions
-          subcellularLocations { termSL location }
-          targetClass { id label }
-        }
-      }`,
-      { ensemblId: 'ENSG00000157764' }, // BRAF
-    );
+    const data = await query(TARGET_INFO_OPERATION, { ensemblId: 'ENSG00000157764' }); // BRAF
     await assertSchemaStable('open-targets/target-info.schema.json', data);
   });
 
-  // 2. Disease info — used by get_disease_info handler
+  // 2. Disease info — shared with get_disease_info handler
   it('disease(efoId) schema is stable (cancer)', async () => {
-    const data = await query(
-      `query DiseaseInfo($efoId: String!) {
-        disease(efoId: $efoId) {
-          id
-          name
-          description
-          synonyms { relation terms }
-          therapeuticAreas { id name }
-        }
-      }`,
-      { efoId: 'EFO_0000311' }, // cancer
-    );
+    const data = await query(DISEASE_INFO_OPERATION, { efoId: 'EFO_0000311' }); // cancer
     await assertSchemaStable('open-targets/disease-info.schema.json', data);
   });
 
-  // 3. Drug info — used by get_drug_info handler
-  // Note: arg is 'chemblId', field is 'maximumClinicalStage' (not maximumClinicalTrialPhase)
+  // 3. Drug info — shared with get_drug_info handler
   it('drug(chemblId) schema is stable (Aspirin)', async () => {
-    const data = await query(
-      `query DrugInfo($chemblId: String!) {
-        drug(chemblId: $chemblId) {
-          id
-          name
-          drugType
-          maximumClinicalStage
-          description
-          tradeNames
-        }
-      }`,
-      { chemblId: 'CHEMBL25' }, // Aspirin
-    );
+    const data = await query(DRUG_INFO_OPERATION, { chemblId: 'CHEMBL25' }); // Aspirin
     await assertSchemaStable('open-targets/drug-info.schema.json', data);
   });
 
-  // 4. Target–disease associations — used by get_target_associated_diseases
+  // 4. Drug cross references — shared with get_drug_cross_references handler
+  it('drug crossReferences schema is stable (Aspirin)', async () => {
+    const data = await query(DRUG_CROSS_REFERENCES_OPERATION, { chemblId: 'CHEMBL25' }); // Aspirin
+    await assertSchemaStable('open-targets/drug-cross-references.schema.json', data);
+  });
+
+  // 5. Target–disease associations — shared with get_target_associated_diseases handler
   it('target associatedDiseases schema is stable (BRAF)', async () => {
-    const data = await query(
-      `query TargetDiseases($ensemblId: String!) {
-        target(ensemblId: $ensemblId) {
-          id
-          associatedDiseases(page: { index: 0, size: 3 }) {
-            count
-            rows {
-              disease { id name }
-              score
-            }
-          }
-        }
-      }`,
-      { ensemblId: 'ENSG00000157764' }, // BRAF
-    );
+    const data = await query(TARGET_ASSOCIATED_DISEASES_OPERATION, {
+      ensemblId: 'ENSG00000157764', // BRAF
+      pageIndex: 0,
+      pageSize: 10,
+    });
     await assertSchemaStable('open-targets/target-associated-diseases.schema.json', data);
   });
 
-  // 5. Search — used by search_entities handler
+  // 6. Search — shared with search_entities handler
   it('search schema is stable (BRCA2 query)', async () => {
-    const data = await query(
-      `query Search($queryString: String!) {
-        search(queryString: $queryString, page: { index: 0, size: 3 }) {
-          total
-          hits {
-            id
-            entity
-            name
-            description
-            score
-          }
-        }
-      }`,
-      { queryString: 'BRCA2' },
-    );
+    const data = await query(SEARCH_ENTITIES_OPERATION, {
+      queryString: 'BRCA2',
+      entityNames: DEFAULT_SEARCH_ENTITY_NAMES,
+      pageIndex: 0,
+      pageSize: 10,
+    });
     await assertSchemaStable('open-targets/search.schema.json', data);
   });
 });

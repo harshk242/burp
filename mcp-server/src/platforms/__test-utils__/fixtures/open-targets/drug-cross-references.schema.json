@@ -1,0 +1,86 @@
+{
+  "type": "object",
+  "path": "$",
+  "properties": {
+    "drug": {
+      "type": "object",
+      "path": "$.drug",
+      "properties": {
+        "id": {
+          "type": "string",
+          "path": "$.drug.id"
+        },
+        "name": {
+          "type": "string",
+          "path": "$.drug.name"
+        },
+        "synonyms": {
+          "type": "array",
+          "path": "$.drug.synonyms",
+          "items": {
+            "type": "object",
+            "path": "$.drug.synonyms[]",
+            "properties": {
+              "label": {
+                "type": "string",
+                "path": "$.drug.synonyms[].label"
+              },
+              "source": {
+                "type": "string",
+                "path": "$.drug.synonyms[].source"
+              }
+            }
+          }
+        },
+        "crossReferences": {
+          "type": "array",
+          "path": "$.drug.crossReferences",
+          "items": {
+            "type": "object",
+            "path": "$.drug.crossReferences[]",
+            "properties": {
+              "source": {
+                "type": "string",
+                "path": "$.drug.crossReferences[].source"
+              },
+              "ids": {
+                "type": "array",
+                "path": "$.drug.crossReferences[].ids",
+                "items": {
+                  "type": "string",
+                  "path": "$.drug.crossReferences[].ids[]"
+                }
+              }
+            }
+          }
+        },
+        "parentMolecule": {
+          "type": "null",
+          "path": "$.drug.parentMolecule"
+        },
+        "childMolecules": {
+          "type": "array",
+          "path": "$.drug.childMolecules",
+          "items": {
+            "type": "object",
+            "path": "$.drug.childMolecules[]",
+            "properties": {
+              "id": {
+                "type": "string",
+                "path": "$.drug.childMolecules[].id"
+              },
+              "name": {
+                "type": "string",
+                "path": "$.drug.childMolecules[].name"
+              },
+              "drugType": {
+                "type": "string",
+                "path": "$.drug.childMolecules[].drugType"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

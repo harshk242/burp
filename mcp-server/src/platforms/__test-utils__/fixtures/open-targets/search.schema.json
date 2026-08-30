@@ -36,6 +36,72 @@
               "score": {
                 "type": "number",
                 "path": "$.search.hits[].score"
+              },
+              "highlights": {
+                "type": "array",
+                "path": "$.search.hits[].highlights",
+                "items": {
+                  "type": "string",
+                  "path": "$.search.hits[].highlights[]"
+                }
+              },
+              "object": {
+                "type": "object",
+                "path": "$.search.hits[].object",
+                "properties": {
+                  "__typename": {
+                    "type": "string",
+                    "path": "$.search.hits[].object.__typename"
+                  },
+                  "id": {
+                    "type": "string",
+                    "path": "$.search.hits[].object.id"
+                  },
+                  "approvedSymbol": {
+                    "type": "string",
+                    "path": "$.search.hits[].object.approvedSymbol",
+                    "optional": true
+                  },
+                  "approvedName": {
+                    "type": "string",
+                    "path": "$.search.hits[].object.approvedName",
+                    "optional": true
+                  },
+                  "biotype": {
+                    "type": "string",
+                    "path": "$.search.hits[].object.biotype",
+                    "optional": true
+                  },
+                  "name": {
+                    "type": "string",
+                    "path": "$.search.hits[].object.name",
+                    "optional": true
+                  },
+                  "description": {
+                    "type": "string",
+                    "path": "$.search.hits[].object.description",
+                    "optional": true
+                  },
+                  "therapeuticAreas": {
+                    "type": "array",
+                    "path": "$.search.hits[].object.therapeuticAreas",
+                    "items": {
+                      "type": "object",
+                      "path": "$.search.hits[].object.therapeuticAreas[]",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "path": "$.search.hits[].object.therapeuticAreas[].id"
+                        },
+                        "name": {
+                          "type": "string",
+                          "path": "$.search.hits[].object.therapeuticAreas[].name"
+                        }
+                      }
+                    },
+                    "optional": true
+                  }
+                }
               }
             }
           }

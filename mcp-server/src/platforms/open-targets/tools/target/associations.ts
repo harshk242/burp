@@ -2,6 +2,7 @@
 
 import { getClient } from '../../client.js';
 import { filterNoneValues, truncateArray } from '../../utils.js';
+import { TARGET_ASSOCIATED_DISEASES_OPERATION } from './operations.js';
 
 /**
  * List diseases linked to a target with association scores.
@@ -12,21 +13,7 @@ export async function getTargetAssociatedDiseases(
   pageSize: number = 10
 ): Promise<unknown> {
   const client = getClient();
-  const query = `
-    query TargetAssociatedDiseases($ensemblId: String!, $pageIndex: Int!, $pageSize: Int!) {
-      target(ensemblId: $ensemblId) {
-        associatedDiseases(page: {index: $pageIndex, size: $pageSize}) {
-          count
-          rows {
-            disease { id, name, description, therapeuticAreas { id, name } }
-            score
-            datatypeScores { id, score }
-          }
-        }
-      }
-    }
-  `;
-  return client.query(query, { ensemblId, pageIndex, pageSize });
+  return client.query(TARGET_ASSOCIATED_DISEASES_OPERATION, { ensemblId, pageIndex, pageSize });
 }
 
 /**

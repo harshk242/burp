@@ -1,53 +1,17 @@
 // Drug Identity API Tools
 
 import { getClient } from '../../client.js';
+import {
+  DRUG_CROSS_REFERENCES_OPERATION,
+  DRUG_INFO_OPERATION,
+} from './operations.js';
 
 /**
  * Fetch identity, indication, and mechanism data for a drug.
  */
 export async function getDrugInfo(chemblId: string): Promise<unknown> {
   const client = getClient();
-  const query = `
-    query DrugInfo($chemblId: String!) {
-      drug(chemblId: $chemblId) {
-        id
-        name
-        synonyms
-        tradeNames
-        drugType
-        description
-        maximumClinicalStage
-        mechanismsOfAction {
-          rows {
-            mechanismOfAction
-            targetName
-            targets {
-              id
-              approvedSymbol
-            }
-            actionType
-            references {
-              source
-              ids
-              urls
-            }
-          }
-        }
-        indications {
-          rows {
-            disease {
-              id
-              name
-              therapeuticAreas { id, name }
-            }
-            maxClinicalStage
-          }
-          count
-        }
-      }
-    }
-  `;
-  return client.query(query, { chemblId });
+  return client.query(DRUG_INFO_OPERATION, { chemblId });
 }
 
 /**
@@ -55,27 +19,5 @@ export async function getDrugInfo(chemblId: string): Promise<unknown> {
  */
 export async function getDrugCrossReferences(chemblId: string): Promise<unknown> {
   const client = getClient();
-  const query = `
-    query DrugCrossReferences($chemblId: String!) {
-      drug(chemblId: $chemblId) {
-        id
-        name
-        synonyms
-        crossReferences {
-          source
-          ids
-        }
-        parentMolecule {
-          id
-          name
-        }
-        childMolecules {
-          id
-          name
-          drugType
-        }
-      }
-    }
-  `;
-  return client.query(query, { chemblId });
+  return client.query(DRUG_CROSS_REFERENCES_OPERATION, { chemblId });
 }

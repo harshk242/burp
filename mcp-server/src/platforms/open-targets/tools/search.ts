@@ -3,6 +3,10 @@
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
 import { mapIds } from './meta.js';
+import {
+  DEFAULT_SEARCH_ENTITY_NAMES,
+  SEARCH_ENTITIES_OPERATION,
+} from './operations.js';
 
 // Optional fuzzy matching support
 let fuzzball: any = null;
@@ -23,40 +27,13 @@ async function searchDirect(
   pageSize: number = 10
 ): Promise<unknown> {
   const client = getClient();
-  const query = `
-    query SearchEntities($queryString: String!, $entityNames: [String!], $pageIndex: Int!, $pageSize: Int!) {
-      search(
-        queryString: $queryString,
-        entityNames: $entityNames,
-        page: {index: $pageIndex, size: $pageSize}
-      ) {
-        total
-        hits {
-          id
-          entity
-          name
-          description
-          score
-          highlights
-          object {
-            __typename
-            ... on Target { id, approvedSymbol, approvedName, biotype }
-            ... on Disease { id, name, description, therapeuticAreas { id, name } }
-            ... on Drug { id, name, drugType, maximumClinicalStage }
-            ... on Variant { id, chromosome, position, rsIds }
-            ... on Study { id, studyType, traitFromSource }
-          }
-        }
-      }
-    }
-  `;
   const variables = {
     queryString,
-    entityNames: entityNames || ['target', 'disease', 'drug', 'variant', 'study'],
+    entityNames: entityNames || DEFAULT_SEARCH_ENTITY_NAMES,
     pageIndex,
     pageSize,
   };
-  return client.query(query, variables);
+  return client.query(SEARCH_ENTITIES_OPERATION, variables);
 }
 
 interface SearchResult {
