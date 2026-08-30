@@ -56,7 +56,7 @@ echo ""
 
 # Test 4: PharmGKB availability
 echo "4. Testing PharmGKB API..."
-result=$(curl -s -w "\n%{http_code}" "https://api.pharmgkb.org/v1/data/gene?symbol=CYP2D6" 2>/dev/null)
+result=$(curl -s -w "\n%{http_code}" "https://api.clinpgx.org/v1/data/gene?symbol=CYP2D6" 2>/dev/null)
 http_code=$(echo "$result" | tail -n1)
 body=$(echo "$result" | head -n-1)
 

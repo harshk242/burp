@@ -11,7 +11,7 @@ import { describe, it } from 'vitest';
 import axios from 'axios';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
 
-const BASE = 'https://api.pharmgkb.org/v1';
+const BASE = 'https://api.clinpgx.org/v1';
 const JSON_HEADERS = { Accept: 'application/json' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

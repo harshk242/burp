@@ -171,7 +171,7 @@ Error: HTTP error 400: Request failed with status code 400
 # Test 3: CYP2C19
 
 # Check PharmGKB API directly
-curl "https://api.pharmgkb.org/v1/data/gene?name=CYP2D6"
+curl "https://api.clinpgx.org/v1/data/gene?name=CYP2D6"
 ```
 
 ---
@@ -198,7 +198,7 @@ Error: HTTP error 400: Request failed with status code 400
 # This should work without parameters
 # Check if API endpoint changed or requires authentication
 
-curl "https://api.pharmgkb.org/v1/data/stats"
+curl "https://api.clinpgx.org/v1/data/stats"
 ```
 
 ---
@@ -225,7 +225,7 @@ Error: HTTP error 400: Request failed with status code 400
 
 **Manual Verification:**
 ```bash
-curl "https://api.pharmgkb.org/v1/data/drug?name=Aspirin"
+curl "https://api.clinpgx.org/v1/data/drug?name=Aspirin"
 ```
 
 ---
@@ -609,7 +609,7 @@ echo ""
 
 # Test 4: PharmGKB availability
 echo "4. Testing PharmGKB API..."
-curl -s "https://api.pharmgkb.org/v1/data/gene?symbol=CYP2D6" 2>/dev/null | head -n 5
+curl -s "https://api.clinpgx.org/v1/data/gene?symbol=CYP2D6" 2>/dev/null | head -n 5
 if [ $? -eq 0 ]; then
     echo "   ✓ PharmGKB API accessible"
 else
@@ -733,7 +733,7 @@ def test_pharmgkb():
     """Test PharmGKB API"""
     print("4. Testing PharmGKB API...")
     try:
-        url = "https://api.pharmgkb.org/v1/data/gene?symbol=CYP2D6"
+        url = "https://api.clinpgx.org/v1/data/gene?symbol=CYP2D6"
         response = requests.get(url, timeout=10)
         print(f"   Status: HTTP {response.status_code}")
         if response.status_code == 200:

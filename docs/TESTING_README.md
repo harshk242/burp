@@ -131,7 +131,7 @@ curl "https://rest.uniprot.org/uniprotkb/P04637.json" | jq
 
 ```bash
 # Test gene query
-curl "https://api.pharmgkb.org/v1/data/gene?symbol=CYP2D6"
+curl "https://api.clinpgx.org/v1/data/gene?symbol=CYP2D6"
 
 # If returns 401, authentication is required
 # If returns 400, check parameter format
@@ -315,7 +315,7 @@ python3 test_failed_cases.py
 cat FAILED_TEST_CASES.md | grep -A 20 "ClinPGx"
 
 # 5. Test problematic API directly
-curl -v "https://api.pharmgkb.org/v1/data/gene?symbol=CYP2D6"
+curl -v "https://api.clinpgx.org/v1/data/gene?symbol=CYP2D6"
 
 # 6. Fix MCP configuration based on findings
 vim ~/.config/claude/claude_desktop_config.json

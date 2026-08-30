@@ -89,7 +89,7 @@ def test_pharmgkb() -> Tuple[str, str]:
     """Test PharmGKB API"""
     print("\n4. Testing PharmGKB API...")
     try:
-        url = "https://api.pharmgkb.org/v1/data/gene?symbol=CYP2D6"
+        url = "https://api.clinpgx.org/v1/data/gene?symbol=CYP2D6"
         response = requests.get(url, timeout=10)
         print(f"   Status: HTTP {response.status_code}")
 

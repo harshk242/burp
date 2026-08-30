@@ -30,7 +30,7 @@ import type {
   SearchResult,
 } from './types.js';
 
-const PHARMGKB_BASE_URL = 'https://api.pharmgkb.org/v1';
+const PHARMGKB_BASE_URL = 'https://api.clinpgx.org/v1';
 const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 1000;
