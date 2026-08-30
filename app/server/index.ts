@@ -10,6 +10,7 @@ import { hybridSearch } from "./search";
 import { getEmbeddingModel } from "./llm";
 import { logger, startTimer, generateRequestId } from "./logger";
 import { appConfig } from "./config";
+import { redirectWwwToCanonical } from "./middleware/canonical-host";
 import type { AppEnv } from "./types";
 
 // Initialize database on startup
@@ -109,6 +110,10 @@ app.use("*", async (c, next) => {
     ctx: { request_id: rid },
   });
 });
+
+// Canonicalize before CORS, API routes, and static files so browser clients are same-origin.
+app.use("*", redirectWwwToCanonical);
+
 app.use(
   "*",
   cors({

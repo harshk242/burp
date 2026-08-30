@@ -7,7 +7,6 @@ primary_region = "iad"
 
 [build.args]
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsudHJ5YnVycC5jb20k"
-  NEXT_PUBLIC_API_URL = "https://tryburp.com"
 
 [env]
   PORT = "3000"

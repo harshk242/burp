@@ -2,6 +2,7 @@
 
 import { useAuth } from "@clerk/clerk-react";
 import { useCallback } from "react";
+import { buildApiUrl } from "@/lib/api-url";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -12,7 +13,7 @@ export function useApi() {
     async <T>(path: string, options?: RequestInit): Promise<T> => {
       const token = await getToken();
 
-      const res = await fetch(`${API_BASE}/api${path}`, {
+      const res = await fetch(buildApiUrl(path, API_BASE), {
         ...options,
         headers: {
           "Content-Type": "application/json",
