@@ -1,5 +1,6 @@
 import type { ToolHandler } from '../../../types.js';
 import { getClient } from '../client.js';
+import { compoundDescriptions, compoundRecord } from '../endpoints.js';
 import {
   isValidBatchArgs,
   isValidCidArgs,
@@ -48,11 +49,15 @@ const handleGetCompoundInfo: ToolHandler = async (args) => {
 
   const format = args.format || 'json';
   const api = getClient();
-  const response = await api.get(
-    `/compound/cid/${args.cid}/${format === 'json' ? 'JSON' : format}`,
-  );
+  const response = await api.get(compoundRecord(args.cid, format === 'json' ? 'JSON' : format));
+  const record = format === 'json' ? response.data : String(response.data);
 
-  return format === 'json' ? response.data : String(response.data);
+  if (!args.include_descriptions) {
+    return record;
+  }
+
+  const descriptionsResponse = await api.get(compoundDescriptions(args.cid));
+  return { record, descriptions: descriptionsResponse.data };
 };
 
 const handleSearchBySmiles: ToolHandler = async (args) => {

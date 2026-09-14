@@ -36,6 +36,10 @@ const getCompoundInfo: Tool = {
         enum: ['json', 'sdf', 'xml', 'asnt', 'asnb'],
         description: 'Output format (default: json)',
       },
+      include_descriptions: {
+        type: 'boolean',
+        description: 'Include PubChem compound descriptions (default: false)',
+      },
     },
     required: ['cid'],
   },

@@ -1,4 +1,5 @@
 import axios, { type AxiosInstance } from 'axios';
+import { PUBCHEM_PUG_REST_BASE_URL } from './endpoints.js';
 
 let client: AxiosInstance | null = null;
 
@@ -8,7 +9,7 @@ let client: AxiosInstance | null = null;
  */
 export function initClient(_env: Record<string, string | undefined>): void {
   client = axios.create({
-    baseURL: 'https://pubchem.ncbi.nlm.nih.gov/rest/pug',
+    baseURL: PUBCHEM_PUG_REST_BASE_URL,
     timeout: 30_000,
     headers: {
       'User-Agent': 'PubChem-MCP-Server/1.0.0',

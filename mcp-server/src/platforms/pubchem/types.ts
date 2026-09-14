@@ -54,13 +54,14 @@ export const isValidCompoundSearchArgs = (
 
 export const isValidCidArgs = (
   args: unknown,
-): args is { cid: number | string; format?: string } => {
+): args is { cid: number | string; format?: string; include_descriptions?: boolean } => {
   if (typeof args !== 'object' || args === null) return false;
   const a = args as Record<string, unknown>;
   return (
     (typeof a.cid === 'number' || typeof a.cid === 'string') &&
     (a.format === undefined ||
-      ['json', 'sdf', 'xml', 'asnt', 'asnb'].includes(a.format as string))
+      ['json', 'sdf', 'xml', 'asnt', 'asnb'].includes(a.format as string)) &&
+    (a.include_descriptions === undefined || typeof a.include_descriptions === 'boolean')
   );
 };
 
