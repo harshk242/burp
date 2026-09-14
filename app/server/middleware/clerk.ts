@@ -9,6 +9,7 @@ import { userQueries, accessRequestQueries } from "../db";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../logger";
 import type { AppEnv, DbUser, DbAccessRequest } from "../types";
+import { isValidDevAgentToken } from "./devAgentAuth";
 
 // Initialize Clerk client (lazy, only when needed)
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
@@ -26,47 +27,64 @@ function getClerkClient() {
 const userCache = new Map<string, { email: string; name: string | null; imageUrl: string | null; expiresAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+function setDevelopmentUser(c: Context<AppEnv>, clerkId: string, email: string, name: string) {
+  let dbUser = userQueries.findByClerkId(clerkId);
+  if (!dbUser) {
+    const userId = uuidv4();
+    userQueries.create(userId, clerkId, email, name, null, "admin", null, null);
+    dbUser = userQueries.findById(userId);
+    if (!dbUser) {
+      throw new Error(`[clerkAuth] Dev user create succeeded but findById(${userId}) returned null`);
+    }
+  }
+
+  c.set("clerkUserId", clerkId);
+  c.set("userId", dbUser.id);
+  c.set("email", dbUser.email);
+  c.set("role", dbUser.role);
+  c.set("dbUser", dbUser);
+  c.set("clerkName", dbUser.name);
+  c.set("clerkImageUrl", dbUser.image_url);
+}
+
 /**
  * Clerk JWT verification middleware
  * Sets userId, email, role, and dbUser on context
  */
 export async function clerkAuth(c: Context<AppEnv>, next: Next) {
+  const authHeader = c.req.header("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+
+  if (isValidDevAgentToken(token)) {
+    logger.info("AUTH", "dev_agent_authenticated");
+    setDevelopmentUser(
+      c,
+      "dev-agent-clerk-id",
+      process.env.DEV_AGENT_EMAIL || "dev-agent@example.com",
+      "Development Agent"
+    );
+    return next();
+  }
+
   const clerk = getClerkClient();
 
   // Development mode - skip auth if no Clerk keys configured
   if (!clerk) {
     logger.warn("AUTH", "dev_mode_no_clerk_key");
-    const devClerkId = "dev-clerk-id";
-    const devEmail = process.env.ADMIN_EMAIL || "dev@example.com";
-
-    // Sync dev user to database (creates if not exists, makes them admin)
-    let dbUser = userQueries.findByClerkId(devClerkId);
-    if (!dbUser) {
-      const userId = uuidv4();
-      userQueries.create(userId, devClerkId, devEmail, "Dev User", null, "admin", null, null);
-      dbUser = userQueries.findById(userId);
-      if (!dbUser) {
-        throw new Error(`[clerkAuth] Dev user create succeeded but findById(${userId}) returned null — possible DB write failure`);
-      }
-    }
-
-    c.set("clerkUserId", devClerkId);
-    c.set("userId", dbUser.id);
-    c.set("email", dbUser.email);
-    c.set("role", dbUser.role);
-    c.set("dbUser", dbUser);
-    c.set("clerkName", dbUser.name);
-    c.set("clerkImageUrl", dbUser.image_url);
+    setDevelopmentUser(
+      c,
+      "dev-clerk-id",
+      process.env.ADMIN_EMAIL || "dev@example.com",
+      "Dev User"
+    );
     return next();
   }
 
   // Extract Bearer token
-  const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return c.json({ error: "Unauthorized - missing or invalid Authorization header" }, 401);
   }
 
-  const token = authHeader.slice(7);
   if (!token) {
     return c.json({ error: "Unauthorized - empty token" }, 401);
   }
