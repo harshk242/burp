@@ -27,7 +27,7 @@ type TargetEvidence = {
     chromosome?: string;
     start?: number;
     end?: number;
-    strand?: number;
+    strand?: string;
   };
   clinvarPathogenicCount: number;
   clinvarLikelyPathogenicCount: number;

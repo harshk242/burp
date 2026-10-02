@@ -65,7 +65,7 @@
               "path": "$.target.genomicLocation.end"
             },
             "strand": {
-              "type": "number",
+              "type": "string",
               "path": "$.target.genomicLocation.strand"
             }
           }

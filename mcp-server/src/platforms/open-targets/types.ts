@@ -54,8 +54,10 @@ export interface GenomicLocation {
   chromosome: string;
   start: number;
   end: number;
-  strand: number;
+  strand: Strand;
 }
+
+export type Strand = 'POSITIVE' | 'NEGATIVE' | 'UNKNOWN';
 
 export interface TargetClass {
   id: number;
