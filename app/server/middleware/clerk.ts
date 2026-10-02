@@ -27,8 +27,14 @@ function getClerkClient() {
 const userCache = new Map<string, { email: string; name: string | null; imageUrl: string | null; expiresAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-function setDevelopmentUser(c: Context<AppEnv>, clerkId: string, email: string, name: string) {
-  let dbUser = userQueries.findByClerkId(clerkId);
+function setDevelopmentUser(
+  c: Context<AppEnv>,
+  clerkId: string,
+  email: string,
+  name: string,
+  existingUser: DbUser | null = null
+) {
+  let dbUser = existingUser ?? userQueries.findByClerkId(clerkId);
   if (!dbUser) {
     const userId = uuidv4();
     userQueries.create(userId, clerkId, email, name, null, "admin", null, null);
@@ -38,7 +44,7 @@ function setDevelopmentUser(c: Context<AppEnv>, clerkId: string, email: string, 
     }
   }
 
-  c.set("clerkUserId", clerkId);
+  c.set("clerkUserId", dbUser.clerk_id);
   c.set("userId", dbUser.id);
   c.set("email", dbUser.email);
   c.set("role", dbUser.role);
@@ -56,13 +62,12 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
   if (isValidDevAgentToken(token)) {
-    logger.info("AUTH", "dev_agent_authenticated");
-    setDevelopmentUser(
-      c,
-      "dev-agent-clerk-id",
-      process.env.DEV_AGENT_EMAIL || "dev-agent@example.com",
-      "Development Agent"
-    );
+    // Act as the real account matching DEV_AGENT_EMAIL (if it exists) so agent
+    // sessions show up in that user's frontend; otherwise use a synthetic user.
+    const agentEmail = process.env.DEV_AGENT_EMAIL || "dev-agent@example.com";
+    const existingUser = userQueries.findByEmail(agentEmail);
+    logger.info("AUTH", "dev_agent_authenticated", { data: { actingAsExistingUser: Boolean(existingUser) } });
+    setDevelopmentUser(c, "dev-agent-clerk-id", agentEmail, "Development Agent", existingUser);
     return next();
   }
 
