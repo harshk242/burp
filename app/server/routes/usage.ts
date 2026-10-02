@@ -2,13 +2,12 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { UsageSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
 import { dailyUsageQueries, rateLimitQueries, usageEventQueries } from "../db";
-import { appConfig } from "../config";
 import type { AppEnv } from "../types";
 import {
-  defaultCostLimitMicrousd,
   getNextUtcMidnight,
   getNextUtcMonthStart,
   getRemainingMicrousd,
+  resolveEffectiveLimits,
 } from "../usage";
 
 const usage = new OpenAPIHono<AppEnv>();
@@ -54,7 +53,8 @@ usage.openapi(getUsageRoute, async (c) => {
   const role = c.get("role") as string;
   const dbUser = c.get("dbUser")!; // non-null: requireDbUser runs before this handler
 
-  const dailyLimit = dbUser.daily_query_limit ?? rateLimitQueries.getForRole(role);
+  const limits = resolveEffectiveLimits(dbUser, role, rateLimitQueries.getForRole(role));
+  const dailyLimit = limits.daily_query_limit;
   const todayFull = dailyUsageQueries.getTodayFull(userId);
 
   const resetAt = getNextUtcMidnight();
@@ -63,18 +63,11 @@ usage.openapi(getUsageRoute, async (c) => {
   const remaining = dailyLimit === -1 ? -1 : Math.max(0, dailyLimit - todayFull.query_count);
 
   // Token budget
-  const tokenLimit: number =
-    dbUser.daily_token_limit ??
-    (role === "admin" ? -1 : appConfig.rate_limits.default_daily_tokens);
+  const tokenLimit = limits.daily_token_limit;
   const tokensUsedToday = todayFull.input_tokens + todayFull.output_tokens;
   const tokensRemaining = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - tokensUsedToday);
-  const isAdmin = role === "admin";
-  const dailyCostLimit =
-    dbUser.daily_cost_limit_microusd ??
-    defaultCostLimitMicrousd(appConfig.usage.default_daily_cost_limit_usd, isAdmin);
-  const monthlyCostLimit =
-    dbUser.monthly_cost_limit_microusd ??
-    defaultCostLimitMicrousd(appConfig.usage.default_monthly_cost_limit_usd, isAdmin);
+  const dailyCostLimit = limits.daily_cost_limit_microusd;
+  const monthlyCostLimit = limits.monthly_cost_limit_microusd;
   const todayCost = usageEventQueries.getTotalsForDate(userId).cost_microusd;
   const monthCost = usageEventQueries.getTotalsForMonth(userId).cost_microusd;
 

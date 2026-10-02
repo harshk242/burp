@@ -25,9 +25,9 @@ import { logger } from "../logger";
 import type { AppEnv } from "../types";
 import {
   calculateChatCost,
-  defaultCostLimitMicrousd,
   getNextUtcMidnight,
   getNextUtcMonthStart,
+  resolveEffectiveLimits,
 } from "../usage";
 
 /**
@@ -46,7 +46,8 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
 
   // ── 1. Query count — STRICT enforcement ──────────────────────────────────
   // Priority: user override > role-based default (-1 = unlimited)
-  const queryLimit = dbUser.daily_query_limit ?? rateLimitQueries.getForRole(role);
+  const limits = resolveEffectiveLimits(dbUser, role, rateLimitQueries.getForRole(role));
+  const queryLimit = limits.daily_query_limit;
 
   if (queryLimit !== -1 && todayFull.query_count >= queryLimit) {
     logger.warn("AUTH", "query_limit_exceeded", {
@@ -94,13 +95,8 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
     );
   }
 
-  const isAdmin = role === "admin";
-  const dailyCostLimit =
-    dbUser.daily_cost_limit_microusd ??
-    defaultCostLimitMicrousd(appConfig.usage.default_daily_cost_limit_usd, isAdmin);
-  const monthlyCostLimit =
-    dbUser.monthly_cost_limit_microusd ??
-    defaultCostLimitMicrousd(appConfig.usage.default_monthly_cost_limit_usd, isAdmin);
+  const dailyCostLimit = limits.daily_cost_limit_microusd;
+  const monthlyCostLimit = limits.monthly_cost_limit_microusd;
   const todayCost = usageEventQueries.getTotalsForDate(userId).cost_microusd;
   const monthCost = usageEventQueries.getTotalsForMonth(userId).cost_microusd;
 
@@ -153,9 +149,7 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
   }
 
   // Tokens are still tracked for observability, but dollars are the launch gate.
-  const tokenLimit: number =
-    dbUser.daily_token_limit ??
-    (role === "admin" ? -1 : appConfig.rate_limits.default_daily_tokens);
+  const tokenLimit = limits.daily_token_limit;
 
   const todayTokens = todayFull.input_tokens + todayFull.output_tokens;
 

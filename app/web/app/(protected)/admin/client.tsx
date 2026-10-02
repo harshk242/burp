@@ -49,7 +49,6 @@ interface AdminUser {
   role: "waitlist" | "user" | "admin";
   total_queries: number;
   daily_query_limit: number | null;
-  daily_token_limit: number | null;
   daily_cost_limit_microusd: number | null;
   monthly_cost_limit_microusd: number | null;
   created_at: number;
@@ -59,7 +58,21 @@ interface AdminUser {
   today_output_tokens: number;
   today_cost_microusd: number;
   month_cost_microusd: number;
+  /** Limits actually enforced (override or role/config default). -1 = unlimited. */
+  effective_limits: {
+    daily_query_limit: number;
+    daily_cost_limit_microusd: number;
+    monthly_cost_limit_microusd: number;
+  };
 }
+
+interface LimitEdit {
+  queryLimit: string;
+  dailyCostLimit: string;
+  monthlyCostLimit: string;
+}
+
+const EMPTY_LIMIT_EDIT: LimitEdit = { queryLimit: "", dailyCostLimit: "", monthlyCostLimit: "" };
 
 function microusdToInput(microusd: number): string {
   if (microusd === -1) return "-1";
@@ -89,12 +102,7 @@ export function AdminPageClient() {
   // Users tab state
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [limitEdits, setLimitEdits] = useState<Record<string, {
-    queryLimit: string;
-    tokenLimit: string;
-    dailyCostLimit: string;
-    monthlyCostLimit: string;
-  }>>({});
+  const [limitEdits, setLimitEdits] = useState<Record<string, LimitEdit>>({});
   const [savingLimits, setSavingLimits] = useState<string | null>(null);
 
   // Client-side admin guard
@@ -128,16 +136,10 @@ export function AdminPageClient() {
       const data = await get<{ users: AdminUser[] }>("/admin/users");
       setAdminUsers(data.users);
       // Pre-populate edit state with current values
-      const edits: Record<string, {
-        queryLimit: string;
-        tokenLimit: string;
-        dailyCostLimit: string;
-        monthlyCostLimit: string;
-      }> = {};
+      const edits: Record<string, LimitEdit> = {};
       for (const u of data.users) {
         edits[u.id] = {
           queryLimit: u.daily_query_limit != null ? String(u.daily_query_limit) : "",
-          tokenLimit: u.daily_token_limit != null ? String(u.daily_token_limit) : "",
           dailyCostLimit: u.daily_cost_limit_microusd != null ? microusdToInput(u.daily_cost_limit_microusd) : "",
           monthlyCostLimit: u.monthly_cost_limit_microusd != null ? microusdToInput(u.monthly_cost_limit_microusd) : "",
         };
@@ -155,12 +157,10 @@ export function AdminPageClient() {
     try {
       const edit = limitEdits[userId];
       const queryVal = edit.queryLimit.trim();
-      const tokenVal = edit.tokenLimit.trim();
       const dailyCostVal = edit.dailyCostLimit.trim();
       const monthlyCostVal = edit.monthlyCostLimit.trim();
       await patch(`/admin/users/${userId}/limits`, {
         daily_query_limit: queryVal === "" ? null : parseInt(queryVal, 10),
-        daily_token_limit: tokenVal === "" ? null : parseInt(tokenVal, 10),
         daily_cost_limit_microusd: dailyCostVal === "" ? null : usdInputToMicrousd(dailyCostVal),
         monthly_cost_limit_microusd: monthlyCostVal === "" ? null : usdInputToMicrousd(monthlyCostVal),
       });
@@ -371,14 +371,9 @@ function UsersTable({
 }: {
   users: AdminUser[];
   isLoading: boolean;
-  limitEdits: Record<string, {
-    queryLimit: string;
-    tokenLimit: string;
-    dailyCostLimit: string;
-    monthlyCostLimit: string;
-  }>;
+  limitEdits: Record<string, LimitEdit>;
   savingLimits: string | null;
-  onLimitChange: (userId: string, field: "queryLimit" | "tokenLimit" | "dailyCostLimit" | "monthlyCostLimit", value: string) => void;
+  onLimitChange: (userId: string, field: keyof LimitEdit, value: string) => void;
   onSave: (userId: string) => void;
 }) {
   if (isLoading) {
@@ -403,6 +398,10 @@ function UsersTable({
     const usd = microusd / 1_000_000;
     return usd < 0.01 && usd > 0 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
   };
+  // Empty input = no override; the placeholder shows the default that applies.
+  const formatDefault = (value: number, format: (n: number) => string) =>
+    value === -1 ? "Unlimited" : format(value);
+  const limitInputClass = "h-7 text-sm min-w-[6.5rem] placeholder:text-muted-foreground/60";
 
   return (
     <div className="border rounded-lg mt-2 overflow-x-auto">
@@ -415,7 +414,6 @@ function UsersTable({
             <TableHead className="text-right">Month</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead className="w-28">Query limit</TableHead>
-            <TableHead className="w-32">Token limit</TableHead>
             <TableHead className="w-28">Daily $</TableHead>
             <TableHead className="w-28">Monthly $</TableHead>
             <TableHead className="w-10"></TableHead>
@@ -423,18 +421,18 @@ function UsersTable({
         </TableHeader>
         <TableBody>
           {users.map((u) => {
-            const edit = limitEdits[u.id] ?? {
-              queryLimit: "",
-              tokenLimit: "",
-              dailyCostLimit: "",
-              monthlyCostLimit: "",
+            const edit = limitEdits[u.id] ?? EMPTY_LIMIT_EDIT;
+            const defaults = {
+              query: formatDefault(u.effective_limits.daily_query_limit, String),
+              daily: formatDefault(u.effective_limits.daily_cost_limit_microusd, formatUsd),
+              monthly: formatDefault(u.effective_limits.monthly_cost_limit_microusd, formatUsd),
             };
             const todayTokens = u.today_input_tokens + u.today_output_tokens;
             return (
               <TableRow key={u.id}>
                 <TableCell>
                   <div className="font-medium">{u.name ?? "—"}</div>
-                  <div className="text-xs text-muted-foreground truncate max-w-[180px]">{u.email}</div>
+                  <div className="text-xs text-muted-foreground truncate max-w-[180px]" title={u.email}>{u.email}</div>
                 </TableCell>
                 <TableCell>
                   <Badge variant={u.role === "admin" ? "default" : u.role === "user" ? "secondary" : "outline"} className="text-xs">
@@ -454,8 +452,9 @@ function UsersTable({
                 </TableCell>
                 <TableCell>
                   <Input
-                    className="h-7 text-sm"
-                    placeholder="default"
+                    className={limitInputClass}
+                    placeholder={defaults.query}
+                    title={edit.queryLimit === "" ? `Default: ${defaults.query}` : undefined}
                     value={edit.queryLimit}
                     onChange={(e) => onLimitChange(u.id, "queryLimit", e.target.value)}
                     type="number"
@@ -464,18 +463,9 @@ function UsersTable({
                 </TableCell>
                 <TableCell>
                   <Input
-                    className="h-7 text-sm"
-                    placeholder="default"
-                    value={edit.tokenLimit}
-                    onChange={(e) => onLimitChange(u.id, "tokenLimit", e.target.value)}
-                    type="number"
-                    min={-1}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    className="h-7 text-sm"
-                    placeholder="default"
+                    className={limitInputClass}
+                    placeholder={defaults.daily}
+                    title={edit.dailyCostLimit === "" ? `Default: ${defaults.daily}` : undefined}
                     value={edit.dailyCostLimit}
                     onChange={(e) => onLimitChange(u.id, "dailyCostLimit", e.target.value)}
                     type="number"
@@ -485,8 +475,9 @@ function UsersTable({
                 </TableCell>
                 <TableCell>
                   <Input
-                    className="h-7 text-sm"
-                    placeholder="default"
+                    className={limitInputClass}
+                    placeholder={defaults.monthly}
+                    title={edit.monthlyCostLimit === "" ? `Default: ${defaults.monthly}` : undefined}
                     value={edit.monthlyCostLimit}
                     onChange={(e) => onLimitChange(u.id, "monthlyCostLimit", e.target.value)}
                     type="number"
@@ -594,7 +585,7 @@ function RequestTable({
           {requests.map((req) => (
             <TableRow key={req.id}>
               <TableCell className="font-medium">{req.name}</TableCell>
-              <TableCell className="text-sm max-w-[150px] truncate">{req.email}</TableCell>
+              <TableCell className="text-sm max-w-[150px] truncate" title={req.email}>{req.email}</TableCell>
               <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                 {req.institution || "—"}
               </TableCell>

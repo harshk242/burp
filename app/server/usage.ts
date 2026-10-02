@@ -30,6 +30,44 @@ export function defaultCostLimitMicrousd(usdLimit: number, isAdmin: boolean): nu
   return usdToMicrousd(usdLimit);
 }
 
+export interface EffectiveLimits {
+  daily_query_limit: number;
+  daily_token_limit: number;
+  daily_cost_limit_microusd: number;
+  monthly_cost_limit_microusd: number;
+}
+
+type LimitOverrides = {
+  daily_query_limit?: number | null;
+  daily_token_limit?: number | null;
+  daily_cost_limit_microusd?: number | null;
+  monthly_cost_limit_microusd?: number | null;
+};
+
+/**
+ * Resolve the limits actually applied to a user: per-user override, else the
+ * role/config default. -1 = unlimited. `roleQueryLimit` comes from the
+ * rate_limits table (rateLimitQueries.getForRole) so this stays DB-free.
+ */
+export function resolveEffectiveLimits(
+  user: LimitOverrides,
+  role: string,
+  roleQueryLimit: number,
+  config: Pick<AppConfig, "rate_limits" | "usage"> = appConfig
+): EffectiveLimits {
+  const isAdmin = role === "admin";
+  return {
+    daily_query_limit: user.daily_query_limit ?? roleQueryLimit,
+    daily_token_limit: user.daily_token_limit ?? (isAdmin ? -1 : config.rate_limits.default_daily_tokens),
+    daily_cost_limit_microusd:
+      user.daily_cost_limit_microusd ??
+      defaultCostLimitMicrousd(config.usage.default_daily_cost_limit_usd, isAdmin),
+    monthly_cost_limit_microusd:
+      user.monthly_cost_limit_microusd ??
+      defaultCostLimitMicrousd(config.usage.default_monthly_cost_limit_usd, isAdmin),
+  };
+}
+
 export function getRemainingMicrousd(limitMicrousd: number, usedMicrousd: number): number {
   return limitMicrousd === -1 ? -1 : Math.max(0, limitMicrousd - usedMicrousd);
 }

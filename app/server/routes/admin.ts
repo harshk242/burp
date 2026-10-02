@@ -5,10 +5,11 @@
  */
 
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { userQueries, dailyUsageQueries, usageEventQueries } from "../db";
+import { userQueries, dailyUsageQueries, rateLimitQueries, usageEventQueries } from "../db";
 import { clerkAuth, requireDbUser, requireAdmin } from "../middleware/clerk";
 import { ErrorSchema } from "../schemas";
 import type { AppEnv } from "../types";
+import { resolveEffectiveLimits } from "../usage";
 
 const admin = new OpenAPIHono<AppEnv>();
 
@@ -35,6 +36,12 @@ const AdminUserSchema = z.object({
   today_output_tokens: z.number().int(),
   today_cost_microusd: z.number().int(),
   month_cost_microusd: z.number().int(),
+  // Limits actually enforced (override or role/config default). -1 = unlimited.
+  effective_limits: z.object({
+    daily_query_limit: z.number().int(),
+    daily_cost_limit_microusd: z.number().int(),
+    monthly_cost_limit_microusd: z.number().int(),
+  }),
 });
 
 const AdminUserListSchema = z.object({
@@ -90,6 +97,7 @@ admin.openapi(listUsersRoute, (c) => {
     const today = dailyUsageQueries.getTodayFull(u.id);
     const todayCost = usageEventQueries.getTotalsForDate(u.id);
     const monthCost = usageEventQueries.getTotalsForMonth(u.id);
+    const limits = resolveEffectiveLimits(u, u.role, rateLimitQueries.getForRole(u.role));
     return {
       id: u.id,
       email: u.email,
@@ -107,6 +115,11 @@ admin.openapi(listUsersRoute, (c) => {
       today_output_tokens: today.output_tokens,
       today_cost_microusd: todayCost.cost_microusd,
       month_cost_microusd: monthCost.cost_microusd,
+      effective_limits: {
+        daily_query_limit: limits.daily_query_limit,
+        daily_cost_limit_microusd: limits.daily_cost_limit_microusd,
+        monthly_cost_limit_microusd: limits.monthly_cost_limit_microusd,
+      },
     };
   });
 
