@@ -94,3 +94,63 @@ describe('schema validator heterogeneous arrays', () => {
     ]);
   });
 });
+
+describe('schema validator nullable paths', () => {
+  const nullablePaths = new Set(['$.hits[].description']);
+  const noDrift = { removedKeys: [], typeChanges: [], addedKeys: [] };
+
+  it('rejects null drift on a path not declared nullable', () => {
+    const baseline = extractSchema({ hits: [{ description: 'text' }] });
+    const current = extractSchema({ hits: [{ description: null }] });
+
+    expect(compareSchemas(baseline, current).typeChanges).toEqual([
+      "$.hits[].description: was 'string', now 'null'",
+    ]);
+  });
+
+  it('tolerates a value becoming null on a nullable path', () => {
+    const baseline = extractSchema({ hits: [{ description: 'text' }] });
+    const current = extractSchema({ hits: [{ description: null }] });
+
+    expect(compareSchemas(baseline, current, { nullablePaths })).toEqual(noDrift);
+  });
+
+  it('tolerates a null baseline gaining a value on a nullable path', () => {
+    const baseline = extractSchema({ hits: [{ description: null }] });
+    const current = extractSchema({ hits: [{ description: 'text' }] });
+
+    expect(compareSchemas(baseline, current, { nullablePaths })).toEqual(noDrift);
+  });
+
+  it('tolerates null among heterogeneous current samples', () => {
+    const baseline = extractSchema({ hits: [{ description: 'text' }] });
+    const current = extractSchema({ hits: [{ description: 'text' }, { description: null }] });
+
+    expect(compareSchemas(baseline, current, { nullablePaths })).toEqual(noDrift);
+  });
+
+  it('tolerates null against a union baseline without a null variant', () => {
+    const baseline = extractSchema({ hits: [{ description: 'text' }, { description: 1 }] });
+    const current = extractSchema({ hits: [{ description: null }] });
+
+    expect(compareSchemas(baseline, current, { nullablePaths })).toEqual(noDrift);
+  });
+
+  it('still rejects non-null type changes on a nullable path', () => {
+    const baseline = extractSchema({ hits: [{ description: 'text' }] });
+    const current = extractSchema({ hits: [{ description: 42 }] });
+
+    expect(compareSchemas(baseline, current, { nullablePaths }).typeChanges).toEqual([
+      "$.hits[].description: was 'string', now 'number'",
+    ]);
+  });
+
+  it('still rejects an unrecorded non-null variant against a nullable union baseline', () => {
+    const baseline = extractSchema({ hits: [{ description: null }, { description: 'text' }] });
+    const current = extractSchema({ hits: [{ description: 42 }] });
+
+    expect(compareSchemas(baseline, current, { nullablePaths }).typeChanges).toEqual([
+      "$.hits[].description: was one of 'null' | 'string', now 'number'",
+    ]);
+  });
+});

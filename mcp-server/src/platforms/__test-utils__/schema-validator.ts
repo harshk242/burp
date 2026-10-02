@@ -9,6 +9,8 @@
  *   removed key → ERROR   (handler may depend on it)
  *   type changed → ERROR  (silent breakage — e.g. string → number)
  *   added key   → WARNING (non-breaking, logged but test passes)
+ *   null drift on a path listed in `nullablePaths` → ignored (the upstream
+ *   contract, e.g. a GraphQL schema, declares the field nullable)
  *
  * Array sampling:
  *   Up to MAX_SAMPLE_ITEMS elements are inspected and their schemas are merged.
@@ -167,6 +169,23 @@ function getVariants(node: SchemaNode): SchemaNode[] {
 
 // ── Schema comparison ─────────────────────────────────────────────────────────
 
+export interface CompareOptions {
+  /**
+   * Paths whose values the API contract allows to be `null` (e.g. derived
+   * from a GraphQL schema). On these paths a change to or from `null` is not
+   * reported: a sampled baseline cannot distinguish "nullable" from "happened
+   * to be populated", so only the upstream contract can settle it.
+   */
+  nullablePaths?: ReadonlySet<string>;
+}
+
+interface CompareContext {
+  removedKeys: string[];
+  typeChanges: string[];
+  addedKeys: string[];
+  nullablePaths: ReadonlySet<string>;
+}
+
 /**
  * Compare a baseline schema against a current schema.
  * Returns lists of removed keys, type changes, and newly added keys.
@@ -174,35 +193,43 @@ function getVariants(node: SchemaNode): SchemaNode[] {
  * A key that is marked `optional` in the baseline is allowed to be absent in
  * the current snapshot without triggering a "removed key" error.
  */
-export function compareSchemas(baseline: SchemaNode, current: SchemaNode): SchemaDiff {
-  const removedKeys: string[] = [];
-  const typeChanges: string[] = [];
-  const addedKeys: string[] = [];
-
-  compareNodes(baseline, current, removedKeys, typeChanges, addedKeys);
-
-  return { removedKeys, typeChanges, addedKeys };
-}
-
-function compareNodes(
+export function compareSchemas(
   baseline: SchemaNode,
   current: SchemaNode,
-  removedKeys: string[],
-  typeChanges: string[],
-  addedKeys: string[],
-): void {
+  options: CompareOptions = {},
+): SchemaDiff {
+  const ctx: CompareContext = {
+    removedKeys: [],
+    typeChanges: [],
+    addedKeys: [],
+    nullablePaths: options.nullablePaths ?? new Set(),
+  };
+
+  compareNodes(baseline, current, ctx);
+
+  return { removedKeys: ctx.removedKeys, typeChanges: ctx.typeChanges, addedKeys: ctx.addedKeys };
+}
+
+/** True when a baseline/current type mismatch is only null drift on a nullable path. */
+function isToleratedNull(path: string, baselineType: string, currentType: string, ctx: CompareContext): boolean {
+  return (baselineType === 'null' || currentType === 'null') && ctx.nullablePaths.has(path);
+}
+
+function compareNodes(baseline: SchemaNode, current: SchemaNode, ctx: CompareContext): void {
   if (baseline.type === 'union') {
-    compareUnionBaseline(baseline, current, removedKeys, typeChanges, addedKeys);
+    compareUnionBaseline(baseline, current, ctx);
     return;
   }
 
   if (current.type === 'union') {
-    compareUnionCurrent(baseline, current, removedKeys, typeChanges, addedKeys);
+    compareUnionCurrent(baseline, current, ctx);
     return;
   }
 
   if (baseline.type !== current.type) {
-    typeChanges.push(`${baseline.path}: was '${baseline.type}', now '${current.type}'`);
+    if (!isToleratedNull(baseline.path, baseline.type, current.type, ctx)) {
+      ctx.typeChanges.push(`${baseline.path}: was '${baseline.type}', now '${current.type}'`);
+    }
     return;
   }
 
@@ -214,62 +241,54 @@ function compareNodes(
       if (!(key in currProps)) {
         // Only flag as removed if the baseline considered the key required.
         if (!baseProps[key].optional) {
-          removedKeys.push(`${baseline.path}.${key}`);
+          ctx.removedKeys.push(`${baseline.path}.${key}`);
         }
       } else {
-        compareNodes(baseProps[key], currProps[key], removedKeys, typeChanges, addedKeys);
+        compareNodes(baseProps[key], currProps[key], ctx);
       }
     }
 
     for (const key of Object.keys(currProps)) {
       if (!(key in baseProps)) {
-        addedKeys.push(`${current.path}.${key}`);
+        ctx.addedKeys.push(`${current.path}.${key}`);
       }
     }
   }
 
   if (baseline.type === 'array' && current.type === 'array') {
     if (baseline.items && current.items) {
-      compareNodes(baseline.items, current.items, removedKeys, typeChanges, addedKeys);
+      compareNodes(baseline.items, current.items, ctx);
     }
   }
 }
 
-function compareUnionBaseline(
-  baseline: SchemaNode,
-  current: SchemaNode,
-  removedKeys: string[],
-  typeChanges: string[],
-  addedKeys: string[],
-): void {
+function compareUnionBaseline(baseline: SchemaNode, current: SchemaNode, ctx: CompareContext): void {
   for (const currentVariant of getVariants(current)) {
     const baselineVariant = getVariants(baseline)
       .find((variant) => variant.type === currentVariant.type);
 
     if (!baselineVariant) {
-      typeChanges.push(
-        `${baseline.path}: was one of ${describeVariants(baseline)}, now '${currentVariant.type}'`,
-      );
+      if (!isToleratedNull(baseline.path, 'union', currentVariant.type, ctx)) {
+        ctx.typeChanges.push(
+          `${baseline.path}: was one of ${describeVariants(baseline)}, now '${currentVariant.type}'`,
+        );
+      }
     } else {
-      compareNodes(baselineVariant, currentVariant, removedKeys, typeChanges, addedKeys);
+      compareNodes(baselineVariant, currentVariant, ctx);
     }
   }
 }
 
-function compareUnionCurrent(
-  baseline: SchemaNode,
-  current: SchemaNode,
-  removedKeys: string[],
-  typeChanges: string[],
-  addedKeys: string[],
-): void {
+function compareUnionCurrent(baseline: SchemaNode, current: SchemaNode, ctx: CompareContext): void {
   for (const currentVariant of getVariants(current)) {
     if (currentVariant.type !== baseline.type) {
-      typeChanges.push(
-        `${baseline.path}: was '${baseline.type}', now '${currentVariant.type}'`,
-      );
+      if (!isToleratedNull(baseline.path, baseline.type, currentVariant.type, ctx)) {
+        ctx.typeChanges.push(
+          `${baseline.path}: was '${baseline.type}', now '${currentVariant.type}'`,
+        );
+      }
     } else {
-      compareNodes(baseline, currentVariant, removedKeys, typeChanges, addedKeys);
+      compareNodes(baseline, currentVariant, ctx);
     }
   }
 }
@@ -318,11 +337,16 @@ export function saveFixture(fixturePath: string, schema: SchemaNode): void {
  *   fixture missing        → FAIL with a clear message (not auto-create).
  *                            Run UPDATE_SNAPSHOTS=true once to seed the fixture.
  *   fixture present        → compare; fail on removed keys or type changes.
+ *                            `options.nullablePaths` tolerates null drift.
  *
  * The "fail on missing" rule is intentional: a renamed, deleted, or
  * never-committed fixture must not silently become a no-op test.
  */
-export async function assertSchemaStable(fixtureName: string, data: unknown): Promise<void> {
+export async function assertSchemaStable(
+  fixtureName: string,
+  data: unknown,
+  options: CompareOptions = {},
+): Promise<void> {
   const UPDATE = process.env.UPDATE_SNAPSHOTS === 'true';
   const current = extractSchema(data);
 
@@ -340,7 +364,7 @@ export async function assertSchemaStable(fixtureName: string, data: unknown): Pr
     );
   }
 
-  const diff = compareSchemas(loadFixture(fixtureName), current);
+  const diff = compareSchemas(loadFixture(fixtureName), current, options);
 
   if (diff.addedKeys.length > 0) {
     console.warn(`[DRIFT WARNING] New keys in ${fixtureName}: ${diff.addedKeys.join(', ')}`);
