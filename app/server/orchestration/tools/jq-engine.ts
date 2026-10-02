@@ -65,28 +65,10 @@ export async function executeJq(
       timeoutPromise,
     ])) as string;
 
-    // Enforce output size cap.
-    // NOTE: Callers that need valid JSON output (noise-reduction) should pass
-    // maxOutputChars: Infinity. This cap is primarily for inspect_artifact
+    // NOTE: Callers that need complete output (noise-reduction) should pass
+    // maxOutputChars: Infinity. The cap is primarily for inspect_artifact
     // where LLM-written filters could produce unbounded output.
-    let truncated = false;
-    let outputStr = rawOutput;
-    if (maxOutputChars !== Infinity && outputStr.length > maxOutputChars) {
-      outputStr = outputStr.slice(0, maxOutputChars);
-      truncated = true;
-    }
-
-    // Parse the output as JSON
-    let result: unknown;
-    try {
-      result = JSON.parse(outputStr);
-    } catch {
-      // If the output isn't valid JSON (e.g., truncated mid-stream or jq
-      // produced raw text like a count), return as string.
-      result = outputStr;
-    }
-
-    return { result, truncated };
+    return parseJqOutput(rawOutput, maxOutputChars);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { result: null, truncated: false, error: `jq error: ${message}` };
@@ -107,6 +89,63 @@ export async function executeJq(
       }
     }
   }
+}
+
+/**
+ * Parse compact jq output into a JSON value.
+ *
+ * With --compact-output, jq prints each emitted value on its own line, so
+ * the output is a stream of JSON documents:
+ *   - no values   -> []
+ *   - one value   -> that value
+ *   - many values -> array of values
+ *
+ * The size cap is applied at line boundaries so every kept value stays
+ * valid JSON. If even the first value exceeds the cap, an error is returned
+ * instead of a broken fragment.
+ */
+export function parseJqOutput(
+  rawOutput: string,
+  maxOutputChars: number = Infinity,
+): JqResult {
+  const lines = rawOutput.split("\n").filter((line) => line.length > 0);
+
+  let kept = lines;
+  let truncated = false;
+  if (maxOutputChars !== Infinity) {
+    let size = 0;
+    let count = 0;
+    for (const line of lines) {
+      if (size + line.length > maxOutputChars) break;
+      size += line.length + 1;
+      count++;
+    }
+    if (count < lines.length) {
+      if (count === 0) {
+        return {
+          result: null,
+          truncated: true,
+          error:
+            `jq output exceeds ${maxOutputChars} chars in a single value — ` +
+            "use a narrower filter (select fields, slice arrays, or stream with [])",
+        };
+      }
+      kept = lines.slice(0, count);
+      truncated = true;
+    }
+  }
+
+  let values: unknown[];
+  try {
+    values = kept.map((line) => JSON.parse(line));
+  } catch {
+    // Not expected with --compact-output; return the text unchanged.
+    return { result: kept.join("\n"), truncated };
+  }
+
+  // Shape follows the full stream, so a truncated stream stays an array.
+  const result = lines.length === 1 ? values[0] : values;
+  return { result, truncated };
 }
 
 /**

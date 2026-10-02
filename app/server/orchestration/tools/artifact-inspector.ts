@@ -53,16 +53,14 @@ export function createInspectArtifactTool(sessionId: string) {
         return JSON.stringify({ error: result.error });
       }
 
-      const output = JSON.stringify(result.result);
+      // Strings are returned as-is; stringifying would quote and escape them.
+      const output =
+        typeof result.result === "string"
+          ? result.result
+          : JSON.stringify(result.result);
 
-      // TODO: When truncated, the jq output was sliced mid-JSON and may not
-      // be valid structured data. The current behavior returns whatever
-      // JSON.parse produced (possibly a string fragment). Evaluate whether
-      // to (a) ask the LLM to write a narrower filter, (b) return a
-      // structured error, or (c) attempt JSON-safe truncation. Deferred
-      // pending real-world usage analysis of inspect_artifact call patterns.
       if (result.truncated) {
-        return `[Output truncated to fit size limit — try a more specific jq filter]\n${output}`;
+        return `[Output truncated to the first values that fit the size limit — try a more specific jq filter]\n${output}`;
       }
 
       return output;
