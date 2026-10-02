@@ -23,7 +23,8 @@
             "items": {
               "type": "string",
               "path": "$.results[].secondaryAccessions[]"
-            }
+            },
+            "optional": true
           },
           "uniProtkbId": {
             "type": "string",
@@ -761,11 +762,6 @@
                     "type": "number",
                     "path": "$.results[].extraAttributes.countByCommentType.WEB RESOURCE",
                     "optional": true
-                  },
-                  "DEVELOPMENTAL STAGE": {
-                    "type": "number",
-                    "path": "$.results[].extraAttributes.countByCommentType.DEVELOPMENTAL STAGE",
-                    "optional": true
                   }
                 }
               },
@@ -818,19 +814,23 @@
                   },
                   "Sequence conflict": {
                     "type": "number",
-                    "path": "$.results[].extraAttributes.countByFeatureType.Sequence conflict"
+                    "path": "$.results[].extraAttributes.countByFeatureType.Sequence conflict",
+                    "optional": true
                   },
                   "Turn": {
                     "type": "number",
-                    "path": "$.results[].extraAttributes.countByFeatureType.Turn"
+                    "path": "$.results[].extraAttributes.countByFeatureType.Turn",
+                    "optional": true
                   },
                   "Helix": {
                     "type": "number",
-                    "path": "$.results[].extraAttributes.countByFeatureType.Helix"
+                    "path": "$.results[].extraAttributes.countByFeatureType.Helix",
+                    "optional": true
                   },
                   "Beta strand": {
                     "type": "number",
-                    "path": "$.results[].extraAttributes.countByFeatureType.Beta strand"
+                    "path": "$.results[].extraAttributes.countByFeatureType.Beta strand",
+                    "optional": true
                   },
                   "Motif": {
                     "type": "number",

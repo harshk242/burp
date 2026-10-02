@@ -104,21 +104,6 @@
                       "value": {
                         "type": "string",
                         "path": "$.results[].proteinDescription.recommendedName.fullName.value"
-                      },
-                      "evidences": {
-                        "type": "array",
-                        "path": "$.results[].proteinDescription.recommendedName.fullName.evidences",
-                        "items": {
-                          "type": "object",
-                          "path": "$.results[].proteinDescription.recommendedName.fullName.evidences[]",
-                          "properties": {
-                            "evidenceCode": {
-                              "type": "string",
-                              "path": "$.results[].proteinDescription.recommendedName.fullName.evidences[].evidenceCode"
-                            }
-                          }
-                        },
-                        "optional": true
                       }
                     }
                   },
@@ -166,36 +151,14 @@
                           "value": {
                             "type": "string",
                             "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].value"
-                          },
-                          "evidences": {
-                            "type": "array",
-                            "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences",
-                            "items": {
-                              "type": "object",
-                              "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences[]",
-                              "properties": {
-                                "evidenceCode": {
-                                  "type": "string",
-                                  "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences[].evidenceCode"
-                                },
-                                "source": {
-                                  "type": "string",
-                                  "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences[].source"
-                                },
-                                "id": {
-                                  "type": "string",
-                                  "path": "$.results[].proteinDescription.alternativeNames[].shortNames[].evidences[].id"
-                                }
-                              }
-                            },
-                            "optional": true
                           }
                         }
                       },
                       "optional": true
                     }
                   }
-                }
+                },
+                "optional": true
               }
             }
           },
@@ -228,7 +191,8 @@
                         "path": "$.results[].genes[].synonyms[].value"
                       }
                     }
-                  }
+                  },
+                  "optional": true
                 }
               }
             }
@@ -335,86 +299,6 @@
                   },
                   "optional": true
                 },
-                "subcellularLocations": {
-                  "type": "array",
-                  "path": "$.results[].comments[].subcellularLocations",
-                  "items": {
-                    "type": "object",
-                    "path": "$.results[].comments[].subcellularLocations[]",
-                    "properties": {
-                      "location": {
-                        "type": "object",
-                        "path": "$.results[].comments[].subcellularLocations[].location",
-                        "properties": {
-                          "evidences": {
-                            "type": "array",
-                            "path": "$.results[].comments[].subcellularLocations[].location.evidences",
-                            "items": {
-                              "type": "object",
-                              "path": "$.results[].comments[].subcellularLocations[].location.evidences[]",
-                              "properties": {
-                                "evidenceCode": {
-                                  "type": "string",
-                                  "path": "$.results[].comments[].subcellularLocations[].location.evidences[].evidenceCode"
-                                },
-                                "source": {
-                                  "type": "string",
-                                  "path": "$.results[].comments[].subcellularLocations[].location.evidences[].source",
-                                  "optional": true
-                                },
-                                "id": {
-                                  "type": "string",
-                                  "path": "$.results[].comments[].subcellularLocations[].location.evidences[].id",
-                                  "optional": true
-                                }
-                              }
-                            },
-                            "optional": true
-                          },
-                          "value": {
-                            "type": "string",
-                            "path": "$.results[].comments[].subcellularLocations[].location.value"
-                          },
-                          "id": {
-                            "type": "string",
-                            "path": "$.results[].comments[].subcellularLocations[].location.id"
-                          }
-                        }
-                      },
-                      "topology": {
-                        "type": "object",
-                        "path": "$.results[].comments[].subcellularLocations[].topology",
-                        "properties": {
-                          "value": {
-                            "type": "string",
-                            "path": "$.results[].comments[].subcellularLocations[].topology.value"
-                          },
-                          "id": {
-                            "type": "string",
-                            "path": "$.results[].comments[].subcellularLocations[].topology.id"
-                          },
-                          "evidences": {
-                            "type": "array",
-                            "path": "$.results[].comments[].subcellularLocations[].topology.evidences",
-                            "items": {
-                              "type": "object",
-                              "path": "$.results[].comments[].subcellularLocations[].topology.evidences[]",
-                              "properties": {
-                                "evidenceCode": {
-                                  "type": "string",
-                                  "path": "$.results[].comments[].subcellularLocations[].topology.evidences[].evidenceCode"
-                                }
-                              }
-                            },
-                            "optional": true
-                          }
-                        },
-                        "optional": true
-                      }
-                    }
-                  },
-                  "optional": true
-                },
                 "events": {
                   "type": "array",
                   "path": "$.results[].comments[].events",
@@ -453,12 +337,90 @@
                         "type": "string",
                         "path": "$.results[].comments[].isoforms[].isoformSequenceStatus"
                       },
+                      "synonyms": {
+                        "type": "array",
+                        "path": "$.results[].comments[].isoforms[].synonyms",
+                        "items": {
+                          "type": "object",
+                          "path": "$.results[].comments[].isoforms[].synonyms[]",
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "path": "$.results[].comments[].isoforms[].synonyms[].value"
+                            }
+                          }
+                        },
+                        "optional": true
+                      },
                       "sequenceIds": {
                         "type": "array",
                         "path": "$.results[].comments[].isoforms[].sequenceIds",
                         "items": {
                           "type": "string",
                           "path": "$.results[].comments[].isoforms[].sequenceIds[]"
+                        },
+                        "optional": true
+                      }
+                    }
+                  },
+                  "optional": true
+                },
+                "subcellularLocations": {
+                  "type": "array",
+                  "path": "$.results[].comments[].subcellularLocations",
+                  "items": {
+                    "type": "object",
+                    "path": "$.results[].comments[].subcellularLocations[]",
+                    "properties": {
+                      "location": {
+                        "type": "object",
+                        "path": "$.results[].comments[].subcellularLocations[].location",
+                        "properties": {
+                          "evidences": {
+                            "type": "array",
+                            "path": "$.results[].comments[].subcellularLocations[].location.evidences",
+                            "items": {
+                              "type": "object",
+                              "path": "$.results[].comments[].subcellularLocations[].location.evidences[]",
+                              "properties": {
+                                "evidenceCode": {
+                                  "type": "string",
+                                  "path": "$.results[].comments[].subcellularLocations[].location.evidences[].evidenceCode"
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "path": "$.results[].comments[].subcellularLocations[].location.evidences[].source"
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "path": "$.results[].comments[].subcellularLocations[].location.evidences[].id"
+                                }
+                              }
+                            },
+                            "optional": true
+                          },
+                          "value": {
+                            "type": "string",
+                            "path": "$.results[].comments[].subcellularLocations[].location.value"
+                          },
+                          "id": {
+                            "type": "string",
+                            "path": "$.results[].comments[].subcellularLocations[].location.id"
+                          }
+                        }
+                      },
+                      "topology": {
+                        "type": "object",
+                        "path": "$.results[].comments[].subcellularLocations[].topology",
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "path": "$.results[].comments[].subcellularLocations[].topology.value"
+                          },
+                          "id": {
+                            "type": "string",
+                            "path": "$.results[].comments[].subcellularLocations[].topology.id"
+                          }
                         },
                         "optional": true
                       }
@@ -554,7 +516,8 @@
                   "properties": {
                     "originalSequence": {
                       "type": "string",
-                      "path": "$.results[].features[].alternativeSequence.originalSequence"
+                      "path": "$.results[].features[].alternativeSequence.originalSequence",
+                      "optional": true
                     },
                     "alternativeSequences": {
                       "type": "array",
@@ -562,7 +525,8 @@
                       "items": {
                         "type": "string",
                         "path": "$.results[].features[].alternativeSequence.alternativeSequences[]"
-                      }
+                      },
+                      "optional": true
                     }
                   },
                   "optional": true
@@ -810,13 +774,14 @@
                     "type": "number",
                     "path": "$.results[].extraAttributes.countByCommentType.FUNCTION"
                   },
+                  "SUBUNIT": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.SUBUNIT",
+                    "optional": true
+                  },
                   "INTERACTION": {
                     "type": "number",
                     "path": "$.results[].extraAttributes.countByCommentType.INTERACTION"
-                  },
-                  "SUBCELLULAR LOCATION": {
-                    "type": "number",
-                    "path": "$.results[].extraAttributes.countByCommentType.SUBCELLULAR LOCATION"
                   },
                   "ALTERNATIVE PRODUCTS": {
                     "type": "number",
@@ -828,29 +793,24 @@
                     "path": "$.results[].extraAttributes.countByCommentType.TISSUE SPECIFICITY",
                     "optional": true
                   },
+                  "SEQUENCE CAUTION": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.SEQUENCE CAUTION",
+                    "optional": true
+                  },
                   "WEB RESOURCE": {
                     "type": "number",
                     "path": "$.results[].extraAttributes.countByCommentType.WEB RESOURCE",
                     "optional": true
                   },
+                  "SUBCELLULAR LOCATION": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByCommentType.SUBCELLULAR LOCATION",
+                    "optional": true
+                  },
                   "SIMILARITY": {
                     "type": "number",
                     "path": "$.results[].extraAttributes.countByCommentType.SIMILARITY",
-                    "optional": true
-                  },
-                  "SUBUNIT": {
-                    "type": "number",
-                    "path": "$.results[].extraAttributes.countByCommentType.SUBUNIT",
-                    "optional": true
-                  },
-                  "RNA EDITING": {
-                    "type": "number",
-                    "path": "$.results[].extraAttributes.countByCommentType.RNA EDITING",
-                    "optional": true
-                  },
-                  "MISCELLANEOUS": {
-                    "type": "number",
-                    "path": "$.results[].extraAttributes.countByCommentType.MISCELLANEOUS",
                     "optional": true
                   }
                 }
@@ -866,6 +826,11 @@
                   "Domain": {
                     "type": "number",
                     "path": "$.results[].extraAttributes.countByFeatureType.Domain",
+                    "optional": true
+                  },
+                  "Modified residue": {
+                    "type": "number",
+                    "path": "$.results[].extraAttributes.countByFeatureType.Modified residue",
                     "optional": true
                   },
                   "Alternative sequence": {
@@ -900,11 +865,6 @@
                   "Glycosylation": {
                     "type": "number",
                     "path": "$.results[].extraAttributes.countByFeatureType.Glycosylation",
-                    "optional": true
-                  },
-                  "Mutagenesis": {
-                    "type": "number",
-                    "path": "$.results[].extraAttributes.countByFeatureType.Mutagenesis",
                     "optional": true
                   }
                 }
