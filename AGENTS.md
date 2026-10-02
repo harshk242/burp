@@ -1,6 +1,7 @@
 # Agent Protocol
 Keep files <~500 LOC; split/refactor as needed.
 Commits: Conventional Commits (feat|fix|refactor|build|ci|chore|docs|style|perf|test).
+Commit on the current branch; create a new branch only when explicitly instructed.
 Git commit message length should scale with the change scope:
 - Small changes (few LOC, low complexity, 1-2 files): short subject only.
 - Medium changes (moderate LOC/complexity, several files): clear subject + brief body.
