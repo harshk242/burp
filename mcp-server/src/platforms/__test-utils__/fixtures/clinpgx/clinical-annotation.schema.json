@@ -256,6 +256,32 @@
             "type": "boolean",
             "path": "$.data[].pediatric"
           },
+          "relatedAlleles": {
+            "type": "array",
+            "path": "$.data[].relatedAlleles",
+            "items": {
+              "type": "object",
+              "path": "$.data[].relatedAlleles[]",
+              "properties": {
+                "objCls": {
+                  "type": "string",
+                  "path": "$.data[].relatedAlleles[].objCls"
+                },
+                "id": {
+                  "type": "string",
+                  "path": "$.data[].relatedAlleles[].id"
+                },
+                "symbol": {
+                  "type": "string",
+                  "path": "$.data[].relatedAlleles[].symbol"
+                },
+                "name": {
+                  "type": "string",
+                  "path": "$.data[].relatedAlleles[].name"
+                }
+              }
+            }
+          },
           "relatedChemicals": {
             "type": "array",
             "path": "$.data[].relatedChemicals",
@@ -312,11 +338,6 @@
           "relatedLabels": {
             "type": "array",
             "path": "$.data[].relatedLabels",
-            "items": null
-          },
-          "relatedVariations": {
-            "type": "array",
-            "path": "$.data[].relatedVariations",
             "items": null
           },
           "score": {

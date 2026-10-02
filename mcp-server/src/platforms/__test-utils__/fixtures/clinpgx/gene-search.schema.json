@@ -33,10 +33,6 @@
             "type": "string",
             "path": "$.data[].alleleFunctionSource"
           },
-          "alleleType": {
-            "type": "string",
-            "path": "$.data[].alleleType"
-          },
           "amp": {
             "type": "boolean",
             "path": "$.data[].amp"
@@ -111,6 +107,10 @@
           "strand": {
             "type": "string",
             "path": "$.data[].strand"
+          },
+          "usesStarAlleles": {
+            "type": "boolean",
+            "path": "$.data[].usesStarAlleles"
           },
           "vipCitation": {
             "type": "object",
