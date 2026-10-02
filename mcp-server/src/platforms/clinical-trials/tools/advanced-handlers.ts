@@ -6,7 +6,12 @@
  */
 
 import type { ToolHandler } from '../../../types.js';
-import { fetchStudies, formatStudySummary } from '../client.js';
+import {
+  fetchStudies,
+  formatStudySummary,
+  resultMeta,
+  filteredResultMeta,
+} from '../client.js';
 
 // ---------------------------------------------------------------------------
 // get_studies_with_results
@@ -36,8 +41,7 @@ export const handleGetStudiesWithResults: ToolHandler = async (args) => {
       intervention: args.intervention,
       completedAfter: args.completedAfter,
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       completionDate:
@@ -75,8 +79,7 @@ export const handleSearchRareDiseases: ToolHandler = async (args) => {
       recruitmentStatus: args.recruitmentStatus,
       searchNote: 'Includes orphan and rare disease designations',
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       conditions: study.protocolSection.conditionsModule?.conditions || [],
@@ -134,8 +137,7 @@ export const handleGetPediatricStudies: ToolHandler = async (args) => {
       ageRange: args.ageRange,
       recruitmentStatus: args.recruitmentStatus,
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       conditions: study.protocolSection.conditionsModule?.conditions || [],
@@ -226,8 +228,7 @@ export const handleGetSimilarStudies: ToolHandler = async (args) => {
       title: referenceStudy.protocolSection.identificationModule.briefTitle,
     },
     similarityType,
-    totalCount: data.totalCount || 0,
-    resultsShown: results.length,
+    ...filteredResultMeta(data, results.length, 'excluding the reference study'),
     similarStudies: results,
   };
 };
@@ -259,8 +260,7 @@ export const handleSearchByPrimaryOutcome: ToolHandler = async (args) => {
       condition: args.condition,
       phase: args.phase,
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map(formatStudySummary),
   };
 };
@@ -310,8 +310,9 @@ export const handleSearchByEligibilityCriteria: ToolHandler = async (args) => {
       inclusionKeywords: args.inclusionKeywords,
       exclusionKeywords: args.exclusionKeywords,
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...(args.exclusionKeywords
+      ? filteredResultMeta(data, studies.length, 'local exclusion-keyword filtering')
+      : resultMeta(data, studies.length)),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       eligibility: {
@@ -377,8 +378,7 @@ export const handleGetStudyTimeline: ToolHandler = async (args) => {
       phase: args.phase,
       timelineType,
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       timeline: {
@@ -441,8 +441,7 @@ export const handleSearchInternationalStudies: ToolHandler = async (args) => {
       phase: args.phase,
       note: 'Only showing studies with 2+ countries',
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: filtered.length,
+    ...filteredResultMeta(data, filtered.length, 'local multi-country filtering'),
     internationalStudies: filtered.map((study) => {
       const locations =
         study.protocolSection.contactsLocationsModule?.locations || [];

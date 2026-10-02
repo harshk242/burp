@@ -10,7 +10,8 @@ import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
 export interface StudySearchResponse {
   studies: Study[];
-  totalCount: number;
+  /** Only present when the request sets `countTotal=true`. */
+  totalCount?: number;
   nextPageToken?: string;
 }
 
@@ -99,6 +100,7 @@ export function cleanupClient(): void {
 
 /**
  * Perform a GET to `/studies` with the given query params.
+ * `countTotal` is opt-in on the v2 API; without it `totalCount` is omitted.
  * Throws on network / HTTP errors.
  */
 export async function fetchStudies(
@@ -107,7 +109,7 @@ export async function fetchStudies(
   try {
     const response: AxiosResponse<StudySearchResponse> = await getClient().get(
       '/studies',
-      { params },
+      { params: { countTotal: true, ...params } },
     );
     return response.data;
   } catch (error) {
@@ -118,6 +120,35 @@ export async function fetchStudies(
     }
     throw error;
   }
+}
+
+/**
+ * Count fields shared by every search result. `totalCount` is `null` when the
+ * API did not report one, never a fabricated 0 or page size.
+ */
+export function resultMeta(data: StudySearchResponse, shown: number) {
+  return {
+    totalCount: data.totalCount ?? null,
+    resultsShown: shown,
+    hasMore: Boolean(data.nextPageToken),
+  };
+}
+
+/**
+ * Count fields for handlers that filter the API page locally, so the API total
+ * describes the query before filtering, not the returned list.
+ */
+export function filteredResultMeta(
+  data: StudySearchResponse,
+  shown: number,
+  filterDescription: string,
+) {
+  return {
+    apiTotalCount: data.totalCount ?? null,
+    resultsShown: shown,
+    hasMore: Boolean(data.nextPageToken),
+    countNote: `apiTotalCount is before ${filterDescription}; resultsShown is after filtering this page only`,
+  };
 }
 
 // ---------------------------------------------------------------------------

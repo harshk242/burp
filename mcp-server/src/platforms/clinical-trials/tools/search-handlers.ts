@@ -11,6 +11,7 @@ import {
   formatStudySummary,
   formatDetailedStudy,
   calculateStatistics,
+  resultMeta,
 } from '../client.js';
 
 // ---------------------------------------------------------------------------
@@ -36,8 +37,7 @@ export const handleSearchStudies: ToolHandler = async (args) => {
   const studies = data.studies || [];
 
   return {
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map(formatStudySummary),
   };
 };
@@ -91,8 +91,7 @@ export const handleSearchByLocation: ToolHandler = async (args) => {
 
   return {
     searchCriteria: { locationQuery, distance: args.distance },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       locations:
@@ -130,8 +129,7 @@ export const handleSearchByCondition: ToolHandler = async (args) => {
       phase: args.phase,
       recruitmentStatus: args.recruitmentStatus,
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       conditions: study.protocolSection.conditionsModule?.conditions || [],
@@ -169,8 +167,9 @@ export const handleGetTrialStatistics: ToolHandler = async (args) => {
   const studies = data.studies || [];
 
   return {
-    totalStudies: data.totalCount || 0,
+    totalStudies: data.totalCount ?? null,
     analyzedStudies: studies.length,
+    note: `statistics are computed from a sample of the first ${studies.length} matching studies, not all totalStudies`,
     groupBy: (args.groupBy as string) || 'none',
     filters: filters || {},
     statistics: calculateStatistics(studies, args.groupBy as string | undefined),
@@ -199,8 +198,7 @@ export const handleSearchBySponsor: ToolHandler = async (args) => {
 
   return {
     searchCriteria: { sponsor: args.sponsor, sponsorType: args.sponsorType },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       sponsorDetails:
@@ -237,8 +235,7 @@ export const handleSearchByIntervention: ToolHandler = async (args) => {
       interventionType: args.interventionType,
       phase: args.phase,
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map(formatStudySummary),
   };
 };
@@ -268,8 +265,7 @@ export const handleGetRecruitingStudies: ToolHandler = async (args) => {
       location: args.location,
       ageGroup: args.ageGroup,
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       eligibility: {
@@ -318,8 +314,7 @@ export const handleSearchByDateRange: ToolHandler = async (args) => {
       completionDateTo: args.completionDateTo,
       condition: args.condition,
     },
-    totalCount: data.totalCount || 0,
-    resultsShown: studies.length,
+    ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
       dates: {

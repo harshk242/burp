@@ -6,7 +6,7 @@
  * Init: UPDATE_SNAPSHOTS=true bun run --filter bio-mcp-unified test:contracts
  */
 
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import axios from 'axios';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
 
@@ -117,5 +117,26 @@ describe('ClinicalTrials.gov v2 API Contracts', () => {
       'pageSize': '3',
     });
     await assertSchemaStable('clinical-trials/studies-recruiting.schema.json', data);
+  });
+
+  // 6. countTotal — every handler reports totalCount via fetchStudies
+  it('GET /studies returns totalCount only with countTotal=true', async () => {
+    const params = { 'format': 'json', 'query.cond': 'melanoma', 'pageSize': '2' };
+    const without = (await fetchJson(`${BASE}/studies`, 'NCTId', params)) as {
+      totalCount?: number;
+    };
+    const counted = (await fetchJson(`${BASE}/studies`, 'NCTId', {
+      ...params,
+      countTotal: 'true',
+    })) as { totalCount?: number; studies: unknown[] };
+    const empty = (await fetchJson(`${BASE}/studies`, 'NCTId', {
+      'format': 'json',
+      'query.cond': 'zzqqxxnotarealcondition',
+      countTotal: 'true',
+    })) as { totalCount?: number };
+
+    expect(without.totalCount).toBeUndefined();
+    expect(counted.totalCount).toBeGreaterThan(counted.studies.length);
+    expect(empty.totalCount).toBe(0);
   });
 });
