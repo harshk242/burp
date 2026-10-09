@@ -1,8 +1,8 @@
 /**
- * daily_usage, rate_limits, usage_events — faithful port of the legacy schema.sql (rules in ./users.ts).
+ * daily_usage, rate_limits, usage_events (rules in ./users.ts).
  */
 import { sql } from "drizzle-orm";
-import { check, index, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { check, index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 import { chatSessions, messages } from "./chat";
 import { users } from "./users";
 
@@ -16,11 +16,11 @@ export const dailyUsage = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     date: text("date").notNull(), // YYYY-MM-DD (UTC)
-    query_count: integer("query_count").default(0),
-    created_at: integer("created_at").default(sql`(unixepoch())`),
+    query_count: integer("query_count").notNull().default(0),
+    created_at: integer("created_at").notNull().default(sql`(unixepoch())`),
     // Token aggregates for today (best-effort: incremented post-response)
-    input_tokens: integer("input_tokens").default(0),
-    output_tokens: integer("output_tokens").default(0),
+    input_tokens: integer("input_tokens").notNull().default(0),
+    output_tokens: integer("output_tokens").notNull().default(0),
   },
   (t) => [
     // Required by the ON CONFLICT(user_id, date) upsert.
@@ -33,12 +33,11 @@ export const dailyUsage = sqliteTable(
 export const rateLimits = sqliteTable(
   "rate_limits",
   {
-    role: text("role", { enum: ["user", "admin"] }),
+    role: text("role", { enum: ["user", "admin"] }).primaryKey(),
     daily_limit: integer("daily_limit").notNull(),
-    updated_at: integer("updated_at").default(sql`(unixepoch())`),
+    updated_at: integer("updated_at").notNull().default(sql`(unixepoch())`),
   },
   (t) => [
-    primaryKey({ columns: [t.role] }),
     check("rate_limits_role_check", sql`role IN ('user', 'admin')`),
   ],
 );
@@ -47,7 +46,7 @@ export const rateLimits = sqliteTable(
 export const usageEvents = sqliteTable(
   "usage_events",
   {
-    id: text("id"),
+    id: text("id").primaryKey(),
     user_id: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -63,10 +62,9 @@ export const usageEvents = sqliteTable(
     cost_microusd: integer("cost_microusd").notNull().default(0),
     session_id: text("session_id").references(() => chatSessions.id, { onDelete: "set null" }),
     message_id: text("message_id").references(() => messages.id, { onDelete: "set null" }),
-    created_at: integer("created_at").default(sql`(unixepoch())`),
+    created_at: integer("created_at").notNull().default(sql`(unixepoch())`),
   },
   (t) => [
-    primaryKey({ columns: [t.id] }),
     check("usage_events_operation_check", sql`operation = 'chat'`),
     index("idx_usage_events_user_date").on(t.user_id, t.date),
     index("idx_usage_events_user_month").on(t.user_id, t.month),

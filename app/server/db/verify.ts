@@ -7,6 +7,12 @@ import type { Database } from "bun:sqlite";
 import { copyFileSync, existsSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { basename, join } from "path";
+import {
+  emptyTighteningPreview,
+  previewTightening,
+  TIGHTEN_MIGRATION_TAG,
+  type TighteningPreview,
+} from "./backfills";
 import { openDatabase } from "./connection";
 import { loadMigrations, pendingMigrations } from "./executor";
 import { diffFingerprints, fingerprintSchema } from "./introspect";
@@ -28,6 +34,11 @@ export interface VerifyReport {
   pending: string[];
   /** Legacy only: fingerprint vs the `0000` baseline after the frozen ALTER catch-up. */
   baselineDiffs: string[];
+  /**
+   * What `0003_tighten_not_null` will backfill / reject, measured before the run
+   * (legacy: after the ALTER catch-up). Empty when 0003 isn't pending.
+   */
+  tightening: TighteningPreview;
   /** Orphans already present in the input. */
   existingFkViolations: ForeignKeyViolation[];
   ok: boolean;
@@ -57,12 +68,17 @@ export function verifyDatabase(input: string, options: VerifyOptions = {}): Veri
   const sqlite = openDatabase(copy);
   try {
     const legacy = isLegacyDatabase(sqlite);
+    const pending = (legacy ? migrations : pendingMigrations(sqlite, migrations)).map((m) => m.tag);
+    const tighten = pending.includes(TIGHTEN_MIGRATION_TAG);
+    const preflight = legacy
+      ? inspectAfterCatchUp(sqlite, migrations[0]!, tighten)
+      : { baselineDiffs: [], tightening: tighten ? previewTightening(sqlite) : emptyTighteningPreview() };
     const report: VerifyReport = {
       input,
       copy,
       legacy,
-      pending: (legacy ? migrations : pendingMigrations(sqlite, migrations)).map((m) => m.tag),
-      baselineDiffs: legacy ? catchUpDiffs(sqlite, migrations[0]!) : [],
+      pending,
+      ...preflight,
       existingFkViolations: sqlite.query<ForeignKeyViolation, []>("PRAGMA foreign_key_check").all(),
       ok: false,
       adopted: false,
@@ -94,14 +110,22 @@ export function verifyDatabase(input: string, options: VerifyOptions = {}): Veri
   }
 }
 
-/** Catch-up + baseline compare inside a transaction that is always rolled back. */
-function catchUpDiffs(sqlite: Database, baseline: Parameters<typeof baselineDiffs>[1]): string[] {
+/** Catch-up, then baseline compare + 0003 preview, inside a transaction that is always rolled back. */
+function inspectAfterCatchUp(
+  sqlite: Database,
+  baseline: Parameters<typeof baselineDiffs>[1],
+  tighten: boolean,
+): Pick<VerifyReport, "baselineDiffs" | "tightening"> {
   sqlite.run("BEGIN");
   try {
     runCatchUp(sqlite);
-    return baselineDiffs(sqlite, baseline);
+    return {
+      baselineDiffs: baselineDiffs(sqlite, baseline),
+      tightening: tighten ? previewTightening(sqlite) : emptyTighteningPreview(),
+    };
   } catch (err) {
-    return err instanceof LegacyAdoptionError ? err.diffs : [String(err)];
+    const diffs = err instanceof LegacyAdoptionError ? err.diffs : [String(err)];
+    return { baselineDiffs: diffs, tightening: emptyTighteningPreview() };
   } finally {
     sqlite.run("ROLLBACK");
   }
@@ -127,6 +151,7 @@ export function formatVerifyReport(r: VerifyReport): string {
   lines.push(`Legacy:  ${r.legacy ? "yes — will be adopted" : "no"}`);
   lines.push(`Pending: ${r.pending.length === 0 ? "(none)" : r.pending.join(", ")}`);
   if (r.legacy) lines.push("Fingerprint diffs vs baseline (after ALTER catch-up):", ...list(r.baselineDiffs));
+  lines.push(...formatTightening(r));
   lines.push("Existing FK violations:", ...fk(r.existingFkViolations));
   lines.push("");
   if (r.ok) {
@@ -138,6 +163,24 @@ export function formatVerifyReport(r: VerifyReport): string {
   }
   lines.push(`Transaction wall-clock (write lock held at first boot): ${r.transactionMs.toFixed(1)} ms`);
   return lines.join("\n");
+}
+
+function formatTightening(r: VerifyReport): string[] {
+  if (!r.pending.includes(TIGHTEN_MIGRATION_TAG)) return [`${TIGHTEN_MIGRATION_TAG}: already applied`];
+  const list = (items: string[], empty: string) => (items.length === 0 ? [`  (${empty})`] : items.map((i) => `  - ${i}`));
+  const { backfills, nullRoleUsers, nullPrimaryKeys } = r.tightening;
+  const filled = backfills.filter((b) => b.rows > 0);
+  return [
+    `${TIGHTEN_MIGRATION_TAG} backfills (NULL cells filled):`,
+    ...list(filled.map((b) => `${b.table}.${b.column} → ${b.value}: ${b.rows} row(s)`), "none"),
+    "Users with NULL role (become 'user' — fix by hand first if one must stay blocked):",
+    ...list(
+      nullRoleUsers.map((u) => `id=${u.id ?? "NULL"} email=${u.email} created_at=${u.created_at ?? "NULL"}`),
+      "none",
+    ),
+    "NULL primary keys (not backfilled — 0003 fails and rolls back until fixed by hand):",
+    ...list(nullPrimaryKeys.map((p) => `${p.table}.${p.column} IS NULL at rowid ${p.rowid}`), "none"),
+  ];
 }
 
 /** Healthy = migrates cleanly and ends up identical to a fresh DB, with no orphans. */

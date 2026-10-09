@@ -39,6 +39,20 @@ export function migrationsFolderWith(extra: ExtraMigration[]): string {
   return folder;
 }
 
+/** Copy the real migrations folder, keeping only the migrations up to and including `lastTag`. */
+export function migrationsFolderUpTo(lastTag: string): string {
+  const folder = join(makeTempDir(), "migrations");
+  cpSync(MIGRATIONS_FOLDER, folder, { recursive: true });
+
+  const journalPath = join(folder, "meta", "_journal.json");
+  const journal = JSON.parse(readFileSync(journalPath, "utf-8")) as Journal;
+  const last = journal.entries.findIndex((e) => e.tag === lastTag);
+  if (last < 0) throw new Error(`migration ${lastTag} not found`);
+  journal.entries = journal.entries.slice(0, last + 1);
+  writeFileSync(journalPath, JSON.stringify(journal, null, 2));
+  return folder;
+}
+
 /** sqlite_master rows (minus `skip` tables), whitespace-collapsed, sorted. */
 export function schemaSnapshot(sqlite: Database, skip: string[] = []): string[] {
   return sqlite

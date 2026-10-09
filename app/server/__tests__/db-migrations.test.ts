@@ -10,6 +10,7 @@ import { CURRENT_LEGACY_SQL as LEGACY_SCHEMA_SQL } from "../__test-utils__/legac
 import { foreignKeysEnabled, historyRows, schemaSnapshot } from "../__test-utils__/migrations";
 import { openDatabase } from "../db/connection";
 import { applyPendingMigrations, loadMigrations, pendingMigrations } from "../db/executor";
+import { baselineDatabase } from "../db/legacy";
 import { runMigrations } from "../db/migrate";
 import { MIGRATIONS_FOLDER, PROJECT_ROOT, resolveDbPath } from "../db/paths";
 
@@ -98,8 +99,8 @@ describe("fresh database migrations", () => {
     expect(foreignKeysEnabled(sqlite)).toBe(true);
   });
 
-  it("matches the legacy schema.sql column-for-column, FK-for-FK and index-for-index", () => {
-    const { sqlite } = createTestDb();
+  it("baseline 0000 matches the legacy schema.sql column-for-column, FK-for-FK and index-for-index", () => {
+    const sqlite = baselineDatabase(loadMigrations(MIGRATIONS_FOLDER)[0]!);
     const legacy = new Database(":memory:");
     legacy.exec(LEGACY_SCHEMA_SQL);
     for (const t of TABLES) {

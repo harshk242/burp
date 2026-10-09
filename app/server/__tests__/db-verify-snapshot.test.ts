@@ -84,14 +84,14 @@ describe("db:verify", () => {
       legacy: true,
       ok: true,
       adopted: true,
-      applied: ["0001_tool_search_fts", "0002_seed_and_data_fixes"],
+      applied: ["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null"],
       baselineDiffs: [],
       existingFkViolations: [],
       fkViolations: [],
       finalDiffs: [],
       error: null,
     });
-    expect(report.pending).toHaveLength(3);
+    expect(report.pending).toHaveLength(4);
     expect(report.transactionMs).toBeGreaterThan(0);
     expect(existsSync(report.copy)).toBe(false); // scratch copy cleaned up
     expect(verifyPassed(report)).toBe(true);
@@ -158,7 +158,7 @@ describe("CLI", () => {
     const stdout = verify.stdout.toString();
     expect(verify.exitCode).toBe(0);
     expect(stdout).toContain("Legacy:  yes — will be adopted");
-    expect(stdout).toContain("Result:  OK — adopted; applied 0001_tool_search_fts, 0002_seed_and_data_fixes");
+    expect(stdout).toContain("Result:  OK — adopted; applied 0001_tool_search_fts, 0002_seed_and_data_fixes, 0003_tighten_not_null");
     expect(stdout).toContain("Transaction wall-clock");
     expect(fileHashes(out)).toEqual(before);
   });
