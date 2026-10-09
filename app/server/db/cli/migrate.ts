@@ -12,8 +12,9 @@ const dbPath = resolveDbPath(process.argv[2]);
 const sqlite = openDatabase(dbPath);
 
 try {
-  const { applied, backupPath } = runMigrations(sqlite);
+  const { applied, adopted, backupPath } = runMigrations(sqlite);
   if (backupPath) console.log(`Backup written to ${backupPath}`);
+  if (adopted) console.log(`Adopted legacy database ${dbPath} (rebuilt to and recorded the baseline)`);
   if (applied.length === 0) {
     console.log(`No pending migrations for ${dbPath}`);
   } else {

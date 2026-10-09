@@ -2,18 +2,18 @@ import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate as drizzleMigrate } from "drizzle-orm/bun-sqlite/migrator";
-import { mkdtempSync, readFileSync, rmSync } from "fs";
+import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { createTestDb } from "../__test-utils__/db";
+import { CURRENT_LEGACY_SQL as LEGACY_SCHEMA_SQL } from "../__test-utils__/legacy";
 import { foreignKeysEnabled, historyRows, schemaSnapshot } from "../__test-utils__/migrations";
 import { openDatabase } from "../db/connection";
 import { applyPendingMigrations, loadMigrations, pendingMigrations } from "../db/executor";
-import { LegacyDatabaseError, runMigrations } from "../db/migrate";
+import { runMigrations } from "../db/migrate";
 import { MIGRATIONS_FOLDER, PROJECT_ROOT, resolveDbPath } from "../db/paths";
 
 const TABLES = ["access_requests", "chat_sessions", "daily_usage", "messages", "rate_limits", "usage_events", "users"];
-const LEGACY_SCHEMA_SQL = readFileSync(join(import.meta.dir, "..", "db", "schema.sql"), "utf-8");
 
 type ColumnInfo = { name: string; type: string; notnull: number; dflt_value: string | null; pk: number };
 type FkInfo = { table: string; from: string; to: string; on_delete: string; on_update: string };
@@ -165,7 +165,7 @@ describe("fresh database migrations", () => {
   it("is a no-op when run twice", () => {
     const { sqlite } = createTestDb();
     const before = { schema: schemaSnapshot(sqlite), history: historyRows(sqlite) };
-    expect(runMigrations(sqlite)).toEqual({ applied: [], backupPath: null });
+    expect(runMigrations(sqlite)).toEqual({ applied: [], adopted: false, backupPath: null, transactionMs: null });
     expect({ schema: schemaSnapshot(sqlite), history: historyRows(sqlite) }).toEqual(before);
   });
 
@@ -175,14 +175,6 @@ describe("fresh database migrations", () => {
       expect(() => runMigrations(sqlite)).toThrow(/inside a transaction/);
     })();
     expect(() => applyPendingMigrations(sqlite, loadMigrations(MIGRATIONS_FOLDER))).toThrow(/caller-owned/);
-  });
-
-  it("refuses an un-adopted legacy database and leaves it untouched", () => {
-    const sqlite = openDatabase(":memory:");
-    sqlite.exec(LEGACY_SCHEMA_SQL);
-    const before = schemaSnapshot(sqlite);
-    expect(() => runMigrations(sqlite)).toThrow(LegacyDatabaseError);
-    expect(schemaSnapshot(sqlite)).toEqual(before);
   });
 });
 

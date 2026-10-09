@@ -10,6 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:generate:custom": "drizzle-kit generate --custom",
     "db:check": "drizzle-kit check",
+    "db:verify": "bun run server/db/cli/verify.ts",
+    "db:snapshot": "bun run server/db/cli/snapshot.ts",
     "db:studio": "drizzle-kit studio",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
