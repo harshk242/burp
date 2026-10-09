@@ -4,7 +4,7 @@
  * Spawns the unified MCP server, lists all tools, embeds their
  * descriptions via Gemini embedding-001, and writes to data/tool-embeddings.json.
  *
- * Usage: bun run scripts/generate-tool-embeddings.ts
+ * Usage: bun run generate:embeddings   (from repo root or app/)
  * Env: GEMINI_API_KEY (required)
  */
 
@@ -22,7 +22,7 @@ if (!GEMINI_API_KEY) {
   process.exit(1);
 }
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || join(REPO_ROOT, "mcp-server");
 const OUTPUT_PATH = join(REPO_ROOT, "data", "tool-embeddings.json");
 const BATCH_SIZE = 100;

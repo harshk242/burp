@@ -13,6 +13,7 @@
     "db:verify": "bun run server/db/cli/verify.ts",
     "db:snapshot": "bun run server/db/cli/snapshot.ts",
     "db:studio": "drizzle-kit studio",
+    "generate:embeddings": "bun run scripts/generate-tool-embeddings.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
