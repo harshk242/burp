@@ -38,6 +38,27 @@ jobs:
         working-directory: mcp-server
         run: bunx vitest run --reporter=verbose
 
+      - name: Typecheck app
+        working-directory: app
+        run: bun run typecheck
+
+      - name: Check Drizzle migrations are consistent
+        working-directory: app
+        run: bunx drizzle-kit check
+
+      # Fails any change that edits server/db/schema without committing the
+      # migration drizzle-kit would generate for it (modified or new files).
+      - name: Drizzle schema drift guard
+        working-directory: app
+        run: |
+          bunx drizzle-kit generate
+          git diff --exit-code -- server/db/migrations
+          if [ -n "$(git status --porcelain -- server/db/migrations)" ]; then
+            git status --porcelain -- server/db/migrations
+            echo "::error::Schema changed without a committed migration. Run 'bun run db:generate --name <change>' and commit the output."
+            exit 1
+          fi
+
       - name: Run app tests
         working-directory: app
         run: bun test

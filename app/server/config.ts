@@ -3,14 +3,19 @@
  *
  * Source priority (highest wins):
  *   1. Environment variables
- *   2. app/config.yaml
+ *   2. app/config.yaml (resolved relative to this module, not cwd)
  *   3. Built-in defaults (defined in Zod schema)
+ *
+ * Relative `log_dir` / `mcp_servers_base` resolve against app/ (not cwd), so the
+ * server behaves the same wherever it is launched from. `database_url` resolves
+ * against the repo root (see db/paths.ts).
  *
  * Secrets (API keys, Clerk) are never stored here — they stay in .env.
  */
 
 import { readFileSync } from "fs";
-import { join } from "path";
+import { dirname, join, resolve } from "path";
+import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
@@ -86,7 +91,7 @@ const AppConfigSchema = z.object({
   }),
   server: z.object({
     port: z.number().int().default(3000),
-    database_url: z.string().default("./data/burp.db"),
+    database_url: z.string().default("./data/app.db"),
     mcp_servers_base: z.string().default("../mcp-server"),
     cors_origins: z.array(z.string()).default(["http://localhost:3000", "http://localhost:3001"]),
     log_dir: z.string().default("../logs"),
@@ -108,10 +113,13 @@ export type PlatformConfig = z.infer<typeof PlatformSchema>;
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
+/** The app/ folder, located from this module so nothing depends on cwd. */
+export const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
+const CONFIG_PATH = join(APP_DIR, "config.yaml");
+
 function loadYamlFile(): Record<string, unknown> {
   try {
-    const configPath = join(process.cwd(), "config.yaml");
-    const raw = readFileSync(configPath, "utf-8");
+    const raw = readFileSync(CONFIG_PATH, "utf-8");
     return (parseYaml(raw) as Record<string, unknown>) ?? {};
   } catch {
     return {};
@@ -154,8 +162,10 @@ function applyEnvOverrides(cfg: AppConfig): AppConfig {
 
 function loadConfig(): AppConfig {
   const raw = loadYamlFile();
-  const parsed = AppConfigSchema.parse(raw);
-  return applyEnvOverrides(parsed);
+  const cfg = applyEnvOverrides(AppConfigSchema.parse(raw));
+  cfg.server.log_dir = resolve(APP_DIR, cfg.server.log_dir);
+  cfg.server.mcp_servers_base = resolve(APP_DIR, cfg.server.mcp_servers_base);
+  return cfg;
 }
 
 export const appConfig: AppConfig = loadConfig();

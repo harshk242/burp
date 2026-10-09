@@ -2,20 +2,32 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
 import { join } from "path";
-import { initializeSchema } from "./db";
+import { DB_PATH, MigrationFkError, runMigrations, sqlite } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
 import { toolRegistry } from "./mcp/registry";
 import { hybridSearch } from "./search";
 import { getEmbeddingModel } from "./llm";
 import { logger, startTimer, generateRequestId } from "./logger";
-import { appConfig } from "./config";
+import { APP_DIR, appConfig } from "./config";
 import { redirectWwwToCanonical } from "./middleware/canonical-host";
 import type { AppEnv } from "./types";
 
-// Initialize database on startup
-initializeSchema();
-logger.info("STARTUP", "database_initialized");
+// Apply pending migrations (adopting a legacy DB if needed) before listening.
+// Any failure rolls the migration transaction back, so the DB is unchanged and
+// we refuse to start rather than serve against a half-migrated schema.
+try {
+  const { applied, adopted, backupPath, transactionMs } = runMigrations(sqlite);
+  logger.info("STARTUP", "database_migrated", {
+    duration_ms: transactionMs === null ? undefined : Math.round(transactionMs),
+    data: { db_path: DB_PATH, adopted, applied: applied.map((m) => m.tag).join(",") || "none", backup: backupPath },
+  });
+} catch (error) {
+  const event = error instanceof MigrationFkError ? "database_migration_fk_violation" : "database_migration_failed";
+  logger.error("STARTUP", event, { data: { db_path: DB_PATH }, error: error instanceof Error ? error : String(error) });
+  logger.flush();
+  process.exit(1);
+}
 
 // Initialize MCP servers and tool discovery
 async function initializeMCP() {
@@ -45,7 +57,7 @@ async function initializeMCP() {
 
   // Load precomputed embeddings (optional — BM25 works without them)
   try {
-    const embPath = join(process.cwd(), "..", "data", "tool-embeddings.json");
+    const embPath = join(APP_DIR, "..", "data", "tool-embeddings.json");
     hybridSearch.loadEmbeddings(embPath);
     hybridSearch.setEmbeddingModel(getEmbeddingModel());
   } catch (e) {

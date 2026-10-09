@@ -1,4 +1,4 @@
--- BURP Database Schema
+-- FROZEN legacy fixture: app/server/db/schema.sql as of 565578c (pre-Drizzle). Do not edit.
 -- SQLite with foreign key enforcement
 
 -- IMPORTANT: Enable foreign key enforcement (must run on each connection)
