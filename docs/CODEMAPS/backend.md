@@ -4,7 +4,7 @@
 
 ## Entry Point
 
-- `app/server/index.ts` (136) — HTTP server bootstrap, CORS, MCP init, route mounting, graceful shutdown
+- `app/server/index.ts` — runs `runMigrations()` before listening (exits on failure), then HTTP server bootstrap, CORS, MCP init, route mounting, graceful shutdown
 
 ## Architecture
 
@@ -25,10 +25,14 @@ app/server/
 │   ├── tools.ts                 # Tool listing & search
 │   ├── users.ts                 # User profile management
 │   └── waitlist.ts              # Access request handling
-├── db/
-│   ├── index.ts                 # SQLite connection & query builders
-│   ├── init.ts                  # Schema initialization
-│   └── schema.sql               # Table definitions
+├── db/                          # Drizzle ORM over bun:sqlite (see database.md)
+│   ├── index.ts                 # db, sqlite, runMigrations, all *Queries (bound to the app DB)
+│   ├── client.ts                # The single app connection + Drizzle instance
+│   ├── schema/                  # Table definitions (source of truth)
+│   ├── queries/                 # One file per *Queries object
+│   ├── migrations/              # drizzle-kit SQL + meta/
+│   ├── migrate.ts               # runMigrations() — called by index.ts before listen
+│   └── cli/                     # db:migrate / db:verify / db:snapshot
 ├── middleware/
 │   └── clerk.ts                 # JWT validation & role enforcement
 └── schemas/
@@ -47,7 +51,7 @@ app/server/
 | `middleware/clerk.ts` | 281 | Token verification, user sync, role-based guards |
 | `logger.ts` | 253 | Structured logs: info/warn/error/debug + timing utilities |
 | `mcp/registry.ts` | 200 | Tool discovery, always-loaded vs deferred partitioning |
-| `db/index.ts` | 198 | Query builders for users, sessions, messages, access_requests |
+| `db/queries/*.ts` | ~480 | Drizzle query objects: users, access requests, sessions, messages, daily usage, usage events, rate limits, FTS5 tool search |
 | `routes/chat.ts` | 184 | SSE endpoint: auth → session → stream orchestration events |
 | `schemas/index.ts` | 165 | Zod schemas with OpenAPI integration |
 

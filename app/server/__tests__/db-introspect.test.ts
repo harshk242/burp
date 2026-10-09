@@ -17,7 +17,7 @@ function db(...statements: string[]): Database {
 const diff = (a: Database, b: Database) => diffFingerprints(fingerprintSchema(a), fingerprintSchema(b));
 
 describe("fingerprint vs the 0000 baseline", () => {
-  it("today's legacy schema.sql is semantically identical to 0000", () => {
+  it("the frozen legacy schema.sql is semantically identical to 0000", () => {
     const legacy = new Database(":memory:");
     legacy.exec(CURRENT_LEGACY_SQL);
     expect(baselineDiffs(legacy, baseline)).toEqual([]);

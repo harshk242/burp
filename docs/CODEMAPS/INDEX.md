@@ -11,7 +11,7 @@ A unified AI research platform connecting 10 biomedical databases via MCP server
 | [Backend](./backend.md) | 16 | 4,079 | `app/server/` |
 | [Frontend](./frontend.md) | 45 | 2,985 | `app/web/` |
 | [Integrations](./integrations.md) | 65 | 22,257 | `mcp-servers/` |
-| [Database](./database.md) | 3 | 268 | `app/server/db/` |
+| [Database](./database.md) | 27 | ~2,000 | `app/server/db/` |
 
 ## Repository Structure
 
@@ -22,7 +22,7 @@ burp/
 │   │   ├── orchestration/       #   LLM agentic loop
 │   │   ├── mcp/                 #   MCP lifecycle & tool registry
 │   │   ├── routes/              #   HTTP endpoints
-│   │   ├── db/                  #   SQLite schema & queries
+│   │   ├── db/                  #   Drizzle schema, migrations & queries
 │   │   ├── middleware/          #   Clerk auth
 │   │   └── schemas/             #   Zod validation
 │   └── web/                     # Next.js 14 frontend

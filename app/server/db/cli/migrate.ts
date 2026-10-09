@@ -4,11 +4,12 @@
  *   bun run db:migrate              # DATABASE_URL / config.yaml database_url
  *   bun run db:migrate ./some.db    # explicit path (relative to the repo root, or absolute)
  */
+import { appConfig } from "../../config";
 import { openDatabase } from "../connection";
 import { runMigrations } from "../migrate";
 import { resolveDbPath } from "../paths";
 
-const dbPath = resolveDbPath(process.argv[2]);
+const dbPath = resolveDbPath(process.argv[2] ?? appConfig.server.database_url);
 const sqlite = openDatabase(dbPath);
 
 try {

@@ -1,12 +1,12 @@
 /**
  * Database path resolution.
  *
- * Kept free of `bun:sqlite` and Bun-only globals so drizzle-kit (which loads
- * drizzle.config.ts under Node) can import it.
+ * Kept free of `bun:sqlite`, Bun-only globals and config.yaml loading, so
+ * drizzle-kit (which loads drizzle.config.ts under Node) and standalone scripts
+ * outside app/ can import it. Callers pass `appConfig.server.database_url`.
  */
 import { dirname, isAbsolute, join } from "path";
 import { fileURLToPath } from "url";
-import { appConfig } from "../config";
 
 export const MEMORY_DB_PATH = ":memory:";
 
@@ -24,7 +24,7 @@ export function isMemoryDbPath(path: string): boolean {
  * Resolve a configured database URL to a filesystem path.
  * `:memory:` passes through untouched; relative paths resolve against the repo root.
  */
-export function resolveDbPath(url: string = appConfig.server.database_url): string {
+export function resolveDbPath(url: string): string {
   if (isMemoryDbPath(url)) return MEMORY_DB_PATH;
   return isAbsolute(url) ? url : join(PROJECT_ROOT, url);
 }

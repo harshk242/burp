@@ -5,11 +5,11 @@
   "scripts": {
     "dev": "bun run --hot server/index.ts",
     "start": "bun run server/index.ts",
-    "db:init": "bun run server/db/init.ts",
     "db:migrate": "bun run server/db/cli/migrate.ts",
     "db:generate": "drizzle-kit generate",
     "db:generate:custom": "drizzle-kit generate --custom",
     "db:check": "drizzle-kit check",
+    "db:drift": "drizzle-kit generate && git diff --exit-code -- server/db/migrations && git status --porcelain -- server/db/migrations | (! grep .)",
     "db:verify": "bun run server/db/cli/verify.ts",
     "db:snapshot": "bun run server/db/cli/snapshot.ts",
     "db:studio": "drizzle-kit studio",

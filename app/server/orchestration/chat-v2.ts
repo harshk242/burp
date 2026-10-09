@@ -691,6 +691,8 @@ export async function* processChat(
     const usageDate = getUtcDate();
     const usageMonth = getUtcMonth();
 
+    // Sync transaction on the shared connection: the *Queries calls below use the
+    // global `db`, so they run inside it without needing the `tx` handle.
     db.transaction(() => {
       // Store assistant message with accumulated token counts, cost, and reasoning.
       messageQueries.create(
@@ -726,7 +728,7 @@ export async function* processChat(
       userQueries.incrementQueries(userId);
       // Increment daily token totals (best-effort: done post-response; next request checks these)
       dailyUsageQueries.incrementTokens(userId, totalInputTokens, totalOutputTokens);
-    })();
+    });
 
     logger.info("CHAT", "process_complete", {
       ctx,

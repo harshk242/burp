@@ -202,7 +202,7 @@ Stage 4 (runner)         : Combine all into final image
 ||                                  |                                      |  ||
 ||                                  |  Tables: users, access_requests,     |  ||
 ||                                  |  chat_sessions, messages,            |  ||
-||                                  |  daily_usage, rate_limits,           |  ||
+||                                  |  daily_usage, rate_limits, usage_ev. |  ||
 ||                                  |  tool_search_fts (FTS5 virtual)      |  ||
 ||                                  +--------------------------------------+  ||
 +==============================================================================+
@@ -571,6 +571,19 @@ User                  Frontend            Hono Server           Orchestration   
 
 ## 10. Data Model (SQLite Schema)
 
+The schema is defined in code with Drizzle ORM (`app/server/db/schema/*.ts`);
+drizzle-kit generates the SQL migrations in `app/server/db/migrations/`.
+`runMigrations()` applies pending migrations at boot, before the server listens:
+it takes a `VACUUM INTO` backup, then runs everything in one transaction with
+foreign keys off, checks `PRAGMA foreign_key_check` before commit, and
+refuses to start on failure. A pre-Drizzle DB is adopted (rebuilt to the
+baseline) inside the same transaction. Property keys are the snake_case column
+names, so API responses return rows as-is. Row types (`DbUser` …) are
+`$inferSelect`, type-checked against the Zod API schemas.
+`tool_search_fts` is an FTS5 virtual table created by a custom migration and
+queried with raw `sql`. `usage_events` (per-query cost ledger) is omitted from
+the diagram below.
+
 ```
   ┌─────────────────────┐         ┌─────────────────────────┐
   │       users          │         │    access_requests       │
@@ -763,9 +776,15 @@ User                  Frontend            Hono Server           Orchestration   
   │   │   ├── types.ts          ← Shared types (AppEnv, DB types)
   │   │   ├── schemas/          ← Zod OpenAPI schemas
   │   │   ├── db/
-  │   │   │   ├── index.ts      ← SQLite (bun:sqlite) + prepared stmts
-  │   │   │   ├── init.ts       ← Schema init entry
-  │   │   │   └── schema.sql    ← DDL + migrations
+  │   │   │   ├── index.ts      ← Entry: db (Drizzle), sqlite, runMigrations, *Queries
+  │   │   │   ├── client.ts     ← The app's single bun:sqlite connection + Drizzle wrapper
+  │   │   │   ├── schema/       ← Drizzle table definitions (source of truth)
+  │   │   │   ├── queries/      ← One file per *Queries object (Drizzle; FTS5 via raw sql)
+  │   │   │   ├── migrations/   ← drizzle-kit SQL + meta/ journal & snapshots
+  │   │   │   ├── migrate.ts    ← runMigrations(): backup → one txn → FK check → commit
+  │   │   │   ├── executor.ts   ← Drizzle-compatible migration bookkeeping
+  │   │   │   ├── legacy.ts     ← Adopts pre-Drizzle DBs at boot
+  │   │   │   └── cli/          ← db:migrate, db:verify, db:snapshot
   │   │   ├── middleware/
   │   │   │   ├── clerk.ts      ← JWT auth + user sync
   │   │   │   └── rateLimit.ts  ← Query count + token budget
@@ -870,7 +889,7 @@ User                  Frontend            Hono Server           Orchestration   
 | **LLM Integration** | Vercel AI SDK | Provider-agnostic (Anthropic ↔ Google swap) |
 | **Tool Protocol** | MCP (Model Context Protocol) | Standardized tool interface; single unified server |
 | **Tool Discovery** | Hybrid Search (BM25 + Embeddings + RRF) | Keeps LLM context small while 210+ tools remain discoverable |
-| **Database** | SQLite + WAL mode | Single-file, zero-ops, sufficient for current scale |
+| **Database** | SQLite + WAL mode, Drizzle ORM | Single-file, zero-ops, sufficient for current scale; schema-in-code with generated, recorded migrations applied at boot |
 | **Auth** | Clerk (JWT) | Managed auth with waitlist/approval workflow |
 | **Streaming** | Server-Sent Events (SSE) | Simpler than WebSocket for unidirectional streaming |
 | **Large Output** | 3-layer pipeline (5MB → 1MB → 15K) | No silent truncation; structured degradation |

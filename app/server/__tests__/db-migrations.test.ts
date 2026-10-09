@@ -2,8 +2,6 @@ import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate as drizzleMigrate } from "drizzle-orm/bun-sqlite/migrator";
-import { mkdtempSync, rmSync } from "fs";
-import { tmpdir } from "os";
 import { join } from "path";
 import { createTestDb } from "../__test-utils__/db";
 import { CURRENT_LEGACY_SQL as LEGACY_SCHEMA_SQL } from "../__test-utils__/legacy";
@@ -199,30 +197,6 @@ describe("executor compatibility with drizzle-orm migrate()", () => {
     expect(schemaSnapshot(sqlite, skip)).toEqual(schemaSnapshot(ours, skip));
     expect(historyRows(sqlite)).toEqual(historyRows(ours));
     expect(ours.query("SELECT * FROM rate_limits ORDER BY role").all()).toHaveLength(2);
-  });
-});
-
-describe("legacy boot path", () => {
-  it("initializeSchema() still builds a working DB through the shared client (twice)", () => {
-    const dir = mkdtempSync(join(tmpdir(), "burp-legacy-boot-"));
-    try {
-      const dbPath = join(dir, "app.db");
-      const script = 'import { initializeSchema } from "./server/db"; initializeSchema();';
-      for (let i = 0; i < 2; i++) {
-        const proc = Bun.spawnSync(["bun", "-e", script], {
-          cwd: join(import.meta.dir, "..", ".."),
-          env: { ...process.env, DATABASE_URL: dbPath },
-        });
-        expect(proc.exitCode).toBe(0);
-      }
-      const legacy = new Database(dbPath, { readonly: true });
-      for (const t of [...TABLES, "tool_search_fts"]) expect(tableNames(legacy)).toContain(t);
-      expect(tableNames(legacy)).not.toContain("__drizzle_migrations");
-      expect(legacy.query<{ journal_mode: string }, []>("PRAGMA journal_mode").get()!.journal_mode).toBe("wal");
-      legacy.close();
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
   });
 });
 

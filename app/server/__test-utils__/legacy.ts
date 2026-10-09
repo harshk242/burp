@@ -1,7 +1,7 @@
 /**
  * Legacy (pre-Drizzle) database fixtures for adoption tests (plans §10).
  *
- * - "current":   the frozen copy of today's schema.sql, as a fresh install built it.
+ * - "current":   the frozen copy of the last schema.sql (trashed in the Drizzle cutover), as a fresh install built it.
  * - "old prod":  the frozen pre-ALTER schema.sql + rows, then the old boot's ALTER
  *                list — ALTER-appended columns land after table constraints in the DDL.
  * - "reordered": current schema with `users`/`messages` columns declared in a
