@@ -36,7 +36,7 @@ export interface LogContext {
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
-const LOG_DIR = path.resolve(process.cwd(), appConfig.server.log_dir);
+const LOG_DIR = appConfig.server.log_dir;
 const LOG_FILE = path.join(LOG_DIR, "app.log");
 const MAX_LOG_SIZE = 50 * 1024 * 1024; // 50 MB before rotation
 const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {

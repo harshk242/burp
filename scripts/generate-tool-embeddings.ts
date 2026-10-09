@@ -14,6 +14,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { embedMany } from "ai";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 if (!GEMINI_API_KEY) {
@@ -21,8 +22,9 @@ if (!GEMINI_API_KEY) {
   process.exit(1);
 }
 
-const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || "mcp-server";
-const OUTPUT_PATH = join(process.cwd(), "data", "tool-embeddings.json");
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const MCP_SERVERS_BASE = process.env.MCP_SERVERS_BASE || join(REPO_ROOT, "mcp-server");
+const OUTPUT_PATH = join(REPO_ROOT, "data", "tool-embeddings.json");
 const BATCH_SIZE = 100;
 
 async function main() {

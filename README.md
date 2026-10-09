@@ -141,7 +141,7 @@ NCBI_API_KEY=<your-ncbi-key>
 CLAUDE_MODEL=claude-sonnet-4-6
 PORT=3000
 DATABASE_URL=./data/app.db
-MCP_SERVERS_BASE=../mcp-servers
+MCP_SERVERS_BASE=../mcp-server
 ADMIN_EMAIL=you@example.com
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 ```

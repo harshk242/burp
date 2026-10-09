@@ -9,7 +9,7 @@ import { toolRegistry } from "./mcp/registry";
 import { hybridSearch } from "./search";
 import { getEmbeddingModel } from "./llm";
 import { logger, startTimer, generateRequestId } from "./logger";
-import { appConfig } from "./config";
+import { APP_DIR, appConfig } from "./config";
 import { redirectWwwToCanonical } from "./middleware/canonical-host";
 import type { AppEnv } from "./types";
 
@@ -57,7 +57,7 @@ async function initializeMCP() {
 
   // Load precomputed embeddings (optional — BM25 works without them)
   try {
-    const embPath = join(process.cwd(), "..", "data", "tool-embeddings.json");
+    const embPath = join(APP_DIR, "..", "data", "tool-embeddings.json");
     hybridSearch.loadEmbeddings(embPath);
     hybridSearch.setEmbeddingModel(getEmbeddingModel());
   } catch (e) {

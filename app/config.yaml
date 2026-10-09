@@ -39,13 +39,13 @@ llm:
 server:
   port: 3000                    # env: PORT
   database_url: ./data/app.db    # env: DATABASE_URL
-  mcp_servers_base: ../mcp-server # relative to app/ cwd; /app/mcp-server in Docker — env: MCP_SERVERS_BASE
+  mcp_servers_base: ../mcp-server # relative to app/; /app/mcp-server in Docker — env: MCP_SERVERS_BASE
   cors_origins:                 # env: CORS_ORIGINS (comma-separated)
     - http://localhost:3000
     - http://localhost:3001
     - http://192.168.0.27:3001
     - http://100.127.112.7:3001
-  log_dir: ../logs              # env: LOG_DIR
+  log_dir: ../logs              # relative to app/ — env: LOG_DIR
   log_level: DEBUG              # DEBUG | INFO | WARN | ERROR — env: LOG_LEVEL
 
 # ── Tool search tuning ───────────────────────────────────────
