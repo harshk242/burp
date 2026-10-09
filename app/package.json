@@ -6,6 +6,11 @@
     "dev": "bun run --hot server/index.ts",
     "start": "bun run server/index.ts",
     "db:init": "bun run server/db/init.ts",
+    "db:migrate": "bun run server/db/cli/migrate.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:generate:custom": "drizzle-kit generate --custom",
+    "db:check": "drizzle-kit check",
+    "db:studio": "drizzle-kit studio",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
@@ -17,6 +22,7 @@
     "@hono/zod-openapi": "^0.18.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "ai": "^6.0.141",
+    "drizzle-orm": "0.45.4",
     "hono": "^4.6.0",
     "node-jq": "^6.3.1",
     "uuid": "^11.0.0",
@@ -24,9 +30,11 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@libsql/client": "0.18.0",
     "@types/bun": "^1.1.0",
     "@types/uuid": "^10.0.0",
     "bun-types": "^1.3.11",
+    "drizzle-kit": "0.31.11",
     "typescript": "^5.9.3"
   }
 }

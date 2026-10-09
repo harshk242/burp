@@ -1,31 +1,8 @@
-import { Database } from "bun:sqlite";
-import { readFileSync, mkdirSync, existsSync } from "fs";
-import { join, dirname } from "path";
-import { appConfig } from "../config";
+import { readFileSync } from "fs";
+import { join } from "path";
 import type { DbUser, DbAccessRequest, DbChatSession, DbMessageRow, DbUsageEvent } from "../types";
-
-// Resolve data directory relative to project root (app/../data)
-const PROJECT_ROOT = join(dirname(import.meta.dir), "..", "..");
-const DATA_DIR = join(PROJECT_ROOT, "data");
-const DEFAULT_DB_PATH = join(DATA_DIR, "app.db");
-const DB_PATH = appConfig.server.database_url.startsWith("/")
-  ? appConfig.server.database_url
-  : join(PROJECT_ROOT, appConfig.server.database_url);
-
-// Ensure data directory exists
-const dbDir = dirname(DB_PATH);
-if (!existsSync(dbDir)) {
-  mkdirSync(dbDir, { recursive: true });
-}
-
-// Create database connection
-const db = new Database(DB_PATH, { create: true });
-
-// Enable foreign key enforcement (MUST run on each connection)
-db.run("PRAGMA foreign_keys = ON");
-
-// Enable WAL mode for better concurrent read performance
-db.run("PRAGMA journal_mode = WAL");
+// Shared connection (path resolution + pragmas live in paths.ts / connection.ts).
+import { DB_PATH, sqlite as db } from "./client";
 
 /**
  * Initialize database schema from schema.sql
