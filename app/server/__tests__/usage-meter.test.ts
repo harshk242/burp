@@ -173,7 +173,7 @@ describe("UsageMeter", () => {
 
   it("records Google calls with the configured pricing", () => {
     const config = loadConfig({}, {
-      llm: {},
+      llm: { effort: "medium" },
       server: {},
       tool_search: {},
       usage: { pricing: { google: { "gemini-3-flash-preview": { input_usd_per_mtok: 0.5, output_usd_per_mtok: 3 } } } },

@@ -1,6 +1,6 @@
 # Context Assembly + Prompt Caching Plan
 
-**Status:** Phases 1–3 done (validated 2026-10-10) · **Date:** 2026-10-09 · **Scope:** Anthropic chat loop (`app/server/orchestration/chat-v2.ts`)
+**Status:** Phases 1–3 done (validated 2026-10-10); 4a.1/4a.2/4a.4 done (2026-10-10, #27), 4a.3 next · **Date:** 2026-10-09 · **Scope:** Anthropic chat loop (`app/server/orchestration/chat-v2.ts`)
 
 ## Goal
 
@@ -401,6 +401,12 @@ Decisions agreed 2026-10-09 (session brainstorm). Phase 4 ships as three separat
 
 - Gate (Phase 0 script): `display: "summarized"` with `@ai-sdk/anthropic` 4.x returns non-empty reasoning deltas.
 - The `messages.reasoning` column will now mix two things (summarized thinking + pre-tool text). Fine for display; revisit if tracing needs them separate.
+- **Status/Results (2026-10-10, #27): 4a.1, 4a.2 and 4a.4 done; gate passes. 4a.3 (UI + persistence) is the next ticket (#28).**
+  - Config: `llm.thinking_display` (`omitted|summarized|updates`, default `summarized`), `llm.effort` (required, no default: `low|medium|high|xhigh|max`; `config.yaml` sets `medium`), `llm.max_output_tokens` 4096 → 16000. `chatProviderOptions()` (`app/server/llm/provider-options.ts`) builds `providerOptions.anthropic: {thinking: {type: "adaptive", display}, effort}` for every chat call and returns `undefined` on Google. The top-level `reasoning` option isn't used. Title generation is unchanged. No env overrides were added for the two new keys.
+  - Tests (`app/server/__tests__/thinking-config.test.ts`): config defaults/required effort; options per provider; the real provider's request body has `thinking: {type: "adaptive", display: "summarized"}`, `output_config.effort: "medium"`, `max_tokens: 16000` and no `temperature`/`top_p`/`top_k`; the `processChat` call options carry the provider options with no sampling params and no `reasoning`.
+  - `rateLimit.ts` best-effort comment now gives the larger per-call worst case (16K output ≈ $0.16 on Sonnet 5.5, up to `max_tool_iterations` calls per turn).
+  - Gate: `experiments/phase4a-gate.ts` (gitignored), run as `cd app && LOG_LEVEL=ERROR bun ../experiments/phase4a-gate.ts`; live, `claude-sonnet-5-5`, `@ai-sdk/anthropic` 4.0.78, exit 0. Call A (config as shipped, effort `medium`): 200, request body as above, no sampling params. Call B (same, effort `high`): 399 thinking tokens, 55 `reasoning-delta` parts from `result.stream`, 54 non-empty, 608 chars of readable summary. Control C (effort `high`, `display: "omitted"`): 395 thinking tokens, 2 `reasoning-delta` parts, 0 chars.
+  - **Finding: at effort `medium` Sonnet 5.5 often doesn't think at all.** A multi-step logic puzzle got 0 thinking tokens at `medium` in two gate runs and a raw-SSE probe (only a `text` block came back), against about 400 at `high`. Adaptive thinking decides per request, so with `medium` many turns will have no summarized thinking to show; 4a.3's UI block will often be empty or show only pre-tool text. That's the cost lever working as intended, not a bug; if the UI block matters more than the saving, `effort: high` is a config change.
 
 ### Phase 4b — Lossless transcript: caching across turns
 

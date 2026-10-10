@@ -161,7 +161,12 @@ const AppConfigSchema = z.object({
     chat_model: z.string().default("claude-haiku-4-5"),
     title_model: z.string().default("claude-haiku-4-5"),
     max_retries: z.number().int().default(3),
-    max_output_tokens: z.number().int().positive().default(4096),
+    /** Thinking tokens count toward this limit (adaptive thinking on Anthropic). */
+    max_output_tokens: z.number().int().positive().default(16000),
+    /** Anthropic adaptive thinking: "summarized" returns readable thinking text, "omitted" returns empty blocks. */
+    thinking_display: z.enum(["omitted", "summarized", "updates"]).default("summarized"),
+    /** Anthropic effort. Required: the API default (high on Sonnet 5.5) must never apply silently. */
+    effort: z.enum(["low", "medium", "high", "xhigh", "max"]),
     max_tool_iterations: z.number().int().positive().default(6),
   }),
   server: z.object({

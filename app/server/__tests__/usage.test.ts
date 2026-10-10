@@ -23,7 +23,7 @@ const usage = (u: Partial<CallUsage>): CallUsage => ({
 
 // Sections without schema defaults; pricing replaces the built-in default.
 const configWithPricing = (pricing: Record<string, unknown>) =>
-  loadConfig({}, { llm: {}, server: {}, tool_search: {}, usage: { pricing } });
+  loadConfig({}, { llm: { effort: "medium" }, server: {}, tool_search: {}, usage: { pricing } });
 
 describe("priceCall", () => {
   it("prices a Sonnet 5.5 call that mixes every category exactly", () => {
@@ -171,7 +171,7 @@ describe("pricing config", () => {
 
   it("config.yaml and the built-in defaults carry the Sonnet 5.5 and Haiku 5.5 rates", () => {
     const fromYaml = loadConfig({}).usage.pricing.anthropic;
-    const defaults = loadConfig({}, { llm: {}, server: {}, tool_search: {} }).usage.pricing.anthropic;
+    const defaults = loadConfig({}, { llm: { effort: "medium" }, server: {}, tool_search: {} }).usage.pricing.anthropic;
     for (const pricing of [fromYaml, defaults]) {
       expect(pricing["claude-sonnet-5-5"]?.cache_read_usd_per_mtok).toBe(0.1);
       expect(pricing["claude-haiku-5-5"]?.long_context).toEqual(longContext);

@@ -9,7 +9,7 @@ import { APP_DIR, loadConfig as loadFromYaml, parseBooleanEnv } from "../config"
 
 // Sections without schema defaults; everything else comes from built-in defaults.
 const loadConfig = (env: Record<string, string | undefined>, raw: Record<string, unknown>) =>
-  loadFromYaml(env, { llm: {}, server: {}, tool_search: {}, ...raw });
+  loadFromYaml(env, { llm: { effort: "medium" }, server: {}, tool_search: {}, ...raw });
 
 describe("embedding config", () => {
   it("defaults to OpenAI text-embedding-3-small with a 2s query timeout", () => {

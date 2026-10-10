@@ -7,7 +7,7 @@
 
 import { streamText, generateText, type ModelMessage, type ToolResultPart } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { getChatModel, getTitleModel, loadLLMConfig, sanitizeToolName } from "../llm";
+import { chatProviderOptions, getChatModel, getTitleModel, loadLLMConfig, sanitizeToolName } from "../llm";
 import { db, messageQueries, chatSessionQueries, userQueries, dailyUsageQueries, usageEventQueries } from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
 import { getUtcDate, getUtcMonth } from "../usage";
@@ -23,6 +23,8 @@ import { CallTracker, recordFailedTurn, type TurnErrorCode } from "./turn-usage"
 export type { StreamEvent, ToolCallRecord } from "./types";
 
 const llmConfig = loadLLMConfig();
+// Thinking + effort (Anthropic); undefined on Google.
+const providerOptions = chatProviderOptions(llmConfig);
 
 interface DBMessage {
   id: string;
@@ -182,6 +184,7 @@ export async function* processChat(
         tools: declarationTools,
         maxRetries: llmConfig.maxRetries,
         maxOutputTokens: llmConfig.maxOutputTokens,
+        providerOptions,
         abortSignal: turnSignal,
         onLanguageModelCallStart: tracker.onRequest,
         onChunk: tracker.onChunk,
