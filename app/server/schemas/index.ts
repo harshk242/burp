@@ -150,6 +150,8 @@ export const UsageEventSchema = z.object({
   output_cost_microusd: z.number().int(),
   llm_calls: z.number().int().nullable(),
   long_context_calls: z.number().int(),
+  status: z.enum(["ok", "error"]),
+  usage_estimated: z.number().int(),
   session_id: z.string().uuid().nullable(),
   message_id: z.string().uuid().nullable(),
   created_at: z.number().int(),

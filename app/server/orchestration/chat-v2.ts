@@ -15,6 +15,7 @@ import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { buildInitialToolSet, dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
 import type { StreamEvent, ToolCallRecord } from "./types";
 import { UsageMeter } from "./usage-meter";
+import { CallTracker, recordFailedTurn, type TurnErrorCode } from "./turn-usage";
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 
@@ -46,8 +47,9 @@ function buildMessages(history: DBMessage[], newMessage: string): ModelMessage[]
 
 /**
  * `signal` is aborted when the client disconnects: the in-flight LLM call and
- * tool calls are cancelled, no further iterations run, and nothing is persisted
- * for the assistant turn.
+ * tool calls are cancelled, no further iterations run, and no assistant message
+ * is persisted. A failed or aborted turn still records the cost of its LLM calls
+ * (status "error", see turn-usage.ts).
  */
 export async function* processChat(
   sessionId: string,
@@ -72,6 +74,11 @@ export async function* processChat(
   // Every finished LLM call, priced on its own. Outside the try so a failed or
   // aborted turn can still see the calls that finished.
   const meter = new UsageMeter(llmConfig.provider, llmConfig.chatModel, ctx);
+  const tracker = new CallTracker();
+  // Set once the success path wrote its usage_events row.
+  let ledgerWritten = false;
+  // How the turn failed; stays "closed" if the consumer stopped iterating early.
+  let errorCode: TurnErrorCode = "closed";
 
   try {
     // Session check
@@ -146,6 +153,7 @@ export async function* processChat(
       // SSE events, search activation, and output compression.
       const declarationTools = toDeclarations(activeTools);
 
+      tracker.begin(loopIteration);
       const result = streamText({
         model: getChatModel(),
         instructions: SYSTEM_PROMPT,
@@ -154,6 +162,8 @@ export async function* processChat(
         maxRetries: llmConfig.maxRetries,
         maxOutputTokens: llmConfig.maxOutputTokens,
         abortSignal: signal,
+        onLanguageModelCallStart: tracker.onRequest,
+        onChunk: tracker.onChunk,
       });
 
       // Stream text chunks
@@ -170,7 +180,7 @@ export async function* processChat(
       const toolCalls = await result.toolCalls;
       const finalStep = await result.finalStep;
 
-      meter.record(finalStep.usage, finalStep.providerMetadata, {
+      const call = meter.record(finalStep.usage, finalStep.providerMetadata, {
         iteration: loopIteration,
         durationMs: iterElapsed(),
         finishReason,
@@ -178,6 +188,7 @@ export async function* processChat(
         toolNames: Object.keys(declarationTools),
         systemPrompt: SYSTEM_PROMPT,
       });
+      tracker.finish(call);
 
       if (finishReason === "tool-calls" && toolCalls && toolCalls.length > 0) {
         // This iteration's text is reasoning (pre-tool-call).
@@ -257,6 +268,7 @@ export async function* processChat(
         provider: llmConfig.provider,
         model: llmConfig.chatModel,
         ...meter.ledgerFields(chatCost),
+        status: "ok",
         session_id: sessionId,
         message_id: assistantMsgId,
       });
@@ -266,6 +278,7 @@ export async function* processChat(
       // Increment daily token totals (best-effort: done post-response; next request checks these)
       dailyUsageQueries.incrementTokens(userId, chatCost.inputTokens, chatCost.outputTokens);
     });
+    ledgerWritten = true;
 
     logger.info("CHAT", "process_complete", {
       ctx,
@@ -290,16 +303,34 @@ export async function* processChat(
   } catch (error) {
     if (signal?.aborted) {
       // Client is gone: nothing to stream an error to.
-      logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed() });
+      errorCode = "aborted";
+      logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed(), data: { error_code: errorCode } });
       return;
     }
+    errorCode = "error";
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error("CHAT", "process_failed", {
       ctx,
       duration_ms: chatElapsed(),
       error: error instanceof Error ? error : errorMsg,
+      data: { error_code: errorCode },
     });
     yield { type: "error", data: { error: errorMsg } };
+  } finally {
+    // Errors, aborts and an early return() by the consumer all end here; the
+    // calls that already ran are billed either way. Never throws.
+    if (!ledgerWritten) {
+      recordFailedTurn({
+        meter,
+        tracker,
+        userId,
+        sessionId,
+        provider: llmConfig.provider,
+        model: llmConfig.chatModel,
+        ctx,
+        errorCode,
+      });
+    }
   }
 }
 

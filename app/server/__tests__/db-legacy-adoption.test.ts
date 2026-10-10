@@ -25,7 +25,7 @@ import { diffFingerprints, fingerprintSchema } from "../db/introspect";
 import { isLegacyDatabase, runMigrations } from "../db/migrate";
 import { MIGRATIONS_FOLDER } from "../db/paths";
 
-/** Columns 0004_usage_cache_columns adds to usage_events, as legacy rows read back. */
+/** Columns 0004_usage_cache_columns / 0005_usage_status_estimated add to usage_events, as legacy rows read back. */
 const LEGACY_USAGE_DEFAULTS = {
   cache_read_tokens: 0,
   cache_write_5m_tokens: 0,
@@ -37,6 +37,8 @@ const LEGACY_USAGE_DEFAULTS = {
   output_cost_microusd: 0,
   llm_calls: null,
   long_context_calls: 0,
+  status: "ok",
+  usage_estimated: 0,
 };
 
 const tempDirs: string[] = [];
@@ -75,7 +77,7 @@ describe("legacy adoption — happy path", () => {
 
         const result = runMigrations(sqlite);
         expect(result.adopted).toBe(true);
-        expect(result.applied.map((m) => m.tag)).toEqual(["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns"]);
+        expect(result.applied.map((m) => m.tag)).toEqual(["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns", "0005_usage_status_estimated"]);
         expect(result.transactionMs).toBeGreaterThan(0);
 
         expect(schemaSnapshot(sqlite)).toEqual(schemaSnapshot(fresh));
@@ -129,7 +131,7 @@ describe("legacy adoption — happy path", () => {
         const expected = structuredClone(before);
         // Frozen catch-up / 0002 retire the waitlist role.
         for (const u of expected.users!) if (u.role === "waitlist") u.role = "user";
-        // 0004 adds the cache/cost columns; legacy rows read back with zeros and NULLs.
+        // 0004 adds the cache/cost columns, 0005 status/usage_estimated; legacy rows read back with defaults.
         for (const e of expected.usage_events!) Object.assign(e, LEGACY_USAGE_DEFAULTS);
         expect(dumpRows(sqlite)).toEqual(expected);
         expect(expected.users!.some((u) => u.id === "u-wait")).toBe(true);

@@ -41,6 +41,7 @@ export type UsageLedgerFields = Pick<
   | "output_cost_microusd"
   | "llm_calls"
   | "long_context_calls"
+  | "usage_estimated"
 >;
 
 /** Short sha1, enough to spot a changed cache prefix between calls. */
@@ -101,6 +102,7 @@ function picoToMicrousd(pico: number): number {
 
 export class UsageMeter {
   private readonly calls: CallCost[] = [];
+  private estimated = false;
 
   constructor(
     private readonly provider: string,
@@ -169,10 +171,14 @@ export class UsageMeter {
     return call;
   }
 
-  /** Prices and keeps an already-split call (also the entry point for estimates). */
-  add(usage: CallUsage): CallCost {
+  /**
+   * Prices and keeps an already-split call. `estimated`: the usage is an
+   * estimate for a call cut off mid-stream; the ledger row gets flagged.
+   */
+  add(usage: CallUsage, { estimated = false }: { estimated?: boolean } = {}): CallCost {
     const call = priceCall(this.provider, this.model, usage, this.config);
     this.calls.push(call);
+    if (estimated) this.estimated = true;
     return call;
   }
 
@@ -199,6 +205,7 @@ export class UsageMeter {
       output_cost_microusd: cost.outputCostMicrousd,
       llm_calls: cost.llmCalls,
       long_context_calls: cost.longContextCalls,
+      usage_estimated: this.estimated ? 1 : 0,
     };
   }
 
@@ -215,6 +222,7 @@ export class UsageMeter {
       cache_write_1h: cost.cacheWrite1hTokens,
       cache_hit_ratio: cost.inputTokens > 0 ? Number((cost.cacheReadTokens / cost.inputTokens).toFixed(4)) : 0,
       cost_microusd: cost.costMicrousd,
+      usage_estimated: this.estimated,
       cost_breakdown: {
         input: cost.inputCostMicrousd,
         cache_read: cost.cacheReadCostMicrousd,

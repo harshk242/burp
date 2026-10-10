@@ -75,12 +75,18 @@ export const usageEvents = sqliteTable(
     // NULL on legacy rows: not recorded.
     llm_calls: integer("llm_calls"),
     long_context_calls: integer("long_context_calls").notNull().default(0),
+    // "error": a failed or aborted turn, billed for the calls that already ran.
+    status: text("status", { enum: ["ok", "error"] }).notNull().default("ok"),
+    // 1 when the row includes an estimate for a call cut off mid-stream.
+    usage_estimated: integer("usage_estimated").notNull().default(0),
     session_id: text("session_id").references(() => chatSessions.id, { onDelete: "set null" }),
     message_id: text("message_id").references(() => messages.id, { onDelete: "set null" }),
     created_at: integer("created_at").notNull().default(sql`(unixepoch())`),
   },
   (t) => [
     check("usage_events_operation_check", sql`operation = 'chat'`),
+    check("usage_events_status_check", sql`status IN ('ok', 'error')`),
+    check("usage_events_usage_estimated_check", sql`usage_estimated IN (0, 1)`),
     index("idx_usage_events_user_date").on(t.user_id, t.date),
     index("idx_usage_events_user_month").on(t.user_id, t.month),
     index("idx_usage_events_message_id").on(t.message_id),

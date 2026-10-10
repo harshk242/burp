@@ -79,6 +79,8 @@ describe("usageEventQueries", () => {
       output_cost_microusd: 300,
       llm_calls: 1,
       long_context_calls: 0,
+      status: "ok",
+      usage_estimated: 0,
       session_id: null,
       message_id: null,
       ...overrides,
@@ -119,6 +121,18 @@ describe("usageEventQueries", () => {
       output_tokens: 42,
       query_count: 3,
     });
+  });
+
+  it("counts failed-turn (status error) rows towards the cost budget", () => {
+    q.usageEventQueries.create(event({ cost_microusd: 100 }));
+    q.usageEventQueries.create(event({ status: "error", usage_estimated: 1, cost_microusd: 25 }));
+    expect(q.usageEventQueries.getTotalsForDate(USER_ID, "2026-10-09").cost_microusd).toBe(125);
+    expect(q.usageEventQueries.getTotalsForMonth(USER_ID, "2026-10").cost_microusd).toBe(125);
+  });
+
+  it("rejects an unknown status or a non-0/1 usage_estimated", () => {
+    expect(() => q.usageEventQueries.create(event({ status: "aborted" as "error" }))).toThrow(/CHECK constraint failed/);
+    expect(() => q.usageEventQueries.create(event({ usage_estimated: 2 }))).toThrow(/CHECK constraint failed/);
   });
 
   it("defaults to the current UTC date and month", () => {

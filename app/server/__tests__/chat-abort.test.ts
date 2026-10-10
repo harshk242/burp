@@ -1,7 +1,9 @@
 /**
  * Abort wiring: aborting the turn's signal cancels the in-flight LLM call or
  * MCP tool call, and the loop stops — no further model calls, no further tool
- * calls, no assistant message, no error event to the (gone) client.
+ * calls, no assistant message, no error event to the (gone) client. The calls
+ * already billed are still recorded as one `status: "error"` usage_events row;
+ * a call cut off mid-stream is added as a flagged estimate.
  *
  * processChat runs against an in-memory DB and a mock language model; the MCP
  * call is a spy on the mcpManager singleton.
@@ -14,7 +16,9 @@ import { loadLLMConfig, sanitizeToolName } from "../llm";
 import { mcpManager } from "../mcp/manager";
 import { ALWAYS_LOADED_TOOLS } from "../mcp/platforms.config";
 import { toolRegistry } from "../mcp/registry";
+import { logger } from "../logger";
 import type { StreamEvent } from "../orchestration/types";
+import { priceCall } from "../usage";
 
 // @ai-sdk/provider isn't a direct dependency; take the part type from the mock.
 type LanguageModelV4StreamPart =
@@ -57,7 +61,8 @@ function streamOf(parts: LanguageModelV4StreamPart[]): ReadableStream<LanguageMo
 }
 
 /** Model whose call N returns calls[N] (falls back to a final text answer). */
-function scriptedModel(calls: Array<(signal?: AbortSignal) => ReadableStream<LanguageModelV4StreamPart>>) {
+type StreamFactory = (signal?: AbortSignal) => ReadableStream<LanguageModelV4StreamPart> | Promise<ReadableStream<LanguageModelV4StreamPart>>;
+function scriptedModel(calls: StreamFactory[]) {
   let n = 0;
   return new MockLanguageModelV4({
     doStream: async ({ abortSignal }) => {
@@ -67,7 +72,7 @@ function scriptedModel(calls: Array<(signal?: AbortSignal) => ReadableStream<Lan
         { type: "text-end", id: "t" },
         finish("stop"),
       ]));
-      return { stream: make(abortSignal) };
+      return { stream: await make(abortSignal) };
     },
   });
 }
@@ -80,6 +85,30 @@ async function collect(gen: AsyncGenerator<StreamEvent>): Promise<StreamEvent[]>
 
 const okResult = { content: "ok", isError: false };
 
+/** Call 1's cost: the fixed `usage` every finished mock call reports. */
+const { provider, chatModel } = loadLLMConfig();
+const finishedCallCost = priceCall(provider, chatModel, {
+  noCacheTokens: 10,
+  cacheReadTokens: 0,
+  cacheWrite5mTokens: 0,
+  cacheWrite1hTokens: 0,
+  outputTokens: 5,
+});
+
+const usageRows = () => t.sqlite.query<Record<string, unknown>, []>("SELECT * FROM usage_events").all();
+
+/** A call that streams some text, then is aborted before it finishes. */
+function cutOffMidStream(turn: AbortController, text: string): StreamFactory {
+  return (signal) => new ReadableStream({
+    start(controller) {
+      controller.enqueue({ type: "text-start", id: "t" });
+      controller.enqueue({ type: "text-delta", id: "t", delta: text });
+      signal?.addEventListener("abort", () => controller.error(signal.reason));
+      setTimeout(() => turn.abort(), 0);
+    },
+  });
+}
+
 beforeEach(() => {
   q.userQueries.create(USER_ID, "clerk_a", "a@example.com", null, null, "user", null, null);
   const { server, name } = toolRegistry.parseToolName(TOOL_FULL_NAME);
@@ -89,6 +118,7 @@ beforeEach(() => {
 afterEach(() => {
   mock.restore();
   toolRegistry.clear();
+  t.sqlite.run("DELETE FROM usage_events");
   t.sqlite.run("DELETE FROM messages");
   t.sqlite.run("DELETE FROM chat_sessions");
   t.sqlite.run("DELETE FROM users");
@@ -132,6 +162,61 @@ describe("processChat abort", () => {
     expect(events.some((e) => e.type === "error" || e.type === "done")).toBe(false);
     // Only the user message was stored; the aborted turn writes no assistant message.
     expect(q.messageQueries.findByChatId(sessionId).map((m) => m.role)).toEqual(["user"]);
+
+    // One error row: call 1's cost plus an estimate for the cut-off call 2.
+    const rows = usageRows();
+    expect(rows).toHaveLength(1);
+    const row = rows[0]!;
+    expect(row).toMatchObject({ status: "error", usage_estimated: 1, llm_calls: 2, cache_read_tokens: 0, message_id: null });
+    // Output: call 1's 5 + ceil(len("partial") / 4) = 2 streamed.
+    expect(row.output_tokens).toBe(7);
+    // Input: call 1's prompt + the messages added since (assistant tool call, tool result).
+    expect(row.input_tokens as number).toBeGreaterThan(10);
+    expect(row.cost_microusd as number).toBeGreaterThan(Math.ceil(finishedCallCost.costPicoUsd / 1_000_000));
+  });
+
+  it("aborting during the first call estimates the whole request", async () => {
+    const turn = new AbortController();
+    const warn = spyOn(logger, "warn");
+    model = scriptedModel([cutOffMidStream(turn, "abcdefgh")]);
+
+    const sessionId = crypto.randomUUID();
+    await collect(processChat(sessionId, USER_ID, "hi", turn.signal));
+
+    const rows = usageRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "error", usage_estimated: 1, llm_calls: 1, output_tokens: 2 });
+    // Instructions + messages + tool declarations: well beyond the short user message.
+    expect(rows[0]!.input_tokens as number).toBeGreaterThan(100);
+    expect(warn.mock.calls.some(([, event]) => event === "usage_estimated")).toBe(true);
+  });
+
+  it("records no estimate for a call whose request never left", async () => {
+    const turn = new AbortController();
+    spyOn(mcpManager, "callTool").mockResolvedValue(okResult);
+    model = scriptedModel([
+      () => streamOf([toolCall("c1"), finish("tool-calls")]),
+      // The provider never answers call 2: aborted while the request is pending.
+      (signal) => new Promise((_, reject) => {
+        signal?.addEventListener("abort", () => reject(signal.reason));
+        turn.abort();
+      }),
+    ]);
+
+    const sessionId = crypto.randomUUID();
+    await collect(processChat(sessionId, USER_ID, "hi", turn.signal));
+
+    expect(model.doStreamCalls).toHaveLength(2);
+    const rows = usageRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      status: "error",
+      usage_estimated: 0,
+      llm_calls: 1,
+      input_tokens: 10,
+      output_tokens: 5,
+      cost_microusd: Math.ceil(finishedCallCost.costPicoUsd / 1_000_000),
+    });
   });
 
   it("aborting during an MCP tool call cancels it and skips the remaining calls", async () => {
@@ -155,6 +240,8 @@ describe("processChat abort", () => {
     expect(model.doStreamCalls).toHaveLength(1);
     expect(events.some((e) => e.type === "tool_end" || e.type === "error" || e.type === "done")).toBe(false);
     expect(q.messageQueries.findByChatId(sessionId).map((m) => m.role)).toEqual(["user"]);
+    // Call 1 finished before the tool call was aborted: billed, not estimated.
+    expect(usageRows()).toEqual([expect.objectContaining({ status: "error", usage_estimated: 0, llm_calls: 1 })]);
   });
 
   it("drops an MCP result that arrives after the abort", async () => {
@@ -172,5 +259,6 @@ describe("processChat abort", () => {
     expect(callTool).toHaveBeenCalledTimes(1);
     expect(model.doStreamCalls).toHaveLength(1);
     expect(events.some((e) => e.type === "tool_end")).toBe(false);
+    expect(usageRows()).toEqual([expect.objectContaining({ status: "error", usage_estimated: 0, llm_calls: 1 })]);
   });
 });

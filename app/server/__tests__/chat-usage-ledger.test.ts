@@ -15,6 +15,7 @@ import { mcpManager } from "../mcp/manager";
 import { ALWAYS_LOADED_TOOLS } from "../mcp/platforms.config";
 import { toolRegistry } from "../mcp/registry";
 import type { StreamEvent } from "../orchestration/types";
+import { priceCall, summarizeTurnCost } from "../usage";
 
 type LanguageModelV4StreamPart =
   Awaited<ReturnType<MockLanguageModelV4["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never;
@@ -57,10 +58,19 @@ function finish(
   };
 }
 
+/** Call N streams calls[N]; a call past the end fails before any response. */
 function scriptedModel(calls: LanguageModelV4StreamPart[][]) {
   let n = 0;
-  return new MockLanguageModelV4({ doStream: async () => ({ stream: streamOf(calls[n++]!) }) });
+  return new MockLanguageModelV4({
+    doStream: async () => {
+      const parts = calls[n++];
+      if (!parts) throw new Error("provider down");
+      return { stream: streamOf(parts) };
+    },
+  });
 }
+
+const toolCallPart = (id: string): LanguageModelV4StreamPart => ({ type: "tool-call", toolCallId: id, toolName: TOOL_KEY, input: "{}" });
 
 async function collect(gen: AsyncGenerator<StreamEvent>): Promise<StreamEvent[]> {
   const events: StreamEvent[] = [];
@@ -114,6 +124,8 @@ describe("processChat usage ledger", () => {
     expect(rows).toHaveLength(1);
     const row = rows[0]!;
     expect(row).toMatchObject({
+      status: "ok",
+      usage_estimated: 0,
       input_tokens: 6300,
       output_tokens: 100,
       cache_read_tokens: 3000,
@@ -127,5 +139,86 @@ describe("processChat usage ledger", () => {
 
     const assistant = q.messageQueries.findByChatId(sessionId).find((m) => m.role === "assistant")!;
     expect(assistant).toMatchObject({ input_tokens: 6300, output_tokens: 100, cost_microusd: row.cost_microusd });
+  });
+
+  it("an error after 2 finished calls writes one error row with those 2 calls' cost", async () => {
+    spyOn(mcpManager, "callTool").mockResolvedValue({ content: "ok", isError: false });
+    const input1 = { noCache: 1000, cacheRead: 0, cacheWrite: 0 };
+    const input2 = { noCache: 200, cacheRead: 1000, cacheWrite: 0 };
+    // Call 3 fails before the request is accepted: billed for calls 1 and 2 only.
+    model = scriptedModel([
+      [toolCallPart("c1"), finish("tool-calls", input1)],
+      [toolCallPart("c2"), finish("tool-calls", input2)],
+    ]);
+
+    const sessionId = crypto.randomUUID();
+    const events = await collect(processChat(sessionId, USER_ID, "hi"));
+
+    expect(model.doStreamCalls).toHaveLength(3);
+    expect(events.some((e) => e.type === "error")).toBe(true);
+    expect(events.some((e) => e.type === "done" || e.type === "usage")).toBe(false);
+
+    const { provider, chatModel } = loadLLMConfig();
+    const expected = summarizeTurnCost([
+      priceCall(provider, chatModel, { noCacheTokens: 1000, cacheReadTokens: 0, cacheWrite5mTokens: 0, cacheWrite1hTokens: 0, outputTokens: 50 }),
+      priceCall(provider, chatModel, { noCacheTokens: 200, cacheReadTokens: 1000, cacheWrite5mTokens: 0, cacheWrite1hTokens: 0, outputTokens: 50 }),
+    ]);
+
+    const rows = t.sqlite.query<Record<string, unknown>, []>("SELECT * FROM usage_events").all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      status: "error",
+      usage_estimated: 0,
+      llm_calls: 2,
+      input_tokens: 2200,
+      output_tokens: 100,
+      cache_read_tokens: 1000,
+      cost_microusd: expected.costMicrousd,
+      session_id: sessionId,
+      message_id: null,
+    });
+    // Budgets read usage_events; daily token totals follow the ledger.
+    expect(q.usageEventQueries.getTotalsForDate(USER_ID).cost_microusd).toBe(expected.costMicrousd);
+    expect(q.dailyUsageQueries.getTodayFull(USER_ID)).toMatchObject({ query_count: 0, input_tokens: 2200, output_tokens: 100 });
+    // Assistant message only on success.
+    expect(q.messageQueries.findByChatId(sessionId).map((m) => m.role)).toEqual(["user"]);
+  });
+
+  it("writes nothing when the turn fails before any call finished", async () => {
+    model = scriptedModel([]);
+
+    const sessionId = crypto.randomUUID();
+    const events = await collect(processChat(sessionId, USER_ID, "hi"));
+
+    expect(events.some((e) => e.type === "error")).toBe(true);
+    expect(t.sqlite.query("SELECT count(*) AS n FROM usage_events").get()).toEqual({ n: 0 });
+  });
+
+  it("records the finished calls when the consumer stops iterating early", async () => {
+    spyOn(mcpManager, "callTool").mockResolvedValue({ content: "ok", isError: false });
+    model = scriptedModel([[toolCallPart("c1"), finish("tool-calls", { noCache: 100, cacheRead: 0, cacheWrite: 0 })]]);
+
+    const sessionId = crypto.randomUUID();
+    for await (const event of processChat(sessionId, USER_ID, "hi")) {
+      if (event.type === "tool_end") break;
+    }
+
+    const rows = t.sqlite.query<Record<string, unknown>, []>("SELECT status, llm_calls FROM usage_events").all();
+    expect(rows).toEqual([{ status: "error", llm_calls: 1 }]);
+  });
+
+  it("a failing error-row write is logged and never masks the turn's error", async () => {
+    spyOn(mcpManager, "callTool").mockResolvedValue({ content: "ok", isError: false });
+    spyOn(q.usageEventQueries, "create").mockImplementation(() => {
+      throw new Error("disk full");
+    });
+    model = scriptedModel([[toolCallPart("c1"), finish("tool-calls", { noCache: 100, cacheRead: 0, cacheWrite: 0 })]]);
+
+    const events = await collect(processChat(crypto.randomUUID(), USER_ID, "hi"));
+
+    expect(events.filter((e) => e.type === "error")).toHaveLength(1);
+    expect(t.sqlite.query("SELECT count(*) AS n FROM usage_events").get()).toEqual({ n: 0 });
+    // The transaction rolled back the daily token increment too.
+    expect(q.dailyUsageQueries.getTodayFull(USER_ID)).toMatchObject({ input_tokens: 0, output_tokens: 0 });
   });
 });
