@@ -71,9 +71,15 @@ const INITIAL_RETRY_DELAY_MS = 5000;
 const MAX_RETRY_DELAY_MS = 60000;
 const RETRY_BACKOFF_MULTIPLIER = 2;
 
-class MCPManager {
+export class MCPManager {
   private servers: Map<string, MCPServer> = new Map();
   private retryIntervalId: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Called after a failed server recovers and its tools are re-registered.
+   * Set by the server entry point so this module stays free of search code.
+   */
+  onToolsChanged: (() => void) | null = null;
 
   /**
    * Register an MCP server configuration
@@ -280,45 +286,39 @@ class MCPManager {
   private startRetryLoop(): void {
     if (this.retryIntervalId) return;
 
-    this.retryIntervalId = setInterval(async () => {
-      const now = new Date();
+    this.retryIntervalId = setInterval(() => this.retryDueServers(), 5000);
+  }
 
-      for (const [name, server] of this.servers) {
-        if (
-          server.status === "error" &&
-          server.nextRetryAt &&
-          server.nextRetryAt <= now
-        ) {
-          logger.info("MCP", "server_retrying", { data: { server: name, retry_count: server.retryCount } });
-          await this.start(name);
+  /**
+   * Restart failed servers whose retry time has passed, re-registering their
+   * tools and firing onToolsChanged after each successful recovery.
+   */
+  async retryDueServers(now = new Date()): Promise<void> {
+    for (const [name, server] of this.servers) {
+      if (server.status !== "error" || !server.nextRetryAt || server.nextRetryAt > now) continue;
 
-          if ((server.status as ServerStatus) === "running") {
-            try {
-              const tools = await this.listTools(name);
-              for (const tool of tools) {
-                // Parse prefixed tool names from unified server (e.g. "ensembl__search_genes")
-                const sep = tool.name.indexOf("__");
-                if (sep !== -1) {
-                  const platformName = tool.name.substring(0, sep);
-                  const bareName = tool.name.substring(sep + 2);
-                  toolRegistry.register(platformName, {
-                    name: bareName,
-                    description: tool.description || "",
-                    inputSchema: tool.inputSchema,
-                  }, true);
-                }
-              }
-              logger.info("MCP", "server_recovered_tools", { data: { server: name, tool_count: tools.length } });
-            } catch (error) {
-              server.status = "error";
-              server.error = `Tool discovery failed: ${error instanceof Error ? error.message : String(error)}`;
-              logger.error("MCP", "server_recovery_tool_discovery_failed", { data: { server: name }, error: error instanceof Error ? error : String(error) });
-              this.scheduleRetry(name);
-            }
-          }
-        }
+      logger.info("MCP", "server_retrying", { data: { server: name, retry_count: server.retryCount } });
+      await this.start(name);
+      if ((server.status as ServerStatus) !== "running") continue;
+
+      try {
+        const tools = await this.listTools(name);
+        toolRegistry.registerServerTools(name, tools);
+        logger.info("MCP", "server_recovered_tools", { data: { server: name, tool_count: tools.length } });
+      } catch (error) {
+        server.status = "error";
+        server.error = `Tool discovery failed: ${error instanceof Error ? error.message : String(error)}`;
+        logger.error("MCP", "server_recovery_tool_discovery_failed", { data: { server: name }, error: error instanceof Error ? error : String(error) });
+        this.scheduleRetry(name);
+        continue;
       }
-    }, 5000);
+
+      try {
+        this.onToolsChanged?.();
+      } catch (error) {
+        logger.error("MCP", "tools_changed_callback_failed", { data: { server: name }, error: error instanceof Error ? error : String(error) });
+      }
+    }
   }
 
   /**

@@ -5,7 +5,7 @@
  */
 
 import { jsonSchema, type Tool } from "ai";
-import type { mcpManager as MCPManagerType } from "./manager";
+import type { mcpManager as MCPManagerType, ToolDefinition } from "./manager";
 import { ALWAYS_LOADED_TOOLS } from "./platforms.config";
 import { logger, startTimer } from "../logger";
 
@@ -29,6 +29,20 @@ class ToolRegistry {
   }
 
   /**
+   * Register the tools one MCP server listed. The unified server returns
+   * prefixed names (e.g. "ensembl__search_genes"); they're parsed back into
+   * platform + bare name for registry keying.
+   */
+  registerServerTools(serverName: string, tools: ToolDefinition[]): void {
+    for (const tool of tools) {
+      const sep = tool.name.indexOf("__");
+      const server = sep !== -1 ? tool.name.substring(0, sep) : serverName;
+      const name = sep !== -1 ? tool.name.substring(sep + 2) : tool.name;
+      this.register(server, { name, description: tool.description || "", inputSchema: tool.inputSchema });
+    }
+  }
+
+  /**
    * Discover tools from all running MCP servers
    */
   async discoverTools(mcpManager: typeof MCPManagerType): Promise<void> {
@@ -43,27 +57,7 @@ class ToolRegistry {
         const serverElapsed = startTimer();
         try {
           const tools = await mcpManager.listTools(serverName);
-          for (const tool of tools) {
-            // Unified server returns prefixed tool names (e.g. "ensembl__search_genes")
-            // Parse them back into platform + bare name for registry keying
-            const sep = tool.name.indexOf("__");
-            if (sep !== -1) {
-              const platformName = tool.name.substring(0, sep);
-              const bareName = tool.name.substring(sep + 2);
-              this.register(platformName, {
-                name: bareName,
-                description: tool.description || "",
-                inputSchema: tool.inputSchema,
-              });
-            } else {
-              // Fallback: register as-is (shouldn't happen with unified server)
-              this.register(serverName, {
-                name: tool.name,
-                description: tool.description || "",
-                inputSchema: tool.inputSchema,
-              });
-            }
-          }
+          this.registerServerTools(serverName, tools);
           logger.info("REGISTRY", "server_tools_discovered", {
             duration_ms: serverElapsed(),
             data: { server: serverName, tool_count: tools.length },

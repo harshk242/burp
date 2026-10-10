@@ -6,7 +6,7 @@ import { DB_PATH, MigrationFkError, runMigrations, sqlite } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
 import { toolRegistry } from "./mcp/registry";
-import { hybridSearch } from "./search";
+import { aiSdkQueryEmbedder, hybridSearch, loadEmbeddingsFile, reindexToolSearch } from "./search";
 import { getEmbeddingModel } from "./llm";
 import { logger, startTimer, generateRequestId } from "./logger";
 import { APP_DIR, appConfig } from "./config";
@@ -29,6 +29,13 @@ try {
   process.exit(1);
 }
 
+// Rebuild tool search from the live registry. Runs at boot and after an MCP
+// server recovers, so recovered tools are searchable without a restart.
+function reindexSearch() {
+  reindexToolSearch(toolRegistry, hybridSearch);
+}
+mcpManager.onToolsChanged = reindexSearch;
+
 // Initialize MCP servers and tool discovery
 async function initializeMCP() {
   const elapsed = startTimer();
@@ -46,20 +53,12 @@ async function initializeMCP() {
   logger.info("STARTUP", "tool_discovery_start");
   await toolRegistry.discoverTools(mcpManager);
 
-  // Index tools for hybrid search
-  const allTools = toolRegistry.getAll(false).map((t) => ({
-    fullName: `${t.server}__${t.name}`,
-    server: t.server,
-    toolName: t.name,
-    description: t.description,
-  }));
-  hybridSearch.indexTools(allTools);
+  reindexSearch();
 
   // Load precomputed embeddings (optional — BM25 works without them)
   try {
     const embPath = join(APP_DIR, "..", "data", "tool-embeddings.json");
-    hybridSearch.loadEmbeddings(embPath);
-    hybridSearch.setEmbeddingModel(getEmbeddingModel());
+    hybridSearch.attachEmbeddings(aiSdkQueryEmbedder(getEmbeddingModel()), loadEmbeddingsFile(embPath));
   } catch (e) {
     logger.warn("STARTUP", "embeddings_load_failed", {
       error: e instanceof Error ? e : String(e),
