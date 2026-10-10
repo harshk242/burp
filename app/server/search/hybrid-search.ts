@@ -45,6 +45,8 @@ export interface HybridSearchConfig {
   shortQueryTokenThreshold: number;
   shortQueryBm25Weight: number;
   topK: number;
+  /** Candidates taken from each ranker before fusion; independent of topK. */
+  candidateK: number;
   rrfK: number;
 }
 
@@ -56,6 +58,7 @@ function loadConfig(): HybridSearchConfig {
     shortQueryTokenThreshold: ts.short_query_threshold,
     shortQueryBm25Weight: ts.short_query_bm25_weight,
     topK: ts.top_k,
+    candidateK: ts.candidate_k,
     rrfK: 60,
   };
 }
@@ -137,7 +140,7 @@ export class HybridToolSearch {
 
       if (!ftsQuery) return [];
 
-      const rows = this.queries.searchBM25(ftsQuery, this.config.topK * 2);
+      const rows = this.queries.searchBM25(ftsQuery, this.config.candidateK);
       return rows.map((r, i) => ({
         fullName: r.full_name,
         server: r.server,
@@ -188,7 +191,7 @@ export class HybridToolSearch {
 
       scored.sort((a, b) => b.sim - a.sim);
 
-      return scored.slice(0, this.config.topK * 2).map(({ tool, sim }, i) => ({
+      return scored.slice(0, this.config.candidateK).map(({ tool, sim }, i) => ({
         fullName: tool.fullName,
         server: tool.server,
         toolName: tool.toolName,

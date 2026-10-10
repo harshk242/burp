@@ -168,8 +168,8 @@ async function* runSearchTool(
     }
 
     const searchOutput = {
-      found: Math.min(searchResults.length, 8),
-      tools: searchResults.slice(0, 8).map((r) => ({
+      found: searchResults.length,
+      tools: searchResults.map((r) => ({
         name: sanitize(r.fullName),
         description: r.description,
         relevance_score: r.score,

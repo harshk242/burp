@@ -26,10 +26,9 @@ export function createSearchTool(
     }),
     execute: async ({ query }) => {
       const results = await hybridSearch.search(query);
-      const topResults = results.slice(0, 8);
       return {
-        found: topResults.length,
-        tools: topResults.map((r) => ({
+        found: results.length,
+        tools: results.map((r) => ({
           name: sanitize(r.fullName),
           description: r.description,
           relevance_score: r.score,

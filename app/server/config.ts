@@ -118,7 +118,8 @@ const AppConfigSchema = z.object({
     semantic_weight: z.number().default(1.0),
     short_query_threshold: z.number().int().default(4),
     short_query_bm25_weight: z.number().default(2.0),
-    top_k: z.number().int().default(15),
+    top_k: z.number().int().default(5),
+    candidate_k: z.number().int().default(30),
     /** Tool embeddings index (v2). Relative paths resolve against app/. */
     embeddings_path: z.string().default("./data/tool-embeddings.json"),
   }),
@@ -213,6 +214,7 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   if (e.TOOL_SEARCH_SHORT_QUERY_THRESHOLD) cfg.tool_search.short_query_threshold = parseInt(e.TOOL_SEARCH_SHORT_QUERY_THRESHOLD, 10);
   if (e.TOOL_SEARCH_SHORT_QUERY_BM25_WEIGHT) cfg.tool_search.short_query_bm25_weight = parseFloat(e.TOOL_SEARCH_SHORT_QUERY_BM25_WEIGHT);
   if (e.TOOL_SEARCH_TOP_K) cfg.tool_search.top_k = parseInt(e.TOOL_SEARCH_TOP_K, 10);
+  if (e.TOOL_SEARCH_CANDIDATE_K) cfg.tool_search.candidate_k = parseInt(e.TOOL_SEARCH_CANDIDATE_K, 10);
   if (e.TOOL_EMBEDDINGS_PATH) cfg.tool_search.embeddings_path = e.TOOL_EMBEDDINGS_PATH;
 
   applyEmbeddingEnv(cfg, e);

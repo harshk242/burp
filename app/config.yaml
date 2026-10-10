@@ -54,7 +54,8 @@ tool_search:
   semantic_weight: 1.0          # env: TOOL_SEARCH_SEMANTIC_WEIGHT
   short_query_threshold: 4      # queries with ≤ N words bias toward BM25 — env: TOOL_SEARCH_SHORT_QUERY_THRESHOLD
   short_query_bm25_weight: 2.0  # BM25 weight multiplier for short queries — env: TOOL_SEARCH_SHORT_QUERY_BM25_WEIGHT
-  top_k: 15                     # env: TOOL_SEARCH_TOP_K
+  top_k: 5                      # tools returned per search (and activated in chat) — env: TOOL_SEARCH_TOP_K
+  candidate_k: 30               # candidates per ranker (BM25, semantic) before fusion — env: TOOL_SEARCH_CANDIDATE_K
   embeddings_path: ./data/tool-embeddings.json  # relative to app/ (/app/data on the fly volume) — env: TOOL_EMBEDDINGS_PATH
 
 # ── Embeddings (semantic tool search) ────────────────────────
