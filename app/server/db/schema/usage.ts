@@ -3,7 +3,7 @@
  */
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
-import { chatSessions, messages } from "./chat";
+import { chatSessions, chatTurns, messages } from "./chat";
 import { users } from "./users";
 
 /** One row per user per day. */
@@ -81,6 +81,8 @@ export const usageEvents = sqliteTable(
     usage_estimated: integer("usage_estimated").notNull().default(0),
     session_id: text("session_id").references(() => chatSessions.id, { onDelete: "set null" }),
     message_id: text("message_id").references(() => messages.id, { onDelete: "set null" }),
+    // The turn this cost belongs to; NULL on legacy rows.
+    turn_id: text("turn_id").references(() => chatTurns.id, { onDelete: "set null" }),
     created_at: integer("created_at").notNull().default(sql`(unixepoch())`),
   },
   (t) => [
@@ -90,5 +92,6 @@ export const usageEvents = sqliteTable(
     index("idx_usage_events_user_date").on(t.user_id, t.date),
     index("idx_usage_events_user_month").on(t.user_id, t.month),
     index("idx_usage_events_message_id").on(t.message_id),
+    index("idx_usage_events_turn_id").on(t.turn_id),
   ],
 );

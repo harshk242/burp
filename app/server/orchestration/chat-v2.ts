@@ -5,10 +5,18 @@
  * large-output handling and the system prompt live in their own modules.
  */
 
-import { streamText, generateText, type ModelMessage, type ToolResultPart } from "ai";
+import { streamText, type ModelMessage, type ToolResultPart } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { chatProviderOptions, getChatModel, getTitleModel, loadLLMConfig, sanitizeToolName } from "../llm";
-import { db, messageQueries, chatSessionQueries, userQueries, dailyUsageQueries, usageEventQueries } from "../db";
+import { chatProviderOptions, getChatModel, loadLLMConfig, sanitizeToolName } from "../llm";
+import {
+  db,
+  messageQueries,
+  chatSessionQueries,
+  chatTurnQueries,
+  userQueries,
+  dailyUsageQueries,
+  usageEventQueries,
+} from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
 import { getUtcDate, getUtcMonth } from "../usage";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
@@ -18,10 +26,22 @@ import { buildToolCatalog, countDeferred } from "./context/tool-catalog";
 import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
 import type { StreamEvent, ToolCallRecord } from "./types";
 import { UsageMeter } from "./usage-meter";
-import { CallTracker, recordFailedTurn, type TurnErrorCode } from "./turn-usage";
+import { CallTracker, recordFailedTurn } from "./turn-usage";
+import {
+  TURN_IN_PROGRESS_MESSAGE,
+  TurnError,
+  acquireSessionLock,
+  classifyTurnError,
+  finishFailedTurn,
+  providerError,
+  refusalError,
+  startTurn,
+  type TurnFailure,
+} from "./chat-turn";
 import { joinReasoning } from "./reasoning";
 
 export type { StreamEvent, ToolCallRecord } from "./types";
+export { generateSessionTitle } from "./session-title";
 
 const llmConfig = loadLLMConfig();
 // Thinking + effort (Anthropic); undefined on Google.
@@ -57,6 +77,10 @@ function buildMessages(history: DBMessage[], newMessage: string): ModelMessage[]
  * is persisted. The same happens when the consumer stops iterating before the
  * turn completed (e.g. an SSE write threw). A failed or aborted turn still
  * records the cost of its LLM calls (status "error", see turn-usage.ts).
+ *
+ * Every turn has a chat_turns row (`turnId`), created `running` with the user
+ * message and finalized as ok / error / aborted; its usage_events row links to
+ * it. Only one turn per session runs at a time (chat-turn.ts).
  */
 export async function* processChat(
   sessionId: string,
@@ -88,40 +112,53 @@ export async function* processChat(
   // an early return() by the consumer also cancels the in-flight LLM/tool call.
   const turnAbort = new AbortController();
   const turnSignal = signal ? AbortSignal.any([signal, turnAbort.signal]) : turnAbort.signal;
-  // How the turn failed; stays "closed" if the consumer stopped iterating early.
-  let errorCode: TurnErrorCode = "closed";
+  // How the turn failed; unset if the consumer stopped iterating early ("closed").
+  let failure: TurnFailure | undefined;
+  // Set once the turn's chat_turns row exists.
+  let turnId: string | null = null;
+  let loopIteration = 0;
+  let releaseLock: (() => void) | null = null;
 
   try {
     // Session check
-    let session = chatSessionQueries.findById(sessionId) as { id: string; user_id: string } | null;
-    if (session) {
-      if (session.user_id !== userId) {
-        logger.warn("CHAT", "session_unauthorized", { ctx, data: { session_owner: session.user_id } });
-        yield { type: "error", data: { error: "Unauthorized: session belongs to another user" } };
-        return;
-      }
-    } else {
-      chatSessionQueries.create(sessionId, userId, null);
-      session = { id: sessionId, user_id: userId };
-      logger.info("CHAT", "session_created", { ctx });
+    const session = chatSessionQueries.findById(sessionId);
+    if (session && session.user_id !== userId) {
+      logger.warn("CHAT", "session_unauthorized", { ctx, data: { session_owner: session.user_id } });
+      yield { type: "error", data: { error: "Unauthorized: session belongs to another user" } };
+      return;
     }
 
-    yield { type: "start", data: { sessionId } };
+    // One turn per session at a time. Taken synchronously with the session
+    // insert below, so two first requests to a new session can't both pass.
+    releaseLock = acquireSessionLock(sessionId);
+    if (!releaseLock) {
+      logger.warn("CHAT", "turn_in_progress", { ctx });
+      yield { type: "error", data: { error: TURN_IN_PROGRESS_MESSAGE, code: "turn_in_progress" } };
+      return;
+    }
+
+    if (!session) {
+      chatSessionQueries.create(sessionId, userId, null);
+      logger.info("CHAT", "session_created", { ctx });
+    }
 
     // History + messages
     const history = messageQueries.findByChatId(sessionId) as DBMessage[];
     const messages = buildMessages(history, userMessage);
 
-    // Store user message
-    const userMsgId = uuidv4();
-    messageQueries.create(userMsgId, sessionId, "user", userMessage, null);
+    // Store the user message with its turn (status running).
+    const turn = startTurn(sessionId, userMessage);
+    turnId = turn.turnId;
+    ctx.turn_id = turnId;
+    logger.info("CHAT", "turn_started", { ctx, data: { turn_id: turnId } });
+
+    yield { type: "start", data: { sessionId } };
 
     // All servers down: checked on availability, not on the tool list, which
     // (on Anthropic) declares every registered tool whether available or not.
     if (toolRegistry.availableCount === 0) {
       logger.error("CHAT", "no_tools_available", { ctx });
-      yield { type: "error", data: { error: "No MCP tools available. All database servers may be down." } };
-      return;
+      throw new TurnError("no_tools_available", "No MCP tools available. All database servers may be down.");
     }
 
     // Anthropic: fixed for the whole turn. Gemini: search grows it (tool-dispatch).
@@ -143,7 +180,6 @@ export async function* processChat(
     let persistedAssistantText = ""; // final response text only (last iteration)
     const reasoningBlocks: string[] = []; // thinking (all iterations) + pre-tool-call text (non-final iterations)
     const allToolCalls: ToolCallRecord[] = [];
-    let loopIteration = 0;
     // Prompt caching (Anthropic only): instructions carry the tools + system
     // breakpoint; message breakpoints go on a per-call copy (cache-markers.ts).
     const caching = llmConfig.provider === "anthropic";
@@ -153,10 +189,10 @@ export async function* processChat(
 
     while (continueLoop) {
       turnSignal.throwIfAborted();
-      loopIteration++;
-      if (loopIteration > llmConfig.maxToolIterations) {
-        throw new Error(`Maximum tool iterations exceeded (${llmConfig.maxToolIterations})`);
+      if (loopIteration >= llmConfig.maxToolIterations) {
+        throw new TurnError("max_tool_iterations", `Maximum tool iterations exceeded (${llmConfig.maxToolIterations})`);
       }
+      loopIteration++;
       const iterElapsed = startTimer();
 
       logger.info("CHAT", "llm_request_start", {
@@ -225,11 +261,11 @@ export async function* processChat(
       // the tracker keeps it in flight and the turn records it as an estimate.
       // Checked before awaiting the results, which would reject with a generic
       // NoOutputGeneratedError when the call produced nothing.
-      if (streamError !== undefined) throw streamError;
+      if (streamError !== undefined) throw providerError(streamError);
 
       // Await the promise-based properties
       const finishReason = await result.finishReason;
-      if (finishReason === "error") throw new Error(`LLM call ${loopIteration} finished with an error`);
+      if (finishReason === "error") throw providerError(`LLM call ${loopIteration} finished with an error`);
       const toolCalls = await result.toolCalls;
       const finalStep = await result.finalStep;
 
@@ -242,6 +278,10 @@ export async function* processChat(
         systemPrompt: SYSTEM_PROMPT,
       });
       tracker.finish(call);
+      // A safety refusal: billed (metered above), never saved as an answer.
+      if (finishReason === "content-filter") {
+        throw refusalError(await result.rawFinishReason, finalStep.providerMetadata);
+      }
       previousLastIndex = callLastIndex;
       const isToolCall = finishReason === "tool-calls" && toolCalls && toolCalls.length > 0;
       // Stored reasoning: this call's thinking, plus its text when the text is
@@ -329,6 +369,13 @@ export async function* processChat(
         status: "ok",
         session_id: sessionId,
         message_id: assistantMsgId,
+        turn_id: turn.turnId,
+      });
+
+      chatTurnQueries.finish(turn.turnId, {
+        status: "ok",
+        iterations: loopIteration,
+        assistantMessageId: assistantMsgId,
       });
 
       chatSessionQueries.touch(sessionId);
@@ -361,19 +408,18 @@ export async function* processChat(
   } catch (error) {
     if (turnSignal.aborted) {
       // Client is gone: nothing to stream an error to.
-      errorCode = "aborted";
-      logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed(), data: { error_code: errorCode } });
+      failure = { code: "aborted", message: "Client disconnected", userMessage: "" };
+      logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed(), data: { error_code: failure.code } });
       return;
     }
-    errorCode = "error";
-    const errorMsg = error instanceof Error ? error.message : String(error);
+    failure = classifyTurnError(error);
     logger.error("CHAT", "process_failed", {
       ctx,
       duration_ms: chatElapsed(),
-      error: error instanceof Error ? error : errorMsg,
-      data: { error_code: errorCode },
+      error: error instanceof Error ? error : failure.message,
+      data: { error_code: failure.code },
     });
-    yield { type: "error", data: { error: errorMsg } };
+    yield { type: "error", data: { error: failure.userMessage, code: failure.code } };
   } finally {
     // Errors, aborts and an early return() by the consumer all end here; the
     // calls that already ran are billed either way. Cancel whatever is still in
@@ -381,86 +427,31 @@ export async function* processChat(
     // Never throws.
     if (!ledgerWritten) {
       turnAbort.abort();
+      const errorCode = failure?.code ?? "closed";
       recordFailedTurn({
         meter,
         tracker,
         userId,
         sessionId,
+        turnId,
         provider: llmConfig.provider,
         model: llmConfig.chatModel,
         ctx,
         errorCode,
       });
+      if (turnId) {
+        finishFailedTurn(
+          turnId,
+          {
+            status: errorCode === "aborted" || errorCode === "closed" ? "aborted" : "error",
+            errorCode,
+            errorMessage: failure?.message ?? "Consumer stopped reading before the turn finished",
+            iterations: loopIteration,
+          },
+          ctx
+        );
+      }
     }
+    releaseLock?.();
   }
-}
-
-// ── Title Generation ───────────────────────────────────────────────────────
-
-export async function generateSessionTitle(
-  sessionId: string,
-  firstMessage: string
-): Promise<string> {
-  const fallbackTitle = buildFallbackTitle(firstMessage);
-  const elapsed = startTimer();
-  const ctx: LogContext = { session_id: sessionId };
-
-  logger.info("TITLE", "generation_start", {
-    ctx,
-    data: { model: llmConfig.titleModel, provider: llmConfig.provider },
-  });
-
-  try {
-    const { text } = await generateText({
-      model: getTitleModel(),
-      maxOutputTokens: 50,
-      prompt: `Generate a short chat title (3-6 words) from this user question:
-"${firstMessage.substring(0, 300)}"
-
-Return only the title text.`,
-      abortSignal: AbortSignal.timeout(5000),
-    });
-
-    const title = normalizeTitle(text, fallbackTitle);
-    chatSessionQueries.updateTitle(sessionId, title);
-
-    logger.info("TITLE", "generation_complete", {
-      ctx,
-      duration_ms: elapsed(),
-      data: { title },
-    });
-
-    return title;
-  } catch (error) {
-    logger.error("TITLE", "generation_failed", {
-      ctx,
-      duration_ms: elapsed(),
-      error: error instanceof Error ? error : String(error),
-      data: { fallback_title: fallbackTitle },
-    });
-    chatSessionQueries.updateTitle(sessionId, fallbackTitle);
-    return fallbackTitle;
-  }
-}
-
-function normalizeTitle(rawTitle: string, fallback: string): string {
-  const normalized = rawTitle
-    .replace(/\s+/g, " ")
-    .replace(/^["'`]+|["'`]+$/g, "")
-    .trim();
-
-  if (!normalized) return fallback;
-  return normalized.length > 80 ? normalized.slice(0, 80).trimEnd() : normalized;
-}
-
-function buildFallbackTitle(firstMessage: string): string {
-  const cleaned = firstMessage
-    .replace(/\s+/g, " ")
-    .replace(/^["'`]+|["'`]+$/g, "")
-    .trim();
-
-  if (!cleaned) return "New Chat";
-  const words = cleaned.split(" ").slice(0, 6);
-  const title = words.join(" ");
-  return title.length > 80 ? title.slice(0, 80).trimEnd() : title;
 }

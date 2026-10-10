@@ -50,7 +50,7 @@ The agent can query 10 biomedical databases:
 - \`done\` - Response complete
 - \`usage\` - Token totals for the turn
 - \`title\` - Generated session title
-- \`error\` - Turn failed`,
+- \`error\` - Turn failed (\`{ error, code? }\`; \`code\` is e.g. \`turn_in_progress\` when a reply is already running in the session, or \`refusal\`)`,
   security: [{ bearerAuth: [] }],
   request: {
     body: {

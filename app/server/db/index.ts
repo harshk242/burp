@@ -9,13 +9,14 @@ import { createQueries } from "./queries";
 export { DB_PATH, db, sqlite };
 export type { DrizzleDb } from "./client";
 export { runMigrations, MigrationFkError, type RunMigrationsResult } from "./migrate";
-export type { DbArtifact, ToolSearchRow, UsageTotals } from "./queries";
+export type { ChatTurnOutcome, ChatTurnStatus, DbArtifact, DbChatTurn, ToolSearchRow, UsageTotals } from "./queries";
 
 export const {
   userQueries,
   accessRequestQueries,
   chatSessionQueries,
   messageQueries,
+  chatTurnQueries,
   dailyUsageQueries,
   usageEventQueries,
   rateLimitQueries,

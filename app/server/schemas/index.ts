@@ -154,6 +154,7 @@ export const UsageEventSchema = z.object({
   usage_estimated: z.number().int(),
   session_id: z.string().uuid().nullable(),
   message_id: z.string().uuid().nullable(),
+  turn_id: z.string().uuid().nullable(),
   created_at: z.number().int(),
 });
 

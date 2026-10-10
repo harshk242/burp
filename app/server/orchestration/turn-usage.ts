@@ -11,10 +11,8 @@ import { v4 as uuidv4 } from "uuid";
 import { db, dailyUsageQueries, usageEventQueries } from "../db";
 import { estimateTokens, logger, type LogContext } from "../logger";
 import { getUtcDate, getUtcMonth, type CallCost, type CallUsage } from "../usage";
+import type { TurnErrorCode } from "./chat-turn";
 import type { UsageMeter } from "./usage-meter";
-
-/** How a turn ended without writing its normal ledger row. */
-export type TurnErrorCode = "aborted" | "error" | "closed";
 
 interface CallInFlight {
   iteration: number;
@@ -194,6 +192,8 @@ export interface FailedTurn {
   tracker: CallTracker;
   userId: string;
   sessionId: string;
+  /** chat_turns row the cost belongs to; null when the turn never started. */
+  turnId: string | null;
   provider: string;
   model: string;
   ctx: LogContext;
@@ -245,13 +245,20 @@ export function recordFailedTurn(turn: FailedTurn): void {
         status: "error",
         session_id: turn.sessionId,
         message_id: null,
+        turn_id: turn.turnId,
       });
       dailyUsageQueries.incrementTokens(turn.userId, cost.inputTokens, cost.outputTokens);
     });
 
     logger.info("CHAT", "failed_turn_usage_recorded", {
       ctx,
-      data: { usage_event_id: usageEventId, status: "error", error_code: errorCode, ...meter.logFields(cost) },
+      data: {
+        usage_event_id: usageEventId,
+        turn_id: turn.turnId,
+        status: "error",
+        error_code: errorCode,
+        ...meter.logFields(cost),
+      },
     });
   } catch (error) {
     logger.error("CHAT", "failed_turn_usage_record_failed", {

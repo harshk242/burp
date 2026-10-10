@@ -83,6 +83,7 @@ describe("usageEventQueries", () => {
       usage_estimated: 0,
       session_id: null,
       message_id: null,
+      turn_id: null,
       ...overrides,
     };
   }

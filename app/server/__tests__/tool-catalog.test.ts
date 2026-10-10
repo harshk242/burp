@@ -149,9 +149,12 @@ describe("processChat with every server down", () => {
 
     expect(events.at(-1)).toEqual({
       type: "error",
-      data: { error: "No MCP tools available. All database servers may be down." },
+      data: { error: "No MCP tools available. All database servers may be down.", code: "no_tools_available" },
     });
     expect(doStream).not.toHaveBeenCalled();
     expect(t.sqlite.query("SELECT * FROM usage_events").all()).toEqual([]);
+    expect(q.chatTurnQueries.findBySessionId("cat-s1")).toEqual([
+      expect.objectContaining({ status: "error", error_code: "no_tools_available", iterations: 0 }),
+    ]);
   });
 });
