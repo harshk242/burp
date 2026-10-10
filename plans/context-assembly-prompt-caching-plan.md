@@ -1,6 +1,6 @@
 # Context Assembly + Prompt Caching Plan
 
-**Status:** Planned · **Date:** 2026-10-09 · **Scope:** Anthropic chat loop (`app/server/orchestration/chat-v2.ts`)
+**Status:** Phases 1–3 done (validated 2026-10-10) · **Date:** 2026-10-09 · **Scope:** Anthropic chat loop (`app/server/orchestration/chat-v2.ts`)
 
 ## Goal
 
@@ -311,7 +311,55 @@ interface CallCost extends CallUsage {
   - "all servers down": with every tool unavailable, the turn returns the "No MCP tools available" error before any LLM call;
   - cache markers: system marked, plus the previous call's last message and the current last message (only the last one on a turn's first call); the input `messages` array is unchanged;
   - cost engine and meter: see Phase 2.7.
-- Manual: one Gemini chat still works end to end.
+- Manual: one Gemini chat still works end to end. **Dropped 2026-10-10:** Gemini is no longer used, so the manual Gemini check (#26) and Q2 are not pursued.
+
+### Phase 3 results (2026-10-10, #25)
+
+**All checks pass; no cache diagnosis was needed.** Setup: backend on port 3001 (`PORT=3001 bun run start` in `app/`), chat API driven with the dev-agent token, the baseline's three questions sent back to back in one new session (`45630b92`). Model `claude-sonnet-5-5`, `top_k` 5, catalog of 202 tools (11 loaded, 191 deferred). Figures are from the `llm_response_received` / `process_complete` log events (2.6).
+
+- **Prefix stable:** `tools_hash` = `530ca986`, `system_hash` = `d668fb3b` and `tool_count` = 202 on **all 13 calls**, within and across turns. Baseline: `tool_count` 10 → 25 → 26 and a new `tools_hash` after each search. No `catalog_changed` warning.
+- **`cache_read > 0` from call 2 of every turn.** Calls 2+ read everything the previous call cached (call N's `cache_read` = call N−1's prompt minus 2 tokens). Also, unplanned: **the first call of turns 2 and 3 reads the cache** (4,737 and 5,961 tokens). Today's text-only history replay is deterministic, so tools + system + earlier text turns are an exact prefix of the next turn's first call. Tool results from earlier turns are not replayed, so that hit stops at the earlier text turns (Phase 4b extends it).
+- No cache diagnosis was needed: `cache_read` was never 0 where a read was expected.
+
+Per call (`prompt` = noCache + read + write; all writes 5m; all calls base tier):
+
+| Turn | Call | prompt | cache_read | cache_write | output | call cost (µUSD) |
+|---|---|---|---|---|---|---|
+| 1 | 1 | 4,741 | 0 | 4,737 | 152 | 13,371 |
+| 1 | 2 | 7,402 | 4,737 | 2,663 | 93 | 8,065 |
+| 1 | 3 | 7,649 | 7,400 | 247 | 196 | 3,322 |
+| 1 | 4 | 9,271 | 7,647 | 1,622 | 340 | 8,224 |
+| 1 | 5 | 10,919 | 9,269 | 1,648 | 550 | 10,551 |
+| 1 | 6 | 16,440 | 10,917 | 5,521 | 673 | 21,628 |
+| 1 | 7 | 36,154 | 16,438 | 19,714 | 1,327 | 64,203 |
+| 2 | 1 | 5,965 | 4,737 | 1,224 | 289 | 6,432 |
+| 2 | 2 | 6,805 | 5,961 | 842 | 170 | 4,405 |
+| 2 | 3 | 7,132 | 6,803 | 327 | 558 | 7,082 |
+| 3 | 1 | 6,367 | 5,961 | 402 | 198 | 3,589 |
+| 3 | 2 | 7,262 | 6,363 | 897 | 429 | 7,173 |
+| 3 | 3 | 20,405 | 7,260 | 13,143 | 1,418 | 47,768 |
+
+Input cost per turn (noCache + cache read + cache write, from `cost_breakdown`) against the baseline (all uncached at $2/MTok):
+
+| Turn | Baseline prompt tokens | Baseline input cost | Now prompt tokens | Now input cost | Now, if uncached | Saving vs uncached | Cache hit ratio |
+|---|---|---|---|---|---|---|---|
+| 1 | 66,361 (6 calls) | **$0.133** | 92,576 (7 calls) | **$0.096** | $0.185 | 48% | 0.61 |
+| 2 | 32,213 (4 calls) | $0.064 | 19,902 (3 calls) | $0.008 | $0.040 | 81% | 0.88 |
+| 3 | 37,782 (3 calls) | $0.076 | 34,034 (3 calls) | $0.038 | $0.068 | 44% | 0.58 |
+| Session | 136,356 | $0.273 | 146,512 | **$0.142** | $0.293 | **52%** | 0.64 |
+
+- Turn 1 cost $0.096 against the $0.133 baseline even though the model did more work this time (7 calls, 92.6K prompt tokens vs 6 calls, 66.4K). Per prompt token, input now averages **$1.04/MTok against $2.00**. At the baseline's 66,361 tokens that's about $0.069, in line with the $0.067 projected in the Baseline section.
+- Whole session including output: $0.206 vs $0.346 baseline (−41%; output is not affected by caching).
+- **Where the remaining input cost goes:** cache writes are 94% of input cost (turn 1: $0.090 of $0.096). The largest are the **final calls' writes**, which nothing reads: turn 1 call 7 wrote 19,714 tokens and turn 3 call 3 wrote 13,143. They pay the 1.25× write premium (about $0.016 extra this session), because the next turn replays only the final text, not the tool results. We can't tell before a call that it's the last one, so the marker stays; Phase 4b's lossless replay turns those writes into reads on the next turn.
+
+**Token cost of the schemas a search loads** (`experiments/schema-cost.ts`, gitignored: the real 202-tool request body for each search, priced with `/v1/messages/count_tokens` with 0, 1 and 5 `tool_reference` blocks in the search result):
+
+| Search (from the re-run) | 5 references | Per tool |
+|---|---|---|
+| "approved drugs targeting a gene target with mechanism of action" | **678 tokens** | 129–181 (`open-targets__get_target_known_drugs` 181) |
+| "PharmGKB ClinPGx drug pharmacogenomic annotations clinical annotations count" | **691 tokens** | 125–163 |
+
+- About **690 tokens per search** (≈ 135 per tool plus a few tokens per reference block). That's in line with Phase 0 check 1 (≈ 180 tokens per tool when all 191 are loaded). Written once at $2.50/MTok (≈ $0.0017), then read at $0.10/MTok (≈ $0.00007 per later call). Small next to the tool results; no change needed to `top_k`.
 
 ## Phase 4 — Three projects: thinking, lossless transcript, artifact persistence
 
@@ -511,11 +559,11 @@ Replaces Phase 4b.5's hard refusal once sessions regularly reach the budget.
 
 - ~~`tool_reference` round-trip untested live~~ → tested live on 2026-10-09. The originally specified mixed text + `tool_reference` result (#17) returns 400; the revised references-only result passes, as do checks 1, 3, 4 and 5, so the gate passes on the revised design and `tool_addition` isn't needed. Remaining risk: the "no mixed content" rule could be extended to other shapes (e.g. a references-only result next to a text result in a parallel batch, which passes today, check 4b). A unit test pins the references-only shape (Phase 3), and the gate script re-checks it live (exit 1 on any failure).
 - Degraded replay may count as an edited history under the preserved-thinking rule → Phase 4b.6 #6 is the gate for 4b.4.
-- Up to `top_k` (currently 5) full tool schemas load per search; measure their token cost in Phase 3.
+- ~~Up to `top_k` (currently 5) full tool schemas load per search; measure their token cost in Phase 3.~~ → measured 2026-10-10: about 690 tokens per search (125–181 per tool), cached after the first write (Phase 3 results).
 - Two code paths (Anthropic vs Gemini) inside the catalog; keep the split in `tool-catalog.ts` only.
 - The uncommitted `cache_diag` block belongs to the validation session; Phase 2 replaces it.
 
 ## Open questions (non-blocking)
 
 - **Q1:** Remove the UniProt lines from `SYSTEM_PROMPT`, or re-enable the `uniprot` platform?
-- **Q2:** Gemini cached-input pricing to put in `config.yaml` (or keep the input-price fallback). Check also whether `gemini-3-flash-preview` has a long-context tier; if so, the `long_context` block in Phase 2.2 covers it.
+- ~~**Q2:**~~ (dropped 2026-10-10: Gemini is no longer used; the input-price fallback stays.) Gemini cached-input pricing to put in `config.yaml` (or keep the input-price fallback). Check also whether `gemini-3-flash-preview` has a long-context tier; if so, the `long_context` block in Phase 2.2 covers it.
