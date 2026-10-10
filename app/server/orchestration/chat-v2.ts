@@ -12,7 +12,9 @@ import { db, messageQueries, chatSessionQueries, userQueries, dailyUsageQueries,
 import { logger, startTimer, type LogContext } from "../logger";
 import { getUtcDate, getUtcMonth } from "../usage";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
-import { buildInitialToolSet, dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
+import { toolRegistry } from "../mcp/registry";
+import { buildToolCatalog, countDeferred } from "./context/tool-catalog";
+import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
 import type { StreamEvent, ToolCallRecord } from "./types";
 import { UsageMeter } from "./usage-meter";
 import { CallTracker, recordFailedTurn, type TurnErrorCode } from "./turn-usage";
@@ -110,20 +112,23 @@ export async function* processChat(
     const userMsgId = uuidv4();
     messageQueries.create(userMsgId, sessionId, "user", userMessage, null);
 
-    // Build tool set
-    const activeTools = buildInitialToolSet(sanitize, llmConfig.provider);
-    const coreToolCount = Object.keys(activeTools).length - 1; // exclude search_available_tools
-
-    if (coreToolCount === 0) {
+    // All servers down: checked on availability, not on the tool list, which
+    // (on Anthropic) declares every registered tool whether available or not.
+    if (toolRegistry.availableCount === 0) {
       logger.error("CHAT", "no_tools_available", { ctx });
       yield { type: "error", data: { error: "No MCP tools available. All database servers may be down." } };
       return;
     }
 
+    // Anthropic: fixed for the whole turn. Gemini: search grows it (tool-dispatch).
+    const activeTools = buildToolCatalog(llmConfig.provider, sanitize, sessionId);
+    const deferredCount = countDeferred(activeTools);
+
     logger.info("CHAT", "tools_loaded", {
       ctx,
       data: {
-        core_tools: coreToolCount,
+        loaded_tools: Object.keys(activeTools).length - deferredCount,
+        deferred_tools: deferredCount,
         total_tools: Object.keys(activeTools).length,
         provider: llmConfig.provider,
       },

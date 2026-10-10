@@ -1,32 +1,29 @@
 /**
- * Tool set construction and dispatch of model tool calls.
+ * Dispatch of model tool calls.
  *
- * Tools are declared to the model without `execute`; the chat loop runs each
- * call here so it can emit SSE events, activate searched tools, and route large
- * outputs through handleLargeOutput.
+ * Tools are declared to the model without `execute` (the set comes from
+ * context/tool-catalog.ts); the chat loop runs each call here so it can emit
+ * SSE events, activate searched tools on Gemini, and route large outputs
+ * through handleLargeOutput.
  */
 
-import type { Tool, ToolResultPart } from "ai";
+import type { ToolResultPart } from "ai";
 import { desanitizeToolName, type LLMProviderName } from "../llm";
 import { toolRegistry } from "../mcp/registry";
 import { hybridSearch } from "../search";
 import { logger, type LogContext } from "../logger";
-import { createSearchTool } from "./tools/search-tool";
 import { createMcpToolExecutor } from "./tools/mcp-executor";
 import { handleLargeOutput } from "./large-output";
+import { SEARCH_TOOL_NAME, type ToolSet } from "./context/tool-catalog";
 import type { StreamEvent, ToolCallRecord } from "./types";
 
-// Non-MCP tools use the "system__" prefix so they pass through parseToolName()
-// and the dispatch loop can route them by server === "system".
-const SEARCH_TOOL_NAME = "system__search_available_tools";
-
-export type ToolSet = Record<string, Tool>;
+export type { ToolSet } from "./context/tool-catalog";
 
 export interface DispatchContext {
   sessionId: string;
   provider: LLMProviderName;
   sanitize: (name: string) => string;
-  /** Mutated: search activates found tools, large outputs add inspect_artifact. */
+  /** Mutated on Gemini: search activates found tools. On Anthropic every tool is already declared. */
   activeTools: ToolSet;
   ctx: LogContext;
   /** Aborted when the client disconnects; cancels in-flight tool calls. */
@@ -51,26 +48,6 @@ interface ParsedCall {
   server: string;
   name: string;
   input: Record<string, unknown>;
-}
-
-export function buildInitialToolSet(
-  sanitize: (name: string) => string,
-  provider: LLMProviderName,
-): ToolSet {
-  const coreTools = toolRegistry.toVercelCoreTools(sanitize);
-
-  const withExecutors: ToolSet = {};
-  for (const [key, coreTool] of Object.entries(coreTools)) {
-    const originalName = desanitizeToolName(key, provider);
-    withExecutors[key] = {
-      ...coreTool,
-      execute: createMcpToolExecutor(originalName),
-    };
-  }
-
-  withExecutors[SEARCH_TOOL_NAME] = createSearchTool(sanitize);
-
-  return withExecutors;
 }
 
 /** Strip execute functions so the SDK never auto-executes tools (double calls). */
@@ -287,7 +264,7 @@ async function* runMcpTool(
   };
   try {
     const rawOutput = await createMcpToolExecutor(call.originalName, dc.signal)(call.input);
-    const output = await handleLargeOutput(call.originalName, rawOutput, dc.sessionId, dc.activeTools, dc.ctx);
+    const output = await handleLargeOutput(call.originalName, rawOutput, dc.sessionId, dc.ctx);
 
     yield {
       type: "tool_end",

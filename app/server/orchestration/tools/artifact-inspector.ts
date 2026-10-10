@@ -2,8 +2,8 @@
  * inspect_artifact Tool
  *
  * Vercel AI SDK tool that allows the LLM to query stored artifacts
- * using jq filter expressions. Dynamically added to activeTools
- * when an artifact is created.
+ * using jq filter expressions. Always declared in the tool catalog
+ * (context/tool-catalog.ts), so the tool list never changes mid-turn.
  *
  * The sessionId is bound at creation time (closure) so the tool
  * can only access artifacts belonging to the current session.

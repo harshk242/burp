@@ -111,27 +111,34 @@ class ToolRegistry {
   }
 
   /**
-   * Get core (always-loaded) tools in Vercel AI SDK format.
-   * Does NOT include execute — callers attach their own executors.
+   * The one place a registry tool becomes a model declaration: the
+   * `[server] description` format. Does NOT include execute — callers attach
+   * their own executors.
    */
-  toVercelCoreTools(
+  toVercelTools(
+    tools: Iterable<MCPTool>,
     sanitize?: (name: string) => string
   ): Record<string, Tool> {
     const result: Record<string, Tool> = {};
-
-    for (const tool of this.tools.values()) {
-      if (!tool.available) continue;
+    for (const tool of tools) {
       const fullName = `${tool.server}__${tool.name}`;
-      if (!ALWAYS_LOADED_TOOLS.has(fullName)) continue;
-
       const key = sanitize ? sanitize(fullName) : fullName;
       result[key] = {
         description: `[${tool.server}] ${tool.description}`,
         inputSchema: jsonSchema(tool.inputSchema as Parameters<typeof jsonSchema>[0]),
       };
     }
-
     return result;
+  }
+
+  /**
+   * Get available core (always-loaded) tools in Vercel AI SDK format.
+   */
+  toVercelCoreTools(
+    sanitize?: (name: string) => string
+  ): Record<string, Tool> {
+    const core = this.getAll(false).filter((t) => ALWAYS_LOADED_TOOLS.has(`${t.server}__${t.name}`));
+    return this.toVercelTools(core, sanitize);
   }
 
   /**
@@ -145,19 +152,11 @@ class ToolRegistry {
     const sep = fullName.indexOf("__");
     if (sep === -1) return null;
 
-    const server = fullName.substring(0, sep);
-    const bareName = fullName.substring(sep + 2);
-    const mcpTool = this.tools.get(`${server}:${bareName}`);
+    const mcpTool = this.tools.get(`${fullName.substring(0, sep)}:${fullName.substring(sep + 2)}`);
     if (!mcpTool) return null;
 
-    const key = sanitize ? sanitize(fullName) : fullName;
-    return {
-      key,
-      tool: {
-        description: `[${mcpTool.server}] ${mcpTool.description}`,
-        inputSchema: jsonSchema(mcpTool.inputSchema as Parameters<typeof jsonSchema>[0]),
-      },
-    };
+    const [entry] = Object.entries(this.toVercelTools([mcpTool], sanitize));
+    return { key: entry![0], tool: entry![1] };
   }
 
   /**

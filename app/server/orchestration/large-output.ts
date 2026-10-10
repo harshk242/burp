@@ -2,16 +2,12 @@
  * Large tool-output handling: noise reduction, then artifact storage.
  */
 
-import type { Tool } from "ai";
 import { logger, startTimer, type LogContext } from "../logger";
 import { appConfig } from "../config";
 import { artifactStore } from "./tools/artifact-store";
 import { applyNoiseReduction } from "./tools/noise-reduction";
 import { generatePreview } from "./tools/schema-preview";
-import { createInspectArtifactTool } from "./tools/artifact-inspector";
 import { validatePolicies } from "./tools/policy-resolver";
-
-export const INSPECT_TOOL_KEY = "system__inspect_artifact";
 
 // Validate artifact policies on module load (non-blocking)
 validatePolicies().then(({ valid, errors }) => {
@@ -31,7 +27,8 @@ validatePolicies().then(({ valid, errors }) => {
  *
  * Two-tier jq pipeline:
  *   Tier 1 — deterministic noise reduction (jq filters per platform/tool)
- *   Tier 2 — artifact storage + schema preview + inspect_artifact tool
+ *   Tier 2 — artifact storage + schema preview (read with inspect_artifact,
+ *            which the tool catalog always declares)
  *
  * No silent truncation of JSON at any point. Data is either:
  *   - passed through (small enough)
@@ -44,7 +41,6 @@ export async function handleLargeOutput(
   toolName: string,
   rawOutput: string,
   sessionId: string,
-  activeTools: Record<string, Tool>,
   ctx: LogContext,
 ): Promise<string> {
   const cfg = appConfig.artifact;
@@ -101,11 +97,6 @@ export async function handleLargeOutput(
     rawOutput.length / 1024,
     reducedStr.length / 1024,
   );
-
-  // Dynamically add inspect_artifact tool (session-bound)
-  if (!activeTools[INSPECT_TOOL_KEY]) {
-    activeTools[INSPECT_TOOL_KEY] = createInspectArtifactTool(sessionId);
-  }
 
   logger.info("TOOL", "artifact_stored", {
     ctx,
