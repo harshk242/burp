@@ -2,13 +2,15 @@ name: Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   push:
-    branches: [main]
+    # main is tested by deploy.yml (via workflow_call) right before deploying
+    branches: [develop]
   schedule:
     # Contract tests: weekly Monday 06:00 UTC
     - cron: '0 6 * * 1'
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   # ── Unit Tests (every PR + push) ────────────────────────────────────────────
