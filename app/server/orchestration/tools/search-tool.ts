@@ -60,6 +60,12 @@ export interface ToolSearchRun {
 export interface ToolSearchOptions {
   provider: LLMProviderName;
   sanitize: (name: string) => string;
+  /**
+   * Anthropic: the turn's declared tools. A reference to a tool the request
+   * doesn't declare is rejected (400), and the catalog is fixed at turn start
+   * while MCP recovery can register (and index) new tools mid-turn.
+   */
+  declared?: Readonly<Record<string, unknown>>;
   signal?: AbortSignal;
 }
 
@@ -75,7 +81,9 @@ export async function runToolSearch(query: string, opts: ToolSearchOptions): Pro
     // the search index is built from the registry, so this drops nothing in practice.
     const { server, name } = toolRegistry.parseToolName(r.fullName);
     if (!toolRegistry.get(server, name)) continue;
-    hits.push({ fullName: r.fullName, name: opts.sanitize(r.fullName), description: r.description, score: r.score });
+    const declaredName = opts.sanitize(r.fullName);
+    if (opts.declared && !(declaredName in opts.declared)) continue;
+    hits.push({ fullName: r.fullName, name: declaredName, description: r.description, score: r.score });
   }
 
   return {

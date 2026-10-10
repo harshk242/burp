@@ -137,7 +137,8 @@ async function* runSearchTool(
   try {
     // Inside the try: a malformed call can arrive with input === null.
     const query = (call.input as { query: string }).query;
-    const search = await runToolSearch(query, { provider, sanitize, signal: dc.signal });
+    const declared = provider === "anthropic" ? activeTools : undefined;
+    const search = await runToolSearch(query, { provider, sanitize, declared, signal: dc.signal });
     // A result that lands after an abort is dropped (no tools activated).
     dc.signal?.throwIfAborted();
 
