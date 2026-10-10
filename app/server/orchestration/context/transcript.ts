@@ -16,7 +16,7 @@
  */
 
 import type { ModelMessage } from "ai";
-import { chatTurnQueries, messageQueries, modelTranscriptQueries, type NewTranscriptRow } from "../../db";
+import { chatTurnQueries, messageQueries, modelTranscriptQueries, type DbTranscriptRow, type NewTranscriptRow } from "../../db";
 import { shortHash } from "../usage-meter";
 
 /** Compatibility tag stored on every row (4b.4): replay needs all three to match. */
@@ -136,29 +136,68 @@ export interface TranscriptContext {
   previousFinishedAt?: number;
 }
 
+export interface TranscriptCompatibility extends TranscriptTag {
+  toolNames: ReadonlySet<string>;
+  onDegraded?: (turnId: string, reason: TranscriptDegradedReason) => void;
+}
+
+export type TranscriptDegradedReason =
+  | { reason: "provider" | "model" | "context_version" }
+  | { reason: "missing_tools"; missing_tools: string[] };
+
+/** Check every row: a late tool search or provider change invalidates the turn. */
+function incompatibility(rows: DbTranscriptRow[], current: TranscriptCompatibility): TranscriptDegradedReason | undefined {
+  if (rows.some((row) => row.provider !== current.provider)) return { reason: "provider" };
+  if (rows.some((row) => row.model !== current.model)) return { reason: "model" };
+  if (rows.some((row) => row.context_version !== current.contextVersion)) return { reason: "context_version" };
+  const missing = new Set<string>();
+  for (const row of rows) {
+    for (const name of JSON.parse(row.tool_names_json) as string[]) {
+      if (!current.toolNames.has(name)) missing.add(name);
+    }
+  }
+  if (missing.size) return { reason: "missing_tools", missing_tools: [...missing].sort() };
+}
+
 /**
  * Successful transcript rows are parsed without modifying content or metadata.
  * UI user rows anchor mixed history: untracked legacy messages use text, an ok
  * tracked turn with no rows uses its UI text, and every non-ok turn is omitted.
  * The stable UI row order and transcript seq order make the merge deterministic.
- * Compatibility degradation is deliberately a separate future extension.
+ * Incompatible turns use their UI text. Safety checks happen before fallback;
+ * their old lossless endpoint is discarded. A compatible suffix can retain its
+ * own endpoint: provider caches compare prefix bytes, so changed content misses.
  */
-export function loadTranscript(sessionId: string): TranscriptContext {
+export function loadTranscript(sessionId: string, current?: TranscriptCompatibility): TranscriptContext {
   const history = messageQueries.findByChatId(sessionId);
   const turns = chatTurnQueries.findBySessionId(sessionId);
   const rows = modelTranscriptQueries.findBySessionId(sessionId);
   const byUser = new Map(turns.map((turn) => [turn.user_message_id, turn]));
   const byAssistant = new Map(turns.flatMap((turn) => turn.assistant_message_id ? [[turn.assistant_message_id, turn] as const] : []));
   const byTurn = new Map<string, ModelMessage[]>();
+  const rowsByTurn = new Map<string, DbTranscriptRow[]>();
   const okIds = new Set(turns.filter((turn) => turn.status === "ok").map((turn) => turn.id));
   for (const row of rows) {
     if (!okIds.has(row.turn_id)) continue;
     const message = JSON.parse(row.content_json) as ModelMessage;
     // Server-written tool-change system messages are not implemented yet.
-    if (message.role === "system") throw new Error("Unsupported system message in model transcript");
+    if (row.role === "system" || message.role === "system") throw new Error("Unsupported system message in model transcript");
     const messages = byTurn.get(row.turn_id) ?? [];
     messages.push(message);
     byTurn.set(row.turn_id, messages);
+    const turnRows = rowsByTurn.get(row.turn_id) ?? [];
+    turnRows.push(row);
+    rowsByTurn.set(row.turn_id, turnRows);
+  }
+
+  const degraded = new Set<string>();
+  if (current) {
+    for (const [turnId, turnRows] of rowsByTurn) {
+      const reason = incompatibility(turnRows, current);
+      if (!reason) continue;
+      degraded.add(turnId);
+      current.onDegraded?.(turnId, reason);
+    }
   }
 
   const context: TranscriptContext = { messages: [] };
@@ -166,7 +205,7 @@ export function loadTranscript(sessionId: string): TranscriptContext {
     const turn = byUser.get(msg.id) ?? byAssistant.get(msg.id);
     if (turn) {
       if (turn.status !== "ok") continue;
-      const replay = byTurn.get(turn.id);
+      const replay = degraded.has(turn.id) ? undefined : byTurn.get(turn.id);
       if (replay) {
         if (msg.id !== turn.user_message_id) continue;
         const offset = context.messages.length;

@@ -31,6 +31,15 @@ export const INSPECT_TOOL_NAME = "system__inspect_artifact";
 
 const DEFERRED = { anthropic: { deferLoading: true } } as const;
 
+/** Full registered catalog, including Gemini tools discovered in earlier turns. */
+export function registeredToolNames(sanitize: (name: string) => string): ReadonlySet<string> {
+  return new Set([
+    SEARCH_TOOL_NAME,
+    INSPECT_TOOL_NAME,
+    ...toolRegistry.getAll().map((tool) => sanitize(`${tool.server}__${tool.name}`)),
+  ]);
+}
+
 // Hash of the last Anthropic catalog built in this process (catalog_changed).
 let lastCatalogHash: string | undefined;
 

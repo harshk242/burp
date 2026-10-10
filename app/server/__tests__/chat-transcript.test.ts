@@ -44,7 +44,7 @@ mock.module("../llm/provider", () => ({
 
 const { processChat } = await import("../orchestration/chat-v2");
 const { SYSTEM_PROMPT } = await import("../orchestration/context/system-prompt");
-const { contextVersion, loadTranscript } = await import("../orchestration/context/transcript");
+const { contextVersion, loadTranscript, toTranscriptRow } = await import("../orchestration/context/transcript");
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
@@ -116,6 +116,57 @@ afterEach(() => {
 afterAll(() => t.sqlite.close());
 
 describe("model transcript", () => {
+  for (const reason of ["provider", "model", "context_version", "missing_tools"] as const) {
+    it(`production replay degrades the entire turn and logs ${reason}`, async () => {
+      const sessionId = crypto.randomUUID();
+      q.chatSessionQueries.create(sessionId, USER_ID, null);
+      q.messageQueries.create("old-user", sessionId, "user", "old question", null);
+      q.chatTurnQueries.start("old-turn", sessionId, "old-user");
+      q.messageQueries.create("old-answer", sessionId, "assistant", "old UI answer", null);
+      q.chatTurnQueries.finish("old-turn", { status: "ok", iterations: 1, assistantMessageId: "old-answer" });
+      const tag = { provider: llmConfig.provider, model: llmConfig.chatModel, contextVersion: contextVersion(SYSTEM_PROMPT, chatProviderOptions(llmConfig)) };
+      const first = toTranscriptRow("old-turn", { role: "user", content: "lossless question" }, tag);
+      const last = toTranscriptRow("old-turn", {
+        role: "assistant", content: [
+          { type: "reasoning", text: "old thinking", providerOptions: { anthropic: { signature: "old-signature" } } },
+          { type: "tool-call", toolCallId: "old-call", toolName: reason === "missing_tools" ? "removed__tool" : TOOL_KEY, input: {} },
+        ],
+      }, tag);
+      if (reason === "provider") last.provider = "another-provider";
+      if (reason === "model") last.model = "another-model";
+      if (reason === "context_version") last.contextVersion = "another-version";
+      q.modelTranscriptQueries.append(sessionId, [first, last]);
+      const logs = spyOn(logger, "info");
+      model = scriptedModel([[...text("new answer"), finish("stop")]]);
+      const events = await collect(processChat(sessionId, USER_ID, "new question"));
+      expect(events.some((event) => event.type === "done")).toBe(true);
+      const prompt = model.doStreamCalls[0]!.prompt.filter((message) => message.role !== "system");
+      expect(prompt.map((message) => message.role)).toEqual(["user", "assistant", "user"]);
+      expect(JSON.stringify(prompt)).toContain("old UI answer");
+      expect(JSON.stringify(prompt)).not.toMatch(/lossless question|old-signature|old-call/);
+      expect(prompt[0]!.providerOptions?.anthropic?.cacheControl).toBeUndefined();
+      const degradation = logs.mock.calls.filter(([, event]) => event === "transcript_degraded");
+      expect(degradation).toHaveLength(1);
+      expect(degradation[0]![2]?.data).toEqual({
+        turn_id: "old-turn", reason, ...(reason === "missing_tools" ? { missing_tools: ["removed__tool"] } : {}),
+      });
+    });
+  }
+
+  it("production replay retains lossless history after tools are added or described differently", async () => {
+    const sessionId = crypto.randomUUID();
+    model = scriptedModel([[toolCall("kept-call"), finish("tool-calls")], [...text("answer"), finish("stop")]]);
+    await collect(processChat(sessionId, USER_ID, "first"));
+    const { server, name } = toolRegistry.parseToolName(TOOL_FULL_NAME);
+    toolRegistry.register(server, { name, description: "changed description", inputSchema: { type: "object", properties: {} } });
+    toolRegistry.register("new", { name: "added_tool", description: "added", inputSchema: { type: "object" } });
+    const logs = spyOn(logger, "info");
+    model = scriptedModel([[...text("followup"), finish("stop")]]);
+    await collect(processChat(sessionId, USER_ID, "second"));
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain("kept-call");
+    expect(logs.mock.calls.filter(([, event]) => event === "transcript_degraded")).toHaveLength(0);
+  });
+
   it("replays complete successful messages as-is and carries the final input endpoint", async () => {
     const sessionId = crypto.randomUUID();
     model = scriptedModel([[toolCall("c1"), finish("tool-calls")], [...text("answer"), finish("stop")]]);

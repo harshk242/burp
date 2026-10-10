@@ -23,7 +23,7 @@ import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
 import { appendTranscript, contextVersion, loadTranscript, type TranscriptTag } from "./context/transcript";
 import { toolRegistry } from "../mcp/registry";
-import { buildToolCatalog, countDeferred } from "./context/tool-catalog";
+import { buildToolCatalog, countDeferred, registeredToolNames } from "./context/tool-catalog";
 import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
 import type { StreamEvent, ToolCallRecord } from "./types";
 import { UsageMeter } from "./usage-meter";
@@ -134,7 +134,14 @@ export async function* processChat(
     }
 
     // History (read before this turn's user message is stored)
-    const history = loadTranscript(sessionId);
+    const history = loadTranscript(sessionId, {
+      ...transcriptTag,
+      toolNames: registeredToolNames(sanitize),
+      onDegraded: (previousTurnId, reason) => logger.info("CHAT", "transcript_degraded", {
+        ctx,
+        data: { turn_id: previousTurnId, ...reason },
+      }),
+    });
     const messages = history.messages;
     const turnGapSeconds = history.previousFinishedAt === undefined ? null : Math.max(0, Date.now() / 1000 - history.previousFinishedAt);
 

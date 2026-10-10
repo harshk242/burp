@@ -125,6 +125,8 @@ describe("contextVersion", () => {
     expect(contextVersion("prompt", structuredClone(options))).toBe(base);
     expect(contextVersion("prompt 2", options)).not.toBe(base);
     expect(contextVersion("prompt", { anthropic: { ...options.anthropic, effort: "high" } })).not.toBe(base);
+    expect(contextVersion("prompt", { anthropic: { ...options.anthropic, thinking: { type: "disabled" } } })).not.toBe(base);
+    expect(contextVersion("prompt", { anthropic: { ...options.anthropic, thinking: { type: "enabled", budgetTokens: 1024 } } })).not.toBe(base);
     expect(contextVersion("prompt", undefined)).not.toBe(base);
   });
 });
