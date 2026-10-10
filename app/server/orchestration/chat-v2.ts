@@ -48,8 +48,9 @@ function buildMessages(history: DBMessage[], newMessage: string): ModelMessage[]
 /**
  * `signal` is aborted when the client disconnects: the in-flight LLM call and
  * tool calls are cancelled, no further iterations run, and no assistant message
- * is persisted. A failed or aborted turn still records the cost of its LLM calls
- * (status "error", see turn-usage.ts).
+ * is persisted. The same happens when the consumer stops iterating before the
+ * turn completed (e.g. an SSE write threw). A failed or aborted turn still
+ * records the cost of its LLM calls (status "error", see turn-usage.ts).
  */
 export async function* processChat(
   sessionId: string,
@@ -77,6 +78,10 @@ export async function* processChat(
   const tracker = new CallTracker();
   // Set once the success path wrote its usage_events row.
   let ledgerWritten = false;
+  // The turn's own signal: follows the caller's, and is aborted in `finally` so
+  // an early return() by the consumer also cancels the in-flight LLM/tool call.
+  const turnAbort = new AbortController();
+  const turnSignal = signal ? AbortSignal.any([signal, turnAbort.signal]) : turnAbort.signal;
   // How the turn failed; stays "closed" if the consumer stopped iterating early.
   let errorCode: TurnErrorCode = "closed";
 
@@ -132,7 +137,7 @@ export async function* processChat(
     let loopIteration = 0;
 
     while (continueLoop) {
-      signal?.throwIfAborted();
+      turnSignal.throwIfAborted();
       loopIteration++;
       if (loopIteration > llmConfig.maxToolIterations) {
         throw new Error(`Maximum tool iterations exceeded (${llmConfig.maxToolIterations})`);
@@ -155,13 +160,13 @@ export async function* processChat(
 
       tracker.begin(loopIteration);
       const result = streamText({
-        model: getChatModel(),
+        model: tracker.wrap(getChatModel()),
         instructions: SYSTEM_PROMPT,
         messages,
         tools: declarationTools,
         maxRetries: llmConfig.maxRetries,
         maxOutputTokens: llmConfig.maxOutputTokens,
-        abortSignal: signal,
+        abortSignal: turnSignal,
         onLanguageModelCallStart: tracker.onRequest,
         onChunk: tracker.onChunk,
       });
@@ -173,7 +178,7 @@ export async function* processChat(
       }
       // An abort can end the text stream without an error; stop before
       // reading the step's results.
-      signal?.throwIfAborted();
+      turnSignal.throwIfAborted();
 
       // Await the promise-based properties
       const finishReason = await result.finishReason;
@@ -207,11 +212,11 @@ export async function* processChat(
           sanitize,
           activeTools,
           ctx,
-          signal,
+          signal: turnSignal,
         };
 
         for (const tc of toolCalls) {
-          signal?.throwIfAborted();
+          turnSignal.throwIfAborted();
           const { record, part } = yield* dispatchToolCall(tc, dispatch);
           if (record) allToolCalls.push(record);
           toolResultParts.push(part);
@@ -301,7 +306,7 @@ export async function* processChat(
     // usage arrives after done — safe to patch tokenUsage onto the last message
     yield { type: "usage", data: { inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens } };
   } catch (error) {
-    if (signal?.aborted) {
+    if (turnSignal.aborted) {
       // Client is gone: nothing to stream an error to.
       errorCode = "aborted";
       logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed(), data: { error_code: errorCode } });
@@ -318,8 +323,11 @@ export async function* processChat(
     yield { type: "error", data: { error: errorMsg } };
   } finally {
     // Errors, aborts and an early return() by the consumer all end here; the
-    // calls that already ran are billed either way. Never throws.
+    // calls that already ran are billed either way. Cancel whatever is still in
+    // flight first, so the cut-off estimate covers exactly what was streamed.
+    // Never throws.
     if (!ledgerWritten) {
+      turnAbort.abort();
       recordFailedTurn({
         meter,
         tracker,

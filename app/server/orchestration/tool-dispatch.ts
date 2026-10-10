@@ -139,6 +139,8 @@ export async function* dispatchToolCall(
       input,
     },
   };
+  // The client may have gone while tool_start was being written.
+  dc.signal?.throwIfAborted();
 
   if (parsed.server !== "system") return yield* runMcpTool(call, dc);
   if (originalName === SEARCH_TOOL_NAME) return yield* runSearchTool(call, dc);
@@ -155,6 +157,8 @@ async function* runSearchTool(
     // Inside the try: a malformed call can arrive with input === null.
     const query = (call.input as { query: string }).query;
     const searchResults = await hybridSearch.search(query);
+    // A result that lands after an abort is dropped (no tools activated).
+    dc.signal?.throwIfAborted();
 
     for (const found of searchResults) {
       const sanitized = sanitize(found.fullName);
@@ -205,6 +209,8 @@ async function* runSearchTool(
       part: resultPart(call, JSON.stringify(searchOutput)),
     };
   } catch (err) {
+    // An aborted turn ends here; don't turn the abort into a tool result.
+    if (dc.signal?.aborted) throw err;
     const errorMsg = err instanceof Error ? err.message : String(err);
     yield errorEnd(call, errorMsg);
     return { part: resultPart(call, errorMsg, true) };
@@ -235,6 +241,7 @@ async function* runSystemTool(
       context: undefined,
       abortSignal: dc.signal,
     });
+    dc.signal?.throwIfAborted();
     const output = typeof rawResult === "string"
       ? rawResult
       : JSON.stringify(rawResult);

@@ -165,6 +165,7 @@ function toRates(set: {
   cache_write_5m_usd_per_mtok?: number;
   cache_write_1h_usd_per_mtok?: number;
 }): Rates {
+  // Exact: config.ts only accepts whole µUSD per MTok, so nothing is rounded off.
   const input = usdToMicrousd(set.input_usd_per_mtok);
   // Fallbacks never undercharge: reads at the full input rate, writes at the
   // 1.25x / 2x multipliers documented for every Anthropic model.

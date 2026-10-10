@@ -219,6 +219,61 @@ describe("processChat abort", () => {
     });
   });
 
+  it("records an estimate for an accepted call cut off before its first data part", async () => {
+    const turn = new AbortController();
+    // The provider accepted the request (doStream resolved with a response
+    // stream) but the abort lands before any content arrives. The SDK withholds
+    // its start-step part until then, so only the model boundary sees this.
+    model = scriptedModel([
+      (signal) => new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "stream-start", warnings: [] });
+          signal?.addEventListener("abort", () => controller.error(signal.reason));
+          setTimeout(() => turn.abort(), 0);
+        },
+      }),
+    ]);
+
+    await collect(processChat(crypto.randomUUID(), USER_ID, "hi", turn.signal));
+
+    const rows = usageRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "error", usage_estimated: 1, llm_calls: 1, output_tokens: 0 });
+    expect(rows[0]!.input_tokens as number).toBeGreaterThan(100);
+  });
+
+  it("a consumer that stops mid-stream cancels the in-flight LLM call", async () => {
+    let streamedAfterClose = false;
+    model = scriptedModel([
+      (signal) => new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "text-start", id: "t" });
+          controller.enqueue({ type: "text-delta", id: "t", delta: "abcdefgh" });
+          signal?.addEventListener("abort", () => controller.error(signal.reason));
+          // A provider that is still producing output once the consumer is gone.
+          setTimeout(() => {
+            if (signal?.aborted) return;
+            streamedAfterClose = true;
+            controller.enqueue({ type: "text-delta", id: "t", delta: "more output nobody records" });
+          }, 20);
+        },
+      }),
+    ]);
+
+    // No caller signal: e.g. the SSE write threw and the route stopped iterating.
+    for await (const event of processChat(crypto.randomUUID(), USER_ID, "hi")) {
+      if (event.type === "text") break;
+    }
+
+    expect(model.doStreamCalls[0]!.abortSignal?.aborted).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(streamedAfterClose).toBe(false);
+    // One error row, estimated from what was streamed up to the close: ceil(8 / 4) = 2.
+    expect(usageRows()).toEqual([
+      expect.objectContaining({ status: "error", usage_estimated: 1, llm_calls: 1, output_tokens: 2 }),
+    ]);
+  });
+
   it("aborting during an MCP tool call cancels it and skips the remaining calls", async () => {
     const turn = new AbortController();
     let toolSignal: AbortSignal | undefined;
@@ -235,7 +290,8 @@ describe("processChat abort", () => {
     const sessionId = crypto.randomUUID();
     const events = await collect(processChat(sessionId, USER_ID, "hi", turn.signal));
 
-    expect(toolSignal).toBe(turn.signal);
+    // The turn's own signal, linked to the caller's.
+    expect(toolSignal?.aborted).toBe(true);
     expect(callTool).toHaveBeenCalledTimes(1);
     expect(model.doStreamCalls).toHaveLength(1);
     expect(events.some((e) => e.type === "tool_end" || e.type === "error" || e.type === "done")).toBe(false);

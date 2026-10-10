@@ -53,15 +53,29 @@ const ArtifactConfigSchema = z.object({
 });
 
 /**
+ * A per-MTok rate in USD. Pricing works in integer µUSD per MTok, so a rate must
+ * be a whole number of µUSD (at most 6 decimals): rounding a finer one could
+ * undercharge. The tolerance only absorbs float representation error.
+ */
+function usdPerMtok() {
+  return z
+    .number()
+    .nonnegative()
+    .refine((usd) => Math.abs(usd * 1e6 - Math.round(usd * 1e6)) < 1e-6, {
+      message: "must be a whole number of µUSD per MTok (at most 6 decimal places)",
+    });
+}
+
+/**
  * One set of per-MTok rates. Missing cache rates fall back to the overcharge
  * side in `usage.ts`: reads at the input rate, 5m/1h writes at 1.25x/2x input.
  */
 const RateSetSchema = z.object({
-  input_usd_per_mtok: z.number().nonnegative(),
-  output_usd_per_mtok: z.number().nonnegative(),
-  cache_read_usd_per_mtok: z.number().nonnegative().optional(),
-  cache_write_5m_usd_per_mtok: z.number().nonnegative().optional(),
-  cache_write_1h_usd_per_mtok: z.number().nonnegative().optional(),
+  input_usd_per_mtok: usdPerMtok(),
+  output_usd_per_mtok: usdPerMtok(),
+  cache_read_usd_per_mtok: usdPerMtok().optional(),
+  cache_write_5m_usd_per_mtok: usdPerMtok().optional(),
+  cache_write_1h_usd_per_mtok: usdPerMtok().optional(),
 });
 
 /**

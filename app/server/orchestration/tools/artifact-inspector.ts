@@ -42,12 +42,15 @@ export function createInspectArtifactTool(sessionId: string) {
             "'.results | length' — count items",
         ),
     }),
-    execute: async ({ artifact_id, jq_filter }) => {
+    execute: async ({ artifact_id, jq_filter }, { abortSignal }) => {
+      abortSignal?.throwIfAborted();
       const result = await artifactStore.query(
         artifact_id,
         sessionId,
         jq_filter,
       );
+      // jq can't be cancelled mid-run; drop a result that lands after an abort.
+      abortSignal?.throwIfAborted();
 
       if (result.error) {
         return JSON.stringify({ error: result.error });

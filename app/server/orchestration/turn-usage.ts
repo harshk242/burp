@@ -6,7 +6,13 @@
  * `usage_estimated = 1`.
  */
 
-import type { LanguageModelCallStartEvent, TextStreamPart, ToolSet } from "ai";
+import {
+  wrapLanguageModel,
+  type LanguageModel,
+  type LanguageModelCallStartEvent,
+  type TextStreamPart,
+  type ToolSet,
+} from "ai";
 import { v4 as uuidv4 } from "uuid";
 import { db, dailyUsageQueries, usageEventQueries } from "../db";
 import { estimateTokens, logger, type LogContext } from "../logger";
@@ -19,11 +25,13 @@ export type TurnErrorCode = "aborted" | "error" | "closed";
 interface CallInFlight {
   iteration: number;
   /**
-   * The request left and the provider accepted it: the response stream produced
-   * its first part (`start-step`). The SDK emits that part only after
-   * `doStream` resolved, i.e. the provider answered the HTTP request with a
-   * stream. A call cut off before that (connect error, rejected request, abort
-   * while sending) is not billed and gets no estimate.
+   * The request left and the provider accepted it: the model's `doStream`
+   * resolved, i.e. the provider answered the HTTP request with a response
+   * stream. Set at the model boundary (see `wrap`), not on the SDK's
+   * `start-step` part: the SDK withholds that until the first part after
+   * `stream-start`, so a call cut off right after being accepted would be
+   * missed. A call cut off before (connect error, rejected request, abort while
+   * sending) is not billed and gets no estimate.
    */
   sent: boolean;
   /** Output streamed so far: text, reasoning and tool-call input. */
@@ -42,6 +50,21 @@ export class CallTracker {
     this.current = { iteration, sent: false, streamedChars: 0 };
   }
 
+  /** The model to pass to `streamText`: marks the call sent once `doStream` resolves. */
+  wrap(model: LanguageModel): LanguageModel {
+    if (typeof model === "string") throw new Error("CallTracker.wrap needs a model instance, not a model id");
+    return wrapLanguageModel({
+      model,
+      middleware: {
+        wrapStream: async ({ doStream }) => {
+          const result = await doStream();
+          if (this.current) this.current.sent = true;
+          return result;
+        },
+      },
+    });
+  }
+
   /** `streamText({ onLanguageModelCallStart })`. */
   readonly onRequest = (event: LanguageModelCallStartEvent): void => {
     if (this.current) this.current.request = event;
@@ -52,9 +75,6 @@ export class CallTracker {
     const call = this.current;
     if (!call) return;
     switch (chunk.type) {
-      case "start-step":
-        call.sent = true;
-        break;
       case "text-delta":
       case "reasoning-delta":
         call.streamedChars += chunk.text.length;

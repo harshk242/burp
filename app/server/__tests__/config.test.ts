@@ -124,3 +124,36 @@ describe("tool_search.embeddings_path", () => {
     expect(fromApp.startsWith(APP_DIR)).toBe(true);
   });
 });
+
+describe("usage pricing rates", () => {
+  const withRates = (rates: Record<string, unknown>) => ({
+    usage: { pricing: { anthropic: { m: { input_usd_per_mtok: 3, output_usd_per_mtok: 15, ...rates } } } },
+  });
+
+  it("every rate in config.yaml and the built-in defaults parses", () => {
+    expect(() => loadFromYaml({})).not.toThrow();
+    expect(() => loadConfig({}, {})).not.toThrow();
+  });
+
+  it("accepts rates down to whole µUSD per MTok", () => {
+    const cfg = loadConfig({}, withRates({ cache_read_usd_per_mtok: 0.000001, cache_write_5m_usd_per_mtok: 0.3 }));
+    expect(cfg.usage.pricing.anthropic!.m!.cache_read_usd_per_mtok).toBe(0.000001);
+  });
+
+  it("rejects a rate finer than 1 µUSD per MTok instead of rounding it", () => {
+    expect(() => loadConfig({}, withRates({ input_usd_per_mtok: 0.0000014 }))).toThrow(/whole number of µUSD per MTok/);
+    expect(() => loadConfig({}, withRates({ cache_write_1h_usd_per_mtok: 3.0000005 }))).toThrow(/whole number of µUSD/);
+  });
+
+  it("rejects a sub-µUSD long-context rate", () => {
+    const longContext = {
+      above_input_tokens: 200_000,
+      input_usd_per_mtok: 6,
+      output_usd_per_mtok: 22.5,
+      cache_read_usd_per_mtok: 0.6,
+      cache_write_5m_usd_per_mtok: 7.5,
+      cache_write_1h_usd_per_mtok: 12.0000001,
+    };
+    expect(() => loadConfig({}, withRates({ long_context: longContext }))).toThrow(/whole number of µUSD/);
+  });
+});
