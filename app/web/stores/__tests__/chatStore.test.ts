@@ -6,40 +6,60 @@ const store = () => useChatStore.getState();
 beforeEach(() => store().reset());
 
 describe("chatStore reasoning", () => {
-  it("appends reasoning deltas to one open segment", () => {
-    store().appendReasoning("Let me ");
-    store().appendReasoning("think.");
+  it("appends reasoning deltas to the block's segment", () => {
+    store().appendReasoning("Let me ", true);
+    store().appendReasoning("think.", false);
     expect(store().reasoningSegments).toEqual(["Let me think."]);
   });
 
   it("ignores empty reasoning deltas", () => {
-    store().appendReasoning("");
+    store().appendReasoning("", true);
     expect(store().reasoningSegments).toEqual([]);
   });
 
   it("keeps thinking and reclassified pre-tool text as segments in stream order", () => {
     // Call 1: thinking, pre-tool text, tool call. Call 2: thinking, final text.
-    store().appendReasoning("Plan A.");
+    store().appendReasoning("Plan A.", true);
     store().appendStreamingContent("Looking it up.");
     store().moveStreamingToReasoning();
     store().addToolCall({ id: "c1", name: "t", server: "s", toolName: "t", input: {}, status: "running" });
-    store().appendReasoning("Got ");
-    store().appendReasoning("it.");
+    store().appendReasoning("Got ", true);
+    store().appendReasoning("it.", false);
     store().appendStreamingContent("Final");
 
     expect(store().reasoningSegments).toEqual(["Plan A.", "Looking it up.", "Got it."]);
     expect(store().streamingContent).toBe("Final");
   });
 
-  it("starts a new segment for thinking after a tool call without text", () => {
-    store().appendReasoning("First.");
+  it("starts a new segment for each thinking block", () => {
+    store().appendReasoning("First.", true);
     store().addToolCall({ id: "c1", name: "t", server: "s", toolName: "t", input: {}, status: "running" });
-    store().appendReasoning("Second.");
-    expect(store().reasoningSegments).toEqual(["First.", "Second."]);
+    store().appendReasoning("Second.", true);
+    store().appendReasoning("Third.", true);
+    expect(store().reasoningSegments).toEqual(["First.", "Second.", "Third."]);
+  });
+
+  it("reclassifies text interleaved with thinking in stream order", () => {
+    // Call: thinking A, text, thinking B, text, tool call.
+    store().appendReasoning("A.", true);
+    store().appendStreamingContent("Check");
+    store().appendStreamingContent("ing.");
+    store().appendReasoning("B.", true);
+    store().appendStreamingContent("More.");
+    expect(store().reasoningSegments).toEqual(["A.", "B."]);
+
+    store().moveStreamingToReasoning();
+    expect(store().reasoningSegments).toEqual(["A.", "Checking.", "B.", "More."]);
+    expect(store().streamingContent).toBe("");
+
+    // The next call's text starts a fresh run.
+    store().appendStreamingContent("Final");
+    store().finalizeAssistantMessage();
+    expect(store().messages[0]).toMatchObject({ content: "Final", reasoning: "A.\n\nChecking.\n\nB.\n\nMore." });
   });
 
   it("finalizes the joined reasoning onto the assistant message", () => {
-    store().appendReasoning("Plan A.");
+    store().appendReasoning("Plan A.", true);
     store().appendStreamingContent("Pre.");
     store().moveStreamingToReasoning();
     store().appendStreamingContent("Answer");
@@ -48,7 +68,7 @@ describe("chatStore reasoning", () => {
     const [message] = store().messages;
     expect(message).toMatchObject({ role: "assistant", content: "Answer", reasoning: "Plan A.\n\nPre." });
     expect(store().reasoningSegments).toEqual([]);
-    expect(store().reasoningOpen).toBe(false);
+    expect(store().textRuns).toEqual([]);
   });
 
   it("leaves reasoning undefined when the model didn't think", () => {

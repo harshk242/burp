@@ -194,21 +194,26 @@ export async function* processChat(
       });
 
       // Stream text and thinking. Thinking (summarized on Anthropic) is sent as
-      // `reasoning` events; separate thinking blocks in one call get a blank line.
-      let callReasoning = "";
-      let newReasoningBlock = false;
+      // `reasoning` events; the first delta of each thinking block carries
+      // `newBlock`. Segments keep this call's thinking and text in stream order.
+      const callSegments: { thinking: boolean; text: string }[] = [];
+      let thinkingStarted = false;
       for await (const part of result.stream) {
         if (part.type === "text-delta") {
           fullAssistantContent += part.text;
+          const last = callSegments.at(-1);
+          if (last && !last.thinking) last.text += part.text;
+          else if (part.text) callSegments.push({ thinking: false, text: part.text });
           yield { type: "text", data: part.text };
         } else if (part.type === "reasoning-start") {
-          newReasoningBlock = callReasoning !== "";
+          thinkingStarted = true;
         } else if (part.type === "reasoning-delta" && part.text) {
-          const chunk = (newReasoningBlock ? "\n\n" : "") + part.text;
-          newReasoningBlock = false;
-          callReasoning += chunk;
+          const newBlock = thinkingStarted || callSegments.at(-1)?.thinking !== true;
+          thinkingStarted = false;
+          if (newBlock) callSegments.push({ thinking: true, text: part.text });
+          else callSegments.at(-1)!.text += part.text;
           // An object, so the client's JSON.parse never turns a chunk like "42" into a number.
-          yield { type: "reasoning", data: { text: chunk } };
+          yield { type: "reasoning", data: { text: part.text, newBlock } };
         } else if (part.type === "error") {
           streamError ??= part.error;
         }
@@ -238,15 +243,17 @@ export async function* processChat(
       });
       tracker.finish(call);
       previousLastIndex = callLastIndex;
-      // Thinking comes before this call's text, in the stored reasoning too.
-      if (callReasoning) reasoningText += (reasoningText ? "\n\n" : "") + callReasoning;
+      const isToolCall = finishReason === "tool-calls" && toolCalls && toolCalls.length > 0;
+      // Stored reasoning: this call's thinking, plus its text when the text is
+      // pre-tool-call, in stream order (matches the client's segments).
+      for (const seg of callSegments) {
+        if (seg.thinking || isToolCall) reasoningText += (reasoningText ? "\n\n" : "") + seg.text;
+      }
 
-      if (finishReason === "tool-calls" && toolCalls && toolCalls.length > 0) {
-        // This iteration's text is reasoning (pre-tool-call).
-        // Signal the client to reclassify it, then accumulate into reasoningText.
+      if (isToolCall) {
+        // This iteration's text is reasoning (pre-tool-call); signal the client to reclassify it.
         if (fullAssistantContent) {
           yield { type: "text_block_end", data: { isReasoning: true } };
-          reasoningText += (reasoningText ? "\n\n" : "") + fullAssistantContent;
         }
         // Reset text for next iteration (already streamed via SSE)
         fullAssistantContent = "";

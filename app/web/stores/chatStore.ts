@@ -9,8 +9,14 @@ interface ChatState {
   pendingToolCalls: ToolCall[];
   /** Reasoning text blocks accumulated during streaming (thinking + reclassified text) */
   reasoningSegments: string[];
-  /** True while the last segment is thinking that further `reasoning` deltas extend */
-  reasoningOpen: boolean;
+  /**
+   * Where each run of streamingContent began: `offset` into streamingContent and
+   * `at`, the reasoningSegments index it precedes. Thinking that interleaves the
+   * text splits it into runs, so reclassified text keeps its stream position.
+   */
+  textRuns: { at: number; offset: number }[];
+  /** True while text deltas extend the last text run */
+  textRunOpen: boolean;
   error: string | null;
 
   // Actions
@@ -27,10 +33,10 @@ interface ChatState {
    */
   moveStreamingToReasoning: () => void;
   /**
-   * Appends a thinking delta (`reasoning` SSE event). Extends the open thinking
-   * segment, or starts a new one after text or a tool call closed it.
+   * Appends a thinking delta (`reasoning` SSE event). `newBlock` (first delta
+   * of a thinking block) starts a new segment; otherwise it extends the last one.
    */
-  appendReasoning: (chunk: string) => void;
+  appendReasoning: (chunk: string, newBlock: boolean) => void;
   finalizeAssistantMessage: () => void;
   /**
    * Patches tokenUsage onto the last assistant message in state.messages.
@@ -51,7 +57,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingContent: "",
   pendingToolCalls: [],
   reasoningSegments: [],
-  reasoningOpen: false,
+  textRuns: [],
+  textRunOpen: false,
   error: null,
 
   setMessages: (messages) => set({ messages }),
@@ -63,10 +70,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ streamingContent: content, isStreaming: true }),
 
   appendStreamingContent: (chunk) =>
-    set((state) => ({ streamingContent: state.streamingContent + chunk, reasoningOpen: false })),
+    set((state) => {
+      if (!chunk) return state;
+      const textRuns = state.textRunOpen
+        ? state.textRuns
+        : [...state.textRuns, { at: state.reasoningSegments.length, offset: state.streamingContent.length }];
+      return { streamingContent: state.streamingContent + chunk, textRuns, textRunOpen: true };
+    }),
 
   addToolCall: (toolCall) =>
-    set((state) => ({ pendingToolCalls: [...state.pendingToolCalls, toolCall], reasoningOpen: false })),
+    set((state) => ({ pendingToolCalls: [...state.pendingToolCalls, toolCall] })),
 
   updateToolCall: (id, updates) =>
     set((state) => ({
@@ -77,22 +90,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   moveStreamingToReasoning: () =>
     set((state) => {
-      if (!state.streamingContent) return state;
+      const { streamingContent: content, textRuns } = state;
+      if (!content) return state;
+      const runs = textRuns.length > 0 ? textRuns : [{ at: state.reasoningSegments.length, offset: 0 }];
+      // Put each text run back before the thinking that followed it.
+      const segments: string[] = [];
+      let next = 0;
+      const flushRunsAt = (at: number) => {
+        for (; next < runs.length && runs[next].at <= at; next++) {
+          segments.push(content.slice(runs[next].offset, runs[next + 1]?.offset ?? content.length));
+        }
+      };
+      state.reasoningSegments.forEach((segment, i) => {
+        flushRunsAt(i);
+        segments.push(segment);
+      });
+      flushRunsAt(Infinity);
       return {
-        reasoningSegments: [...state.reasoningSegments, state.streamingContent],
+        reasoningSegments: segments,
         streamingContent: "",
-        reasoningOpen: false,
+        textRuns: [],
+        textRunOpen: false,
       };
     }),
 
-  appendReasoning: (chunk) =>
+  appendReasoning: (chunk, newBlock) =>
     set((state) => {
       if (!chunk) return state;
       const segments = state.reasoningSegments;
-      if (state.reasoningOpen && segments.length > 0) {
+      if (!newBlock && segments.length > 0) {
         return { reasoningSegments: [...segments.slice(0, -1), segments[segments.length - 1] + chunk] };
       }
-      return { reasoningSegments: [...segments, chunk], reasoningOpen: true };
+      return { reasoningSegments: [...segments, chunk], textRunOpen: false };
     }),
 
   finalizeAssistantMessage: () => {
@@ -115,7 +144,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         streamingContent: "",
         pendingToolCalls: [],
         reasoningSegments: [],
-        reasoningOpen: false,
+        textRuns: [],
+        textRunOpen: false,
         isStreaming: false,
       }));
     }
@@ -143,7 +173,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingContent: "",
       pendingToolCalls: [],
       reasoningSegments: [],
-      reasoningOpen: false,
+      textRuns: [],
+      textRunOpen: false,
       error: null,
       isStreaming: false,
     }),
@@ -155,7 +186,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingContent: "",
       pendingToolCalls: [],
       reasoningSegments: [],
-      reasoningOpen: false,
+      textRuns: [],
+      textRunOpen: false,
       error: null,
       isStreaming: false,
     }),

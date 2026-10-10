@@ -82,10 +82,13 @@ async function run(calls: LanguageModelV4StreamPart[][]) {
   return { events, assistant };
 }
 
-/** The stream as a compact trace: "r:<text>", "t:<text>", "pre-tool-end", "tool". */
+/** The stream as a compact trace: "r:<text>" ("r+:" starts a thinking block), "t:<text>", "pre-tool-end", "tool". */
 function trace(events: StreamEvent[]): string[] {
   return events.flatMap((e) => {
-    if (e.type === "reasoning") return [`r:${(e.data as { text: string }).text}`];
+    if (e.type === "reasoning") {
+      const { text, newBlock } = e.data as { text: string; newBlock: boolean };
+      return [`${newBlock ? "r+" : "r"}:${text}`];
+    }
     if (e.type === "text") return [`t:${e.data as string}`];
     if (e.type === "text_block_end") return ["pre-tool-end"];
     if (e.type === "tool_start") return ["tool"];
@@ -118,7 +121,7 @@ describe("processChat reasoning", () => {
     ]);
 
     // Empty deltas (as with display "omitted") are not sent.
-    expect(trace(events)).toEqual(["r:Let me ", "r:think.", "t:Answer"]);
+    expect(trace(events)).toEqual(["r+:Let me ", "r:think.", "t:Answer"]);
     expect(assistant).toMatchObject({ content: "Answer", reasoning: "Let me think." });
   });
 
@@ -130,24 +133,42 @@ describe("processChat reasoning", () => {
     ]);
 
     expect(trace(events)).toEqual([
-      "r:Plan A.",
+      "r+:Plan A.",
       "t:Looking it up.",
       "pre-tool-end",
       "tool",
       "tool",
-      "r:Got it.",
+      "r+:Got it.",
       "t:Final",
     ]);
     expect(assistant).toMatchObject({ content: "Final", reasoning: "Plan A.\n\nLooking it up.\n\nGot it." });
   });
 
-  it("separates thinking blocks within one call with a blank line", async () => {
+  it("marks each thinking block's first delta and stores blocks separated by a blank line", async () => {
     const { events, assistant } = await run([
       [...thinking("r1", "First."), ...thinking("r2", "Second."), ...text("t1", "Done"), finish("stop")],
     ]);
 
-    expect(trace(events)).toEqual(["r:First.", "r:\n\nSecond.", "t:Done"]);
+    expect(trace(events)).toEqual(["r+:First.", "r+:Second.", "t:Done"]);
     expect(assistant?.reasoning).toBe("First.\n\nSecond.");
+  });
+
+  it("stores interleaved thinking and pre-tool text in stream order", async () => {
+    const { events, assistant } = await run([
+      [...thinking("r1", "A."), ...text("t1", "Checking."), ...thinking("r2", "B."), toolCall("c1"), finish("tool-calls")],
+      [...text("t2", "Done"), finish("stop")],
+    ]);
+
+    expect(trace(events)).toEqual(["r+:A.", "t:Checking.", "r+:B.", "pre-tool-end", "tool", "t:Done"]);
+    expect(assistant).toMatchObject({ content: "Done", reasoning: "A.\n\nChecking.\n\nB." });
+  });
+
+  it("keeps final-call text as the response when thinking interleaves it", async () => {
+    const { assistant } = await run([
+      [...text("t1", "Intro. "), ...thinking("r1", "Hmm."), ...text("t2", "Answer"), finish("stop")],
+    ]);
+
+    expect(assistant).toMatchObject({ content: "Intro. Answer", reasoning: "Hmm." });
   });
 
   it("stores no reasoning and sends no reasoning events when the model doesn't think", async () => {
