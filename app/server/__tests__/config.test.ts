@@ -74,6 +74,18 @@ describe("parseBooleanEnv", () => {
   });
 });
 
+describe("context budget", () => {
+  it("defaults to 180000 input tokens and accepts YAML and environment overrides", () => {
+    expect(loadConfig({}, {}).llm.max_context_tokens).toBe(180000);
+    expect(loadConfig({}, { llm: { effort: "medium", max_context_tokens: 12345 } }).llm.max_context_tokens).toBe(12345);
+    expect(loadConfig({ LLM_MAX_CONTEXT_TOKENS: "54321" }, {}).llm.max_context_tokens).toBe(54321);
+  });
+
+  it.each(["0", "-1", "1.5", "12abc"])("rejects invalid LLM_MAX_CONTEXT_TOKENS=%s", (value) => {
+    expect(() => loadConfig({ LLM_MAX_CONTEXT_TOKENS: value }, {})).toThrow(/max_context_tokens/);
+  });
+});
+
 describe("embedding sync controls", () => {
   it("defaults to syncing with a two-minute attempt deadline", () => {
     const { embedding } = loadConfig({}, {});

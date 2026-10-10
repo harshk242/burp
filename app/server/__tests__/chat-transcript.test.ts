@@ -19,6 +19,8 @@ import { mcpManager } from "../mcp/manager";
 import { ALWAYS_LOADED_TOOLS } from "../mcp/platforms.config";
 import { toolRegistry } from "../mcp/registry";
 import type { StreamEvent } from "../orchestration/types";
+import { appConfig } from "../config";
+import { logger } from "../logger";
 
 type LanguageModelV4StreamPart =
   Awaited<ReturnType<MockLanguageModelV4["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never;
@@ -42,7 +44,7 @@ mock.module("../llm/provider", () => ({
 
 const { processChat } = await import("../orchestration/chat-v2");
 const { SYSTEM_PROMPT } = await import("../orchestration/context/system-prompt");
-const { contextVersion } = await import("../orchestration/context/transcript");
+const { contextVersion, loadTranscript } = await import("../orchestration/context/transcript");
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
@@ -114,6 +116,81 @@ afterEach(() => {
 afterAll(() => t.sqlite.close());
 
 describe("model transcript", () => {
+  it("replays complete successful messages as-is and carries the final input endpoint", async () => {
+    const sessionId = crypto.randomUUID();
+    model = scriptedModel([[toolCall("c1"), finish("tool-calls")], [...text("answer"), finish("stop")]]);
+    await collect(processChat(sessionId, USER_ID, "first"));
+    const original = stored(sessionId);
+    expect(loadTranscript(sessionId)).toMatchObject({ messages: original, previousLastIndex: 2 });
+    model = scriptedModel([[...text("followup"), finish("stop")]]);
+    const logs = spyOn(logger, "info");
+    await collect(processChat(sessionId, USER_ID, "second"));
+    const prompt = model.doStreamCalls[0]!.prompt;
+    expect(prompt.map((m) => m.role)).toEqual(["system", "user", "assistant", "tool", "assistant", "user"]);
+    expect(prompt[3]!.providerOptions?.anthropic?.cacheControl).toEqual({ type: "ephemeral", ttl: "5m" });
+    expect(JSON.stringify(prompt)).toContain("c1");
+    expect(JSON.stringify(prompt)).toContain(JSON.stringify(toolResultText(original[2]!)));
+    expect(logs.mock.calls.some(([, event, options]) => event === "first_call_cache_read" && options?.data?.first_call_cache_read === 0)).toBe(true);
+    expect(logs.mock.calls.some(([, event, options]) => event === "turn_started" && typeof options?.data?.turn_gap_seconds === "number")).toBe(true);
+  });
+
+  it("omits failed and aborted questions and their tool history on the next turn", async () => {
+    const sessionId = crypto.randomUUID();
+    model = scriptedModel([[toolCall("bad"), finish("tool-calls")]]);
+    await collect(processChat(sessionId, USER_ID, "failed question"));
+    await collect(processChat(sessionId, USER_ID, "aborted question", AbortSignal.abort()));
+    expect(turns(sessionId).map((turn) => turn.status)).toEqual(["error", "aborted"]);
+    expect(loadTranscript(sessionId).messages).toEqual([]);
+    model = scriptedModel([[...text("good"), finish("stop")]]);
+    await collect(processChat(sessionId, USER_ID, "successful question"));
+    expect(model.doStreamCalls[0]!.prompt.filter((m) => m.role !== "system")).toEqual([
+      expect.objectContaining({ role: "user", content: [{ type: "text", text: "successful question" }] }),
+    ]);
+  });
+
+  it("merges untracked legacy messages, ok text-only turns, and transcript turns deterministically", async () => {
+    const sessionId = crypto.randomUUID();
+    q.chatSessionQueries.create(sessionId, USER_ID, null);
+    q.messageQueries.create("legacy-user", sessionId, "user", "legacy question", null);
+    q.messageQueries.create("legacy-answer", sessionId, "assistant", "legacy answer", null);
+    q.messageQueries.create("text-user", sessionId, "user", "text question", null);
+    q.chatTurnQueries.start("text-turn", sessionId, "text-user");
+    q.messageQueries.create("text-answer", sessionId, "assistant", "text answer", null);
+    q.chatTurnQueries.finish("text-turn", { status: "ok", iterations: 1, assistantMessageId: "text-answer" });
+    model = scriptedModel([[toolCall("c1"), finish("tool-calls")], [...text("answer"), finish("stop")]]);
+    await collect(processChat(sessionId, USER_ID, "modern question"));
+    const expected: ModelMessage[] = [
+      { role: "user", content: "legacy question" }, { role: "assistant", content: "legacy answer" },
+      { role: "user", content: "text question" }, { role: "assistant", content: "text answer" },
+      ...stored(sessionId),
+    ];
+    expect(loadTranscript(sessionId).messages).toEqual(expected);
+    expect(loadTranscript(sessionId).messages).toEqual(expected);
+    expect(loadTranscript(sessionId).previousLastIndex).toBe(6);
+  });
+
+  it("refuses an oversized first request before sending and records context_budget", async () => {
+    const sessionId = crypto.randomUUID();
+    model = scriptedModel([[...text("unused"), finish("stop")]]);
+    const events = await collect(processChat(sessionId, USER_ID, "x".repeat(appConfig.llm.max_context_tokens * 4)));
+    expect(events).toContainEqual({ type: "error", data: { error: "this chat is too long, start a new chat", code: "context_budget" } });
+    expect(model.doStreamCalls).toHaveLength(0);
+    expect(turns(sessionId)[0]).toMatchObject({ status: "error", error_code: "context_budget" });
+    expect(loadTranscript(sessionId).messages).toEqual([]);
+    expect(t.sqlite.query("SELECT * FROM usage_events").all()).toHaveLength(0);
+  });
+
+  it("refuses growth beyond the budget on a later call using measured prompt tokens", async () => {
+    const sessionId = crypto.randomUUID();
+    const hugeUsage = { ...usage, inputTokens: { ...usage.inputTokens, total: appConfig.llm.max_context_tokens, noCache: appConfig.llm.max_context_tokens } };
+    model = scriptedModel([[toolCall("c1"), { ...finish("tool-calls"), usage: hugeUsage } as LanguageModelV4StreamPart]]);
+    const events = await collect(processChat(sessionId, USER_ID, "question"));
+    expect(events).toContainEqual({ type: "error", data: { error: "this chat is too long, start a new chat", code: "context_budget" } });
+    expect(model.doStreamCalls).toHaveLength(1);
+    expect(turns(sessionId)[0]).toMatchObject({ status: "error", error_code: "context_budget" });
+    expect(t.sqlite.query("SELECT status FROM usage_events").get()).toEqual({ status: "error" });
+  });
+
   it("appends user, tool-call, tool result and the final answer, tagged with the turn", async () => {
     model = scriptedModel([[toolCall("c1"), finish("tool-calls")], [...text("answer"), finish("stop")]]);
     const sessionId = crypto.randomUUID();
@@ -256,5 +333,26 @@ describe("model transcript on a real Anthropic stream", () => {
     expect(JSON.stringify(sentResult.content)).toContain(JSON.stringify(toolResultText(result!)));
     expect(request2.messages.flatMap((m) => m.content).find((c) => c.type === "thinking")?.signature).toBe("sig-123");
     for (const row of rows(sessionId)) expect(row.content_json).not.toMatch(/cacheControl|cache_control/);
+
+    // Two subsequent turns go through the production loop and real adapter.
+    // Their first requests retain every earlier signed/redacted block and the
+    // preceding final input's breakpoint, with at most three cache markers.
+    await collect(processChat(sessionId, USER_ID, "followup"));
+    await collect(processChat(sessionId, USER_ID, "third"));
+    expect(bodies).toHaveLength(4);
+    const removeMarkers = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, item) => key === "cache_control" ? undefined : item));
+    for (const i of [2, 3]) {
+      const previous = JSON.parse(bodies[i - 1]!);
+      const next = JSON.parse(bodies[i]!);
+      const priorMessages = removeMarkers(previous.messages) as { content: unknown[] }[];
+      const nextMessages = removeMarkers(next.messages) as { content: unknown[] }[];
+      // Anthropic merges adjacent tool/user messages into one user block.
+      for (let j = 0; j < priorMessages.length; j++) {
+        expect(nextMessages[j]).toMatchObject({ ...priorMessages[j], content: priorMessages[j]!.content });
+      }
+      expect((bodies[i]!.match(/"cache_control"/g) ?? []).length).toBeLessThanOrEqual(3);
+      expect(bodies[i]).toContain("sig-123");
+      expect(bodies[i]).toContain("redacted-xyz");
+    }
   });
 });

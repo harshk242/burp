@@ -141,8 +141,8 @@ describe("model_transcript is append-only", () => {
   };
   const tag = { provider: "anthropic", model: "m", contextVersion: "v" };
 
-  // An update in Drizzle (`.update(`/`.set(`) or SQL (`UPDATE model_transcript`).
-  const UPDATE_PATH = /\.update\(|\.set\(|UPDATE\s+[`"]?model_transcript/i;
+  // An update in Drizzle or SQL. Map.set in the replay loader isn't a DB write.
+  const UPDATE_PATH = /\.update\(|UPDATE\s+[`"]?model_transcript/i;
 
   it("has no update path in its queries", () => {
     expect(Object.keys(q.modelTranscriptQueries).sort()).toEqual(["append", "findBySessionId"]);

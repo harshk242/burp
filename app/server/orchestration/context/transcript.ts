@@ -1,8 +1,8 @@
 /**
  * Model transcript write path (plan Phase 4b.1): every `ModelMessage` the chat
  * loop sends is appended to `model_transcript` once, in send order, tagged with
- * its turn and a compatibility tag. Not replayed yet (history is still built
- * from the UI `messages` table); replay will `JSON.parse` the rows as they are.
+ * its turn and a compatibility tag. Replay parses successful turns as-is,
+ * falling back to UI text only for turns without transcript rows.
  *
  * Rules:
  * - R1, append-only: rows are inserted once and never updated (the queries
@@ -16,7 +16,7 @@
  */
 
 import type { ModelMessage } from "ai";
-import { modelTranscriptQueries, type NewTranscriptRow } from "../../db";
+import { chatTurnQueries, messageQueries, modelTranscriptQueries, type NewTranscriptRow } from "../../db";
 import { shortHash } from "../usage-meter";
 
 /** Compatibility tag stored on every row (4b.4): replay needs all three to match. */
@@ -127,4 +127,65 @@ export function appendTranscript(
     sessionId,
     messages.map((message) => toTranscriptRow(turnId, message, tag)),
   );
+}
+
+export interface TranscriptContext {
+  messages: ModelMessage[];
+  /** Endpoint of the preceding successful turn's final input, before its answer. */
+  previousLastIndex?: number;
+  previousFinishedAt?: number;
+}
+
+/**
+ * Successful transcript rows are parsed without modifying content or metadata.
+ * UI user rows anchor mixed history: untracked legacy messages use text, an ok
+ * tracked turn with no rows uses its UI text, and every non-ok turn is omitted.
+ * The stable UI row order and transcript seq order make the merge deterministic.
+ * Compatibility degradation is deliberately a separate future extension.
+ */
+export function loadTranscript(sessionId: string): TranscriptContext {
+  const history = messageQueries.findByChatId(sessionId);
+  const turns = chatTurnQueries.findBySessionId(sessionId);
+  const rows = modelTranscriptQueries.findBySessionId(sessionId);
+  const byUser = new Map(turns.map((turn) => [turn.user_message_id, turn]));
+  const byAssistant = new Map(turns.flatMap((turn) => turn.assistant_message_id ? [[turn.assistant_message_id, turn] as const] : []));
+  const byTurn = new Map<string, ModelMessage[]>();
+  const okIds = new Set(turns.filter((turn) => turn.status === "ok").map((turn) => turn.id));
+  for (const row of rows) {
+    if (!okIds.has(row.turn_id)) continue;
+    const message = JSON.parse(row.content_json) as ModelMessage;
+    // Server-written tool-change system messages are not implemented yet.
+    if (message.role === "system") throw new Error("Unsupported system message in model transcript");
+    const messages = byTurn.get(row.turn_id) ?? [];
+    messages.push(message);
+    byTurn.set(row.turn_id, messages);
+  }
+
+  const context: TranscriptContext = { messages: [] };
+  for (const msg of history) {
+    const turn = byUser.get(msg.id) ?? byAssistant.get(msg.id);
+    if (turn) {
+      if (turn.status !== "ok") continue;
+      const replay = byTurn.get(turn.id);
+      if (replay) {
+        if (msg.id !== turn.user_message_id) continue;
+        const offset = context.messages.length;
+        context.messages.push(...replay);
+        // All trailing assistant messages belong to the final response, which
+        // was not part of that call's input. The preceding message was cached.
+        let endpoint = replay.length - 1;
+        while (endpoint >= 0 && replay[endpoint]!.role === "assistant") endpoint--;
+        context.previousLastIndex = endpoint >= 0 ? offset + endpoint : undefined;
+        context.previousFinishedAt = turn.finished_at ?? undefined;
+        continue;
+      }
+      context.previousFinishedAt = turn.finished_at ?? undefined;
+      context.previousLastIndex = undefined;
+    }
+    if (msg.role === "user" || msg.role === "assistant") {
+      context.messages.push({ role: msg.role, content: msg.content || "" });
+      if (!turn) context.previousLastIndex = undefined;
+    }
+  }
+  return context;
 }

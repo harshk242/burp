@@ -5,7 +5,7 @@
  * large-output handling and the system prompt live in their own modules.
  */
 
-import { streamText, type ModelMessage, type ToolResultPart } from "ai";
+import { streamText, wrapLanguageModel, type ModelMessage, type ToolResultPart } from "ai";
 import { v4 as uuidv4 } from "uuid";
 import { chatProviderOptions, getChatModel, loadLLMConfig, sanitizeToolName } from "../llm";
 import {
@@ -21,7 +21,7 @@ import { logger, startTimer, type LogContext } from "../logger";
 import { getUtcDate, getUtcMonth } from "../usage";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
-import { appendTranscript, contextVersion, type TranscriptTag } from "./context/transcript";
+import { appendTranscript, contextVersion, loadTranscript, type TranscriptTag } from "./context/transcript";
 import { toolRegistry } from "../mcp/registry";
 import { buildToolCatalog, countDeferred } from "./context/tool-catalog";
 import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
@@ -53,27 +53,6 @@ const transcriptTag: TranscriptTag = {
   model: llmConfig.chatModel,
   contextVersion: contextVersion(SYSTEM_PROMPT, providerOptions),
 };
-
-interface DBMessage {
-  id: string;
-  chat_id: string;
-  role: string;
-  content: string | null;
-  tool_calls: string | null;
-  created_at: number;
-}
-
-function buildMessages(history: DBMessage[]): ModelMessage[] {
-  const messages: ModelMessage[] = [];
-  for (const msg of history) {
-    if (msg.role === "user") {
-      messages.push({ role: "user", content: msg.content || "" });
-    } else if (msg.role === "assistant") {
-      messages.push({ role: "assistant", content: msg.content || "" });
-    }
-  }
-  return messages;
-}
 
 // ── Main Chat Loop ─────────────────────────────────────────────────────────
 
@@ -117,7 +96,7 @@ export async function* processChat(
   // Every finished LLM call, priced on its own. Outside the try so a failed or
   // aborted turn can still see the calls that finished.
   const meter = new UsageMeter(llmConfig.provider, llmConfig.chatModel, ctx);
-  const tracker = new CallTracker();
+  const tracker = new CallTracker(llmConfig.maxContextTokens);
   // Set once the success path wrote its usage_events row.
   let ledgerWritten = false;
   // The turn's own signal: follows the caller's, and is aborted in `finally` so
@@ -155,14 +134,15 @@ export async function* processChat(
     }
 
     // History (read before this turn's user message is stored)
-    const history = messageQueries.findByChatId(sessionId) as DBMessage[];
-    const messages = buildMessages(history);
+    const history = loadTranscript(sessionId);
+    const messages = history.messages;
+    const turnGapSeconds = history.previousFinishedAt === undefined ? null : Math.max(0, Date.now() / 1000 - history.previousFinishedAt);
 
     // Store the user message with its turn (status running).
     const turn = startTurn(sessionId, userMessage);
     turnId = turn.turnId;
     ctx.turn_id = turnId;
-    logger.info("CHAT", "turn_started", { ctx, data: { turn_id: turnId } });
+    logger.info("CHAT", "turn_started", { ctx, data: { turn_id: turnId, turn_gap_seconds: turnGapSeconds } });
 
     // Adds messages to what the next call sends and to the transcript, so
     // what is stored is exactly what was sent.
@@ -204,8 +184,8 @@ export async function* processChat(
     // breakpoint; message breakpoints go on a per-call copy (cache-markers.ts).
     const caching = llmConfig.provider === "anthropic";
     const instructions = caching ? cachedInstructions(SYSTEM_PROMPT) : SYSTEM_PROMPT;
-    // Index of the previous call's last message in `messages`; unset on the first call.
-    let previousLastIndex: number | undefined;
+    // The previous successful turn's final input endpoint carries across turns.
+    let previousLastIndex = history.previousLastIndex;
 
     while (continueLoop) {
       turnSignal.throwIfAborted();
@@ -235,7 +215,16 @@ export async function* processChat(
       tracker.begin(loopIteration);
       const callLastIndex = messages.length - 1;
       const result = streamText({
-        model: getChatModel({ fetch: tracker.fetch }),
+        model: wrapLanguageModel({
+          model: getChatModel({ fetch: tracker.fetch }) as Parameters<typeof wrapLanguageModel>[0]["model"],
+          middleware: {
+            specificationVersion: "v4",
+            wrapStream: async ({ doStream }) => {
+              tracker.assertContextBudget();
+              return doStream();
+            },
+          },
+        }),
         instructions,
         messages: caching ? applyCacheMarkers(messages, previousLastIndex) : messages,
         tools: declarationTools,
@@ -281,7 +270,7 @@ export async function* processChat(
       // the tracker keeps it in flight and the turn records it as an estimate.
       // Checked before awaiting the results, which would reject with a generic
       // NoOutputGeneratedError when the call produced nothing.
-      if (streamError !== undefined) throw providerError(streamError);
+      if (streamError !== undefined) throw streamError instanceof TurnError ? streamError : providerError(streamError);
 
       // Await the promise-based properties
       const finishReason = await result.finishReason;
@@ -298,6 +287,12 @@ export async function* processChat(
         systemPrompt: SYSTEM_PROMPT,
       });
       tracker.finish(call);
+      if (loopIteration === 1) {
+        logger.info("CHAT", "first_call_cache_read", {
+          ctx,
+          data: { first_call_cache_read: call.cacheReadTokens, turn_gap_seconds: turnGapSeconds },
+        });
+      }
       // The SDK's response messages as returned: they keep provider metadata
       // (thinking signatures, redacted thinking, Gemini thought signatures)
       // the model requires on later calls. Tool results come from our own

@@ -165,6 +165,7 @@ const AppConfigSchema = z.object({
     max_retries: z.number().int().default(3),
     /** Thinking tokens count toward this limit (adaptive thinking on Anthropic). */
     max_output_tokens: z.number().int().positive().default(16000),
+    max_context_tokens: z.number().int().positive().default(180000),
     /** Anthropic adaptive thinking: "summarized" returns readable thinking text, "omitted" returns empty blocks. */
     thinking_display: z.enum(["omitted", "summarized", "updates"]).default("summarized"),
     /** Anthropic effort. Required: the API default (high on Sonnet 5.5) must never apply silently. */
@@ -260,6 +261,9 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   if (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL) cfg.llm.title_model = (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL)!;
   if (e.LLM_MAX_RETRIES) cfg.llm.max_retries = parseInt(e.LLM_MAX_RETRIES, 10);
   if (e.LLM_MAX_OUTPUT_TOKENS) cfg.llm.max_output_tokens = parseInt(e.LLM_MAX_OUTPUT_TOKENS, 10);
+  if (e.LLM_MAX_CONTEXT_TOKENS !== undefined) {
+    cfg.llm.max_context_tokens = AppConfigSchema.shape.llm.shape.max_context_tokens.parse(Number(e.LLM_MAX_CONTEXT_TOKENS), { path: ["llm", "max_context_tokens"] });
+  }
   if (e.LLM_MAX_TOOL_ITERATIONS) cfg.llm.max_tool_iterations = parseInt(e.LLM_MAX_TOOL_ITERATIONS, 10);
 
   // Usage / cost limits

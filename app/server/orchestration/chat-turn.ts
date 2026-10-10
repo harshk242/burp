@@ -13,6 +13,7 @@ import { logger, type LogContext } from "../logger";
 /** How a turn ended without succeeding (chat_turns.error_code, usage logs). */
 export type TurnErrorCode =
   | "provider_error" // the LLM call failed (API error, retries exhausted, error finish)
+  | "context_budget" // estimated input exceeds the configured context limit
   | "max_tool_iterations"
   | "refusal" // the model's safety classifier declined (stop_reason "refusal")
   | "no_tools_available"

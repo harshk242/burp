@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db, dailyUsageQueries, usageEventQueries } from "../db";
 import { estimateTokens, logger, type LogContext } from "../logger";
 import { getUtcDate, getUtcMonth, type CallCost, type CallUsage } from "../usage";
-import type { TurnErrorCode } from "./chat-turn";
+import { TurnError, type TurnErrorCode } from "./chat-turn";
 import type { UsageMeter } from "./usage-meter";
 
 interface CallInFlight {
@@ -86,6 +86,8 @@ export class CallTracker {
   private current: CallInFlight | null = null;
   private previous: PreviousCall | null = null;
 
+  constructor(private readonly maxContextTokens = Infinity) {}
+
   /** Call right before `streamText`. */
   begin(iteration: number): void {
     this.current = { iteration, sent: false, streamedChars: 0 };
@@ -109,6 +111,21 @@ export class CallTracker {
   readonly onRequest = (event: LanguageModelCallStartEvent): void => {
     if (this.current) this.current.request = event;
   };
+
+  /** SDK notification callbacks swallow errors; enforce at the model boundary. */
+  assertContextBudget(): void {
+    const request = this.current?.request;
+    if (request && this.estimateInputTokens(request) > this.maxContextTokens) {
+      throw new TurnError("context_budget", "this chat is too long, start a new chat");
+    }
+  }
+
+  /** Prepared input, including instructions and definitions actually loaded. */
+  estimateInputTokens(request: LanguageModelCallStartEvent): number {
+    return this.previous
+      ? this.previous.promptTokens + this.estimateGrowth(request, this.previous)
+      : estimateTokens(JSON.stringify({ instructions: request.instructions, messages: request.messages })) + estimateToolTokens(loadedTools(request));
+  }
 
   /** `streamText({ onChunk })`. */
   readonly onChunk = ({ chunk }: { chunk: TextStreamPart<ToolSet> }): void => {
@@ -157,10 +174,7 @@ export class CallTracker {
   estimateCutOffCall(cacheWrites = false): { iteration: number; usage: CallUsage } | null {
     const call = this.current;
     if (!call?.sent || !call.request) return null;
-    const { instructions, messages } = call.request;
-    const inputTokens = this.previous
-      ? this.previous.promptTokens + this.estimateGrowth(call.request, this.previous)
-      : estimateTokens(JSON.stringify({ instructions, messages })) + estimateToolTokens(loadedTools(call.request));
+    const inputTokens = this.estimateInputTokens(call.request);
     return {
       iteration: call.iteration,
       usage: {

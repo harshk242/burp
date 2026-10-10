@@ -7,8 +7,8 @@
  * - Messages: the current last message and the previous call's last message.
  *   Anthropic looks back only ~20 blocks from a breakpoint for an earlier cache
  *   entry; a large parallel tool batch goes past that, so marking the previous
- *   call's last message keeps its cache entry an exact hit. On a turn's first
- *   call there is no previous call, so only the last message is marked.
+ *   call's last message keeps its cache entry an exact hit. A turn's first
+ *   call carries the preceding successful turn's final input endpoint.
  *   Total: at most 3 of the 4 breakpoints the API allows.
  *
  * Markers go on a copy made just before each call: the loop's `messages` array
@@ -45,8 +45,8 @@ export function cachedInstructions(systemPrompt: string): SystemModelMessage {
 
 /**
  * A copy of `messages` with cache markers on the last message and on
- * `previousLastIndex` (the index of the previous call's last message in this
- * turn; omit it on the turn's first call). Only the marked messages are cloned
+ * `previousLastIndex` (the previous call's last message, including across
+ * turns). Only the marked messages are cloned
  * (shallowly); the input array and its messages are left untouched.
  */
 export function applyCacheMarkers(messages: readonly ModelMessage[], previousLastIndex?: number): ModelMessage[] {
