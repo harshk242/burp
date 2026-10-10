@@ -70,6 +70,7 @@ describe("readToolEmbeddings", () => {
     ["another model's file", { ...validDoc(), embedder: "google:gemini-embedding-001@3" }, "embedder_mismatch"],
     ["a wrong-length vector", { ...validDoc(), tools: [...validDoc().tools, { full_name: "x__y", text: "t", embedding: [1, 2] }] }, "bad_vector"],
     ["a non-numeric vector value", { ...validDoc(), tools: [{ full_name: "x__y", text: "t", embedding: [1, null, 3] }] }, "bad_vector"],
+    ["a value that overflows float32", { ...validDoc(), tools: [{ full_name: "x__y", text: "t", embedding: [1, 1e100, 3] }] }, "bad_vector"],
     ["a missing text", { ...validDoc(), tools: [{ full_name: "x__y", embedding: [1, 2, 3] }] }, "malformed_json"],
   ];
 
@@ -77,6 +78,15 @@ describe("readToolEmbeddings", () => {
     warnSpy = spyOn(logger, "warn");
     expect(await readToolEmbeddings(writeRaw(doc), ID)).toBeNull();
     expect(rejectReasons()).toEqual([reason]);
+  });
+
+  it("rejects a header size that contradicts the embedder's configured size", async () => {
+    warnSpy = spyOn(logger, "warn");
+    // Claims to be the @3 embedder, but holds self-consistent 2-dim vectors.
+    const doc = { ...validDoc(), dimension: 2, tools: [{ full_name: "a__b", text: "t", embedding: [1, 2] }] };
+    expect(await readToolEmbeddings(writeRaw(doc), ID, 3)).toBeNull();
+    expect(rejectReasons()).toEqual(["dimension_mismatch"]);
+    expect(warnSpy.mock.calls[0][2]?.data).toMatchObject({ found: 2, expected: 3 });
   });
 
   it("rejects a missing file", async () => {
@@ -102,6 +112,16 @@ describe("attachStoredEmbeddings", () => {
     expect(results.map((r) => r.fullName)).toEqual(["chembl__get_admet"]);
     expect(results[0].semanticRank).toBeUndefined();
     expect(queried).toBe(0);
+  });
+
+  it("uses the embedder's configured size when checking the file", async () => {
+    warnSpy = spyOn(logger, "warn");
+    const search = new HybridToolSearch(createQueries(createTestDb().db).toolSearchQueries);
+    const doc = { ...validDoc(), dimension: 2, tools: [{ full_name: "a__b", text: "t", embedding: [1, 2] }] };
+    const embedder = { id: ID, spec: { provider: "openai" as const, model: "text-embedding-3-small", dimensions: 3 }, embedQuery: async () => new Float32Array([1, 0, 0]) };
+    expect(await attachStoredEmbeddings(search, embedder, writeRaw(doc))).toBe(false);
+    expect(search.embeddingsLoaded).toBe(false);
+    expect(rejectReasons()).toEqual(["dimension_mismatch"]);
   });
 
   it("attaches vectors from a matching file", async () => {

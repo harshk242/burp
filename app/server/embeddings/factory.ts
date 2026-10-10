@@ -8,6 +8,7 @@ import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { embed, embedMany, type EmbeddingModel } from "ai";
 import { logger } from "../logger";
+import { withDeadline } from "./deadline";
 import {
   EmbeddingResponseError,
   EmbeddingTimeoutError,
@@ -85,7 +86,8 @@ export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {
     spec: frozenSpec,
 
     embedQuery(text, signal) {
-      return withDeadline(queryTimeoutMs, signal, async (abortSignal) => {
+      const timeoutError = () => new EmbeddingTimeoutError(`query embedding exceeded ${queryTimeoutMs}ms`);
+      return withDeadline(queryTimeoutMs, async (abortSignal) => {
         const { embedding } = await embed({
           model,
           value: text,
@@ -95,7 +97,7 @@ export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {
           maxRetries: 0, // a slow query falls back to keyword search instead of retrying
         });
         return validateVectors([embedding], 1, spec.dimensions)[0];
-      });
+      }, { signal, timeoutError });
     },
 
     async embedDocuments(texts, signal) {
@@ -134,35 +136,4 @@ function validateVectors(vectors: unknown[], count: number, dimensions?: number)
     }
     return new Float32Array(vector);
   });
-}
-
-/**
- * Run `fn` with a signal that aborts on the caller's signal or after `ms`.
- * The race also covers a transport that ignores aborts, so the deadline holds.
- */
-async function withDeadline<T>(
-  ms: number,
-  signal: AbortSignal | undefined,
-  fn: (signal: AbortSignal) => Promise<T>
-): Promise<T> {
-  const controller = new AbortController();
-  const onAbort = () => controller.abort(signal?.reason);
-  if (signal?.aborted) onAbort();
-  else signal?.addEventListener("abort", onAbort, { once: true });
-
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      const err = new EmbeddingTimeoutError(`query embedding exceeded ${ms}ms`);
-      controller.abort(err);
-      reject(err);
-    }, ms);
-  });
-
-  try {
-    return await Promise.race([fn(controller.signal), deadline]);
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener("abort", onAbort);
-  }
 }

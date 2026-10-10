@@ -5,7 +5,7 @@
 
 import { readToolEmbeddings, toVectorMap } from "../embeddings/index-file";
 import type { ToolEmbeddingSync } from "../embeddings/sync-queue";
-import type { QueryEmbedder } from "../embeddings/types";
+import type { Embedder, QueryEmbedder } from "../embeddings/types";
 import type { MCPTool, toolRegistry as ToolRegistryType } from "../mcp/registry";
 import type { HybridToolSearch, ToolInfo } from "./hybrid-search";
 
@@ -45,16 +45,17 @@ export function createSearchReindexer(
 }
 
 /**
- * Attach vectors from the index file if it was made by `embedder`. Returns
+ * Attach vectors from the index file if it was made by `embedder` (and has its
+ * configured size, when `spec` gives one). Returns
  * whether anything was attached; otherwise search stays keyword-only and the
  * reader has logged why.
  */
 export async function attachStoredEmbeddings(
   search: Pick<HybridToolSearch, "attachEmbeddings">,
-  embedder: QueryEmbedder,
+  embedder: QueryEmbedder & Partial<Pick<Embedder, "spec">>,
   indexPath: string
 ): Promise<boolean> {
-  const index = await readToolEmbeddings(indexPath, embedder.id);
+  const index = await readToolEmbeddings(indexPath, embedder.id, embedder.spec?.dimensions);
   if (!index || index.entries.length === 0) return false;
   search.attachEmbeddings(embedder, toVectorMap(index.entries));
   return true;

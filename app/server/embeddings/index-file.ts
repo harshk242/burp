@@ -5,8 +5,9 @@
  *   { version: 2, embedder, dimension, generated_at, tools: [{ full_name, text, embedding }] }
  *
  * A file that is missing, malformed, from an older version, from another
- * embedder, or holds any invalid vector is rejected as a whole, so vectors
- * from different models are never compared.
+ * embedder, with a size other than the embedder's, or holding any invalid
+ * vector is rejected as a whole, so vectors from different models are never
+ * compared.
  */
 
 import { randomUUID } from "crypto";
@@ -36,6 +37,7 @@ export type IndexRejectReason =
   | "malformed_json"
   | "version_mismatch"
   | "embedder_mismatch"
+  | "dimension_mismatch"
   | "bad_vector";
 
 export type IndexReadResult =
@@ -52,8 +54,15 @@ export function toVectorMap(entries: readonly ToolEmbeddingEntry[]): Map<string,
   return new Map(entries.map((e) => [e.fullName, e.vector]));
 }
 
-/** Read and validate the index without logging. Never throws. */
-export async function inspectToolEmbeddings(path: string, expectedEmbedder: string): Promise<IndexReadResult> {
+/**
+ * Read and validate the index without logging. Never throws.
+ * `expectedDimension` is the embedder's configured size, when it has one.
+ */
+export async function inspectToolEmbeddings(
+  path: string,
+  expectedEmbedder: string,
+  expectedDimension?: number
+): Promise<IndexReadResult> {
   let raw: string;
   try {
     raw = await readFile(path, "utf-8");
@@ -81,6 +90,9 @@ export async function inspectToolEmbeddings(path: string, expectedEmbedder: stri
   if (typeof dimension !== "number" || !Number.isInteger(dimension) || dimension <= 0) {
     return { ok: false, reason: "malformed_json", detail: { dimension: dimension ?? null } };
   }
+  if (expectedDimension !== undefined && dimension !== expectedDimension) {
+    return { ok: false, reason: "dimension_mismatch", detail: { found: dimension, expected: expectedDimension } };
+  }
 
   const entries: ToolEmbeddingEntry[] = [];
   for (const [i, tool] of doc.tools.entries()) {
@@ -104,18 +116,27 @@ export async function inspectToolEmbeddings(path: string, expectedEmbedder: stri
   };
 }
 
+/** The one warning logged when an index file is rejected. */
+export function logIndexRejected(path: string, result: Extract<IndexReadResult, { ok: false }>): void {
+  logger.warn("SEARCH", "embeddings_index_rejected", {
+    data: { path, reason: result.reason, ...result.detail },
+  });
+}
+
 /**
  * Read the index for `expectedEmbedder`, or null (with one warning naming the
  * reason) when the file can't be used. Nothing from a rejected file is returned.
  */
-export async function readToolEmbeddings(path: string, expectedEmbedder: string): Promise<ToolEmbeddingsIndex | null> {
+export async function readToolEmbeddings(
+  path: string,
+  expectedEmbedder: string,
+  expectedDimension?: number
+): Promise<ToolEmbeddingsIndex | null> {
   const elapsed = startTimer();
-  const result = await inspectToolEmbeddings(path, expectedEmbedder);
+  const result = await inspectToolEmbeddings(path, expectedEmbedder, expectedDimension);
 
   if (!result.ok) {
-    logger.warn("SEARCH", "embeddings_index_rejected", {
-      data: { path, reason: result.reason, ...result.detail },
-    });
+    logIndexRejected(path, result);
     return null;
   }
 

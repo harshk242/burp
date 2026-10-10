@@ -110,11 +110,13 @@ describe("syncToolEmbeddings", () => {
     expect(fake.batches).toEqual([[toolEmbeddingText(changed.fullName, changed.description)]]);
     expect(stats).toMatchObject({ kept: 2, embedded: 1, pruned: 0, wrote: true });
     expect(readIndex().tools.find((t) => t.full_name === "alpha__two")?.text).toContain("pagination");
-    // Kept vectors are served first, then the full set once written.
+    // Every stored vector (the stale one too) is served first, then the refreshed set once written.
     expect(attached.map((m) => [...m.keys()].sort())).toEqual([
-      ["alpha__one", "beta__one"],
+      ["alpha__one", "alpha__two", "beta__one"],
       ["alpha__one", "alpha__two", "beta__one"],
     ]);
+    expect(attached[0].get("alpha__two")).toEqual(vectorFor(toolEmbeddingText(A2.fullName, A2.description)));
+    expect(attached[1].get("alpha__two")).toEqual(vectorFor(toolEmbeddingText(changed.fullName, changed.description)));
   });
 
   it("model mismatch → re-embeds everything under the new identity", async () => {

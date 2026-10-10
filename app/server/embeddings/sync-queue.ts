@@ -10,10 +10,13 @@
  *   errors and invalid responses aren't retried. A newer request cancels a
  *   scheduled retry and takes over.
  * - Failures are logged, never thrown: whatever was attached stays attached.
+ * - A rejected index file (other than missing) gets one warning, not one per
+ *   retry: the same rejection isn't repeated until a sync replaces the file.
  */
 
 import { APICallError, RetryError } from "ai";
 import { logger, startTimer } from "../logger";
+import { logIndexRejected, type IndexReadResult } from "./index-file";
 import { syncToolEmbeddings, type SyncTool } from "./sync-index";
 import { EmbeddingResponseError, EmbeddingTimeoutError, type Embedder } from "./types";
 
@@ -69,6 +72,8 @@ export class ToolEmbeddingSync {
   private running: Promise<void> | null = null;
   private cancelRetry: (() => void) | null = null;
   private stopped = false;
+  /** The rejection last warned about; cleared once the file is valid or rewritten. */
+  private warnedRejection: string | null = null;
   private readonly retryDelaysMs: readonly number[];
   private readonly scheduler: Scheduler;
   private readonly random: () => number;
@@ -130,7 +135,9 @@ export class ToolEmbeddingSync {
         path,
         timeoutMs,
         onReady: (vectors) => onReady(embedder, vectors),
+        onIndexRejected: (rejection) => this.warnRejected(rejection),
       });
+      if (stats.index === "valid" || stats.wrote) this.warnedRejection = null;
       logger.info("SEARCH", "embeddings_sync_complete", {
         duration_ms: elapsed(),
         data: {
@@ -164,6 +171,13 @@ export class ToolEmbeddingSync {
       });
       if (nextRetryMs !== undefined) this.scheduleRetry({ tools: job.tools, attempt: job.attempt + 1 }, nextRetryMs);
     }
+  }
+
+  private warnRejected(rejection: Extract<IndexReadResult, { ok: false }>): void {
+    const key = JSON.stringify([rejection.reason, rejection.detail]);
+    if (key === this.warnedRejection) return;
+    this.warnedRejection = key;
+    logIndexRejected(this.options.path, rejection);
   }
 
   private scheduleRetry(job: Job, ms: number): void {

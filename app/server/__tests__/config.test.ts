@@ -87,6 +87,11 @@ describe("embedding sync controls", () => {
     expect(() => loadConfig({ EMBEDDING_SYNC_ON_BOOT: "maybe" }, {})).toThrow(/EMBEDDING_SYNC_ON_BOOT/);
   });
 
+  it("rejects an empty EMBEDDING_SYNC_ON_BOOT instead of silently keeping the default", () => {
+    expect(() => loadConfig({ EMBEDDING_SYNC_ON_BOOT: "" }, {})).toThrow(/EMBEDDING_SYNC_ON_BOOT/);
+    expect(() => loadConfig({ EMBEDDING_SYNC_ON_BOOT: "" }, { embedding: { sync_on_boot: false } })).toThrow(/EMBEDDING_SYNC_ON_BOOT/);
+  });
+
   it("validates EMBEDDING_SYNC_TIMEOUT_MS", () => {
     expect(loadConfig({ EMBEDDING_SYNC_TIMEOUT_MS: "5000" }, {}).embedding.sync_timeout_ms).toBe(5000);
     expect(() => loadConfig({ EMBEDDING_SYNC_TIMEOUT_MS: "-1" }, {})).toThrow(/sync_timeout_ms/);

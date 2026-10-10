@@ -76,7 +76,8 @@ export class MCPManager {
   private retryIntervalId: ReturnType<typeof setInterval> | null = null;
 
   /**
-   * Called after a failed server recovers and its tools are re-registered.
+   * Called when the set of available tools changes: a server goes down (its
+   * tools become unavailable) or recovers (its tools are re-registered).
    * Set by the server entry point so this module stays free of search code.
    */
   onToolsChanged: (() => void) | null = null;
@@ -184,8 +185,9 @@ export class MCPManager {
     const server = this.servers.get(name);
     if (!server) return;
 
-    // Unified server: mark all platforms unavailable
-    toolRegistry.setAllAvailability(false);
+    // Unified server: mark all platforms unavailable. Only the first failure
+    // changes anything; repeated failed retries don't re-notify.
+    if (toolRegistry.setAllAvailability(false)) this.notifyToolsChanged(name);
 
     const delay = Math.min(
       INITIAL_RETRY_DELAY_MS * Math.pow(RETRY_BACKOFF_MULTIPLIER, server.retryCount),
@@ -200,9 +202,7 @@ export class MCPManager {
     });
   }
 
-  /**
-   * Stop an MCP server
-   */
+  /** Stop an MCP server */
   async stop(name: string): Promise<void> {
     const server = this.servers.get(name);
     if (!server) return;
@@ -280,9 +280,7 @@ export class MCPManager {
     logger.info("MCP", "all_servers_stopped");
   }
 
-  /**
-   * Start background retry loop for failed servers
-   */
+  /** Start background retry loop for failed servers */
   private startRetryLoop(): void {
     if (this.retryIntervalId) return;
 
@@ -313,17 +311,20 @@ export class MCPManager {
         continue;
       }
 
-      try {
-        this.onToolsChanged?.();
-      } catch (error) {
-        logger.error("MCP", "tools_changed_callback_failed", { data: { server: name }, error: error instanceof Error ? error : String(error) });
-      }
+      this.notifyToolsChanged(name);
     }
   }
 
-  /**
-   * Stop the background retry loop
-   */
+  /** Fire onToolsChanged; a failing callback is logged, never thrown. */
+  private notifyToolsChanged(server: string): void {
+    try {
+      this.onToolsChanged?.();
+    } catch (error) {
+      logger.error("MCP", "tools_changed_callback_failed", { data: { server }, error: error instanceof Error ? error : String(error) });
+    }
+  }
+
+  /** Stop the background retry loop */
   private stopRetryLoop(): void {
     if (this.retryIntervalId) {
       clearInterval(this.retryIntervalId);
@@ -468,16 +469,12 @@ export class MCPManager {
     };
   }
 
-  /**
-   * Get server status
-   */
+  /** Get server status */
   getStatus(name: string): MCPServer | undefined {
     return this.servers.get(name);
   }
 
-  /**
-   * Get all server statuses
-   */
+  /** Get all server statuses */
   getAllStatuses(): Record<string, { status: ServerStatus; error?: string }> {
     const statuses: Record<string, { status: ServerStatus; error?: string }> = {};
     for (const [name, server] of this.servers) {
@@ -486,18 +483,14 @@ export class MCPManager {
     return statuses;
   }
 
-  /**
-   * Get list of running servers
-   */
+  /** Get list of running servers */
   getRunningServers(): string[] {
     return Array.from(this.servers.entries())
       .filter(([_, server]) => server.status === "running")
       .map(([name]) => name);
   }
 
-  /**
-   * Check if a server is available
-   */
+  /** Check if a server is available */
   isServerAvailable(_name: string): boolean {
     const server = this.servers.get("unified");
     return server?.status === "running" && server.client !== null;

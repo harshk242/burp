@@ -2,6 +2,7 @@ export { createEmbedder, DEFAULT_QUERY_TIMEOUT_MS, type EmbedderOptions } from "
 export {
   INDEX_FILE_VERSION,
   inspectToolEmbeddings,
+  logIndexRejected,
   readToolEmbeddings,
   toolEmbeddingText,
   toVectorMap,

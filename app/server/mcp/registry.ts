@@ -96,13 +96,18 @@ class ToolRegistry {
   }
 
   /**
-   * Update availability for ALL tools (used when the unified server goes down/up)
+   * Update availability for ALL tools (used when the unified server goes down/up).
+   * Returns whether any tool's availability actually changed.
    */
-  setAllAvailability(available: boolean): void {
+  setAllAvailability(available: boolean): boolean {
+    let changed = false;
     for (const [key, tool] of this.tools) {
+      if (tool.available === available) continue;
       this.tools.set(key, { ...tool, available });
+      changed = true;
     }
-    logger.info("REGISTRY", "all_availability_changed", { data: { available } });
+    if (changed) logger.info("REGISTRY", "all_availability_changed", { data: { available } });
+    return changed;
   }
 
   /**

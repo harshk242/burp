@@ -145,6 +145,13 @@ describe("response validation", () => {
     await expect(embedder.embedQuery("q")).rejects.toThrow();
   });
 
+  it("rejects values that overflow float32 (1e100 → Infinity)", async () => {
+    const fetch = openaiFetch([0.1, 1e100, 0.3]).fetch;
+    const embedder = createEmbedder(OPENAI, { env, fetch })!;
+    await expect(embedder.embedQuery("q")).rejects.toBeInstanceOf(EmbeddingResponseError);
+    await expect(embedder.embedDocuments(["a"])).rejects.toBeInstanceOf(EmbeddingResponseError);
+  });
+
   it("rejects a document batch with inconsistent lengths when no size is configured", async () => {
     const spec: EmbeddingSpec = { provider: "openai", model: "text-embedding-3-small" };
     const fetch = openaiFetch((i) => (i === 0 ? [1, 2, 3] : [1, 2])).fetch;
@@ -167,6 +174,23 @@ describe("query deadline", () => {
     await expect(embedder.embedQuery("q")).rejects.toBeInstanceOf(EmbeddingTimeoutError);
     expect(performance.now() - started).toBeLessThan(1000);
     expect(calls).toBe(1);
+  });
+
+  it("aborts the request when the caller's signal aborts", async () => {
+    let signal: AbortSignal | undefined;
+    const fetch = ((_url: unknown, init?: RequestInit) => {
+      signal = init!.signal!;
+      return new Promise((_, reject) => signal!.addEventListener("abort", () => reject(signal!.reason)));
+    }) as unknown as typeof globalThis.fetch;
+    const embedder = createEmbedder(OPENAI, { env: { OPENAI_API_KEY: "sk" }, fetch, queryTimeoutMs: 10_000 })!;
+    const caller = new AbortController();
+
+    const query = embedder.embedQuery("q", caller.signal);
+    while (!signal) await Bun.sleep(0);
+    caller.abort(new Error("user went away"));
+
+    await expect(query).rejects.toThrow("user went away");
+    expect(signal.aborted).toBe(true);
   });
 
   it("holds even when the transport ignores the abort signal", async () => {

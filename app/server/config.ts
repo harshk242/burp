@@ -172,7 +172,8 @@ function applyEmbeddingEnv(cfg: AppConfig, e: Env): void {
     emb.dimensions = e.EMBEDDING_DIMENSIONS === "native" ? undefined : Number(e.EMBEDDING_DIMENSIONS);
   }
   if (e.EMBEDDING_QUERY_TIMEOUT_MS) emb.query_timeout_ms = Number(e.EMBEDDING_QUERY_TIMEOUT_MS);
-  if (e.EMBEDDING_SYNC_ON_BOOT) emb.sync_on_boot = parseBooleanEnv("EMBEDDING_SYNC_ON_BOOT", e.EMBEDDING_SYNC_ON_BOOT);
+  // Any set value is parsed, so an empty one fails instead of silently keeping the default.
+  if (e.EMBEDDING_SYNC_ON_BOOT !== undefined) emb.sync_on_boot = parseBooleanEnv("EMBEDDING_SYNC_ON_BOOT", e.EMBEDDING_SYNC_ON_BOOT);
   if (e.EMBEDDING_SYNC_TIMEOUT_MS) emb.sync_timeout_ms = Number(e.EMBEDDING_SYNC_TIMEOUT_MS);
 
   // Validate again after overrides so a bad provider or size fails at startup.

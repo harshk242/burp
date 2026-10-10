@@ -393,10 +393,12 @@ User                  Frontend            Hono Server           Orchestration   
                               └─────────────────────────────┘
 
   Embedding index sync (embeddings/sync-queue.ts + sync-index.ts): at boot and
-  on every tool-set change (MCPManager.onToolsChanged after a recovery), the
-  same snapshot that was indexed for BM25 is synced in the background:
-  - keep entries made by the current embedder whose stored text still matches;
-    embed only new/changed tools (everything after a model switch);
+  on every tool-set change (MCPManager.onToolsChanged when the server goes
+  down — its tools leave search — or recovers), the same snapshot that was
+  indexed for BM25 is synced in the background:
+  - keep entries made by the current embedder (at its configured size) whose
+    stored text still matches; embed only new/changed tools (everything after
+    a model switch), serving their stored vectors until the new ones land;
   - per platform: prune removed tools of discovered platforms, carry over
     platforms with no tools this run (server down) — never from another model;
   - nothing changed → no API call, no write; otherwise atomic write, then
@@ -405,7 +407,8 @@ User                  Frontend            Hono Server           Orchestration   
     waiting one); transient errors retry at ~1/5/15 min ±20%, auth/config and
     invalid responses don't; failures keep what's attached (or BM25-only).
   Controls: embedding.sync_on_boot (EMBEDDING_SYNC_ON_BOOT), sync_timeout_ms.
-  No key → no sync. Logs: embeddings_sync_complete / embeddings_sync_failed.
+  No key → no sync. Logs: embeddings_sync_complete / embeddings_sync_failed,
+  plus one embeddings_index_rejected warning when an existing file is unusable.
 
 
                          RUNTIME TOOL LOADING

@@ -41,13 +41,17 @@ export function embedderId(spec: EmbeddingSpec): string {
   return `${spec.provider}:${spec.model}@${spec.dimensions ?? "native"}`;
 }
 
-/** True when `values` has exactly `dimension` entries and all are finite numbers. */
+/**
+ * True when `values` has exactly `dimension` entries and all stay finite as
+ * float32, the type vectors are stored in (1e100 is a finite number but
+ * becomes Infinity in a Float32Array).
+ */
 export function isValidVector(values: unknown, dimension: number): values is ArrayLike<number> {
   if (!Array.isArray(values) && !(values instanceof Float32Array)) return false;
   if (values.length !== dimension) return false;
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
-    if (typeof v !== "number" || !Number.isFinite(v)) return false;
+    if (typeof v !== "number" || !Number.isFinite(Math.fround(v))) return false;
   }
   return true;
 }
