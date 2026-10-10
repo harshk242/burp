@@ -1,6 +1,6 @@
 # Context Assembly + Prompt Caching Plan
 
-**Status:** Phases 1–3 done (validated 2026-10-10); 4a done (2026-10-10, #27 + #28) · **Date:** 2026-10-09 · **Scope:** Anthropic chat loop (`app/server/orchestration/chat-v2.ts`)
+**Status:** Phases 1–3 done (validated 2026-10-10); 4a done (2026-10-10, #27 + #28); 4b.6 gate passed (2026-10-10, #32) · **Date:** 2026-10-09 · **Scope:** Anthropic chat loop (`app/server/orchestration/chat-v2.ts`)
 
 ## Goal
 
@@ -503,6 +503,36 @@ Stored messages depend on the provider: sanitized tool names, Gemini thought sig
 5. Abort mid-stream (Phase 2.4 wiring): the request is cancelled and no further iterations run.
 6. **Degraded replay after thinking.** Turn 1 runs with thinking + tool calls; turn 2 replays turn 1 as degraded text (4b.4, no thinking blocks) and adds a new user message. Check: 200, no preserved-thinking error. Degraded replay is the safety net for every compatibility mismatch, so if this returns a 400, 4b.4 must be redesigned before building (e.g. a degraded turn starts a fresh context: replay only the non-degraded suffix and summarize the rest).
 
+**Status/Results (2026-10-10, #32): gate passes; 4b.4 stands as designed (no redesign).** The degraded replay (#6) returns 200 in all three shapes tried, and so do checks 1 and 3. The request prefix is byte-identical across turns (#4), redacted thinking survives the round-trip (#2, offline; live trigger had no effect), and abort stops the turn (#5).
+- Setup: the Phase 0 script gained a `4b` check (`experiments/phase4b-checks.ts` + `phase4b-redacted.ts`; shared verdict/hash helpers moved to `experiments/gate-lib.ts`; all gitignored). Run as `cd app && LOG_LEVEL=ERROR bun ../experiments/phase0-gate.ts 4b` (`all` runs it last). Unlike checks 1–5 it uses the app's own chat path: `getChatModel({ fetch })` with a logging fetch (exact request bytes, status, abort signal), `buildToolCatalog` + `toDeclarations` (202 tools, 191 deferred, own nonce), `cachedInstructions(SYSTEM_PROMPT)`, `applyCacheMarkers` with 4b.3's cross-turn "previous last" marker, and `chatProviderOptions` (adaptive, `display: summarized`). A small turn loop mirrors `chat-v2.ts` (push every response message including the final one, then the tool results) and stubs tool outputs; search returns the app's references-only shape. Storage is a `bun:sqlite` in-memory `model_transcript` table (one row per `ModelMessage`, `JSON.stringify` in, `JSON.parse` out, `ORDER BY seq`). Model `claude-sonnet-5-5`, `ai` 7.0.137, `@ai-sdk/anthropic` 4.0.78, app `ANTHROPIC_API_KEY`.
+- **Effort `high`, and each tool turn opens with a small puzzle.** At effort `high` a plain lookup question (search → tool → answer) got **0 thinking tokens on every call** in the first run, so there was nothing to round-trip. Adding a "work this out first" puzzle to each question made the model think on the turn's first call (85–88 thinking tokens on T1 call 1, 255–303 on T2 call 1); later calls in the turn still didn't think. This confirms 4a.4: at the shipped `medium` most turns carry no thinking blocks at all.
+- Numbers are from the last clean `4b` run (exit 0, 25 verdicts, 3 warnings, all expected). A full `all` run right before it (exit 0, 45 verdicts) gave the same results within a few tokens.
+- **Check 1: passes.** T1 = 3 calls (search → `chembl__get_mechanism_of_action` → answer), 6 messages, 1 signed reasoning part. The JSON → SQLite → parse round-trip is exact (sha256 of the message array identical, 6 rows). T2 replays the parsed rows plus a new question, and its first call's body carries T1's thinking block with its signature:
+
+  | Call | HTTP | `inputTokens` | `noCache` | `cacheRead` | `cacheWrite` | thinking tokens |
+  |---|---|---|---|---|---|---|
+  | T1 call 1 (cold) | 200 | 4,831 | 4 | 0 | 4,827 | 88 |
+  | T1 call 2 | 200 | 5,507 | 2 | 4,827 | 678 | 0 |
+  | T1 call 3 (final) | 200 | 5,696 | 2 | 5,505 | 189 | 0 |
+  | **T2 call 1 (replayed T1)** | **200** | 5,969 | 4 | **5,694** | 271 | 303 |
+  | T2 call 2 | 200 | 6,445 | 2 | 5,965 | 478 | 0 |
+
+  T2 call 1 reads all of T1 call 3's cached prompt (5,694 = 5,505 + 189), i.e. `inputTokens` − 2, the same 2-token gap seen within turns in Phase 3. No preserved-thinking error on either T2 call.
+- **Check 2: passes via the provider code path; the live trigger had no effect.** The documented trigger string (`ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_…`) got a normal summarized thinking block (1 reasoning part, 0 redacted) from `claude-sonnet-5-5`, so no live redacted block was available (warn). Offline, through `getChatModel` with a stub fetch: a canned SSE stream with a `redacted_thinking` block becomes a reasoning part with `providerOptions.anthropic.redactedData` in `response.messages`; after `JSON.stringify`/`parse` and replay, the request body has one `redacted_thinking` block with the same `data` (`convert-to-anthropic-prompt`, `index.js:2657` (4.0.78)). No transformation is needed at save or load.
+- **Check 3: passes.** T1's rows up to its last tool result, then a new user message: 200 (`cacheRead` 5,694). The provider merges them into one user message `[tool_result, text]`.
+- **Check 4: passes.** Turn N's last request vs turn N+1's first: sha256 of `tools` and of `system` are identical, and the first 5 messages (all of T1's last request) are identical once `cache_control` is removed. With `cache_control` included they differ only at message 2, where T1 call 3 had its "previous last" breakpoint and T2 doesn't (warn, expected: moving breakpoints doesn't change the cached content).
+- **Check 5: passes.** Aborting on the first streamed part (about 3 s into call 1): the request's `signal.aborted` is true, the loop exits 3–5 ms later (2 parts were already buffered), only 1 request was made, and none in the 2 s after. `processChat`'s own abort wiring is covered offline by `chat-abort.test.ts` (Phase 2.4).
+- **Check 6: passes, with no 400 in any degraded shape.** All three replay variants plus a new user question:
+
+  | Variant | HTTP | `cacheRead` | Notes |
+  |---|---|---|---|
+  | 6a: T1 as degraded text (after thinking + tool calls) | **200** | 4,827 | prefix hit stops at tools + system, as 4b.4 expects |
+  | 6b: T1 degraded + T2 lossless (T2's signed thinking was made with lossless T1 in front) | **200** | 4,827 | the realistic case: an older turn degrades, later ones stay lossless |
+  | 6c: T1 lossless + T2 degraded | **200** | 5,965 | |
+
+  Controls, to show what the API enforces on this account: **editing a signature → 400** ("messages.1.content.0: Invalid `signature` in `thinking` block"); **editing the summarized thinking text (signature kept) → 200 with the full cache hit** (`cacheRead` 5,694); **removing T1's thinking parts → 200** (`cacheRead` 4,827). So signatures are verified, the summarized text is not what's validated, and dropping a thinking block isn't rejected. No "edited history" rule fired on this API key. Caveat: 4a.1 says that rule applies to accounts created on or after 2026-08-31; the controls show it doesn't apply to the app's current key. If the key moves to a newer account, re-run `phase0-gate.ts 4b`: 6a–6c are `required` and fail the gate on a 400.
+- **For the build (#33, #34):** store `response.messages` exactly as returned; the reasoning part's `providerOptions.anthropic.signature` / `redactedData` is what the API checks. The summarized `text` is just the display copy, but rule R1 (never rewrite) still applies. The "previous last" breakpoint of 4b.3 works across turns as specified (check 1). Every turn's final assistant message must be appended (T2's cache hit depends on T1's final message being in the replayed prefix).
+
 #### 4b.7 Concurrency
 
 Two tabs sending to the same session would interleave `seq`. `UNIQUE (session_id, seq)` turns that into an error instead of a corrupted transcript. Add a per-session in-process lock in `processChat`; a second concurrent request gets a "a reply is already in progress" error. One process today, so an in-process lock is enough.
@@ -570,7 +600,7 @@ Replaces Phase 4b.5's hard refusal once sessions regularly reach the budget.
 ## Risks
 
 - ~~`tool_reference` round-trip untested live~~ → tested live on 2026-10-09. The originally specified mixed text + `tool_reference` result (#17) returns 400; the revised references-only result passes, as do checks 1, 3, 4 and 5, so the gate passes on the revised design and `tool_addition` isn't needed. Remaining risk: the "no mixed content" rule could be extended to other shapes (e.g. a references-only result next to a text result in a parallel batch, which passes today, check 4b). A unit test pins the references-only shape (Phase 3), and the gate script re-checks it live (exit 1 on any failure).
-- Degraded replay may count as an edited history under the preserved-thinking rule → Phase 4b.6 #6 is the gate for 4b.4.
+- ~~Degraded replay may count as an edited history under the preserved-thinking rule~~ → tested live on 2026-10-10 (4b.6 #6): degraded text replay returns 200 in all three shapes, so 4b.4 stands. Edited signatures do 400; removed thinking and edited summary text don't. Remaining risk: a key on an account created on or after 2026-08-31 may enforce the edited-history rule; the gate re-checks it (`phase0-gate.ts 4b`, exit 1 on a 400).
 - ~~Up to `top_k` (currently 5) full tool schemas load per search; measure their token cost in Phase 3.~~ → measured 2026-10-10: about 690 tokens per search (125–181 per tool), cached after the first write (Phase 3 results).
 - Two code paths (Anthropic vs Gemini) inside the catalog; keep the split in `tool-catalog.ts` only.
 - The uncommitted `cache_diag` block belongs to the validation session; Phase 2 replaces it.
