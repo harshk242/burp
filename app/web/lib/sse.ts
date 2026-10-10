@@ -190,6 +190,13 @@ function handleSSEEvent(
       break;
     }
 
+    case "reasoning": {
+      // Thinking deltas (summarized on Anthropic); rendered by the ReasoningBlock.
+      const { text } = data as { text?: string };
+      if (typeof text === "string") store.appendReasoning(text);
+      break;
+    }
+
     case "done":
       store.finalizeAssistantMessage();
       break;

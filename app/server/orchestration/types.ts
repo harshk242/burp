@@ -3,7 +3,7 @@
  */
 
 export interface StreamEvent {
-  type: "start" | "text" | "tool_start" | "tool_end" | "text_block_end" | "done" | "usage" | "error";
+  type: "start" | "text" | "tool_start" | "tool_end" | "text_block_end" | "reasoning" | "done" | "usage" | "error";
   data: unknown;
 }
 

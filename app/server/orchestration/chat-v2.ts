@@ -140,7 +140,7 @@ export async function* processChat(
     let continueLoop = true;
     let fullAssistantContent = "";
     let persistedAssistantText = ""; // final response text only (last iteration)
-    let reasoningText = "";           // pre-tool-call reasoning text (all non-final iterations)
+    let reasoningText = "";           // thinking (all iterations) + pre-tool-call text (non-final iterations)
     const allToolCalls: ToolCallRecord[] = [];
     let loopIteration = 0;
     // Prompt caching (Anthropic only): instructions carry the tools + system
@@ -172,8 +172,8 @@ export async function* processChat(
       // SSE events, search activation, and output compression.
       const declarationTools = toDeclarations(activeTools);
 
-      // A provider error part does not make textStream throw: the SDK hands it
-      // to onError and finishes the step with finishReason "error".
+      // A provider error part does not make the stream throw: the SDK emits an
+      // error part, hands it to onError and finishes the step with finishReason "error".
       let streamError: unknown;
       tracker.begin(loopIteration);
       const callLastIndex = messages.length - 1;
@@ -193,10 +193,25 @@ export async function* processChat(
         },
       });
 
-      // Stream text chunks
-      for await (const chunk of result.textStream) {
-        fullAssistantContent += chunk;
-        yield { type: "text", data: chunk };
+      // Stream text and thinking. Thinking (summarized on Anthropic) is sent as
+      // `reasoning` events; separate thinking blocks in one call get a blank line.
+      let callReasoning = "";
+      let newReasoningBlock = false;
+      for await (const part of result.stream) {
+        if (part.type === "text-delta") {
+          fullAssistantContent += part.text;
+          yield { type: "text", data: part.text };
+        } else if (part.type === "reasoning-start") {
+          newReasoningBlock = callReasoning !== "";
+        } else if (part.type === "reasoning-delta" && part.text) {
+          const chunk = (newReasoningBlock ? "\n\n" : "") + part.text;
+          newReasoningBlock = false;
+          callReasoning += chunk;
+          // An object, so the client's JSON.parse never turns a chunk like "42" into a number.
+          yield { type: "reasoning", data: { text: chunk } };
+        } else if (part.type === "error") {
+          streamError ??= part.error;
+        }
       }
       // An abort can end the text stream without an error; stop before
       // reading the step's results.
@@ -223,6 +238,8 @@ export async function* processChat(
       });
       tracker.finish(call);
       previousLastIndex = callLastIndex;
+      // Thinking comes before this call's text, in the stored reasoning too.
+      if (callReasoning) reasoningText += (reasoningText ? "\n\n" : "") + callReasoning;
 
       if (finishReason === "tool-calls" && toolCalls && toolCalls.length > 0) {
         // This iteration's text is reasoning (pre-tool-call).

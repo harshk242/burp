@@ -1,6 +1,6 @@
 # Context Assembly + Prompt Caching Plan
 
-**Status:** Phases 1–3 done (validated 2026-10-10); 4a.1/4a.2/4a.4 done (2026-10-10, #27), 4a.3 next · **Date:** 2026-10-09 · **Scope:** Anthropic chat loop (`app/server/orchestration/chat-v2.ts`)
+**Status:** Phases 1–3 done (validated 2026-10-10); 4a done (2026-10-10, #27 + #28) · **Date:** 2026-10-09 · **Scope:** Anthropic chat loop (`app/server/orchestration/chat-v2.ts`)
 
 ## Goal
 
@@ -396,12 +396,18 @@ Decisions agreed 2026-10-09 (session brainstorm). Phase 4 ships as three separat
 - Stream reasoning deltas from `result.stream` (`reasoning-delta` parts) as a new SSE event (`reasoning`), appended to `reasoningSegments` in `chatStore.ts`. `ReasoningBlock` renders them unchanged.
 - The current "pre-tool text becomes reasoning" path (`text_block_end { isReasoning: true }`) keeps working for any visible text before tool calls.
 - Persistence: the summarized thinking text is appended to `messages.reasoning`, so reloaded chats show it in the same block. Once 4b lands, the transcript keeps the full parts with signatures.
+- **Status/Results (2026-10-10, #28): done.**
+  - Server (`chat-v2.ts`): the loop reads `result.stream` instead of `textStream`. `text-delta` → `text` (unchanged), non-empty `reasoning-delta` → `reasoning` event with `data: { text }` (an object, so the client's `JSON.parse` can't turn a chunk like `"42"` into a number); a second thinking block in the same call is prefixed with a blank line; `error` parts feed the same `streamError` as `onError`. Usage metering (`onChunk`, `CallTracker`, `finalStep`) and tool-call handling are unchanged. Gemini isn't sent `includeThoughts`, so it emits no reasoning parts; if it ever does, they take the same path.
+  - Stored reasoning, in stream order: each call's thinking, then (tool-call iterations only) its pre-tool text, joined with blank lines. A turn with no thinking and no pre-tool text still stores `NULL`.
+  - Web: `chatStore.appendReasoning` extends the open thinking segment, or starts a new one after text, `text_block_end` or a tool call closed it (`reasoningOpen`); `sse.ts` handles `reasoning`; `ReasoningBlock` is unchanged and hides itself when empty. `finalizeAssistantMessage` also keeps a message that has only reasoning.
+  - Tests: `app/server/__tests__/chat-reasoning.test.ts` (events from deltas, empty deltas skipped, pre-tool path intact with stored order `thinking → pre-tool text → thinking`, blank line between blocks, `NULL` when the model doesn't think, usage still metered); `app/web/stores/__tests__/chatStore.test.ts` (segment building and finalize).
+  - Live (backend on :3101, dev-agent token, effort `medium`, one turn with 3 tool calls): 31 `reasoning` events (420 chars), and `GET /api/sessions/:id` returned them in the assistant message's `reasoning`. Calls in the same turn are joined with a blank line, and the summaries already end in one, so stored text has runs of 4 newlines; Markdown collapses them. The browser UI wasn't driven live (Clerk sign-in); the store and SSE handler are covered by the tests above.
 
 #### 4a.4 Gate and open items
 
 - Gate (Phase 0 script): `display: "summarized"` with `@ai-sdk/anthropic` 4.x returns non-empty reasoning deltas.
 - The `messages.reasoning` column will now mix two things (summarized thinking + pre-tool text). Fine for display; revisit if tracing needs them separate.
-- **Status/Results (2026-10-10, #27): 4a.1, 4a.2 and 4a.4 done; gate passes. 4a.3 (UI + persistence) is the next ticket (#28).**
+- **Status/Results (2026-10-10, #27): 4a.1, 4a.2 and 4a.4 done; gate passes. 4a.3 (UI + persistence) done in #28, see its note above.**
   - Config: `llm.thinking_display` (`omitted|summarized|updates`, default `summarized`), `llm.effort` (required, no default: `low|medium|high|xhigh|max`; `config.yaml` sets `medium`), `llm.max_output_tokens` 4096 → 16000. `chatProviderOptions()` (`app/server/llm/provider-options.ts`) builds `providerOptions.anthropic: {thinking: {type: "adaptive", display}, effort}` for every chat call and returns `undefined` on Google. The top-level `reasoning` option isn't used. Title generation is unchanged. No env overrides were added for the two new keys.
   - Tests (`app/server/__tests__/thinking-config.test.ts`): config defaults/required effort; options per provider; the real provider's request body has `thinking: {type: "adaptive", display: "summarized"}`, `output_config.effort: "medium"`, `max_tokens: 16000` and no `temperature`/`top_p`/`top_k`; the `processChat` call options carry the provider options with no sampling params and no `reasoning`.
   - `rateLimit.ts` best-effort comment now gives the larger per-call worst case (16K output ≈ $0.16 on Sonnet 5.5, up to `max_tool_iterations` calls per turn).

@@ -137,6 +137,7 @@ export type SSEEventType =
   | "tool_start"
   | "tool_end"
   | "text_block_end"
+  | "reasoning"
   | "title"
   | "done"
   | "usage"
