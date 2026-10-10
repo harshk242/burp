@@ -4,7 +4,7 @@
  */
 
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGoogle } from "@ai-sdk/google";
 import type { LanguageModel, EmbeddingModel } from "ai";
 import { loadLLMConfig, type LLMProviderName } from "./config";
 
@@ -14,7 +14,7 @@ const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const google = createGoogleGenerativeAI({
+const google = createGoogle({
   apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 

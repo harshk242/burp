@@ -390,7 +390,7 @@ export async function* processChat(
 
       const result = streamText({
         model: getChatModel(),
-        system: SYSTEM_PROMPT,
+        instructions: SYSTEM_PROMPT,
         messages,
         tools: declarationTools,
         maxRetries: llmConfig.maxRetries,
@@ -542,7 +542,7 @@ export async function* processChat(
                 const rawResult = await localTool.execute(tcInput, {
                   toolCallId: tc.toolCallId,
                   messages: [],
-                  abortSignal: undefined as unknown as AbortSignal,
+                  context: undefined,
                 });
                 const output = typeof rawResult === "string"
                   ? rawResult
@@ -663,7 +663,7 @@ export async function* processChat(
         // Use SDK response messages for assistant turn — preserves
         // provider metadata (Gemini 3 thought signatures) that the model
         // requires on subsequent turns.
-        const { messages: responseMessages } = await result.response;
+        const { messages: responseMessages } = (await result.finalStep).response;
         // SDK response messages may include tool-result messages. We execute
         // tools manually for SSE/control, so only keep assistant metadata here.
         messages.push(...responseMessages.filter((msg) => msg.role !== "tool"));

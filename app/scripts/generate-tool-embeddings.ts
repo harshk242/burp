@@ -10,7 +10,7 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGoogle } from "@ai-sdk/google";
 import { embedMany } from "ai";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
@@ -50,7 +50,7 @@ async function main() {
   const texts = tools.map((t) => `${t.name}: ${t.description || ""}`);
   const names = tools.map((t) => t.name);
 
-  const google = createGoogleGenerativeAI({ apiKey: GEMINI_API_KEY });
+  const google = createGoogle({ apiKey: GEMINI_API_KEY });
   const model = google.embedding("gemini-embedding-001");
 
   const allEmbeddings: number[][] = [];
