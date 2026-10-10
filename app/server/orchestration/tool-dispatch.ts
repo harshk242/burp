@@ -3,17 +3,17 @@
  *
  * Tools are declared to the model without `execute` (the set comes from
  * context/tool-catalog.ts); the chat loop runs each call here so it can emit
- * SSE events, activate searched tools on Gemini, and route large outputs
- * through handleLargeOutput.
+ * SSE events, run tool search (references on Anthropic, activation on Gemini)
+ * and route large outputs through handleLargeOutput.
  */
 
 import type { ToolResultPart } from "ai";
 import { desanitizeToolName, type LLMProviderName } from "../llm";
 import { toolRegistry } from "../mcp/registry";
-import { hybridSearch } from "../search";
 import { logger, type LogContext } from "../logger";
 import { createMcpToolExecutor } from "./tools/mcp-executor";
 import { handleLargeOutput } from "./large-output";
+import { runToolSearch } from "./tools/search-tool";
 import { SEARCH_TOOL_NAME, type ToolSet } from "./context/tool-catalog";
 import type { StreamEvent, ToolCallRecord } from "./types";
 
@@ -124,53 +124,45 @@ export async function* dispatchToolCall(
   return yield* runSystemTool(call, dc);
 }
 
-/** search_available_tools — side effect: activates discovered tools in activeTools. */
+/**
+ * search_available_tools. On Anthropic every tool is already declared and the
+ * result's tool-reference parts load the found ones; on Gemini the found tools
+ * are activated here (exactly the ones shown).
+ */
 async function* runSearchTool(
   call: ParsedCall,
   dc: DispatchContext,
 ): AsyncGenerator<StreamEvent, DispatchResult> {
-  const { activeTools, sanitize } = dc;
+  const { activeTools, sanitize, provider } = dc;
   try {
     // Inside the try: a malformed call can arrive with input === null.
     const query = (call.input as { query: string }).query;
-    const searchResults = await hybridSearch.search(query, dc.signal);
+    const search = await runToolSearch(query, { provider, sanitize, signal: dc.signal });
     // A result that lands after an abort is dropped (no tools activated).
     dc.signal?.throwIfAborted();
 
-    for (const found of searchResults) {
-      const sanitized = sanitize(found.fullName);
-      if (!activeTools[sanitized]) {
-        const vTool = toolRegistry.getVercelTool(found.fullName, sanitize);
+    if (provider !== "anthropic") {
+      for (const hit of search.hits) {
+        if (activeTools[hit.name]) continue;
+        const vTool = toolRegistry.getVercelTool(hit.fullName, sanitize);
         if (vTool) {
-          activeTools[vTool.key] = {
-            ...vTool.tool,
-            execute: createMcpToolExecutor(found.fullName),
-          };
+          activeTools[vTool.key] = { ...vTool.tool, execute: createMcpToolExecutor(hit.fullName) };
         }
       }
     }
 
-    const searchOutput = {
-      found: searchResults.length,
-      tools: searchResults.map((r) => ({
-        name: sanitize(r.fullName),
-        description: r.description,
-        relevance_score: r.score,
-      })),
-      instruction: "Call the tool by its exact name with the required parameters.",
-    };
-
     yield {
       type: "tool_end",
-      data: { id: call.tc.toolCallId, tool: call.originalName, output: searchOutput },
+      data: { id: call.tc.toolCallId, tool: call.originalName, output: search.uiSummary },
     };
 
     logger.info("TOOL", "search_tool_executed", {
       ctx: dc.ctx,
       data: {
         query,
-        results: searchResults.length,
-        tools_activated: Object.keys(activeTools).length,
+        results: search.hits.length,
+        tools: search.hits.map((h) => h.name),
+        active_tools: Object.keys(activeTools).length,
       },
     });
 
@@ -181,9 +173,14 @@ async function* runSearchTool(
         server: "system",
         toolName: call.name,
         input: call.input,
-        output: searchOutput,
+        output: search.uiSummary,
       },
-      part: resultPart(call, JSON.stringify(searchOutput)),
+      part: {
+        type: "tool-result" as const,
+        toolCallId: call.tc.toolCallId,
+        toolName: call.tc.toolName,
+        output: search.modelOutput,
+      },
     };
   } catch (err) {
     // An aborted turn ends here; don't turn the abort into a tool result.

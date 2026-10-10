@@ -8,7 +8,8 @@
  * prompt cache); a call to a tool whose server is down returns an error result.
  *
  * Gemini: no deferred-loading equivalent, so today's set (available core tools
- * + search + inspect_artifact) that tool search grows mid-turn.
+ * + search + inspect_artifact) that tool search grows mid-turn. On Anthropic
+ * search adds nothing: its result references the found tools (search-tool.ts).
  */
 
 import type { Tool } from "ai";
@@ -44,7 +45,7 @@ export function buildToolCatalog(
   sessionId: string,
 ): ToolSet {
   const systemTools: ToolSet = {
-    [SEARCH_TOOL_NAME]: createSearchTool(sanitize),
+    [SEARCH_TOOL_NAME]: createSearchTool(),
     [INSPECT_TOOL_NAME]: createInspectArtifactTool(sessionId),
   };
   if (provider !== "anthropic") return { ...geminiCoreTools(sanitize, provider), ...systemTools };

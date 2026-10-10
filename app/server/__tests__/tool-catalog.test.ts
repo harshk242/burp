@@ -91,7 +91,8 @@ describe("buildToolCatalog (anthropic)", () => {
     ]);
     expect(countDeferred(tools)).toBe(4);
     expect(tools[INSPECT_TOOL_NAME]!.execute).toBeFunction();
-    expect(tools[SEARCH_TOOL_NAME]!.execute).toBeFunction();
+    // Search runs through runToolSearch in the dispatcher; its declaration has no execute.
+    expect(tools[SEARCH_TOOL_NAME]!.execute).toBeUndefined();
   });
 
   it("keeps at least one tool loaded with an empty registry", () => {
