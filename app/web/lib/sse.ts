@@ -62,13 +62,8 @@ export async function streamChat(
 
   function dispatchEvent() {
     if (currentEventType && dataLines.length > 0) {
-      const fullPayload = dataLines.join("\n");
-      try {
-        const data = JSON.parse(fullPayload);
-        handleSSEEvent(currentEventType, data, onTitle);
-      } catch {
-        handleSSEEvent(currentEventType, fullPayload, onTitle);
-      }
+      const data = decodeSSEData(currentEventType, dataLines.join("\n"));
+      if (data !== undefined) handleSSEEvent(currentEventType, data, onTitle);
     }
     currentEventType = null;
     dataLines = [];
@@ -116,6 +111,21 @@ export async function streamChat(
 }
 
 /**
+ * Every payload is JSON, text chunks included (server/routes/sse-encode.ts), so
+ * a chunk like "42" arrives as the JSON string "\"42\"" and stays a string.
+ * A payload that isn't JSON is dropped rather than guessed at. Returns
+ * undefined when the payload can't be decoded.
+ */
+export function decodeSSEData(eventType: string, payload: string): unknown {
+  try {
+    return JSON.parse(payload);
+  } catch {
+    console.warn(`Malformed SSE payload for "${eventType}"`, payload);
+    return undefined;
+  }
+}
+
+/**
  * Handle a single SSE event.
  * @param eventType - The event type from the `event:` line
  * @param data - The parsed payload from the `data:` line
@@ -132,15 +142,10 @@ function handleSSEEvent(
       store.updateStreamingContent("");
       break;
 
-    case "text": {
-      // Text chunks can be string or object with content
-      const text =
-        typeof data === "string"
-          ? data
-          : (data as { content?: string }).content || "";
-      store.appendStreamingContent(text);
+    case "text":
+      // A JSON string, whatever it contains ("42", "true", " ").
+      if (typeof data === "string") store.appendStreamingContent(data);
       break;
-    }
 
     case "tool_start": {
       const toolStart = data as {

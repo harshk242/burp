@@ -8,6 +8,7 @@ import { processChat, generateSessionTitle } from "../orchestration/chat-v2";
 import { chatSessionQueries, messageQueries } from "../db";
 import { logger } from "../logger";
 import { appConfig } from "../config";
+import { encodeSSE } from "./sse-encode";
 
 import type { AppEnv } from "../types";
 
@@ -39,12 +40,17 @@ The agent can query 10 biomedical databases:
 - **PubMed** - Biomedical literature
 - **ClinPGx** - Pharmacogenomics data
 
-**SSE Events:**
+**SSE Events** (every \`data\` payload is JSON, text chunks included):
 - \`start\` - Chat session started
-- \`text\` - Text chunk from the assistant
+- \`text\` - Text chunk from the assistant (a JSON string)
+- \`reasoning\` - Thinking delta (\`{ text, newBlock }\`)
+- \`text_block_end\` - Preceding text was pre-tool-call reasoning
 - \`tool_start\` - Tool execution started
 - \`tool_end\` - Tool execution completed
-- \`done\` - Response complete`,
+- \`done\` - Response complete
+- \`usage\` - Token totals for the turn
+- \`title\` - Generated session title
+- \`error\` - Turn failed`,
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -66,7 +72,7 @@ The agent can query 10 biomedical databases:
 data: {"sessionId":"550e8400-e29b-41d4-a716-446655440000"}
 
 event: text
-data: Looking up EGFR in UniProt...
+data: "Looking up EGFR in UniProt..."
 
 event: tool_start
 data: {"tool":"uniprot__search_proteins","input":{"query":"EGFR"}}
@@ -75,10 +81,10 @@ event: tool_end
 data: {"tool":"uniprot__search_proteins","output":{...}}
 
 event: text
-data: Found 5 proteins related to EGFR...
+data: "Found 5 proteins related to EGFR..."
 
 event: done
-data: {"message":"Complete"}`,
+data: {"messageId":"0b6c1f5e-6a1d-4e5b-9d65-0f2a4c8e7a11"}`,
           }),
         },
       },
@@ -160,10 +166,7 @@ chat.openapi(chatRoute, async (c) => {
 
       // Process chat through Claude with tool calling
       for await (const event of processChat(sessionId, userId, message, abortController.signal)) {
-        await stream.writeSSE({
-          event: event.type,
-          data: typeof event.data === "string" ? event.data : JSON.stringify(event.data),
-        });
+        await stream.writeSSE(encodeSSE(event.type, event.data));
       }
 
       // Emit the title after streaming completes.
@@ -171,19 +174,13 @@ chat.openapi(chatRoute, async (c) => {
       if (titlePromise && !abortController.signal.aborted) {
         const title = await titlePromise;
         if (title) {
-          await stream.writeSSE({
-            event: "title",
-            data: JSON.stringify({ title }),
-          });
+          await stream.writeSSE(encodeSSE("title", { title }));
         }
       }
     } catch (error) {
       if (abortController.signal.aborted) return;
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      await stream.writeSSE({
-        event: "error",
-        data: JSON.stringify({ error: errorMsg }),
-      });
+      await stream.writeSSE(encodeSSE("error", { error: errorMsg }));
     }
   });
 });
