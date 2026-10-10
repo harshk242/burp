@@ -6,13 +6,7 @@
  * `usage_estimated = 1`.
  */
 
-import {
-  wrapLanguageModel,
-  type LanguageModel,
-  type LanguageModelCallStartEvent,
-  type TextStreamPart,
-  type ToolSet,
-} from "ai";
+import type { LanguageModelCallStartEvent, TextStreamPart, ToolSet } from "ai";
 import { v4 as uuidv4 } from "uuid";
 import { db, dailyUsageQueries, usageEventQueries } from "../db";
 import { estimateTokens, logger, type LogContext } from "../logger";
@@ -25,13 +19,14 @@ export type TurnErrorCode = "aborted" | "error" | "closed";
 interface CallInFlight {
   iteration: number;
   /**
-   * The request left and the provider accepted it: the model's `doStream`
-   * resolved, i.e. the provider answered the HTTP request with a response
-   * stream. Set at the model boundary (see `wrap`), not on the SDK's
-   * `start-step` part: the SDK withholds that until the first part after
-   * `stream-start`, so a call cut off right after being accepted would be
-   * missed. A call cut off before (connect error, rejected request, abort while
-   * sending) is not billed and gets no estimate.
+   * The request left and the provider accepted it: the HTTP response came back
+   * with a 2xx status. Set at the transport boundary (see `fetch`), not when the
+   * model's `doStream` resolves or on the SDK's `start-step` part: providers
+   * (the Anthropic adapter) wait for the first SSE data before resolving
+   * `doStream`, so a call cut off after the 200 but before any data would be
+   * missed. A call cut off before (connect error, abort while sending) or
+   * rejected (429/529, also retried attempts) is not billed and gets no
+   * estimate.
    */
   sent: boolean;
   /** Output streamed so far: text, reasoning and tool-call input. */
@@ -63,20 +58,19 @@ export class CallTracker {
     this.current = { iteration, sent: false, streamedChars: 0 };
   }
 
-  /** The model to pass to `streamText`: marks the call sent once `doStream` resolves. */
-  wrap(model: LanguageModel): LanguageModel {
-    if (typeof model === "string") throw new Error("CallTracker.wrap needs a model instance, not a model id");
-    return wrapLanguageModel({
-      model,
-      middleware: {
-        wrapStream: async ({ doStream }) => {
-          const result = await doStream();
-          if (this.current) this.current.sent = true;
-          return result;
-        },
-      },
-    });
-  }
+  /**
+   * The provider's `fetch` (`getChatModel({ fetch })`): marks the in-flight call
+   * sent once the provider answered with a 2xx response. Per tracker, so it must
+   * go on a per-turn provider instance, never a shared one.
+   */
+  readonly fetch: typeof fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
+      const res = await globalThis.fetch(input, init);
+      if (res.ok && this.current) this.current.sent = true;
+      return res;
+    },
+    { preconnect: (...args: Parameters<typeof fetch.preconnect>) => globalThis.fetch.preconnect(...args) }
+  );
 
   /** `streamText({ onLanguageModelCallStart })`. */
   readonly onRequest = (event: LanguageModelCallStartEvent): void => {
@@ -98,7 +92,12 @@ export class CallTracker {
     }
   };
 
-  /** The in-flight call finished and was recorded by the meter. */
+  /**
+   * The in-flight call finished and its final usage was recorded by the meter.
+   * Only call it then: it drops the in-flight call, so a call that failed
+   * (e.g. finished with an error part) and was finished anyway would get no
+   * cut-off estimate.
+   */
   finish(call: CallCost): void {
     const request = this.current?.request;
     this.previous = {

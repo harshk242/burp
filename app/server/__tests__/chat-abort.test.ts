@@ -9,10 +9,12 @@
  * call is a spy on the mcpManager singleton.
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import type { LanguageModel } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { createTestDb } from "../__test-utils__/db";
 import { createQueries } from "../db/queries";
-import { loadLLMConfig, sanitizeToolName } from "../llm";
+import { loadLLMConfig, sanitizeToolName, type ModelOptions } from "../llm";
 import { mcpManager } from "../mcp/manager";
 import { ALWAYS_LOADED_TOOLS } from "../mcp/platforms.config";
 import { toolRegistry } from "../mcp/registry";
@@ -32,9 +34,20 @@ const t = createTestDb();
 const q = createQueries(t.db);
 mock.module("../db", () => ({ db: t.db, sqlite: t.sqlite, ...q }));
 
-// Each test installs its own model; processChat asks for it per call.
+// Each test installs its own model; processChat asks for it per call, passing
+// the turn's transport (the CallTracker's fetch), which the mock model calls
+// once the provider "answered" so the call counts as sent. A test can set
+// realModel to run a real provider adapter on that transport instead.
 let model: MockLanguageModelV4;
-mock.module("../llm/provider", () => ({ getChatModel: () => model, getTitleModel: () => model }));
+let realModel: ((options?: ModelOptions) => LanguageModel) | undefined;
+let transport: ModelOptions["fetch"];
+mock.module("../llm/provider", () => ({
+  getChatModel: (options?: ModelOptions) => {
+    transport = options?.fetch;
+    return realModel?.(options) ?? model;
+  },
+  getTitleModel: () => model,
+}));
 
 const { processChat } = await import("../orchestration/chat-v2");
 
@@ -47,7 +60,7 @@ function toolCall(id: string): LanguageModelV4StreamPart {
   return { type: "tool-call", toolCallId: id, toolName: TOOL_KEY, input: "{}" };
 }
 
-function finish(reason: "tool-calls" | "stop"): LanguageModelV4StreamPart {
+function finish(reason: "tool-calls" | "stop" | "error"): LanguageModelV4StreamPart {
   return { type: "finish", finishReason: { unified: reason, raw: reason }, usage };
 }
 
@@ -72,7 +85,10 @@ function scriptedModel(calls: StreamFactory[]) {
         { type: "text-end", id: "t" },
         finish("stop"),
       ]));
-      return { stream: await make(abortSignal) };
+      // The factory settling is the provider answering the HTTP request.
+      const stream = await make(abortSignal);
+      await transport?.("https://model.test/", { signal: abortSignal });
+      return { stream };
     },
   });
 }
@@ -110,6 +126,8 @@ function cutOffMidStream(turn: AbortController, text: string): StreamFactory {
 }
 
 beforeEach(() => {
+  // The transport the tracker wraps: the provider accepts every request.
+  spyOn(globalThis, "fetch").mockImplementation((async () => new Response(null)) as unknown as typeof fetch);
   q.userQueries.create(USER_ID, "clerk_a", "a@example.com", null, null, "user", null, null);
   const { server, name } = toolRegistry.parseToolName(TOOL_FULL_NAME);
   toolRegistry.register(server, { name, description: "test tool", inputSchema: { type: "object", properties: {} } });
@@ -117,6 +135,7 @@ beforeEach(() => {
 
 afterEach(() => {
   mock.restore();
+  realModel = undefined;
   toolRegistry.clear();
   t.sqlite.run("DELETE FROM usage_events");
   t.sqlite.run("DELETE FROM messages");
@@ -221,9 +240,9 @@ describe("processChat abort", () => {
 
   it("records an estimate for an accepted call cut off before its first data part", async () => {
     const turn = new AbortController();
-    // The provider accepted the request (doStream resolved with a response
-    // stream) but the abort lands before any content arrives. The SDK withholds
-    // its start-step part until then, so only the model boundary sees this.
+    // The provider accepted the request (2xx response) but the abort lands
+    // before any content arrives. The SDK withholds its start-step part until
+    // then, so only the transport boundary sees this.
     model = scriptedModel([
       (signal) => new ReadableStream({
         start(controller) {
@@ -240,6 +259,72 @@ describe("processChat abort", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ status: "error", usage_estimated: 1, llm_calls: 1, output_tokens: 0 });
     expect(rows[0]!.input_tokens as number).toBeGreaterThan(100);
+  });
+
+  it("a provider error part fails the turn and estimates the failed call", async () => {
+    // The SDK does not throw from textStream on an error part: it goes to
+    // onError and the step finishes with finishReason "error".
+    model = scriptedModel([
+      () => streamOf([
+        { type: "text-start", id: "t" },
+        { type: "text-delta", id: "t", delta: "abcdefgh" },
+        { type: "error", error: new Error("overloaded") },
+        finish("error"),
+      ]),
+    ]);
+
+    const sessionId = crypto.randomUUID();
+    const events = await collect(processChat(sessionId, USER_ID, "hi"));
+
+    expect(events.some((e) => e.type === "error")).toBe(true);
+    expect(events.some((e) => e.type === "done")).toBe(false);
+    expect(q.messageQueries.findByChatId(sessionId).map((m) => m.role)).toEqual(["user"]);
+    expect(usageRows()).toEqual([
+      expect.objectContaining({ status: "error", usage_estimated: 1, llm_calls: 1, output_tokens: 2 }),
+    ]);
+  });
+
+  describe("with the real Anthropic adapter", () => {
+    beforeEach(() => {
+      realModel = (options) => createAnthropic({ apiKey: "test", fetch: options?.fetch })("claude-haiku-4-5");
+    });
+
+    it("estimates a call accepted with a 200 whose body stalls before any SSE data", async () => {
+      const turn = new AbortController();
+      // The adapter waits for the first SSE event before resolving doStream, so
+      // only the transport sees the 200.
+      spyOn(globalThis, "fetch").mockImplementation((async (_input: unknown, init?: RequestInit) => {
+        const body = new ReadableStream({
+          start(controller) {
+            init?.signal?.addEventListener("abort", () => controller.error(init.signal!.reason));
+          },
+        });
+        setTimeout(() => turn.abort(), 0);
+        return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+      }) as unknown as typeof fetch);
+
+      await collect(processChat(crypto.randomUUID(), USER_ID, "hi", turn.signal));
+
+      const rows = usageRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ status: "error", usage_estimated: 1, llm_calls: 1, output_tokens: 0 });
+      expect(rows[0]!.input_tokens as number).toBeGreaterThan(100);
+    });
+
+    it("records nothing for a call the provider rejected, retries included", async () => {
+      const overloaded = spyOn(globalThis, "fetch").mockImplementation((async () =>
+        new Response(JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }), {
+          status: 529,
+          // Retry immediately instead of backing off.
+          headers: { "content-type": "application/json", "retry-after-ms": "0" },
+        })) as unknown as typeof fetch);
+
+      const events = await collect(processChat(crypto.randomUUID(), USER_ID, "hi"));
+
+      expect(overloaded.mock.calls.length).toBeGreaterThan(1);
+      expect(events.some((e) => e.type === "error")).toBe(true);
+      expect(usageRows()).toEqual([]);
+    });
   });
 
   it("a consumer that stops mid-stream cancels the in-flight LLM call", async () => {

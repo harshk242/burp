@@ -158,9 +158,12 @@ export async function* processChat(
       // SSE events, search activation, and output compression.
       const declarationTools = toDeclarations(activeTools);
 
+      // A provider error part does not make textStream throw: the SDK hands it
+      // to onError and finishes the step with finishReason "error".
+      let streamError: unknown;
       tracker.begin(loopIteration);
       const result = streamText({
-        model: tracker.wrap(getChatModel()),
+        model: getChatModel({ fetch: tracker.fetch }),
         instructions: SYSTEM_PROMPT,
         messages,
         tools: declarationTools,
@@ -169,6 +172,9 @@ export async function* processChat(
         abortSignal: turnSignal,
         onLanguageModelCallStart: tracker.onRequest,
         onChunk: tracker.onChunk,
+        onError: ({ error }) => {
+          streamError ??= error;
+        },
       });
 
       // Stream text chunks
@@ -179,9 +185,15 @@ export async function* processChat(
       // An abort can end the text stream without an error; stop before
       // reading the step's results.
       turnSignal.throwIfAborted();
+      // A failed call has no valid final usage: throw before metering it, so
+      // the tracker keeps it in flight and the turn records it as an estimate.
+      // Checked before awaiting the results, which would reject with a generic
+      // NoOutputGeneratedError when the call produced nothing.
+      if (streamError !== undefined) throw streamError;
 
       // Await the promise-based properties
       const finishReason = await result.finishReason;
+      if (finishReason === "error") throw new Error(`LLM call ${loopIteration} finished with an error`);
       const toolCalls = await result.toolCalls;
       const finalStep = await result.finalStep;
 

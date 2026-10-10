@@ -4,9 +4,8 @@
  * tool declarations activated mid-turn (search_available_tools) and changed
  * instructions, so the estimate is never priced below the tier it reached.
  */
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import type { LanguageModelCallStartEvent } from "ai";
-import { MockLanguageModelV4 } from "ai/test";
 import { estimateTokens } from "../logger";
 import { CallTracker } from "../orchestration/turn-usage";
 import { UsageMeter } from "../orchestration/usage-meter";
@@ -35,11 +34,7 @@ const request = (opts: { messages: number; tools: Tool[]; instructions?: string 
 async function sendCall(tracker: CallTracker, iteration: number, req: LanguageModelCallStartEvent) {
   tracker.begin(iteration);
   tracker.onRequest(req);
-  const model = tracker.wrap(
-    new MockLanguageModelV4({ doStream: async () => ({ stream: new ReadableStream({ start: (c) => c.close() }) }) })
-  );
-  if (typeof model === "string") throw new Error("unreachable");
-  await model.doStream({ prompt: [] } as never);
+  await tracker.fetch("https://model.test/");
 }
 
 /** Call 1 finishes with `promptTokens` of uncached input; call 2 is cut off. */
@@ -59,6 +54,11 @@ async function cutOffSecondCall(
 }
 
 describe("CallTracker.estimateCutOffCall", () => {
+  beforeEach(() => {
+    spyOn(globalThis, "fetch").mockImplementation((async () => new Response(null)) as unknown as typeof fetch);
+  });
+  afterEach(() => mock.restore());
+
   it("adds tool declarations activated since the previous call", async () => {
     const base = [tool("search_available_tools"), tool("always_loaded")];
     const added = [tool("found_a", 17_500), tool("found_b", 17_500)];
