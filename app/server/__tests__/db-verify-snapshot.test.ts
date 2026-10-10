@@ -84,14 +84,14 @@ describe("db:verify", () => {
       legacy: true,
       ok: true,
       adopted: true,
-      applied: ["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns", "0005_usage_status_estimated"],
+      applied: ["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns", "0005_usage_status_estimated", "0006_artifacts"],
       baselineDiffs: [],
       existingFkViolations: [],
       fkViolations: [],
       finalDiffs: [],
       error: null,
     });
-    expect(report.pending).toHaveLength(6);
+    expect(report.pending).toHaveLength(7);
     expect(report.transactionMs).toBeGreaterThan(0);
     expect(existsSync(report.copy)).toBe(false); // scratch copy cleaned up
     expect(verifyPassed(report)).toBe(true);

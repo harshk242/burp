@@ -77,7 +77,7 @@ describe("legacy adoption — happy path", () => {
 
         const result = runMigrations(sqlite);
         expect(result.adopted).toBe(true);
-        expect(result.applied.map((m) => m.tag)).toEqual(["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns", "0005_usage_status_estimated"]);
+        expect(result.applied.map((m) => m.tag)).toEqual(["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns", "0005_usage_status_estimated", "0006_artifacts"]);
         expect(result.transactionMs).toBeGreaterThan(0);
 
         expect(schemaSnapshot(sqlite)).toEqual(schemaSnapshot(fresh));

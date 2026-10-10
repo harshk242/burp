@@ -9,7 +9,7 @@ import { createQueries } from "./queries";
 export { DB_PATH, db, sqlite };
 export type { DrizzleDb } from "./client";
 export { runMigrations, MigrationFkError, type RunMigrationsResult } from "./migrate";
-export type { ToolSearchRow, UsageTotals } from "./queries";
+export type { DbArtifact, ToolSearchRow, UsageTotals } from "./queries";
 
 export const {
   userQueries,
@@ -20,4 +20,5 @@ export const {
   usageEventQueries,
   rateLimitQueries,
   toolSearchQueries,
+  artifactQueries,
 } = createQueries(db);

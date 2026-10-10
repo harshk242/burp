@@ -262,7 +262,7 @@ async function* runMcpTool(
   };
   try {
     const rawOutput = await createMcpToolExecutor(call.originalName, dc.signal)(call.input);
-    const output = await handleLargeOutput(call.originalName, rawOutput, dc.sessionId, dc.ctx);
+    const output = await handleLargeOutput(call.originalName, call.input, rawOutput, dc.sessionId, dc.ctx);
 
     yield {
       type: "tool_end",

@@ -77,6 +77,8 @@ describe("fresh database migrations", () => {
       "daily_usage_user_id_date_unique",
       "idx_access_requests_email",
       "idx_access_requests_status",
+      "idx_artifacts_expires_at",
+      "idx_artifacts_session_id",
       "idx_chat_sessions_user_id",
       "idx_daily_usage_user_date",
       "idx_messages_chat_id",

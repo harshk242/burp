@@ -4,6 +4,7 @@
  */
 import type { DrizzleDb } from "../connection";
 import { createAccessRequestQueries } from "./access-requests";
+import { createArtifactQueries } from "./artifacts";
 import { createChatSessionQueries } from "./chat-sessions";
 import { createDailyUsageQueries } from "./daily-usage";
 import { createMessageQueries } from "./messages";
@@ -12,6 +13,7 @@ import { createToolSearchQueries } from "./tool-search";
 import { createUsageEventQueries } from "./usage-events";
 import { createUserQueries } from "./users";
 
+export type { DbArtifact } from "./artifacts";
 export type { ToolSearchRow } from "./tool-search";
 export type { UsageTotals } from "./usage-events";
 
@@ -25,6 +27,7 @@ export function createQueries(db: DrizzleDb) {
     usageEventQueries: createUsageEventQueries(db),
     rateLimitQueries: createRateLimitQueries(db),
     toolSearchQueries: createToolSearchQueries(db),
+    artifactQueries: createArtifactQueries(db),
   };
 }
 

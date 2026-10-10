@@ -39,6 +39,7 @@ validatePolicies().then(({ valid, errors }) => {
  */
 export async function handleLargeOutput(
   toolName: string,
+  toolInput: unknown,
   rawOutput: string,
   sessionId: string,
   ctx: LogContext,
@@ -87,6 +88,7 @@ export async function handleLargeOutput(
   const artifactId = artifactStore.store(
     sessionId,
     toolName,
+    toolInput,
     reduced,
     rawOutput.length,
   );
