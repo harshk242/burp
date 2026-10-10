@@ -147,9 +147,13 @@ ADMIN_EMAIL=you@example.com
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 ```
 
-To build the semantic tool search index (written to `app/data/tool-embeddings.json`, or
-`tool_search.embeddings_path`), run `bun run generate:embeddings`. Rerun it after changing
-the `embedding:` provider/model/dimensions in `app/config.yaml`; until then search is keyword-only.
+With `OPENAI_API_KEY` set, the server keeps the semantic tool search index
+(`app/data/tool-embeddings.json`, or `tool_search.embeddings_path`) up to date by itself: in the
+background at boot and whenever the MCP tool set changes, it embeds only new or changed tools
+(everything after an `embedding:` provider/model/dimensions change) and logs
+`embeddings_sync_complete`. Search is keyword-only until the first sync finishes. Set
+`EMBEDDING_SYNC_ON_BOOT=false` to opt out; `bun run generate:embeddings` still rebuilds the index
+from scratch manually.
 
 **For the frontend** (`app/web/.env.local`):
 ```bash

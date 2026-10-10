@@ -1,6 +1,7 @@
 /**
  * An MCP server that fails at boot and later recovers fires onToolsChanged,
- * and the reindex wired to it makes the recovered tools searchable.
+ * and the reindex wired to it makes the recovered tools searchable and syncs
+ * their embeddings.
  */
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
@@ -10,8 +11,10 @@ import { createTestDb } from "../__test-utils__/db";
 import { createQueries } from "../db/queries";
 import { MCPManager } from "../mcp/manager";
 import { toolRegistry } from "../mcp/registry";
+import { ToolEmbeddingSync } from "../embeddings/sync-queue";
+import type { Embedder } from "../embeddings/types";
 import { HybridToolSearch } from "../search/hybrid-search";
-import { reindexToolSearch } from "../search/reindex";
+import { createSearchReindexer, reindexToolSearch } from "../search/reindex";
 
 const FIXTURE = join(import.meta.dir, "fixtures", "flaky-mcp-server.ts");
 const dir = mkdtempSync(join(tmpdir(), "burp-mcp-recovery-"));
@@ -52,5 +55,42 @@ describe("MCP recovery", () => {
     const results = await search.search("frobnicate widgets");
     expect(results.map((r) => r.fullName)).toEqual(["demo__frobnicate_widgets"]);
     expect(results[0].server).toBe("demo");
+  }, 20_000);
+
+  it("syncs embeddings for the recovered tools and attaches them", async () => {
+    writeFileSync(marker, "");
+    manager = new MCPManager();
+    manager.register({ name: "flaky", command: process.execPath, args: [FIXTURE], env: { FLAKY_FAIL_MARKER: marker } });
+
+    const embedded: string[][] = [];
+    const embedder: Embedder = {
+      id: "fake:model@2",
+      spec: { provider: "openai", model: "fake", dimensions: 2 },
+      embedQuery: async () => new Float32Array([1, 0]),
+      embedDocuments: async (texts) => {
+        embedded.push(texts);
+        return texts.map(() => new Float32Array([1, 0]));
+      },
+    };
+    const search = new HybridToolSearch(createQueries(createTestDb().db).toolSearchQueries);
+    const path = join(dir, "tool-embeddings.json");
+    const sync = new ToolEmbeddingSync({ embedder, path, timeoutMs: 5000, onReady: (e, v) => search.attachEmbeddings(e, v) });
+    const reindex = createSearchReindexer(toolRegistry, search, sync);
+    manager.onToolsChanged = reindex;
+
+    await manager.start("flaky");
+    reindex(); // boot: nothing discovered, nothing to embed
+    await sync.idle();
+    expect(embedded).toEqual([]);
+    expect(search.embeddingsLoaded).toBe(false);
+
+    rmSync(marker);
+    await manager.retryDueServers(new Date(Date.now() + 120_000));
+    await sync.idle();
+
+    expect(embedded).toHaveLength(1);
+    expect(embedded[0]).toEqual([expect.stringMatching(/^demo__frobnicate_widgets: /)]);
+    const results = await search.search("frobnicate widgets");
+    expect(results[0]).toMatchObject({ fullName: "demo__frobnicate_widgets", semanticRank: 1 });
   }, 20_000);
 });

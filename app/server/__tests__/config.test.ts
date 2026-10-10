@@ -13,7 +13,8 @@ const loadConfig = (env: Record<string, string | undefined>, raw: Record<string,
 
 describe("embedding config", () => {
   it("defaults to OpenAI text-embedding-3-small with a 2s query timeout", () => {
-    expect(loadConfig({}, {}).embedding).toEqual({ provider: "openai", model: "text-embedding-3-small", query_timeout_ms: 2000 });
+    expect(loadConfig({}, {}).embedding).toMatchObject({ provider: "openai", model: "text-embedding-3-small", query_timeout_ms: 2000 });
+    expect(loadConfig({}, {}).embedding.dimensions).toBeUndefined();
   });
 
   it("applies provider, model, dimensions and timeout overrides", () => {
@@ -21,7 +22,7 @@ describe("embedding config", () => {
       { EMBEDDING_PROVIDER: "google", EMBEDDING_MODEL: "gemini-embedding-001", EMBEDDING_DIMENSIONS: "768", EMBEDDING_QUERY_TIMEOUT_MS: "500" },
       {}
     );
-    expect(cfg.embedding).toEqual({ provider: "google", model: "gemini-embedding-001", dimensions: 768, query_timeout_ms: 500 });
+    expect(cfg.embedding).toMatchObject({ provider: "google", model: "gemini-embedding-001", dimensions: 768, query_timeout_ms: 500 });
   });
 
   it("config.yaml pins the native 1536 dims", () => {
@@ -70,6 +71,25 @@ describe("parseBooleanEnv", () => {
 
   it.each(["maybe", "yes", ""])("rejects %p", (value) => {
     expect(() => parseBooleanEnv("FLAG", value)).toThrow(/FLAG/);
+  });
+});
+
+describe("embedding sync controls", () => {
+  it("defaults to syncing with a two-minute attempt deadline", () => {
+    const { embedding } = loadConfig({}, {});
+    expect(embedding.sync_on_boot).toBe(true);
+    expect(embedding.sync_timeout_ms).toBe(120_000);
+  });
+
+  it("parses EMBEDDING_SYNC_ON_BOOT explicitly", () => {
+    expect(loadConfig({ EMBEDDING_SYNC_ON_BOOT: "false" }, {}).embedding.sync_on_boot).toBe(false);
+    expect(loadConfig({ EMBEDDING_SYNC_ON_BOOT: "1" }, { embedding: { sync_on_boot: false } }).embedding.sync_on_boot).toBe(true);
+    expect(() => loadConfig({ EMBEDDING_SYNC_ON_BOOT: "maybe" }, {})).toThrow(/EMBEDDING_SYNC_ON_BOOT/);
+  });
+
+  it("validates EMBEDDING_SYNC_TIMEOUT_MS", () => {
+    expect(loadConfig({ EMBEDDING_SYNC_TIMEOUT_MS: "5000" }, {}).embedding.sync_timeout_ms).toBe(5000);
+    expect(() => loadConfig({ EMBEDDING_SYNC_TIMEOUT_MS: "-1" }, {})).toThrow(/sync_timeout_ms/);
   });
 });
 

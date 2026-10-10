@@ -65,6 +65,10 @@ const EmbeddingConfigSchema = z.object({
   dimensions: z.number().int().positive().optional(),
   /** The semantic half of search falls back to keyword results after this. */
   query_timeout_ms: z.number().int().positive().default(2000),
+  /** Keep the index in sync in the background at boot and when the tool set changes. */
+  sync_on_boot: z.boolean().default(true),
+  /** Deadline for the embedding call of one sync attempt. */
+  sync_timeout_ms: z.number().int().positive().default(120_000),
 });
 
 const AppConfigSchema = z.object({
@@ -168,6 +172,8 @@ function applyEmbeddingEnv(cfg: AppConfig, e: Env): void {
     emb.dimensions = e.EMBEDDING_DIMENSIONS === "native" ? undefined : Number(e.EMBEDDING_DIMENSIONS);
   }
   if (e.EMBEDDING_QUERY_TIMEOUT_MS) emb.query_timeout_ms = Number(e.EMBEDDING_QUERY_TIMEOUT_MS);
+  if (e.EMBEDDING_SYNC_ON_BOOT) emb.sync_on_boot = parseBooleanEnv("EMBEDDING_SYNC_ON_BOOT", e.EMBEDDING_SYNC_ON_BOOT);
+  if (e.EMBEDDING_SYNC_TIMEOUT_MS) emb.sync_timeout_ms = Number(e.EMBEDDING_SYNC_TIMEOUT_MS);
 
   // Validate again after overrides so a bad provider or size fails at startup.
   const parsed = EmbeddingConfigSchema.safeParse(emb);

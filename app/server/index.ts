@@ -5,8 +5,8 @@ import { DB_PATH, MigrationFkError, runMigrations, sqlite } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
 import { toolRegistry } from "./mcp/registry";
-import { attachStoredEmbeddings, hybridSearch, reindexToolSearch } from "./search";
-import { createEmbedder } from "./embeddings";
+import { attachStoredEmbeddings, createSearchReindexer, hybridSearch } from "./search";
+import { createEmbedder, ToolEmbeddingSync } from "./embeddings";
 import { logger, startTimer, generateRequestId } from "./logger";
 import { appConfig } from "./config";
 import { redirectWwwToCanonical } from "./middleware/canonical-host";
@@ -28,16 +28,28 @@ try {
   process.exit(1);
 }
 
-// Rebuild tool search from the live registry. Runs at boot and after an MCP
-// server recovers, so recovered tools are searchable without a restart.
-function reindexSearch() {
-  reindexToolSearch(toolRegistry, hybridSearch);
-}
-mcpManager.onToolsChanged = reindexSearch;
-
 // Null when the embedding provider's key is missing: search stays keyword-only
 // and makes no embedding calls.
 const embedder = createEmbedder(appConfig.embedding, { queryTimeoutMs: appConfig.embedding.query_timeout_ms });
+
+// Keeps the embeddings index in step with the tool set in the background and
+// attaches its vectors (latest snapshot wins). Off without a key or when
+// embedding.sync_on_boot is false.
+const embeddingSync =
+  embedder && appConfig.embedding.sync_on_boot
+    ? new ToolEmbeddingSync({
+        embedder,
+        path: appConfig.tool_search.embeddings_path,
+        timeoutMs: appConfig.embedding.sync_timeout_ms,
+        onReady: (e, vectors) => hybridSearch.attachEmbeddings(e, vectors),
+      })
+    : null;
+
+// Rebuild tool search from the live registry and sync embeddings to it. Runs at
+// boot and after an MCP server recovers, so recovered tools are searchable
+// without a restart.
+const reindexSearch = createSearchReindexer(toolRegistry, hybridSearch, embeddingSync);
+mcpManager.onToolsChanged = reindexSearch;
 
 // Initialize MCP servers and tool discovery
 async function initializeMCP() {
@@ -58,8 +70,9 @@ async function initializeMCP() {
 
   reindexSearch();
 
-  // Attach precomputed embeddings made by the configured embedder (optional — BM25 works without them)
-  if (embedder) await attachStoredEmbeddings(hybridSearch, embedder, appConfig.tool_search.embeddings_path);
+  // Without sync, attach whatever the index file holds for this embedder
+  // (optional — BM25 works without it). With sync, the sync attaches.
+  if (embedder && !embeddingSync) await attachStoredEmbeddings(hybridSearch, embedder, appConfig.tool_search.embeddings_path);
 
   logger.info("STARTUP", "mcp_init_complete", {
     duration_ms: elapsed(),
@@ -69,6 +82,7 @@ async function initializeMCP() {
       search_indexed: hybridSearch.indexed,
       embeddings_loaded: hybridSearch.embeddingsLoaded,
       embedder: embedder?.id,
+      embeddings_sync: embeddingSync ? "background" : "off",
     },
   });
 }
@@ -81,6 +95,7 @@ initializeMCP().catch((error) => {
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   logger.info("SHUTDOWN", "sigterm_received");
+  embeddingSync?.stop();
   await mcpManager.stopAll();
   logger.flush();
   process.exit(0);
@@ -88,6 +103,7 @@ process.on("SIGTERM", async () => {
 
 process.on("SIGINT", async () => {
   logger.info("SHUTDOWN", "sigint_received");
+  embeddingSync?.stop();
   await mcpManager.stopAll();
   logger.flush();
   process.exit(0);

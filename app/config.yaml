@@ -59,13 +59,17 @@ tool_search:
 
 # ── Embeddings (semantic tool search) ────────────────────────
 # Independent of the chat `llm` provider. The index file records which
-# embedder made it; after changing provider/model/dimensions, search is
-# keyword-only until the index is regenerated (bun run generate:embeddings).
+# embedder made it. The server keeps it in sync in the background at boot and
+# whenever the tool set changes, embedding only new/changed tools; after
+# changing provider/model/dimensions it re-embeds everything (search is
+# keyword-only until that finishes). No key → no sync, keyword-only search.
 embedding:
   provider: openai              # "openai" (OPENAI_API_KEY) | "google" (GEMINI_API_KEY) — env: EMBEDDING_PROVIDER
   model: text-embedding-3-small # env: EMBEDDING_MODEL (override provider AND model together)
   dimensions: 1536              # omit for the model's native size — env: EMBEDDING_DIMENSIONS ("native" clears it)
   query_timeout_ms: 2000        # semantic half falls back to keyword results after this — env: EMBEDDING_QUERY_TIMEOUT_MS
+  sync_on_boot: true            # background index sync at boot + on tool changes — env: EMBEDDING_SYNC_ON_BOOT ("true"/"false"/"1"/"0")
+  sync_timeout_ms: 120000       # deadline for the embedding call of one sync attempt — env: EMBEDDING_SYNC_TIMEOUT_MS
 
 # ── Platforms ────────────────────────────────────────────────
 # enabled: toggle a platform on/off without code changes
