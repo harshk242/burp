@@ -149,8 +149,9 @@ async function* runSearchTool(
   dc: DispatchContext,
 ): AsyncGenerator<StreamEvent, DispatchResult> {
   const { activeTools, sanitize } = dc;
-  const query = (call.input as { query: string }).query;
   try {
+    // Inside the try: a malformed call can arrive with input === null.
+    const query = (call.input as { query: string }).query;
     const searchResults = await hybridSearch.search(query);
 
     for (const found of searchResults) {
