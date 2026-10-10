@@ -77,6 +77,23 @@ describe("ArtifactStore", () => {
     expect(store.isCached(id)).toBe(true);
   });
 
+  it("draws a fresh ID when the generated one collides with a stored row", async () => {
+    // First two draws collide, the third is unique.
+    const fills = [0xaa, 0xaa, 0xbb];
+    spyOn(crypto, "getRandomValues").mockImplementation(<T extends ArrayBufferView | null>(arr: T) => {
+      (arr as unknown as Uint8Array).fill(fills.shift() ?? 0xcc);
+      return arr;
+    });
+    const first = store.store(SESSION, TOOL, INPUT, { v: "original" }, 10);
+    const second = store.store(SESSION, TOOL, INPUT, { v: "replacement" }, 10);
+
+    expect(first).toBe("art_aaaaaaaa");
+    expect(second).toBe("art_bbbbbbbb");
+    store.clear();
+    expect((await store.query(first, SESSION, ".v")).result).toBe("original");
+    expect((await store.query(second, SESSION, ".v")).result).toBe("replacement");
+  });
+
   it("serves a memory hit without touching the database", async () => {
     const id = store.store(SESSION, TOOL, INPUT, DATA, 9000);
     const find = spyOn(q.artifactQueries, "findForSession");
@@ -203,8 +220,9 @@ describe("ArtifactStore", () => {
 
   it("returns refresh guidance with tool name and input for an expired artifact", async () => {
     const created = Date.now();
+    const now = spyOn(Date, "now").mockReturnValue(created);
     const id = store.store(SESSION, TOOL, INPUT, DATA, 9000);
-    spyOn(Date, "now").mockReturnValue(created + 26 * HOUR_MS);
+    now.mockReturnValue(created + 26 * HOUR_MS);
     const expected =
       `Artifact ${id} expired (fetched 26h ago). ` +
       `Re-run \`${TOOL}\` with ${JSON.stringify(INPUT)} for current data.`;

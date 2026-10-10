@@ -38,6 +38,16 @@ function generateArtifactId(): string {
   return `art_${hex}`;
 }
 
+const MAX_ID_ATTEMPTS = 5;
+
+/** SQLite primary-key violation, raw or wrapped by Drizzle (`cause`). */
+function isPrimaryKeyConflict(err: unknown): boolean {
+  for (let e: unknown = err; e instanceof Error; e = e.cause) {
+    if ((e as { code?: unknown }).code === "SQLITE_CONSTRAINT_PRIMARYKEY") return true;
+  }
+  return false;
+}
+
 export interface Artifact {
   id: string;
   sessionId: string;
@@ -101,9 +111,47 @@ export class ArtifactStore {
     data: unknown,
     rawSizeChars: number,
   ): string {
-    const id = generateArtifactId();
     const json = JSON.stringify(data);
+    const gzipped = Buffer.from(Bun.gzipSync(json));
     const now = Date.now();
+    const expiresAt = now + appConfig.artifact.db_ttl_hours * 3_600_000;
+
+    // IDs are short (32 bits) to keep previews cheap, so a collision with a
+    // live row is possible: draw a fresh ID rather than shadow the stored one.
+    let id = generateArtifactId();
+    let persisted = false;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        this.rows.insert({
+          id,
+          session_id: sessionId,
+          tool_name: toolName,
+          tool_input_json: JSON.stringify(toolInput ?? null),
+          data: gzipped,
+          raw_size_chars: rawSizeChars,
+          stored_size_chars: json.length,
+          created_at: Math.floor(now / 1000),
+          expires_at: Math.floor(expiresAt / 1000),
+        });
+        persisted = true;
+        break;
+      } catch (err) {
+        if (isPrimaryKeyConflict(err) && attempt < MAX_ID_ATTEMPTS) {
+          id = generateArtifactId();
+          continue;
+        }
+        // Still usable for this memory window; only the later read-back is lost.
+        logger.warn("TOOL", "artifact_persist_failed", {
+          error: err instanceof Error ? err : String(err),
+          data: { artifact_id: id, tool: toolName },
+          ctx: { session_id: sessionId },
+        });
+        break;
+      }
+    }
+    // A memory-only artifact must not replace another cached artifact either.
+    while (!persisted && this.artifacts.has(id)) id = generateArtifactId();
+
     const artifact: Artifact = {
       id,
       sessionId,
@@ -113,32 +161,9 @@ export class ArtifactStore {
       rawSizeChars,
       storedSizeChars: json.length,
       createdAt: now,
-      expiresAt: now + appConfig.artifact.db_ttl_hours * 3_600_000,
+      expiresAt,
       lastAccessedAt: now,
     };
-
-    let persisted = false;
-    try {
-      this.rows.insert({
-        id,
-        session_id: sessionId,
-        tool_name: toolName,
-        tool_input_json: JSON.stringify(toolInput ?? null),
-        data: Buffer.from(Bun.gzipSync(json)),
-        raw_size_chars: rawSizeChars,
-        stored_size_chars: json.length,
-        created_at: Math.floor(artifact.createdAt / 1000),
-        expires_at: Math.floor(artifact.expiresAt / 1000),
-      });
-      persisted = true;
-    } catch (err) {
-      // Still usable for this memory window; only the later read-back is lost.
-      logger.warn("TOOL", "artifact_persist_failed", {
-        error: err instanceof Error ? err : String(err),
-        data: { artifact_id: id, tool: toolName },
-        ctx: { session_id: sessionId },
-      });
-    }
 
     this.artifacts.set(id, artifact);
     if (persisted) this.enforceSessionBudget(sessionId, id);
