@@ -153,6 +153,18 @@ describe("processChat reasoning", () => {
     expect(assistant?.reasoning).toBe("First.\n\nSecond.");
   });
 
+  it("doesn't stack blank lines when summaries already end in one", async () => {
+    // Anthropic summaries end in "\n\n"; whitespace-only pre-tool text adds nothing.
+    const { assistant } = await run([
+      [...thinking("r1", "Plan A.\n\n"), ...text("t1", "\n"), toolCall("c1"), finish("tool-calls")],
+      [...thinking("r2", "\nPlan B.\n\n"), ...text("t2", "Looking.\n\n"), toolCall("c2"), finish("tool-calls")],
+      [...thinking("r3", "Got it.\n\n"), ...text("t3", "Final"), finish("stop")],
+    ]);
+
+    expect(assistant?.reasoning).toBe("Plan A.\n\nPlan B.\n\nLooking.\n\nGot it.");
+    expect(assistant?.reasoning).not.toContain("\n\n\n");
+  });
+
   it("stores interleaved thinking and pre-tool text in stream order", async () => {
     const { events, assistant } = await run([
       [...thinking("r1", "A."), ...text("t1", "Checking."), ...thinking("r2", "B."), toolCall("c1"), finish("tool-calls")],

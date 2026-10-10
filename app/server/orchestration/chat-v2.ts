@@ -19,6 +19,7 @@ import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-d
 import type { StreamEvent, ToolCallRecord } from "./types";
 import { UsageMeter } from "./usage-meter";
 import { CallTracker, recordFailedTurn, type TurnErrorCode } from "./turn-usage";
+import { joinReasoning } from "./reasoning";
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 
@@ -140,7 +141,7 @@ export async function* processChat(
     let continueLoop = true;
     let fullAssistantContent = "";
     let persistedAssistantText = ""; // final response text only (last iteration)
-    let reasoningText = "";           // thinking (all iterations) + pre-tool-call text (non-final iterations)
+    const reasoningBlocks: string[] = []; // thinking (all iterations) + pre-tool-call text (non-final iterations)
     const allToolCalls: ToolCallRecord[] = [];
     let loopIteration = 0;
     // Prompt caching (Anthropic only): instructions carry the tools + system
@@ -212,7 +213,6 @@ export async function* processChat(
           thinkingStarted = false;
           if (newBlock) callSegments.push({ thinking: true, text: part.text });
           else callSegments.at(-1)!.text += part.text;
-          // An object, so the client's JSON.parse never turns a chunk like "42" into a number.
           yield { type: "reasoning", data: { text: part.text, newBlock } };
         } else if (part.type === "error") {
           streamError ??= part.error;
@@ -247,7 +247,7 @@ export async function* processChat(
       // Stored reasoning: this call's thinking, plus its text when the text is
       // pre-tool-call, in stream order (matches the client's segments).
       for (const seg of callSegments) {
-        if (seg.thinking || isToolCall) reasoningText += (reasoningText ? "\n\n" : "") + seg.text;
+        if (seg.thinking || isToolCall) reasoningBlocks.push(seg.text);
       }
 
       if (isToolCall) {
@@ -313,7 +313,7 @@ export async function* processChat(
         allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
         chatCost.inputTokens,
         chatCost.outputTokens,
-        reasoningText || null,
+        joinReasoning(reasoningBlocks) || null,
         chatCost.costMicrousd
       );
 

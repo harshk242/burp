@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Message, ToolCall } from "@/types";
 import { generateId } from "@/lib/id";
+import { joinReasoning } from "@/lib/reasoning";
 
 interface ChatState {
   messages: Message[];
@@ -127,8 +128,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   finalizeAssistantMessage: () => {
     const { streamingContent, pendingToolCalls, reasoningSegments } = get();
     if (streamingContent || pendingToolCalls.length > 0 || reasoningSegments.length > 0) {
-      const reasoning =
-        reasoningSegments.length > 0 ? reasoningSegments.join("\n\n") : undefined;
+      const reasoning = joinReasoning(reasoningSegments) || undefined;
       set((state) => ({
         messages: [
           ...state.messages,

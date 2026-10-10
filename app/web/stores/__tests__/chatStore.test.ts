@@ -71,6 +71,24 @@ describe("chatStore reasoning", () => {
     expect(store().textRuns).toEqual([]);
   });
 
+  it("doesn't stack blank lines when summaries already end in one (matches stored reasoning)", () => {
+    // Same stream as the server's chat-reasoning test of the same name.
+    const tool = (id: string) => ({ id, name: "t", server: "s", toolName: "t", input: {}, status: "running" as const });
+    store().appendReasoning("Plan A.\n\n", true);
+    store().appendStreamingContent("\n");
+    store().moveStreamingToReasoning();
+    store().addToolCall(tool("c1"));
+    store().appendReasoning("\nPlan B.\n\n", true);
+    store().appendStreamingContent("Looking.\n\n");
+    store().moveStreamingToReasoning();
+    store().addToolCall(tool("c2"));
+    store().appendReasoning("Got it.\n\n", true);
+    store().appendStreamingContent("Final");
+    store().finalizeAssistantMessage();
+
+    expect(store().messages[0]?.reasoning).toBe("Plan A.\n\nPlan B.\n\nLooking.\n\nGot it.");
+  });
+
   it("leaves reasoning undefined when the model didn't think", () => {
     store().appendStreamingContent("Plain");
     store().finalizeAssistantMessage();
