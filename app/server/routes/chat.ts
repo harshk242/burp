@@ -141,6 +141,10 @@ chat.openapi(chatRoute, async (c) => {
     (existingMessages.length === 0 || Boolean(firstUserMessage));
 
   return streamSSE(c, async (stream) => {
+    // A closed tab / dropped connection cancels the running turn.
+    const abortController = new AbortController();
+    stream.onAbort(() => abortController.abort());
+
     try {
       // Fire title generation in parallel with chat processing.
       // The title only depends on the user's question, not the response,
@@ -155,7 +159,7 @@ chat.openapi(chatRoute, async (c) => {
         : null;
 
       // Process chat through Claude with tool calling
-      for await (const event of processChat(sessionId, userId, message)) {
+      for await (const event of processChat(sessionId, userId, message, abortController.signal)) {
         await stream.writeSSE({
           event: event.type,
           data: typeof event.data === "string" ? event.data : JSON.stringify(event.data),
@@ -164,7 +168,7 @@ chat.openapi(chatRoute, async (c) => {
 
       // Emit the title after streaming completes.
       // The API call likely finished long ago; this just awaits the stored result.
-      if (titlePromise) {
+      if (titlePromise && !abortController.signal.aborted) {
         const title = await titlePromise;
         if (title) {
           await stream.writeSSE({
@@ -174,6 +178,7 @@ chat.openapi(chatRoute, async (c) => {
         }
       }
     } catch (error) {
+      if (abortController.signal.aborted) return;
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       await stream.writeSSE({
         event: "error",

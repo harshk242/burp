@@ -43,10 +43,16 @@ function buildMessages(history: DBMessage[], newMessage: string): ModelMessage[]
 
 // ── Main Chat Loop ─────────────────────────────────────────────────────────
 
+/**
+ * `signal` is aborted when the client disconnects: the in-flight LLM call and
+ * tool calls are cancelled, no further iterations run, and nothing is persisted
+ * for the assistant turn.
+ */
 export async function* processChat(
   sessionId: string,
   userId: string,
-  userMessage: string
+  userMessage: string,
+  signal?: AbortSignal
 ): AsyncGenerator<StreamEvent> {
   const chatElapsed = startTimer();
   const ctx: LogContext = { session_id: sessionId, user_id: userId };
@@ -118,6 +124,7 @@ export async function* processChat(
     const callCosts: CallCost[] = [];
 
     while (continueLoop) {
+      signal?.throwIfAborted();
       loopIteration++;
       if (loopIteration > llmConfig.maxToolIterations) {
         throw new Error(`Maximum tool iterations exceeded (${llmConfig.maxToolIterations})`);
@@ -145,6 +152,7 @@ export async function* processChat(
         tools: declarationTools,
         maxRetries: llmConfig.maxRetries,
         maxOutputTokens: llmConfig.maxOutputTokens,
+        abortSignal: signal,
       });
 
       // Stream text chunks
@@ -152,6 +160,9 @@ export async function* processChat(
         fullAssistantContent += chunk;
         yield { type: "text", data: chunk };
       }
+      // An abort can end the text stream without an error; stop before
+      // reading the step's results.
+      signal?.throwIfAborted();
 
       // Await the promise-based properties
       const finishReason = await result.finishReason;
@@ -229,9 +240,11 @@ export async function* processChat(
         continueLoop = false;
       }
     }
+          signal,
 
     const chatCost = summarizeTurnCost(callCosts);
     const baseRates = resolvePricing(llmConfig.provider, llmConfig.chatModel).base;
+          signal?.throwIfAborted();
 
     const assistantMsgId = uuidv4();
     const usageEventId = uuidv4();
@@ -326,6 +339,11 @@ export async function generateSessionTitle(
   });
 
   try {
+    if (signal?.aborted) {
+      // Client is gone: nothing to stream an error to.
+      logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed() });
+      return;
+    }
     const { text } = await generateText({
       model: getTitleModel(),
       maxOutputTokens: 50,

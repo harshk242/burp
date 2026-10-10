@@ -29,6 +29,8 @@ export interface DispatchContext {
   /** Mutated: search activates found tools, large outputs add inspect_artifact. */
   activeTools: ToolSet;
   ctx: LogContext;
+  /** Aborted when the client disconnects; cancels in-flight tool calls. */
+  signal?: AbortSignal;
 }
 
 export interface ToolCallInput {
@@ -231,6 +233,7 @@ async function* runSystemTool(
       toolCallId: call.tc.toolCallId,
       messages: [],
       context: undefined,
+      abortSignal: dc.signal,
     });
     const output = typeof rawResult === "string"
       ? rawResult
@@ -256,6 +259,8 @@ async function* runSystemTool(
       part: resultPart(call, output),
     };
   } catch (err) {
+    // An aborted turn ends here; don't turn the abort into a tool result.
+    if (dc.signal?.aborted) throw err;
     const errorMsg = err instanceof Error ? err.message : String(err);
     yield errorEnd(call, errorMsg);
     return { record: { ...record, error: errorMsg }, part: resultPart(call, errorMsg, true) };
@@ -274,7 +279,7 @@ async function* runMcpTool(
     input: call.input,
   };
   try {
-    const rawOutput = await createMcpToolExecutor(call.originalName)(call.input);
+    const rawOutput = await createMcpToolExecutor(call.originalName, dc.signal)(call.input);
     const output = await handleLargeOutput(call.originalName, rawOutput, dc.sessionId, dc.activeTools, dc.ctx);
 
     yield {
@@ -292,6 +297,8 @@ async function* runMcpTool(
       part: resultPart(call, output),
     };
   } catch (err) {
+    // An aborted turn ends here; don't turn the abort into a tool result.
+    if (dc.signal?.aborted) throw err;
     const errorMsg = err instanceof Error ? err.message : String(err);
     yield errorEnd(call, errorMsg);
     return { record: { ...record, error: errorMsg }, part: resultPart(call, errorMsg, true) };

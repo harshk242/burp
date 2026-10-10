@@ -361,7 +361,8 @@ export class MCPManager {
     serverName: string,
     toolName: string,
     args: Record<string, unknown>,
-    timeoutMs = 30000
+    timeoutMs = 30000,
+    signal?: AbortSignal
   ): Promise<ToolResult> {
     // Route all calls through the unified server with prefixed tool name
     const server = this.servers.get("unified");
@@ -386,10 +387,13 @@ export class MCPManager {
       setTimeout(() => reject(new Error(`Tool call timed out after ${timeoutMs}ms`)), timeoutMs);
     });
 
-    const callPromise = server.client.callTool({
-      name: prefixedToolName,
-      arguments: args,
-    });
+    // The signal cancels the request in the MCP client (it sends
+    // notifications/cancelled and rejects with an AbortError).
+    const callPromise = server.client.callTool(
+      { name: prefixedToolName, arguments: args },
+      undefined,
+      { signal }
+    );
 
     const result = await Promise.race([callPromise, timeoutPromise]);
 

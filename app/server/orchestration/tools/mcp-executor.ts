@@ -5,10 +5,13 @@
 import { mcpManager } from "../../mcp/manager";
 import { toolRegistry } from "../../mcp/registry";
 
-export function createMcpToolExecutor(fullName: string) {
+/** `signal` cancels the in-flight MCP call; a result that lands after an abort is dropped. */
+export function createMcpToolExecutor(fullName: string, signal?: AbortSignal) {
   return async (args: Record<string, unknown>): Promise<string> => {
     const { server, name } = toolRegistry.parseToolName(fullName);
-    const result = await mcpManager.callTool(server, name, args);
+    signal?.throwIfAborted();
+    const result = await mcpManager.callTool(server, name, args, undefined, signal);
+    signal?.throwIfAborted();
 
     if (result.isError) {
       throw new Error(
