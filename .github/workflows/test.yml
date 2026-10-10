@@ -7,8 +7,8 @@ on:
     # main is tested by deploy.yml (via workflow_call) right before deploying
     branches: [develop]
   schedule:
-    # Contract tests: weekly Monday 06:00 UTC
-    - cron: '0 6 * * 1'
+    # Contract tests: daily 06:00 UTC
+    - cron: '0 6 * * *'
   workflow_dispatch:
   workflow_call:
 
@@ -65,7 +65,7 @@ jobs:
         working-directory: app
         run: bun test
 
-  # ── Contract Tests (weekly schedule + manual dispatch) ──────────────────────
+  # ── Contract Tests (daily schedule + manual dispatch) ──────────────────────
   contract-tests:
     name: API Contract Tests
     runs-on: ubuntu-latest
