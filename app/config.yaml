@@ -55,6 +55,17 @@ tool_search:
   short_query_threshold: 4      # queries with ≤ N words bias toward BM25 — env: TOOL_SEARCH_SHORT_QUERY_THRESHOLD
   short_query_bm25_weight: 2.0  # BM25 weight multiplier for short queries — env: TOOL_SEARCH_SHORT_QUERY_BM25_WEIGHT
   top_k: 15                     # env: TOOL_SEARCH_TOP_K
+  embeddings_path: ./data/tool-embeddings.json  # relative to app/ (/app/data on the fly volume) — env: TOOL_EMBEDDINGS_PATH
+
+# ── Embeddings (semantic tool search) ────────────────────────
+# Independent of the chat `llm` provider. The index file records which
+# embedder made it; after changing provider/model/dimensions, search is
+# keyword-only until the index is regenerated (bun run generate:embeddings).
+embedding:
+  provider: openai              # "openai" (OPENAI_API_KEY) | "google" (GEMINI_API_KEY) — env: EMBEDDING_PROVIDER
+  model: text-embedding-3-small # env: EMBEDDING_MODEL (override provider AND model together)
+  dimensions: 1536              # omit for the model's native size — env: EMBEDDING_DIMENSIONS ("native" clears it)
+  query_timeout_ms: 2000        # semantic half falls back to keyword results after this — env: EMBEDDING_QUERY_TIMEOUT_MS
 
 # ── Platforms ────────────────────────────────────────────────
 # enabled: toggle a platform on/off without code changes

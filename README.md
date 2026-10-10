@@ -136,6 +136,7 @@ CLERK_SECRET_KEY=sk_test_...
 
 # Recommended
 NCBI_API_KEY=<your-ncbi-key>
+OPENAI_API_KEY=sk-...   # semantic tool search (embedding.provider: openai); keyword-only without it
 
 # Optional
 CLAUDE_MODEL=claude-sonnet-4-6
@@ -145,6 +146,10 @@ MCP_SERVERS_BASE=../mcp-server
 ADMIN_EMAIL=you@example.com
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 ```
+
+To build the semantic tool search index (written to `app/data/tool-embeddings.json`, or
+`tool_search.embeddings_path`), run `bun run generate:embeddings`. Rerun it after changing
+the `embedding:` provider/model/dimensions in `app/config.yaml`; until then search is keyword-only.
 
 **For the frontend** (`app/web/.env.local`):
 ```bash

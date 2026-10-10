@@ -5,16 +5,11 @@
  */
 
 import type { createToolSearchQueries } from "../db/queries/tool-search";
+import type { QueryEmbedder } from "../embeddings/types";
 import { logger, startTimer } from "../logger";
 import { appConfig } from "../config";
 
 type ToolSearchQueries = ReturnType<typeof createToolSearchQueries>;
-
-/** Embeds search queries. `id` names the model so logs show what ranked results. */
-export interface QueryEmbedder {
-  readonly id: string;
-  embedQuery(text: string): Promise<Float32Array>;
-}
 
 /**
  * Embedder and the tool vectors it produced, swapped as one unit so a search
@@ -23,6 +18,8 @@ export interface QueryEmbedder {
 interface EmbeddingSnapshot {
   readonly embedder: QueryEmbedder;
   readonly vectors: ReadonlyMap<string, Float32Array>;
+  /** Length shared by every stored vector; query vectors must match it. */
+  readonly dimension: number;
 }
 
 export interface SearchResult {
@@ -73,11 +70,18 @@ export class HybridToolSearch {
     this.config = loadConfig();
   }
 
-  /** Replace the embedder and tool vectors together. */
+  /**
+   * Replace the embedder and tool vectors together. The vectors must all come
+   * from `embedder` and share one length (the index file reader guarantees both).
+   */
   attachEmbeddings(embedder: QueryEmbedder, vectors: ReadonlyMap<string, Float32Array>): void {
-    this.embeddings = { embedder, vectors: new Map(vectors) };
+    const dimension = vectors.values().next().value?.length ?? 0;
+    for (const [name, vector] of vectors) {
+      if (vector.length !== dimension) throw new Error(`vector for ${name} has length ${vector.length}, expected ${dimension}`);
+    }
+    this.embeddings = { embedder, vectors: new Map(vectors), dimension };
     logger.info("SEARCH", "embeddings_attached", {
-      data: { embedder: embedder.id, tool_count: vectors.size },
+      data: { embedder: embedder.id, dimension, tool_count: vectors.size },
     });
   }
 
@@ -111,7 +115,8 @@ export class HybridToolSearch {
       duration_ms: elapsed(),
       data: {
         query,
-        embedder: snapshot?.embedder.id,
+        // Which model ranked the semantic half (absent when keyword-only).
+        embedder: semanticResults.length > 0 ? snapshot?.embedder.id : undefined,
         bm25_hits: bm25Results.length,
         semantic_hits: semanticResults.length,
         fused_hits: fused.length,
@@ -153,7 +158,9 @@ export class HybridToolSearch {
   /**
    * Rank tools in `toolIndex` against the query using `snapshot`. Both are read
    * by the caller before any await, so a concurrent swap or reindex can't mix
-   * models or score tools that aren't registered.
+   * models or score tools that aren't registered. Any failure (timeout,
+   * provider error, wrong-length query vector) yields [] so the search falls
+   * back to keyword results.
    */
   private async searchSemantic(
     query: string,
@@ -164,6 +171,14 @@ export class HybridToolSearch {
 
     try {
       const queryEmb = await snapshot.embedder.embedQuery(query);
+      // Zero scores would still earn RRF weight by rank, so skip semantic entirely.
+      if (queryEmb.length !== snapshot.dimension) {
+        logger.warn("SEARCH", "semantic_query_dimension_mismatch", {
+          data: { query, embedder: snapshot.embedder.id, expected: snapshot.dimension, actual: queryEmb.length },
+        });
+        return [];
+      }
+
       const scored: Array<{ tool: ToolInfo; sim: number }> = [];
 
       for (const tool of toolIndex.values()) {
@@ -184,7 +199,7 @@ export class HybridToolSearch {
     } catch (err) {
       logger.warn("SEARCH", "semantic_search_failed", {
         error: err instanceof Error ? err : String(err),
-        data: { query },
+        data: { query, embedder: snapshot.embedder.id },
       });
       return [];
     }

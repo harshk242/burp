@@ -1,15 +1,14 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
-import { join } from "path";
 import { DB_PATH, MigrationFkError, runMigrations, sqlite } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
 import { toolRegistry } from "./mcp/registry";
-import { aiSdkQueryEmbedder, hybridSearch, loadEmbeddingsFile, reindexToolSearch } from "./search";
-import { getEmbeddingModel } from "./llm";
+import { attachStoredEmbeddings, hybridSearch, reindexToolSearch } from "./search";
+import { createEmbedder } from "./embeddings";
 import { logger, startTimer, generateRequestId } from "./logger";
-import { APP_DIR, appConfig } from "./config";
+import { appConfig } from "./config";
 import { redirectWwwToCanonical } from "./middleware/canonical-host";
 import type { AppEnv } from "./types";
 
@@ -36,6 +35,10 @@ function reindexSearch() {
 }
 mcpManager.onToolsChanged = reindexSearch;
 
+// Null when the embedding provider's key is missing: search stays keyword-only
+// and makes no embedding calls.
+const embedder = createEmbedder(appConfig.embedding, { queryTimeoutMs: appConfig.embedding.query_timeout_ms });
+
 // Initialize MCP servers and tool discovery
 async function initializeMCP() {
   const elapsed = startTimer();
@@ -55,15 +58,8 @@ async function initializeMCP() {
 
   reindexSearch();
 
-  // Load precomputed embeddings (optional — BM25 works without them)
-  try {
-    const embPath = join(APP_DIR, "..", "data", "tool-embeddings.json");
-    hybridSearch.attachEmbeddings(aiSdkQueryEmbedder(getEmbeddingModel()), loadEmbeddingsFile(embPath));
-  } catch (e) {
-    logger.warn("STARTUP", "embeddings_load_failed", {
-      error: e instanceof Error ? e : String(e),
-    });
-  }
+  // Attach precomputed embeddings made by the configured embedder (optional — BM25 works without them)
+  if (embedder) await attachStoredEmbeddings(hybridSearch, embedder, appConfig.tool_search.embeddings_path);
 
   logger.info("STARTUP", "mcp_init_complete", {
     duration_ms: elapsed(),
@@ -72,6 +68,7 @@ async function initializeMCP() {
       tools_total: toolRegistry.count,
       search_indexed: hybridSearch.indexed,
       embeddings_loaded: hybridSearch.embeddingsLoaded,
+      embedder: embedder?.id,
     },
   });
 }

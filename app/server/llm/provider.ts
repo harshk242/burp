@@ -5,7 +5,7 @@
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogle } from "@ai-sdk/google";
-import type { LanguageModel, EmbeddingModel } from "ai";
+import type { LanguageModel } from "ai";
 import { loadLLMConfig, type LLMProviderName } from "./config";
 
 const config = loadLLMConfig();
@@ -35,9 +35,4 @@ export function getChatModel(): LanguageModel {
 
 export function getTitleModel(): LanguageModel {
   return getModel(config.titleModel, config.provider);
-}
-
-/** Embedding model is always Gemini regardless of LLM provider */
-export function getEmbeddingModel(): EmbeddingModel {
-  return google.embedding("gemini-embedding-001");
 }

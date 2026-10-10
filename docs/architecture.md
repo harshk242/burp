@@ -94,7 +94,7 @@ Total: ~210+ MCP tools across 10 platforms
 |  |  | /public (Next  |  |  |         |  +---------------------+  |
 |  |  |  static export)|  |  |         |  | Google AI API       |  |
 |  |  | /api (Hono)    |  |  |         |  | - Gemini (optional) |  |
-|  |  | /mcp-server    |  |  |         |  | - Embeddings        |  |
+|  |  | /mcp-server    |  |  |         |  | - Embeddings (opt.) |  |
 |  |  +----------------+  |  |         |  +---------------------+  |
 |  |                      |  |         |                           |
 |  |  +----------------+  |  |         |  +---------------------+  |
@@ -178,13 +178,13 @@ Stage 4 (runner)         : Combine all into final image
 ||  |  ┌──────────────────────┐  |  |  │ MCPManager   │ (singleton)        |  ||
 ||  |  │ getChatModel()       │  |  |  │ - register   │                    |  ||
 ||  |  │ getTitleModel()      │  |  |  │ - start/stop │                    |  ||
-||  |  │ getEmbeddingModel()  │  |  |  │ - callTool   │                    |  ||
+||  |  │ (chat only)          │  |  |  │ - callTool   │                    |  ||
 ||  |  └──────────────────────┘  |  |  │ - retry loop │                    |  ||
 ||  |                            |  |  └──────┬───────┘                    |  ||
 ||  |  Providers:                |  |         │ stdio                      |  ||
 ||  |  ┌────────┐ ┌────────┐    |  |         v                            |  ||
 ||  |  │Anthropic│ │ Google │    |  |  ┌──────────────┐                    |  ||
-||  |  │ (chat)  │ │(embed) │    |  |  │ Unified MCP  │ (child process)   |  ||
+||  |  │ (chat)  │ │ (chat) │    |  |  │ Unified MCP  │ (child process)   |  ||
 ||  |  └────────┘ └────────┘    |  |  │ Server       │                    |  ||
 ||  +----------------------------+  |  │ (Node.js)    │                    |  ||
 ||                                  |  └──────────────┘                    |  ||
@@ -194,7 +194,7 @@ Stage 4 (runner)         : Combine all into final image
 ||  |  Hybrid Search (RRF):     |  |  │ - discover   │                    |  ||
 ||  |  ┌─────────┐ ┌──────────┐ |  |  │ - lookup     │                    |  ||
 ||  |  │ BM25    │ │ Semantic │ |  |  │ - Vercel fmt │                    |  ||
-||  |  │ (FTS5)  │ │(Embeddings)│|  |  └──────────────┘                    |  ||
+||  |  │ (FTS5)  │ │(Embedder)│ |  |  └──────────────┘                    |  ||
 ||  |  └─────────┘ └──────────┘ |  +--------------------------------------+  ||
 ||  |        ↓ RRF Fusion ↓     |                                            ||
 ||  |   Top-K tool results      |  +--------------------------------------+  ||
@@ -375,7 +375,7 @@ User                  Frontend            Hono Server           Orchestration   
                               │                             │
                               │  SQLite FTS5 ─── BM25 index │
                               │  Embeddings ─── Cosine sim  │
-                              │        (Gemini embed)       │
+                              │  (Embedder: OpenAI default) │
                               │                             │
                               │  Fusion: RRF (Reciprocal    │
                               │  Rank Fusion)               │
@@ -698,12 +698,13 @@ the diagram below.
   │  │ 1. Environment Variables                             │       │
   │  │    PORT, DATABASE_URL, LLM_CHAT_MODEL, etc.          │       │
   │  │    Secrets: ANTHROPIC_API_KEY, CLERK_SECRET_KEY,      │       │
-  │  │    NCBI_API_KEY, GEMINI_API_KEY                       │       │
+  │  │    NCBI_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY       │       │
   │  └──────────────────────────────────────────────────────┘       │
   │                          ▼ overrides                            │
   │  ┌──────────────────────────────────────────────────────┐       │
   │  │ 2. app/config.yaml                                   │       │
   │  │    - LLM provider/model selection                     │       │
+  │  │    - Embedding provider/model/dimensions (separate)   │       │
   │  │    - Server settings (port, DB path, CORS)            │       │
   │  │    - Tool search tuning (BM25/semantic weights)       │       │
   │  │    - Platform enable/disable + always-loaded tools    │       │
@@ -769,6 +770,9 @@ the diagram below.
   ├── app/                      ← Backend workspace ("burp")
   │   ├── package.json
   │   ├── config.yaml           ← Central non-secret configuration
+  │   ├── data/tool-embeddings.json ← Tool embeddings index v2 (tool_search.embeddings_path,
+  │   │                               resolves against app/; /app/data volume in Docker)
+  │   ├── scripts/generate-tool-embeddings.ts ← Rebuild the index with the configured embedder
   │   ├── server/
   │   │   ├── index.ts          ← Hono server entrypoint
   │   │   ├── config.ts         ← Config loader (YAML + env + Zod)
@@ -805,8 +809,13 @@ the diagram below.
   │   │   │   ├── manager.ts    ← MCP server lifecycle (stdio)
   │   │   │   ├── registry.ts   ← Tool registry + Vercel AI fmt
   │   │   │   └── platforms.config.ts ← Config.yaml → platform list
+  │   │   ├── embeddings/       ← Embedder abstraction (separate from llm/)
+  │   │   │   ├── factory.ts    ← createEmbedder(): OpenAI | Google over AI SDK
+  │   │   │   ├── index-file.ts ← tool-embeddings.json v2 read/validate/atomic write
+  │   │   │   └── types.ts      ← Embedder, identity, errors
   │   │   ├── search/
   │   │   │   ├── hybrid-search.ts ← BM25 + Semantic + RRF fusion
+  │   │   │   ├── reindex.ts    ← Registry → search index; attach stored embeddings
   │   │   │   └── index.ts
   │   │   └── orchestration/
   │   │       ├── chat-v2.ts    ← Core chat loop (agentic)
@@ -865,9 +874,8 @@ the diagram below.
   │   │       └── uniprot/      ← UniProt REST API
   │   └── dist/                 ← Compiled JS output
   │
-  ├── data/                     ← SQLite DB + embeddings
-  │   ├── app.db
-  │   └── tool-embeddings.json
+  ├── data/                     ← SQLite DB (DATABASE_URL resolves against repo root)
+  │   └── app.db
   │
   ├── Dockerfile                ← Multi-stage Docker build
   ├── docker-compose.yml        ← Local Docker compose

@@ -6,8 +6,10 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createTestDb } from "../__test-utils__/db";
 import { createQueries } from "../db/queries";
-import { HybridToolSearch, type QueryEmbedder, type ToolInfo } from "../search/hybrid-search";
+import type { QueryEmbedder } from "../embeddings/types";
+import { HybridToolSearch, type ToolInfo } from "../search/hybrid-search";
 import { reindexToolSearch } from "../search/reindex";
+import { createEmbedder } from "../embeddings/factory";
 
 function tool(fullName: string, description: string): ToolInfo {
   const [server, toolName] = fullName.split("__");
@@ -108,5 +110,44 @@ describe("semantic search", () => {
     // The next search picks up the new snapshot.
     expect((await search.search(SEMANTIC_ONLY_QUERY)).map((r) => r.fullName)).toEqual([BETA.fullName, ALPHA.fullName]);
     expect(newEmb.calls).toBe(1);
+  });
+});
+
+describe("semantic fallback", () => {
+  it("returns keyword results only when the query vector has the wrong length", async () => {
+    search.indexTools([ALPHA, BETA]);
+    search.attachEmbeddings(fakeEmbedder("fake", [1, 0, 0]).embedder, vectors({ [ALPHA.fullName]: [1, 0], [BETA.fullName]: [0, 1] }));
+
+    const results = await search.search("protein records");
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((r) => r.semanticRank === undefined && r.bm25Rank !== undefined)).toBe(true);
+    expect(await search.search(SEMANTIC_ONLY_QUERY)).toEqual([]);
+  });
+
+  it("returns keyword results after the query timeout when the embedding stalls", async () => {
+    // Real embedder over a provider that never answers.
+    const stalled = (() => new Promise(() => {})) as unknown as typeof fetch;
+    const embedder = createEmbedder(
+      { provider: "openai", model: "text-embedding-3-small", dimensions: 2 },
+      { env: { OPENAI_API_KEY: "sk-test" }, fetch: stalled, queryTimeoutMs: 50 }
+    )!;
+    search.indexTools([ALPHA, BETA]);
+    search.attachEmbeddings(embedder, vectors({ [ALPHA.fullName]: [1, 0], [BETA.fullName]: [0, 1] }));
+
+    const started = performance.now();
+    const results = await search.search("protein records");
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(results.map((r) => r.fullName)).toContain(ALPHA.fullName);
+    expect(results.every((r) => r.semanticRank === undefined)).toBe(true);
+  });
+
+  it("never embeds a query when no embedder is attached", async () => {
+    search.indexTools([ALPHA]);
+    expect(search.embeddingsLoaded).toBe(false);
+    expect((await search.search("protein records")).map((r) => r.fullName)).toEqual([ALPHA.fullName]);
+  });
+
+  it("refuses vectors of mixed lengths", () => {
+    expect(() => search.attachEmbeddings(fakeEmbedder("fake", [1, 0]).embedder, vectors({ a: [1, 0], b: [1, 0, 0] }))).toThrow();
   });
 });
