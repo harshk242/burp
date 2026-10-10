@@ -6,6 +6,7 @@
 
 import type { createToolSearchQueries } from "../db/queries/tool-search";
 import type { QueryEmbedder } from "../embeddings/types";
+import { untilAborted } from "../embeddings/deadline";
 import { logger, startTimer } from "../logger";
 import { appConfig } from "../config";
 
@@ -106,12 +107,14 @@ export class HybridToolSearch {
     });
   }
 
-  async search(query: string): Promise<SearchResult[]> {
+  /** Rejects with `signal.reason` once `signal` aborts, even if the embedder ignores it. */
+  async search(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
     const elapsed = startTimer();
     const snapshot = this.embeddings;
     const toolIndex = this.toolIndex;
     const bm25Results = this.searchBM25(query);
-    const semanticResults = await this.searchSemantic(query, snapshot, toolIndex);
+    const semanticResults = await this.searchSemantic(query, snapshot, toolIndex, signal);
+    signal?.throwIfAborted();
     const fused = this.fuseRRF(bm25Results, semanticResults, query);
 
     logger.info("SEARCH", "hybrid_search_complete", {
@@ -163,17 +166,18 @@ export class HybridToolSearch {
    * by the caller before any await, so a concurrent swap or reindex can't mix
    * models or score tools that aren't registered. Any failure (timeout,
    * provider error, wrong-length query vector) yields [] so the search falls
-   * back to keyword results.
+   * back to keyword results; an abort of `signal` is rethrown instead.
    */
   private async searchSemantic(
     query: string,
     snapshot: EmbeddingSnapshot | null,
-    toolIndex: ReadonlyMap<string, ToolInfo>
+    toolIndex: ReadonlyMap<string, ToolInfo>,
+    signal?: AbortSignal
   ): Promise<SearchResult[]> {
     if (!snapshot || snapshot.vectors.size === 0) return [];
 
     try {
-      const queryEmb = await snapshot.embedder.embedQuery(query);
+      const queryEmb = await untilAborted(snapshot.embedder.embedQuery(query, signal), signal);
       // Zero scores would still earn RRF weight by rank, so skip semantic entirely.
       if (queryEmb.length !== snapshot.dimension) {
         logger.warn("SEARCH", "semantic_query_dimension_mismatch", {
@@ -200,6 +204,7 @@ export class HybridToolSearch {
         semanticRank: i + 1,
       }));
     } catch (err) {
+      if (signal?.aborted) throw err;
       logger.warn("SEARCH", "semantic_search_failed", {
         error: err instanceof Error ? err : String(err),
         data: { query, embedder: snapshot.embedder.id },

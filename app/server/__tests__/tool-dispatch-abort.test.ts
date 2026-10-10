@@ -89,6 +89,34 @@ describe("dispatchToolCall abort", () => {
     expect(error).toBe(turn.signal.reason);
   });
 
+  it("search tool: an abort mid-search releases dispatch even if the embedder ignores it", async () => {
+    const turn = new AbortController();
+    let received: AbortSignal | undefined;
+    hybridSearch.attachEmbeddings(
+      {
+        id: "stalled",
+        embedQuery(_text, signal) {
+          received = signal;
+          return new Promise(() => {});
+        },
+      },
+      new Map([["demo__tool", new Float32Array([1, 0])]]),
+    );
+    const activeTools: Record<string, Tool> = {};
+
+    const pending = run(SEARCH, turn, activeTools);
+    while (!received) await Bun.sleep(0);
+    const started = performance.now();
+    turn.abort();
+    const { events, error } = await pending;
+
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(received).toBe(turn.signal);
+    expect(events.map((e) => e.type)).toEqual(["tool_start"]);
+    expect(error).toBe(turn.signal.reason);
+    expect(Object.keys(activeTools)).toEqual([]);
+  });
+
   it("system tool: abort at the tool_start write skips execution", async () => {
     const turn = new AbortController();
     const execute = mock(async () => "out");

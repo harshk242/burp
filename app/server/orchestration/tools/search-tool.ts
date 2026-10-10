@@ -24,8 +24,8 @@ export function createSearchTool(
         "Natural language description of the capability you need"
       ),
     }),
-    execute: async ({ query }) => {
-      const results = await hybridSearch.search(query);
+    execute: async ({ query }, { abortSignal }) => {
+      const results = await hybridSearch.search(query, abortSignal);
       return {
         found: results.length,
         tools: results.map((r) => ({

@@ -4,6 +4,7 @@
  * query deadline. No network calls.
  */
 import { describe, expect, it } from "bun:test";
+import { withDeadline } from "../embeddings/deadline";
 import { createEmbedder } from "../embeddings/factory";
 import { EmbeddingResponseError, EmbeddingTimeoutError, type EmbeddingSpec } from "../embeddings/types";
 
@@ -197,5 +198,28 @@ describe("query deadline", () => {
     const fetch = (() => new Promise(() => {})) as unknown as typeof globalThis.fetch;
     const embedder = createEmbedder(OPENAI, { env: { OPENAI_API_KEY: "sk" }, fetch, queryTimeoutMs: 30 })!;
     await expect(embedder.embedQuery("q")).rejects.toBeInstanceOf(EmbeddingTimeoutError);
+  });
+});
+
+describe("withDeadline caller abort", () => {
+  const timeoutError = () => new EmbeddingTimeoutError("timed out");
+
+  it("rejects promptly with the abort reason when fn ignores its signal", async () => {
+    const caller = new AbortController();
+    const pending = withDeadline(10_000, () => new Promise<never>(() => {}), { signal: caller.signal, timeoutError });
+
+    const started = performance.now();
+    const reason = new Error("user went away");
+    caller.abort(reason);
+    await expect(pending).rejects.toBe(reason);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it("rejects without running fn when the caller's signal is already aborted", async () => {
+    const caller = new AbortController();
+    caller.abort(new Error("gone"));
+    let calls = 0;
+    await expect(withDeadline(10_000, async () => ++calls, { signal: caller.signal, timeoutError })).rejects.toThrow("gone");
+    expect(calls).toBe(0);
   });
 });

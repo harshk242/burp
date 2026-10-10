@@ -141,6 +141,28 @@ describe("semantic fallback", () => {
     expect(results.every((r) => r.semanticRank === undefined)).toBe(true);
   });
 
+  it("rejects on abort instead of falling back when the embedder ignores the signal", async () => {
+    let received: AbortSignal | undefined;
+    const stalled: QueryEmbedder = {
+      id: "stalled",
+      embedQuery(_text, signal) {
+        received = signal;
+        return new Promise(() => {});
+      },
+    };
+    search.indexTools([ALPHA, BETA]);
+    search.attachEmbeddings(stalled, vectors({ [ALPHA.fullName]: [1, 0], [BETA.fullName]: [0, 1] }));
+    const turn = new AbortController();
+
+    const pending = search.search("protein records", turn.signal);
+    const started = performance.now();
+    turn.abort(new Error("turn aborted"));
+
+    await expect(pending).rejects.toThrow("turn aborted");
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(received).toBe(turn.signal);
+  });
+
   it("never embeds a query when no embedder is attached", async () => {
     search.indexTools([ALPHA]);
     expect(search.embeddingsLoaded).toBe(false);
