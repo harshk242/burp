@@ -41,12 +41,47 @@ interface PreviousCall {
   messageCount: number;
   /** Serialized instructions as sent. */
   instructions: string;
-  /** Serialized tool declarations as sent. */
+  /** Serialized tool definitions in context (see `loadedTools`). */
   tools: Set<string>;
 }
 
-const serializeTools = (request: LanguageModelCallStartEvent | undefined): string[] =>
-  (request?.tools ?? []).map((tool) => JSON.stringify(tool));
+type PreparedTool = Record<string, unknown> & {
+  name?: unknown;
+  providerOptions?: { anthropic?: { deferLoading?: unknown } };
+};
+
+/**
+ * Serialized definitions of the tools whose definition is in the prompt: every
+ * declared tool except deferred ones (Anthropic), plus the deferred tools a
+ * tool search referenced so far, whose definitions the provider expands at the
+ * reference. An undiscovered deferred tool costs (almost) nothing.
+ */
+function loadedTools(request: LanguageModelCallStartEvent | undefined): string[] {
+  if (!request) return [];
+  const referenced = referencedToolNames(request.messages);
+  return (request.tools ?? [])
+    .filter((tool) => {
+      const t = tool as PreparedTool;
+      return t.providerOptions?.anthropic?.deferLoading !== true || referenced.has(String(t.name));
+    })
+    .map((tool) => JSON.stringify(tool));
+}
+
+/** Names in `tool-reference` parts of tool results (search_available_tools on Anthropic). */
+function referencedToolNames(messages: LanguageModelCallStartEvent["messages"]): Set<string> {
+  const names = new Set<string>();
+  for (const message of messages) {
+    if (message.role !== "tool") continue;
+    for (const part of message.content) {
+      if (part.type !== "tool-result" || part.output.type !== "content") continue;
+      for (const item of part.output.value) {
+        const ref = item.type === "custom" ? item.providerOptions?.anthropic : undefined;
+        if (ref?.type === "tool-reference" && typeof ref.toolName === "string") names.add(ref.toolName);
+      }
+    }
+  }
+  return names;
+}
 
 /** Follows the in-flight LLM call so a cut-off one can be estimated. */
 export class CallTracker {
@@ -104,7 +139,7 @@ export class CallTracker {
       promptTokens: call.promptTokens,
       messageCount: request?.messages.length ?? 0,
       instructions: JSON.stringify(request?.instructions) ?? "",
-      tools: new Set(serializeTools(request)),
+      tools: new Set(loadedTools(request)),
     };
     this.current = null;
   }
@@ -112,25 +147,28 @@ export class CallTracker {
   /**
    * Estimate for a call that was sent but never finished, or null. Input is the
    * previous call's prompt plus what was added since: new messages, tool
-   * declarations not sent before (search activates tools mid-turn) and the
-   * instructions if they changed. Nothing is subtracted for removed parts, so
-   * the estimate never falls below the growth. On a turn's first call it is the
-   * whole request (instructions, messages, tools). All of it is priced as
-   * uncached input (the worst case). Output is streamed characters / 4.
+   * definitions not in context before (Gemini search activates tools mid-turn;
+   * on Anthropic a tool reference loads a deferred one) and the instructions if
+   * they changed. Nothing is subtracted for removed parts, so the estimate never
+   * falls below the growth. On a turn's first call it is the whole request
+   * (instructions, messages, loaded tools). All of it is priced at the worst
+   * case: a 5-minute cache write when the provider caches (`cacheWrites`,
+   * 1.25× input on Anthropic), uncached input otherwise. Output is streamed
+   * characters / 4.
    */
-  estimateCutOffCall(): { iteration: number; usage: CallUsage } | null {
+  estimateCutOffCall(cacheWrites = false): { iteration: number; usage: CallUsage } | null {
     const call = this.current;
     if (!call?.sent || !call.request) return null;
-    const { instructions, messages, tools } = call.request;
+    const { instructions, messages } = call.request;
     const inputTokens = this.previous
       ? this.previous.promptTokens + this.estimateGrowth(call.request, this.previous)
-      : estimateTokens(JSON.stringify({ instructions, messages, tools }));
+      : estimateTokens(JSON.stringify({ instructions, messages })) + estimateToolTokens(loadedTools(call.request));
     return {
       iteration: call.iteration,
       usage: {
-        noCacheTokens: inputTokens,
+        noCacheTokens: cacheWrites ? 0 : inputTokens,
         cacheReadTokens: 0,
-        cacheWrite5mTokens: 0,
+        cacheWrite5mTokens: cacheWrites ? inputTokens : 0,
         cacheWrite1hTokens: 0,
         outputTokens: Math.ceil(call.streamedChars / 4),
       },
@@ -138,15 +176,18 @@ export class CallTracker {
   }
 
   private estimateGrowth(request: LanguageModelCallStartEvent, previous: PreviousCall): number {
-    const newTools = serializeTools(request).filter((tool) => !previous.tools.has(tool));
+    const newTools = loadedTools(request).filter((tool) => !previous.tools.has(tool));
     const instructions = JSON.stringify(request.instructions) ?? "";
     return (
       estimateTokens(JSON.stringify(request.messages.slice(previous.messageCount))) +
-      (newTools.length > 0 ? estimateTokens(`[${newTools.join(",")}]`) : 0) +
+      estimateToolTokens(newTools) +
       (instructions !== previous.instructions ? estimateTokens(instructions) : 0)
     );
   }
 }
+
+const estimateToolTokens = (tools: string[]): number =>
+  tools.length > 0 ? estimateTokens(`[${tools.join(",")}]`) : 0;
 
 export interface FailedTurn {
   meter: UsageMeter;
@@ -171,7 +212,8 @@ export interface FailedTurn {
 export function recordFailedTurn(turn: FailedTurn): void {
   const { meter, ctx, errorCode } = turn;
   try {
-    const cutOff = turn.tracker.estimateCutOffCall();
+    // Anthropic turns request prompt caching (chat-v2), so new input may be cache-written.
+    const cutOff = turn.tracker.estimateCutOffCall(turn.provider === "anthropic");
     if (cutOff) {
       const call = meter.add(cutOff.usage, { estimated: true });
       logger.warn("CHAT", "usage_estimated", {

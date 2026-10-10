@@ -20,13 +20,32 @@ const tool = (name: string, descriptionChars = 10): Tool => ({
   inputSchema: { type: "object", properties: {} },
 });
 
-const request = (opts: { messages: number; tools: Tool[]; instructions?: string }) =>
+const deferred = (t: Tool): Tool => ({ ...t, providerOptions: { anthropic: { deferLoading: true } } });
+
+/** A search_available_tools result referencing `names` (Anthropic). */
+const references = (names: string[]) => ({
+  role: "tool",
+  content: [{
+    type: "tool-result",
+    toolCallId: "t1",
+    toolName: "search_available_tools",
+    output: {
+      type: "content",
+      value: names.map((toolName) => ({ type: "custom", providerOptions: { anthropic: { type: "tool-reference", toolName } } })),
+    },
+  }],
+});
+
+const request = (opts: { messages: number; tools: Tool[]; instructions?: string; extra?: unknown[] }) =>
   ({
     callId: "c",
     provider: "mock",
     modelId: "mock",
     instructions: opts.instructions ?? "system",
-    messages: Array.from({ length: opts.messages }, (_, i) => ({ role: "user", content: `m${i}` })),
+    messages: [
+      ...Array.from({ length: opts.messages }, (_, i) => ({ role: "user", content: `m${i}` })),
+      ...(opts.extra ?? []),
+    ],
     tools: opts.tools,
   }) as unknown as LanguageModelCallStartEvent;
 
@@ -110,5 +129,35 @@ describe("CallTracker.estimateCutOffCall", () => {
     const call = meter.add(cutOff.usage, { estimated: true });
     expect(call.promptTokens).toBeGreaterThan(100_000);
     expect(call.tier).toBe("long_context");
+  });
+
+  it("first call: undiscovered deferred tools are not counted", async () => {
+    const tracker = new CallTracker();
+    await sendCall(tracker, 1, request({ messages: 1, tools: [tool("core"), deferred(tool("big", 35_000))] }));
+    const withDeferred = tracker.estimateCutOffCall()!.usage.noCacheTokens;
+    await sendCall(tracker, 1, request({ messages: 1, tools: [tool("core")] }));
+    expect(withDeferred).toBe(tracker.estimateCutOffCall()!.usage.noCacheTokens);
+  });
+
+  it("adds a deferred tool's definition once a search result references it", async () => {
+    const big = deferred(tool("big", 35_000));
+    const tools = [tool("search_available_tools"), big];
+    const meter = new UsageMeter("anthropic", "claude-sonnet-5-5", ctx);
+    const cutOff = await cutOffSecondCall(
+      meter,
+      5_000,
+      request({ messages: 2, tools }),
+      request({ messages: 2, tools, extra: [references(["big"])] })
+    );
+    expect(cutOff.usage.noCacheTokens).toBeGreaterThanOrEqual(5_000 + estimateTokens(JSON.stringify([big])));
+  });
+
+  it("prices the input as a 5-minute cache write when the provider caches", async () => {
+    const tracker = new CallTracker();
+    await sendCall(tracker, 1, request({ messages: 2, tools: [tool("core")] }));
+    const uncached = tracker.estimateCutOffCall()!.usage;
+    const cached = tracker.estimateCutOffCall(true)!.usage;
+    expect(cached.noCacheTokens).toBe(0);
+    expect(cached.cacheWrite5mTokens).toBe(uncached.noCacheTokens);
   });
 });
