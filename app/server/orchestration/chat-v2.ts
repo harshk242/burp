@@ -12,6 +12,7 @@ import { db, messageQueries, chatSessionQueries, userQueries, dailyUsageQueries,
 import { logger, startTimer, type LogContext } from "../logger";
 import { getUtcDate, getUtcMonth } from "../usage";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
+import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
 import { toolRegistry } from "../mcp/registry";
 import { buildToolCatalog, countDeferred } from "./context/tool-catalog";
 import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
@@ -140,6 +141,12 @@ export async function* processChat(
     let reasoningText = "";           // pre-tool-call reasoning text (all non-final iterations)
     const allToolCalls: ToolCallRecord[] = [];
     let loopIteration = 0;
+    // Prompt caching (Anthropic only): instructions carry the tools + system
+    // breakpoint; message breakpoints go on a per-call copy (cache-markers.ts).
+    const caching = llmConfig.provider === "anthropic";
+    const instructions = caching ? cachedInstructions(SYSTEM_PROMPT) : SYSTEM_PROMPT;
+    // Index of the previous call's last message in `messages`; unset on the first call.
+    let previousLastIndex: number | undefined;
 
     while (continueLoop) {
       turnSignal.throwIfAborted();
@@ -167,10 +174,11 @@ export async function* processChat(
       // to onError and finishes the step with finishReason "error".
       let streamError: unknown;
       tracker.begin(loopIteration);
+      const callLastIndex = messages.length - 1;
       const result = streamText({
         model: getChatModel({ fetch: tracker.fetch }),
-        instructions: SYSTEM_PROMPT,
-        messages,
+        instructions,
+        messages: caching ? applyCacheMarkers(messages, previousLastIndex) : messages,
         tools: declarationTools,
         maxRetries: llmConfig.maxRetries,
         maxOutputTokens: llmConfig.maxOutputTokens,
@@ -211,6 +219,7 @@ export async function* processChat(
         systemPrompt: SYSTEM_PROMPT,
       });
       tracker.finish(call);
+      previousLastIndex = callLastIndex;
 
       if (finishReason === "tool-calls" && toolCalls && toolCalls.length > 0) {
         // This iteration's text is reasoning (pre-tool-call).
