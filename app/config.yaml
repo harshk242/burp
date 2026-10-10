@@ -154,7 +154,8 @@ platforms:
 artifact:
   inline_max_chars: 15000       # single threshold for both tiers
   hard_cap_bytes: 1048576       # 1MB — reject output entirely above this
-  ttl_minutes: 5                # artifact expiry (based on last access)
+  ttl_minutes: 5                # in-memory copy expiry (based on last access)
+  db_ttl_hours: 24              # stored artifact expiry (from creation, not access)
   max_per_session: 10           # max artifacts per chat session
   preview_sample_items: 2       # sample items in schema preview
   preview_max_chars_per_value: 150 # truncate long strings in preview

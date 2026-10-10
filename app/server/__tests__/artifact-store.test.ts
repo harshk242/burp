@@ -1,8 +1,9 @@
 /**
  * Artifact store: SQLite rows behind an in-memory read-through cache.
- * Memory hit, miss → DB load → re-warm, and cascade on session delete.
+ * Memory hit, miss → DB load → re-warm, expiry with refresh guidance,
+ * periodic sweep, and cascade on session delete.
  */
-import { afterAll, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createTestDb, type TestDb } from "../__test-utils__/db";
 import { createQueries, type Queries } from "../db/queries";
 
@@ -16,6 +17,7 @@ const SESSION = "s1";
 const OTHER_SESSION = "s2";
 const TOOL = "chembl__search_activities";
 const INPUT = { target: "CHEMBL203", limit: 500 };
+const HOUR_MS = 3_600_000;
 const DATA = { results: [{ id: 1, name: "a" }, { id: 2, name: "b" }] };
 
 let t: TestDb;
@@ -31,6 +33,10 @@ beforeEach(() => {
   q.chatSessionQueries.create(OTHER_SESSION, USER_ID, null);
   store = new ArtifactStore(q.artifactQueries);
   stores.push(store);
+});
+
+afterEach(() => {
+  mock.restore(); // Date.now spies
 });
 
 afterAll(() => {
@@ -76,7 +82,8 @@ describe("ArtifactStore", () => {
     expect(error).toBeUndefined();
     expect(result).toEqual(["a", "b"]);
     expect(store.isCached(id)).toBe(true);
-    expect(store.get(id, SESSION)!.toolInput).toEqual(INPUT);
+    const lookup = store.get(id, SESSION);
+    expect(lookup.status === "ok" && lookup.artifact.toolInput).toEqual(INPUT);
   });
 
   it("reads artifacts written by another process instance (fresh store, same DB)", async () => {
@@ -103,6 +110,57 @@ describe("ArtifactStore", () => {
     expect(rowCount()).toBe(11);
 
     expect((await store.query(ids[0], SESSION, ".i")).result).toBe(0);
+  });
+
+  it("expires 24h after creation even if read in between", async () => {
+    const created = Date.now();
+    const now = spyOn(Date, "now").mockReturnValue(created);
+    const id = store.store(SESSION, TOOL, INPUT, DATA, 9000);
+
+    now.mockReturnValue(created + 23 * HOUR_MS);
+    expect((await store.query(id, SESSION, ".results | length")).result).toBe(2);
+
+    now.mockReturnValue(created + 24 * HOUR_MS);
+    expect(store.get(id, SESSION).status).toBe("expired");
+  });
+
+  it("returns refresh guidance with tool name and input for an expired artifact", async () => {
+    const created = Date.now();
+    const id = store.store(SESSION, TOOL, INPUT, DATA, 9000);
+    spyOn(Date, "now").mockReturnValue(created + 26 * HOUR_MS);
+    const expected =
+      `Artifact ${id} expired (fetched 26h ago). ` +
+      `Re-run \`${TOOL}\` with ${JSON.stringify(INPUT)} for current data.`;
+
+    // Memory copy
+    const fromMemory = await store.query(id, SESSION, ".");
+    expect(fromMemory.result).toBeNull();
+    expect(fromMemory.error).toBe(expected);
+    expect(store.isCached(id)).toBe(false);
+
+    // Database row (memory already gone)
+    expect((await store.query(id, SESSION, ".")).error).toBe(expected);
+    expect(store.isCached(id)).toBe(false);
+
+    // Another session still sees it as missing, not expired
+    expect((await store.query(id, OTHER_SESSION, ".")).error).toContain("not found");
+  });
+
+  it("sweepExpired() deletes only rows past expires_at", async () => {
+    const created = Date.now();
+    const old = store.store(SESSION, TOOL, INPUT, DATA, 9000);
+    spyOn(Date, "now").mockReturnValue(created + 12 * HOUR_MS);
+    const fresh = store.store(SESSION, TOOL, INPUT, DATA, 9000);
+    expect(rowCount()).toBe(2);
+
+    expect(store.sweepExpired(created + 23 * HOUR_MS)).toBe(0);
+    expect(store.sweepExpired(created + 25 * HOUR_MS)).toBe(1);
+    expect(rowCount()).toBe(1);
+    expect(q.artifactQueries.findForSession(old, SESSION)).toBeNull();
+    expect(q.artifactQueries.findForSession(fresh, SESSION)).not.toBeNull();
+
+    store.clear();
+    expect((await store.query(old, SESSION, ".")).error).toContain("not found");
   });
 
   it("deletes artifacts when their session is deleted", async () => {

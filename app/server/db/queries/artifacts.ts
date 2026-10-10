@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { artifacts } from "../schema";
 
@@ -20,6 +20,15 @@ export function createArtifactQueries(db: DrizzleDb) {
           .where(and(eq(artifacts.id, id), eq(artifacts.session_id, sessionId)))
           .get() ?? null
       );
+    },
+
+    /** Delete rows past expires_at (unix seconds); returns the number removed. */
+    deleteExpired(nowSec: number): number {
+      return db
+        .delete(artifacts)
+        .where(lte(artifacts.expires_at, nowSec))
+        .returning({ id: artifacts.id })
+        .all().length;
     },
   };
 }

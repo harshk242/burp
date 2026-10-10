@@ -37,6 +37,7 @@ const ArtifactConfigSchema = z.object({
   inline_max_chars: z.number().int().default(15000),
   hard_cap_bytes: z.number().int().default(1_048_576),
   ttl_minutes: z.number().default(5),
+  db_ttl_hours: z.number().default(24),
   max_per_session: z.number().int().default(10),
   preview_sample_items: z.number().int().default(2),
   preview_max_chars_per_value: z.number().int().default(150),

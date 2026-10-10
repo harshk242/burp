@@ -12,6 +12,9 @@
  * - Memory holds parsed data for recently used artifacts: TTL based on
  *   lastAccessedAt, per-session cap with LRU eviction (memory only — the
  *   row stays in SQLite), periodic background cleanup every 60s
+ * - Database expiry (`db_ttl_hours`) is measured from creation, not access:
+ *   an expired artifact returns refresh guidance (tool + input to re-run),
+ *   and an hourly sweep deletes expired rows
  * - Data partitioned by sessionId — cross-session access blocked
  * - Session deletion cascades to the rows
  */
@@ -21,8 +24,8 @@ import { artifactQueries } from "../../db";
 import { logger } from "../../logger";
 import { executeJq } from "./jq-engine";
 
-/** Database lifetime, measured from creation. TODO(#30): move to `artifact.db_ttl_hours`. */
-const DB_TTL_HOURS = 24;
+const MEMORY_CLEANUP_INTERVAL_MS = 60_000;
+const DB_SWEEP_INTERVAL_MS = 3_600_000;
 
 // Simple ID generator — "art_" + 8 random hex chars
 function generateArtifactId(): string {
@@ -45,20 +48,44 @@ export interface Artifact {
   lastAccessedAt: number; // ms, memory TTL only
 }
 
+/** Enough of an expired artifact to tell the model how to refetch it. */
+export type ExpiredArtifact = Pick<Artifact, "id" | "toolName" | "toolInput" | "createdAt">;
+
+export type ArtifactLookup =
+  | { status: "ok"; artifact: Artifact }
+  | { status: "expired"; artifact: ExpiredArtifact }
+  | { status: "missing" };
+
 /** The persistence the store needs; the app binds the SQLite queries, tests a test DB. */
-export type ArtifactRows = Pick<typeof artifactQueries, "insert" | "findForSession">;
+export type ArtifactRows = Pick<
+  typeof artifactQueries,
+  "insert" | "findForSession" | "deleteExpired"
+>;
+
+/** "26h" / "45m": how long ago an artifact was fetched. */
+function formatAge(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
+}
+
+export function expiredArtifactMessage(artifact: ExpiredArtifact, now = Date.now()): string {
+  return (
+    `Artifact ${artifact.id} expired (fetched ${formatAge(now - artifact.createdAt)} ago). ` +
+    `Re-run \`${artifact.toolName}\` with ${JSON.stringify(artifact.toolInput ?? {})} for current data.`
+  );
+}
 
 export class ArtifactStore {
   private artifacts = new Map<string, Artifact>();
-  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  private timers: ReturnType<typeof setInterval>[] = [];
 
   constructor(private rows: ArtifactRows) {
-    // Start periodic cleanup
-    this.cleanupTimer = setInterval(() => this.cleanup(), 60_000);
+    this.timers.push(
+      setInterval(() => this.cleanup(), MEMORY_CLEANUP_INTERVAL_MS),
+      setInterval(() => this.sweepExpired(), DB_SWEEP_INTERVAL_MS),
+    );
     // Don't hold the process open for cleanup
-    if (this.cleanupTimer.unref) {
-      this.cleanupTimer.unref();
-    }
+    for (const timer of this.timers) timer.unref?.();
   }
 
   /**
@@ -83,7 +110,7 @@ export class ArtifactStore {
       rawSizeChars,
       storedSizeChars: json.length,
       createdAt: now,
-      expiresAt: now + DB_TTL_HOURS * 3_600_000,
+      expiresAt: now + appConfig.artifact.db_ttl_hours * 3_600_000,
       lastAccessedAt: now,
     };
 
@@ -115,35 +142,47 @@ export class ArtifactStore {
   /**
    * Get an artifact by ID, scoped to the given session.
    * Checks memory first; on a miss loads the row from SQLite and re-warms memory.
-   * Returns null if not found or belongs to a different session.
-   * Refreshes lastAccessedAt on every access.
+   * "missing" if not found or it belongs to a different session; "expired" once
+   * past expiresAt, wherever it was found. Refreshes lastAccessedAt on every hit.
    */
-  get(id: string, sessionId: string): Artifact | null {
+  get(id: string, sessionId: string): ArtifactLookup {
+    const now = Date.now();
     const cached = this.artifacts.get(id);
     if (cached) {
-      if (cached.sessionId !== sessionId) return null;
-      cached.lastAccessedAt = Date.now();
-      return cached;
+      if (cached.sessionId !== sessionId) return { status: "missing" };
+      if (now >= cached.expiresAt) {
+        this.artifacts.delete(id);
+        return { status: "expired", artifact: cached };
+      }
+      cached.lastAccessedAt = now;
+      return { status: "ok", artifact: cached };
     }
 
     const row = this.rows.findForSession(id, sessionId);
-    if (!row) return null;
+    if (!row) return { status: "missing" };
 
-    // TODO(#30): rows past expires_at return a refresh-guidance error instead.
+    const toolInput: unknown = JSON.parse(row.tool_input_json);
+    if (now >= row.expires_at * 1000) {
+      return {
+        status: "expired",
+        artifact: { id: row.id, toolName: row.tool_name, toolInput, createdAt: row.created_at * 1000 },
+      };
+    }
+
     const artifact: Artifact = {
       id: row.id,
       sessionId: row.session_id,
       toolName: row.tool_name,
-      toolInput: JSON.parse(row.tool_input_json),
+      toolInput,
       data: JSON.parse(new TextDecoder().decode(Bun.gunzipSync(new Uint8Array(row.data)))),
       rawSizeChars: row.raw_size_chars,
       storedSizeChars: row.stored_size_chars,
       createdAt: row.created_at * 1000,
       expiresAt: row.expires_at * 1000,
-      lastAccessedAt: Date.now(),
+      lastAccessedAt: now,
     };
     this.warm(artifact);
-    return artifact;
+    return { status: "ok", artifact };
   }
 
   /**
@@ -155,15 +194,18 @@ export class ArtifactStore {
     sessionId: string,
     jqFilter: string,
   ): Promise<{ result: unknown; truncated?: boolean; error?: string }> {
-    const artifact = this.get(id, sessionId);
-    if (!artifact) {
+    const lookup = this.get(id, sessionId);
+    if (lookup.status === "missing") {
       return {
         result: null,
         error: `Artifact "${id}" not found in this session. Use the artifact_id shown in the tool result preview.`,
       };
     }
+    if (lookup.status === "expired") {
+      return { result: null, error: expiredArtifactMessage(lookup.artifact) };
+    }
 
-    return executeJq(artifact.data, jqFilter);
+    return executeJq(lookup.artifact.data, jqFilter);
   }
 
   /** Whether an artifact's parsed data is currently held in memory. */
@@ -183,8 +225,8 @@ export class ArtifactStore {
   }
 
   /**
-   * Evict expired artifacts from memory based on lastAccessedAt TTL.
-   * Rows stay in SQLite.
+   * Evict expired artifacts from memory based on lastAccessedAt TTL
+   * (or past their database expiry). Rows stay in SQLite.
    */
   cleanup(): void {
     const ttlMs = appConfig.artifact.ttl_minutes * 60_000;
@@ -192,13 +234,31 @@ export class ArtifactStore {
     const expired: string[] = [];
 
     for (const [id, artifact] of this.artifacts) {
-      if (now - artifact.lastAccessedAt > ttlMs) {
+      if (now - artifact.lastAccessedAt > ttlMs || now >= artifact.expiresAt) {
         expired.push(id);
       }
     }
 
     for (const id of expired) {
       this.artifacts.delete(id);
+    }
+  }
+
+  /**
+   * Delete rows past their database expiry. Runs hourly; returns rows removed.
+   */
+  sweepExpired(now = Date.now()): number {
+    try {
+      const removed = this.rows.deleteExpired(Math.floor(now / 1000));
+      if (removed > 0) {
+        logger.info("TOOL", "artifact_sweep", { data: { removed } });
+      }
+      return removed;
+    } catch (err) {
+      logger.warn("TOOL", "artifact_sweep_failed", {
+        error: err instanceof Error ? err : String(err),
+      });
+      return 0;
     }
   }
 
@@ -237,12 +297,10 @@ export class ArtifactStore {
     this.artifacts.clear();
   }
 
-  /** For testing: stop cleanup timer */
+  /** For testing: stop cleanup timers */
   destroy(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer);
-      this.cleanupTimer = null;
-    }
+    for (const timer of this.timers) clearInterval(timer);
+    this.timers = [];
   }
 }
 
