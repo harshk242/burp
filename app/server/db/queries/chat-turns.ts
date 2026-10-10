@@ -14,6 +14,8 @@ export interface ChatTurnOutcome {
   errorMessage?: string | null;
   iterations: number;
   assistantMessageId?: string | null;
+  /** Measured prompt tokens of the turn's last LLM call. */
+  lastPromptTokens?: number | null;
 }
 
 export function createChatTurnQueries(db: DrizzleDb) {
@@ -36,6 +38,7 @@ export function createChatTurnQueries(db: DrizzleDb) {
           error_message: outcome.errorMessage ?? null,
           iterations: outcome.iterations,
           assistant_message_id: outcome.assistantMessageId ?? null,
+          last_prompt_tokens: outcome.lastPromptTokens ?? null,
           finished_at: sql`(unixepoch())`,
         })
         .where(and(eq(chatTurns.id, id), eq(chatTurns.status, "running")))

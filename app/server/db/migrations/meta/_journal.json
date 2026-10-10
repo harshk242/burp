@@ -64,6 +64,13 @@
       "when": 1791656013502,
       "tag": "0008_model_transcript",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791667343918,
+      "tag": "0009_chat_turns_last_prompt_tokens",
+      "breakpoints": true
     }
   ]
 }

@@ -161,3 +161,32 @@ describe("CallTracker.estimateCutOffCall", () => {
     expect(cached.cacheWrite5mTokens).toBe(uncached.noCacheTokens);
   });
 });
+
+describe("CallTracker carry-over across turns", () => {
+  it("estimates a turn's first call from the previous turn's measured prompt plus what was added", () => {
+    const toolX = tool("x", 400);
+    const req = request({ messages: 5, tools: [tool("core"), deferred(toolX)], extra: [references(["x"]), { role: "user", content: "new" }] });
+    const carried = new CallTracker();
+    // The previous turn's last call sent the first 6 messages (5 + the reference result).
+    carried.carryOver(50_000, 6);
+    // Growth: only the new user message; the referenced tool was already loaded then.
+    expect(carried.estimateInputTokens(req)).toBe(50_000 + estimateTokens(JSON.stringify(req.messages.slice(6))));
+    // Without a carry-over the whole request is counted from characters.
+    expect(new CallTracker().estimateInputTokens(req)).toBeLessThan(50_000);
+  });
+
+  it("refuses at the budget using the carried prompt", () => {
+    const tracker = new CallTracker(50_000);
+    tracker.carryOver(50_000, 1);
+    tracker.begin(1);
+    tracker.onRequest(request({ messages: 2, tools: [] }));
+    expect(() => tracker.assertContextBudget()).toThrow("this chat is too long");
+  });
+
+  it("ignores a carry-over longer than the request", () => {
+    const tracker = new CallTracker();
+    tracker.carryOver(50_000, 10);
+    const req = request({ messages: 2, tools: [] });
+    expect(tracker.estimateInputTokens(req)).toBeLessThan(50_000);
+  });
+});

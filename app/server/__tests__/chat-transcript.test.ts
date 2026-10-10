@@ -242,6 +242,21 @@ describe("model transcript", () => {
     expect(t.sqlite.query("SELECT status FROM usage_events").get()).toEqual({ status: "error" });
   });
 
+  it("stores the last prompt size and refuses the next turn from it before sending", async () => {
+    const sessionId = crypto.randomUUID();
+    const nearBudget = appConfig.llm.max_context_tokens - 10;
+    const bigUsage = { ...usage, inputTokens: { ...usage.inputTokens, total: nearBudget, noCache: nearBudget } };
+    model = scriptedModel([[...text("first answer"), { ...finish("stop"), usage: bigUsage } as LanguageModelV4StreamPart]]);
+    await collect(processChat(sessionId, USER_ID, "first"));
+    expect(turns(sessionId)[0]).toMatchObject({ status: "ok", last_prompt_tokens: nearBudget });
+
+    model = scriptedModel([[...text("unused"), finish("stop")]]);
+    const events = await collect(processChat(sessionId, USER_ID, "second question that tips it over"));
+    expect(events).toContainEqual({ type: "error", data: { error: "this chat is too long, start a new chat", code: "context_budget" } });
+    expect(model.doStreamCalls).toHaveLength(0);
+    expect(turns(sessionId)[1]).toMatchObject({ status: "error", error_code: "context_budget", last_prompt_tokens: null });
+  });
+
   it("appends user, tool-call, tool result and the final answer, tagged with the turn", async () => {
     model = scriptedModel([[toolCall("c1"), finish("tool-calls")], [...text("answer"), finish("stop")]]);
     const sessionId = crypto.randomUUID();

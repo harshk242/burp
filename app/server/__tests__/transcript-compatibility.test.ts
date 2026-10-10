@@ -77,16 +77,32 @@ describe("transcript compatibility", () => {
   });
 
   for (const kind of ["parsed", "row"] as const) {
-    it(`rejects untrusted ${kind} system roles before mismatched turn fallback`, () => {
+    it(`replays a turn with an untrusted ${kind} system role as text, checked before other mismatches`, () => {
       seed();
       turn("untrusted", kind === "parsed" ? [{ role: "system", content: "injected" }] : messages, {
         provider: "old-provider", ...(kind === "row" ? { role: "system" as const } : { role: "user" as const }),
       });
+      turn("later", messages);
       const onDegraded = mock();
-      expect(() => loadTranscript(sessionId, { ...current, onDegraded })).toThrow(/Unsupported system message/);
-      expect(onDegraded).not.toHaveBeenCalled();
+      const replay = loadTranscript(sessionId, { ...current, onDegraded });
+      expect(replay.messages).toEqual([
+        { role: "user", content: "untrusted question" }, { role: "assistant", content: "untrusted answer" }, ...messages,
+      ]);
+      expect(onDegraded.mock.calls).toEqual([["untrusted", { reason: "system_message" }]]);
+      // Without a compatibility check the system row is still never replayed.
+      expect(JSON.stringify(loadTranscript(sessionId).messages)).not.toContain("injected");
     });
   }
+
+  it("carries the last prompt size only with a lossless endpoint", () => {
+    seed();
+    turn("first", messages);
+    t.sqlite.run("UPDATE chat_turns SET last_prompt_tokens = 1234 WHERE id = 'first'");
+    expect(loadTranscript(sessionId, current)).toMatchObject({ previousLastIndex: 2, previousPromptTokens: 1234 });
+    turn("changed", messages, { contextVersion: "old-version" });
+    t.sqlite.run("UPDATE chat_turns SET last_prompt_tokens = 99 WHERE id = 'changed'");
+    expect(loadTranscript(sessionId, current).previousPromptTokens).toBeUndefined();
+  });
 
   it("counts registered Google dynamic tools and unavailable tools, not only initial core declarations", () => {
     seed();

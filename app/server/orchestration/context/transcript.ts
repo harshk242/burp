@@ -133,6 +133,8 @@ export interface TranscriptContext {
   messages: ModelMessage[];
   /** Endpoint of the preceding successful turn's final input, before its answer. */
   previousLastIndex?: number;
+  /** Measured prompt of that turn's last call (set with `previousLastIndex`). */
+  previousPromptTokens?: number;
   previousFinishedAt?: number;
 }
 
@@ -142,7 +144,7 @@ export interface TranscriptCompatibility extends TranscriptTag {
 }
 
 export type TranscriptDegradedReason =
-  | { reason: "provider" | "model" | "context_version" }
+  | { reason: "provider" | "model" | "context_version" | "system_message" }
   | { reason: "missing_tools"; missing_tools: string[] };
 
 /** Check every row: a late tool search or provider change invalidates the turn. */
@@ -164,8 +166,8 @@ function incompatibility(rows: DbTranscriptRow[], current: TranscriptCompatibili
  * UI user rows anchor mixed history: untracked legacy messages use text, an ok
  * tracked turn with no rows uses its UI text, and every non-ok turn is omitted.
  * The stable UI row order and transcript seq order make the merge deterministic.
- * Incompatible turns use their UI text. Safety checks happen before fallback;
- * their old lossless endpoint is discarded. A compatible suffix can retain its
+ * Incompatible turns, and turns holding a system row the loader didn't write,
+ * use their UI text; their old lossless endpoint is discarded. A compatible suffix can retain its
  * own endpoint: provider caches compare prefix bytes, so changed content misses.
  */
 export function loadTranscript(sessionId: string, current?: TranscriptCompatibility): TranscriptContext {
@@ -177,11 +179,13 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
   const byTurn = new Map<string, ModelMessage[]>();
   const rowsByTurn = new Map<string, DbTranscriptRow[]>();
   const okIds = new Set(turns.filter((turn) => turn.status === "ok").map((turn) => turn.id));
+  const untrusted = new Set<string>();
   for (const row of rows) {
     if (!okIds.has(row.turn_id)) continue;
     const message = JSON.parse(row.content_json) as ModelMessage;
-    // Server-written tool-change system messages are not implemented yet.
-    if (row.role === "system" || message.role === "system") throw new Error("Unsupported system message in model transcript");
+    // Server-written tool-change system messages are not implemented yet, so
+    // any system row is untrusted: its turn replays as text (below).
+    if (row.role === "system" || message.role === "system") untrusted.add(row.turn_id);
     const messages = byTurn.get(row.turn_id) ?? [];
     messages.push(message);
     byTurn.set(row.turn_id, messages);
@@ -191,8 +195,13 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
   }
 
   const degraded = new Set<string>();
+  for (const turnId of untrusted) {
+    degraded.add(turnId);
+    current?.onDegraded?.(turnId, { reason: "system_message" });
+  }
   if (current) {
     for (const [turnId, turnRows] of rowsByTurn) {
+      if (untrusted.has(turnId)) continue;
       const reason = incompatibility(turnRows, current);
       if (!reason) continue;
       degraded.add(turnId);
@@ -215,15 +224,20 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
         let endpoint = replay.length - 1;
         while (endpoint >= 0 && replay[endpoint]!.role === "assistant") endpoint--;
         context.previousLastIndex = endpoint >= 0 ? offset + endpoint : undefined;
+        context.previousPromptTokens = endpoint >= 0 ? turn.last_prompt_tokens ?? undefined : undefined;
         context.previousFinishedAt = turn.finished_at ?? undefined;
         continue;
       }
       context.previousFinishedAt = turn.finished_at ?? undefined;
       context.previousLastIndex = undefined;
+      context.previousPromptTokens = undefined;
     }
     if (msg.role === "user" || msg.role === "assistant") {
       context.messages.push({ role: msg.role, content: msg.content || "" });
-      if (!turn) context.previousLastIndex = undefined;
+      if (!turn) {
+        context.previousLastIndex = undefined;
+        context.previousPromptTokens = undefined;
+      }
     }
   }
   return context;

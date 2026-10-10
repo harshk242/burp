@@ -67,6 +67,9 @@ export const chatTurns = sqliteTable(
     error_message: text("error_message"),
     // LLM calls started (loop iterations).
     iterations: integer("iterations").notNull().default(0),
+    // Measured prompt of the turn's last LLM call (ok turns): seeds the next
+    // turn's context-budget estimate.
+    last_prompt_tokens: integer("last_prompt_tokens"),
     started_at: integer("started_at").notNull().default(sql`(unixepoch())`),
     finished_at: integer("finished_at"),
   },

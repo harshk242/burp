@@ -193,6 +193,9 @@ export async function* processChat(
     const instructions = caching ? cachedInstructions(SYSTEM_PROMPT) : SYSTEM_PROMPT;
     // The previous successful turn's final input endpoint carries across turns.
     let previousLastIndex = history.previousLastIndex;
+    if (previousLastIndex !== undefined && history.previousPromptTokens !== undefined) {
+      tracker.carryOver(history.previousPromptTokens, previousLastIndex + 1);
+    }
 
     while (continueLoop) {
       turnSignal.throwIfAborted();
@@ -397,6 +400,7 @@ export async function* processChat(
         status: "ok",
         iterations: loopIteration,
         assistantMessageId: assistantMsgId,
+        lastPromptTokens: tracker.lastPromptTokens,
       });
 
       chatSessionQueries.touch(sessionId);

@@ -85,8 +85,26 @@ function referencedToolNames(messages: LanguageModelCallStartEvent["messages"]):
 export class CallTracker {
   private current: CallInFlight | null = null;
   private previous: PreviousCall | null = null;
+  /** The preceding turn's last call, measured: its prompt was the first `messageCount` replayed messages. */
+  private carried: { promptTokens: number; messageCount: number } | null = null;
 
   constructor(private readonly maxContextTokens = Infinity) {}
+
+  /**
+   * Seeds the turn's first estimate with the preceding turn's measured last
+   * prompt, so it is that number plus what was added since (its final answer
+   * and the new user message) instead of a character count of the whole
+   * history. Only valid when the replayed prefix is byte-identical to that
+   * call's input (a lossless, compatible turn).
+   */
+  carryOver(promptTokens: number, messageCount: number): void {
+    this.carried = { promptTokens, messageCount };
+  }
+
+  /** Measured prompt of the last finished call in this turn. */
+  get lastPromptTokens(): number | undefined {
+    return this.previous?.promptTokens;
+  }
 
   /** Call right before `streamText`. */
   begin(iteration: number): void {
@@ -122,8 +140,9 @@ export class CallTracker {
 
   /** Prepared input, including instructions and definitions actually loaded. */
   estimateInputTokens(request: LanguageModelCallStartEvent): number {
-    return this.previous
-      ? this.previous.promptTokens + this.estimateGrowth(request, this.previous)
+    const previous = this.previous ?? this.carriedCall(request);
+    return previous
+      ? previous.promptTokens + this.estimateGrowth(request, previous)
       : estimateTokens(JSON.stringify({ instructions: request.instructions, messages: request.messages })) + estimateToolTokens(loadedTools(request));
   }
 
@@ -184,6 +203,23 @@ export class CallTracker {
         cacheWrite1hTokens: 0,
         outputTokens: Math.ceil(call.streamedChars / 4),
       },
+    };
+  }
+
+  /**
+   * The carried-over call as a PreviousCall. Instructions are taken as
+   * unchanged (a changed system prompt changes context_version, which degrades
+   * the turn and drops the carry-over); its loaded tools are the ones the
+   * replayed prefix references, with today's definitions.
+   */
+  private carriedCall(request: LanguageModelCallStartEvent): PreviousCall | null {
+    const carried = this.carried;
+    if (!carried || carried.messageCount > request.messages.length) return null;
+    return {
+      promptTokens: carried.promptTokens,
+      messageCount: carried.messageCount,
+      instructions: JSON.stringify(request.instructions) ?? "",
+      tools: new Set(loadedTools({ ...request, messages: request.messages.slice(0, carried.messageCount) })),
     };
   }
 
