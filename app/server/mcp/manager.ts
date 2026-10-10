@@ -4,6 +4,7 @@
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { toolRegistry } from "./registry";
 import { enabledPlatforms } from "./platforms.config";
@@ -42,6 +43,15 @@ export const MCP_SERVERS: MCPServerConfig[] = [
     env: unifiedEnv,
   },
 ];
+
+/** The MCP client's own deadline for a request sent with `timeout: timeoutMs`. */
+function isRequestTimeout(error: unknown, timeoutMs: number): boolean {
+  return (
+    error instanceof McpError &&
+    error.code === ErrorCode.RequestTimeout &&
+    (error.data as { timeout?: unknown } | undefined)?.timeout === timeoutMs
+  );
+}
 
 export type ServerStatus = "stopped" | "starting" | "running" | "error";
 
@@ -383,19 +393,23 @@ export class MCPManager {
       data: { server: serverName, tool: toolName, input: args, timeout_ms: timeoutMs },
     });
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`Tool call timed out after ${timeoutMs}ms`)), timeoutMs);
-    });
-
-    // The signal cancels the request in the MCP client (it sends
-    // notifications/cancelled and rejects with an AbortError).
-    const callPromise = server.client.callTool(
-      { name: prefixedToolName, arguments: args },
-      undefined,
-      { signal }
-    );
-
-    const result = await Promise.race([callPromise, timeoutPromise]);
+    // The MCP client owns the deadline: on timeout or abort it sends
+    // notifications/cancelled, drops the request and rejects; on a response it
+    // clears its timer.
+    let result: Awaited<ReturnType<Client["callTool"]>>;
+    try {
+      result = await server.client.callTool(
+        { name: prefixedToolName, arguments: args },
+        undefined,
+        { signal, timeout: timeoutMs }
+      );
+    } catch (error) {
+      // An abort is rethrown as-is (the client reports it as a timeout too).
+      if (!signal?.aborted && isRequestTimeout(error, timeoutMs)) {
+        throw new Error(`Tool call timed out after ${timeoutMs}ms`);
+      }
+      throw error;
+    }
 
     // Extract text content from result
     let content: unknown = result.content;

@@ -40,10 +40,23 @@ interface CallInFlight {
   request?: LanguageModelCallStartEvent;
 }
 
+/** What the last finished call's prompt was made of, to size the next call's growth. */
+interface PreviousCall {
+  promptTokens: number;
+  messageCount: number;
+  /** Serialized instructions as sent. */
+  instructions: string;
+  /** Serialized tool declarations as sent. */
+  tools: Set<string>;
+}
+
+const serializeTools = (request: LanguageModelCallStartEvent | undefined): string[] =>
+  (request?.tools ?? []).map((tool) => JSON.stringify(tool));
+
 /** Follows the in-flight LLM call so a cut-off one can be estimated. */
 export class CallTracker {
   private current: CallInFlight | null = null;
-  private previous: { promptTokens: number; messageCount: number } | null = null;
+  private previous: PreviousCall | null = null;
 
   /** Call right before `streamText`. */
   begin(iteration: number): void {
@@ -87,17 +100,23 @@ export class CallTracker {
 
   /** The in-flight call finished and was recorded by the meter. */
   finish(call: CallCost): void {
+    const request = this.current?.request;
     this.previous = {
       promptTokens: call.promptTokens,
-      messageCount: this.current?.request?.messages.length ?? 0,
+      messageCount: request?.messages.length ?? 0,
+      instructions: JSON.stringify(request?.instructions) ?? "",
+      tools: new Set(serializeTools(request)),
     };
     this.current = null;
   }
 
   /**
    * Estimate for a call that was sent but never finished, or null. Input is the
-   * previous call's prompt plus the messages added since; on a turn's first call,
-   * the whole request (instructions, messages, tools). All of it is priced as
+   * previous call's prompt plus what was added since: new messages, tool
+   * declarations not sent before (search activates tools mid-turn) and the
+   * instructions if they changed. Nothing is subtracted for removed parts, so
+   * the estimate never falls below the growth. On a turn's first call it is the
+   * whole request (instructions, messages, tools). All of it is priced as
    * uncached input (the worst case). Output is streamed characters / 4.
    */
   estimateCutOffCall(): { iteration: number; usage: CallUsage } | null {
@@ -105,7 +124,7 @@ export class CallTracker {
     if (!call?.sent || !call.request) return null;
     const { instructions, messages, tools } = call.request;
     const inputTokens = this.previous
-      ? this.previous.promptTokens + estimateTokens(JSON.stringify(messages.slice(this.previous.messageCount)))
+      ? this.previous.promptTokens + this.estimateGrowth(call.request, this.previous)
       : estimateTokens(JSON.stringify({ instructions, messages, tools }));
     return {
       iteration: call.iteration,
@@ -117,6 +136,16 @@ export class CallTracker {
         outputTokens: Math.ceil(call.streamedChars / 4),
       },
     };
+  }
+
+  private estimateGrowth(request: LanguageModelCallStartEvent, previous: PreviousCall): number {
+    const newTools = serializeTools(request).filter((tool) => !previous.tools.has(tool));
+    const instructions = JSON.stringify(request.instructions) ?? "";
+    return (
+      estimateTokens(JSON.stringify(request.messages.slice(previous.messageCount))) +
+      (newTools.length > 0 ? estimateTokens(`[${newTools.join(",")}]`) : 0) +
+      (instructions !== previous.instructions ? estimateTokens(instructions) : 0)
+    );
   }
 }
 
