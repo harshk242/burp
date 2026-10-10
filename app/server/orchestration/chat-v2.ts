@@ -21,6 +21,7 @@ import { logger, startTimer, type LogContext } from "../logger";
 import { getUtcDate, getUtcMonth } from "../usage";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
+import { appendTranscript, contextVersion, type TranscriptTag } from "./context/transcript";
 import { toolRegistry } from "../mcp/registry";
 import { buildToolCatalog, countDeferred } from "./context/tool-catalog";
 import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
@@ -46,6 +47,12 @@ export { generateSessionTitle } from "./session-title";
 const llmConfig = loadLLMConfig();
 // Thinking + effort (Anthropic); undefined on Google.
 const providerOptions = chatProviderOptions(llmConfig);
+// Stored on every model_transcript row (compatibility check for replay).
+const transcriptTag: TranscriptTag = {
+  provider: llmConfig.provider,
+  model: llmConfig.chatModel,
+  contextVersion: contextVersion(SYSTEM_PROMPT, providerOptions),
+};
 
 interface DBMessage {
   id: string;
@@ -56,7 +63,7 @@ interface DBMessage {
   created_at: number;
 }
 
-function buildMessages(history: DBMessage[], newMessage: string): ModelMessage[] {
+function buildMessages(history: DBMessage[]): ModelMessage[] {
   const messages: ModelMessage[] = [];
   for (const msg of history) {
     if (msg.role === "user") {
@@ -65,7 +72,6 @@ function buildMessages(history: DBMessage[], newMessage: string): ModelMessage[]
       messages.push({ role: "assistant", content: msg.content || "" });
     }
   }
-  messages.push({ role: "user", content: newMessage });
   return messages;
 }
 
@@ -81,6 +87,12 @@ function buildMessages(history: DBMessage[], newMessage: string): ModelMessage[]
  * Every turn has a chat_turns row (`turnId`), created `running` with the user
  * message and finalized as ok / error / aborted; its usage_events row links to
  * it. Only one turn per session runs at a time (chat-turn.ts).
+ *
+ * Every message the model is sent from this turn on (the user message, each
+ * assistant response including the final one, each tool-result message) is
+ * appended to model_transcript as the iteration finishes (context/transcript.ts).
+ * Failed turns keep the messages they got to, refused responses included;
+ * replay will read `ok` turns only.
  */
 export async function* processChat(
   sessionId: string,
@@ -142,15 +154,23 @@ export async function* processChat(
       logger.info("CHAT", "session_created", { ctx });
     }
 
-    // History + messages
+    // History (read before this turn's user message is stored)
     const history = messageQueries.findByChatId(sessionId) as DBMessage[];
-    const messages = buildMessages(history, userMessage);
+    const messages = buildMessages(history);
 
     // Store the user message with its turn (status running).
     const turn = startTurn(sessionId, userMessage);
     turnId = turn.turnId;
     ctx.turn_id = turnId;
     logger.info("CHAT", "turn_started", { ctx, data: { turn_id: turnId } });
+
+    // Adds messages to what the next call sends and to the transcript, so
+    // what is stored is exactly what was sent.
+    const send = (...added: ModelMessage[]) => {
+      messages.push(...added);
+      appendTranscript(sessionId, turn.turnId, added, transcriptTag);
+    };
+    send({ role: "user", content: userMessage });
 
     yield { type: "start", data: { sessionId } };
 
@@ -278,7 +298,14 @@ export async function* processChat(
         systemPrompt: SYSTEM_PROMPT,
       });
       tracker.finish(call);
+      // The SDK's response messages as returned: they keep provider metadata
+      // (thinking signatures, redacted thinking, Gemini thought signatures)
+      // the model requires on later calls. Tool results come from our own
+      // dispatch below, so the SDK's tool messages are skipped. The final
+      // call's message is kept too: the next turn's cache prefix ends with it.
+      send(...finalStep.response.messages.filter((msg) => msg.role !== "tool"));
       // A safety refusal: billed (metered above), never saved as an answer.
+      // Its response message stays in the transcript (failed turns aren't replayed).
       if (finishReason === "content-filter") {
         throw refusalError(await result.rawFinishReason, finalStep.providerMetadata);
       }
@@ -315,16 +342,8 @@ export async function* processChat(
           toolResultParts.push(part);
         }
 
-        // Use SDK response messages for assistant turn — preserves
-        // provider metadata (Gemini 3 thought signatures) that the model
-        // requires on subsequent turns.
-        const { messages: responseMessages } = finalStep.response;
-        // SDK response messages may include tool-result messages. We execute
-        // tools manually for SSE/control, so only keep assistant metadata here.
-        messages.push(...responseMessages.filter((msg) => msg.role !== "tool"));
-
-        // Append our manually constructed tool results
-        messages.push({ role: "tool", content: toolResultParts });
+        // Our manually dispatched tool results (after handleLargeOutput, with fetched_at)
+        send({ role: "tool", content: toolResultParts });
       } else {
         // Final iteration — this text is the actual response.
         if (fullAssistantContent) {

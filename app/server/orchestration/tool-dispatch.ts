@@ -119,9 +119,30 @@ export async function* dispatchToolCall(
   // The client may have gone while tool_start was being written.
   dc.signal?.throwIfAborted();
 
-  if (parsed.server !== "system") return yield* runMcpTool(call, dc);
-  if (originalName === SEARCH_TOOL_NAME) return yield* runSearchTool(call, dc);
-  return yield* runSystemTool(call, dc);
+  let result: DispatchResult;
+  if (parsed.server !== "system") result = yield* runMcpTool(call, dc);
+  else if (originalName === SEARCH_TOOL_NAME) result = yield* runSearchTool(call, dc);
+  else result = yield* runSystemTool(call, dc);
+  return { ...result, part: withFetchedAt(result.part) };
+}
+
+/** ISO timestamp (UTC, whole seconds) of when a tool result was produced. */
+export function fetchedAtLine(at: Date): string {
+  return `[fetched_at: ${at.toISOString().replace(/\.\d{3}Z$/, "Z")}]`;
+}
+
+/**
+ * Prefixes a text tool result with its `fetched_at` line, so the model can
+ * judge how old the data is when it is replayed in later turns (the system
+ * prompt asks it to re-fetch when freshness matters). Stamped once, here: the
+ * same bytes are sent now and stored in the transcript, so caching holds.
+ * Content results (Anthropic tool references) are left alone: a reference
+ * result mixed with text is rejected (400), and it carries no data anyway.
+ */
+export function withFetchedAt(part: ToolResultPart, at: Date = new Date()): ToolResultPart {
+  const { output } = part;
+  if (output.type !== "text" && output.type !== "error-text") return part;
+  return { ...part, output: { ...output, value: `${fetchedAtLine(at)}\n${output.value}` } };
 }
 
 /**

@@ -1,8 +1,8 @@
 /**
- * chat_sessions + messages (rules in ./users.ts).
+ * chat_sessions, messages, chat_turns, model_transcript (rules in ./users.ts).
  */
 import { sql } from "drizzle-orm";
-import { check, index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "./users";
 
 export const chatSessions = sqliteTable(
@@ -73,5 +73,41 @@ export const chatTurns = sqliteTable(
   (t) => [
     check("chat_turns_status_check", sql`status IN ('running', 'ok', 'error', 'aborted')`),
     index("idx_chat_turns_session_id").on(t.session_id, t.started_at),
+  ],
+);
+
+/**
+ * What the model saw, one row per `ModelMessage`, in send order (`seq`). Rows
+ * are appended as each loop iteration finishes and never updated (an UPDATE
+ * trigger enforces it): replay will `JSON.parse` them as they are, and any
+ * change to a stored message breaks the prompt cache and thinking signatures.
+ * Written for failed turns too; replay reads `ok` turns only.
+ */
+export const modelTranscript = sqliteTable(
+  "model_transcript",
+  {
+    id: integer("id").primaryKey(),
+    session_id: text("session_id")
+      .notNull()
+      .references(() => chatSessions.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    turn_id: text("turn_id")
+      .notNull()
+      .references(() => chatTurns.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["user", "assistant", "tool", "system"] }).notNull(),
+    // The ModelMessage exactly as sent (cache markers excluded).
+    content_json: text("content_json").notNull(),
+    // Compatibility tag: a later turn replays this row only if all three match.
+    provider: text("provider").notNull(),
+    model: text("model").notNull(),
+    context_version: text("context_version").notNull(),
+    // Sorted tool names from the message's tool-call and tool-reference parts.
+    tool_names_json: text("tool_names_json").notNull().default("[]"),
+    created_at: integer("created_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    check("model_transcript_role_check", sql`role IN ('user', 'assistant', 'tool', 'system')`),
+    uniqueIndex("uq_model_transcript_session_seq").on(t.session_id, t.seq),
+    index("idx_model_transcript_turn_id").on(t.turn_id),
   ],
 );
