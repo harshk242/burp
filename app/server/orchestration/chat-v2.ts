@@ -10,10 +10,11 @@ import { v4 as uuidv4 } from "uuid";
 import { getChatModel, getTitleModel, loadLLMConfig, sanitizeToolName } from "../llm";
 import { db, messageQueries, chatSessionQueries, userQueries, dailyUsageQueries, usageEventQueries } from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
-import { getUtcDate, getUtcMonth, priceCall, resolvePricing, summarizeTurnCost, type CallCost } from "../usage";
+import { getUtcDate, getUtcMonth } from "../usage";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { buildInitialToolSet, dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
 import type { StreamEvent, ToolCallRecord } from "./types";
+import { UsageMeter } from "./usage-meter";
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 
@@ -68,6 +69,10 @@ export async function* processChat(
     },
   });
 
+  // Every finished LLM call, priced on its own. Outside the try so a failed or
+  // aborted turn can still see the calls that finished.
+  const meter = new UsageMeter(llmConfig.provider, llmConfig.chatModel, ctx);
+
   try {
     // Session check
     let session = chatSessionQueries.findById(sessionId) as { id: string; user_id: string } | null;
@@ -118,10 +123,6 @@ export async function* processChat(
     let reasoningText = "";           // pre-tool-call reasoning text (all non-final iterations)
     const allToolCalls: ToolCallRecord[] = [];
     let loopIteration = 0;
-    // Token accumulators — summed across all tool-call iterations
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
-    const callCosts: CallCost[] = [];
 
     while (continueLoop) {
       signal?.throwIfAborted();
@@ -167,34 +168,15 @@ export async function* processChat(
       // Await the promise-based properties
       const finishReason = await result.finishReason;
       const toolCalls = await result.toolCalls;
-      const usage = await result.usage;
-      const iterDuration = iterElapsed();
+      const finalStep = await result.finalStep;
 
-      // Accumulate token counts across all tool-call iterations
-      totalInputTokens += usage?.inputTokens ?? 0;
-      totalOutputTokens += usage?.outputTokens ?? 0;
-      // Priced per call; all input at the uncached rate until the usage meter
-      // splits out cache reads/writes.
-      callCosts.push(
-        priceCall(llmConfig.provider, llmConfig.chatModel, {
-          noCacheTokens: usage?.inputTokens ?? 0,
-          cacheReadTokens: 0,
-          cacheWrite5mTokens: 0,
-          cacheWrite1hTokens: 0,
-          outputTokens: usage?.outputTokens ?? 0,
-        })
-      );
-
-      logger.info("CHAT", "llm_response_received", {
-        ctx,
-        duration_ms: iterDuration,
-        data: {
-          iteration: loopIteration,
-          finish_reason: finishReason,
-          input_tokens: usage?.inputTokens,
-          output_tokens: usage?.outputTokens,
-          tool_calls: toolCalls?.length ?? 0,
-        },
+      meter.record(finalStep.usage, finalStep.providerMetadata, {
+        iteration: loopIteration,
+        durationMs: iterElapsed(),
+        finishReason,
+        toolCalls: toolCalls?.length ?? 0,
+        toolNames: Object.keys(declarationTools),
+        systemPrompt: SYSTEM_PROMPT,
       });
 
       if (finishReason === "tool-calls" && toolCalls && toolCalls.length > 0) {
@@ -227,7 +209,7 @@ export async function* processChat(
         // Use SDK response messages for assistant turn — preserves
         // provider metadata (Gemini 3 thought signatures) that the model
         // requires on subsequent turns.
-        const { messages: responseMessages } = (await result.finalStep).response;
+        const { messages: responseMessages } = finalStep.response;
         // SDK response messages may include tool-result messages. We execute
         // tools manually for SSE/control, so only keep assistant metadata here.
         messages.push(...responseMessages.filter((msg) => msg.role !== "tool"));
@@ -243,8 +225,7 @@ export async function* processChat(
       }
     }
 
-    const chatCost = summarizeTurnCost(callCosts);
-    const baseRates = resolvePricing(llmConfig.provider, llmConfig.chatModel).base;
+    const chatCost = meter.summary();
 
     const assistantMsgId = uuidv4();
     const usageEventId = uuidv4();
@@ -261,8 +242,8 @@ export async function* processChat(
         "assistant",
         persistedAssistantText,
         allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
-        totalInputTokens,
-        totalOutputTokens,
+        chatCost.inputTokens,
+        chatCost.outputTokens,
         reasoningText || null,
         chatCost.costMicrousd
       );
@@ -275,11 +256,7 @@ export async function* processChat(
         operation: "chat",
         provider: llmConfig.provider,
         model: llmConfig.chatModel,
-        input_tokens: chatCost.inputTokens,
-        output_tokens: chatCost.outputTokens,
-        input_cost_per_mtok_microusd: baseRates.input,
-        output_cost_per_mtok_microusd: baseRates.output,
-        cost_microusd: chatCost.costMicrousd,
+        ...meter.ledgerFields(chatCost),
         session_id: sessionId,
         message_id: assistantMsgId,
       });
@@ -287,7 +264,7 @@ export async function* processChat(
       chatSessionQueries.touch(sessionId);
       userQueries.incrementQueries(userId);
       // Increment daily token totals (best-effort: done post-response; next request checks these)
-      dailyUsageQueries.incrementTokens(userId, totalInputTokens, totalOutputTokens);
+      dailyUsageQueries.incrementTokens(userId, chatCost.inputTokens, chatCost.outputTokens);
     });
 
     logger.info("CHAT", "process_complete", {
@@ -301,9 +278,7 @@ export async function* processChat(
         tool_calls_failed: allToolCalls.filter((t) => t.error).length,
         response_length: persistedAssistantText.length,
         message_id: assistantMsgId,
-        total_input_tokens: totalInputTokens,
-        total_output_tokens: totalOutputTokens,
-        cost_microusd: chatCost.costMicrousd,
+        ...meter.logFields(chatCost),
       },
     });
 
@@ -311,7 +286,7 @@ export async function* processChat(
     // state.messages before the frontend's setLastMessageTokens runs.
     yield { type: "done", data: { messageId: assistantMsgId } };
     // usage arrives after done — safe to patch tokenUsage onto the last message
-    yield { type: "usage", data: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens } };
+    yield { type: "usage", data: { inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens } };
   } catch (error) {
     if (signal?.aborted) {
       // Client is gone: nothing to stream an error to.

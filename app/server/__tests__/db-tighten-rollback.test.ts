@@ -65,7 +65,7 @@ describe("0003_tighten_not_null — NULL text PK rolls everything back", () => {
     const sqlite = legacyDb("old-prod", (db) => db.run(NULL_PK_INSERTS.users!));
     expect(() => runMigrations(sqlite)).toThrow(/NOT NULL constraint failed/);
     sqlite.run("DELETE FROM users WHERE id IS NULL");
-    expect(runMigrations(sqlite).applied.at(-1)!.tag).toBe(TIGHTEN_MIGRATION_TAG);
+    expect(runMigrations(sqlite).applied.map((m) => m.tag)).toContain(TIGHTEN_MIGRATION_TAG);
   });
 });
 
@@ -100,7 +100,7 @@ describe("db:verify — tightening report", () => {
   it("reports backfill counts and NULL-role users on a fixture copy that migrates", () => {
     const report = verifyDatabase(legacyFile(seedNullableRows));
     expect(verifyPassed(report)).toBe(true);
-    expect(report.applied.at(-1)).toBe(TIGHTEN_MIGRATION_TAG);
+    expect(report.applied).toContain(TIGHTEN_MIGRATION_TAG);
     expect(report.tightening.backfills.filter((b) => b.rows > 0)).toHaveLength(TIGHTEN_BACKFILLS.length);
     expect(report.tightening.nullRoleUsers).toEqual([{ id: "u-null", email: "null@example.com", created_at: null }]);
     expect(report.tightening.nullPrimaryKeys).toEqual([]);

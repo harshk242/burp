@@ -55,11 +55,26 @@ export const usageEvents = sqliteTable(
     operation: text("operation", { enum: ["chat"] }).notNull().default("chat"),
     provider: text("provider").notNull(),
     model: text("model").notNull(),
+    // Total input, every category; uncached = input - the cache columns.
     input_tokens: integer("input_tokens").notNull().default(0),
     output_tokens: integer("output_tokens").notNull().default(0),
+    cache_read_tokens: integer("cache_read_tokens").notNull().default(0),
+    cache_write_5m_tokens: integer("cache_write_5m_tokens").notNull().default(0),
+    cache_write_1h_tokens: integer("cache_write_1h_tokens").notNull().default(0),
+    // Base-tier rates; the full entry used (long-context tier included) is in pricing_json.
     input_cost_per_mtok_microusd: integer("input_cost_per_mtok_microusd").notNull(),
     output_cost_per_mtok_microusd: integer("output_cost_per_mtok_microusd").notNull(),
+    pricing_json: text("pricing_json"),
+    // Total that budgets read. The category costs are floored and the total is
+    // rounded up once, so they can add up to a few µUSD less.
     cost_microusd: integer("cost_microusd").notNull().default(0),
+    input_cost_microusd: integer("input_cost_microusd").notNull().default(0),
+    cache_read_cost_microusd: integer("cache_read_cost_microusd").notNull().default(0),
+    cache_write_cost_microusd: integer("cache_write_cost_microusd").notNull().default(0),
+    output_cost_microusd: integer("output_cost_microusd").notNull().default(0),
+    // NULL on legacy rows: not recorded.
+    llm_calls: integer("llm_calls"),
+    long_context_calls: integer("long_context_calls").notNull().default(0),
     session_id: text("session_id").references(() => chatSessions.id, { onDelete: "set null" }),
     message_id: text("message_id").references(() => messages.id, { onDelete: "set null" }),
     created_at: integer("created_at").notNull().default(sql`(unixepoch())`),

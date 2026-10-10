@@ -46,17 +46,19 @@ const ref = (r: { table: string; column: string }) => `${r.table}.${r.column}`;
 const stripComments = (statement: string) => statement.replace(/^\s*--.*$/gm, "").trim();
 
 describe("0003_tighten_not_null — schema", () => {
-  it("is the last migration and a fresh DB applies it", () => {
-    expect(migrations.at(-1)!.tag).toBe(TIGHTEN_MIGRATION_TAG);
+  it("a fresh DB applies it", () => {
+    expect(tighten).toBeDefined();
     const { sqlite } = createTestDb();
     expect(historyRows(sqlite)).toHaveLength(migrations.length);
-    expect(historyRows(sqlite).at(-1)!.hash).toBe(tighten.hash);
+    expect(historyRows(sqlite).map((r) => r.hash)).toContain(tighten.hash);
     expect(foreignKeysEnabled(sqlite)).toBe(true);
   });
 
   it("tightens exactly the backfilled columns and the text PKs", () => {
     const baseline = baselineDatabase(migrations[0]!);
-    const { sqlite } = createTestDb();
+    // Later migrations add NOT NULL columns of their own; stop at 0003.
+    const sqlite = openDatabase(":memory:");
+    runMigrations(sqlite, { migrationsFolder: migrationsFolderUpTo(TIGHTEN_MIGRATION_TAG) });
     const before = new Set(notNullColumns(baseline, TABLES));
     const tightened = notNullColumns(sqlite, TABLES).filter((c) => !before.has(c));
     expect(tightened).toEqual([...TIGHTEN_BACKFILLS.map(ref), ...TIGHTENED_PRIMARY_KEYS.map(ref)].sort());
@@ -149,7 +151,7 @@ describe("0003_tighten_not_null — backfills", () => {
       const t1 = Math.ceil(Date.now() / 1000);
 
       expect(result.adopted).toBe(true);
-      expect(result.applied.at(-1)!.tag).toBe(TIGHTEN_MIGRATION_TAG);
+      expect(result.applied.map((m) => m.tag)).toContain(TIGHTEN_MIGRATION_TAG);
       expectBackfilled(sqlite, t0, t1);
       // Non-NULL values are left alone.
       expect(sqlite.query("SELECT * FROM users WHERE id = 'u-admin'").get()).toEqual(untouched);
@@ -162,7 +164,7 @@ describe("0003_tighten_not_null — backfills", () => {
     const t0 = Math.floor(Date.now() / 1000);
     const { applied } = runMigrations(sqlite);
     const t1 = Math.ceil(Date.now() / 1000);
-    expect(applied.map((m) => m.tag)).toEqual([TIGHTEN_MIGRATION_TAG]);
+    expect(applied.map((m) => m.tag)).toEqual(migrations.slice(migrations.indexOf(tighten)).map((m) => m.tag));
     expectBackfilled(sqlite, t0, t1);
   });
 });

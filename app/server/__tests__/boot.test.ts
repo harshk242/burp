@@ -9,6 +9,8 @@ import { mkdtempSync, readdirSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { buildLegacyDb } from "../__test-utils__/legacy";
+import { loadMigrations } from "../db/executor";
+import { MIGRATIONS_FOLDER } from "../db/paths";
 
 const APP_DIR = join(import.meta.dir, "..", "..");
 const TOKEN = "t".repeat(48); // dev-agent bearer token (>= 32 chars, non-production only)
@@ -81,6 +83,8 @@ async function getJson(api: Api, path: string): Promise<any> {
   return (await api(path)).json();
 }
 
+const MIGRATION_COUNT = loadMigrations(MIGRATIONS_FOLDER).length;
+
 function migrationCount(dbPath: string): number {
   const sqlite = new Database(dbPath, { readonly: true });
   try {
@@ -131,13 +135,13 @@ describe("server boot", () => {
       const usage = await getJson(api, "/usage");
       expect(usage).toMatchObject({ used: 0, total_queries: 0, role: "admin" });
     });
-    expect(migrationCount(dbPath)).toBe(4);
+    expect(migrationCount(dbPath)).toBe(MIGRATION_COUNT);
 
     // Second boot: nothing pending, data intact.
     await withServer(dbPath, "dev-agent@example.com", async (api) => {
       expect((await getJson(api, "/sessions")).sessions).toHaveLength(1);
     });
-    expect(migrationCount(dbPath)).toBe(4);
+    expect(migrationCount(dbPath)).toBe(MIGRATION_COUNT);
   }, 30_000);
 
   it("adopts a legacy (old prod) DB at boot, backs it up and serves its rows", async () => {
@@ -161,7 +165,7 @@ describe("server boot", () => {
       expect(usage).toMatchObject({ limit: 50, total_queries: 3, role: "user" });
     });
 
-    expect(migrationCount(dbPath)).toBe(4);
+    expect(migrationCount(dbPath)).toBe(MIGRATION_COUNT);
     expect(readdirSync(join(dir, "backups")).some((f) => f.startsWith("legacy-pre-drizzle-"))).toBe(true);
   }, 30_000);
 
