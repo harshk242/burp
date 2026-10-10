@@ -107,7 +107,6 @@ export async function handleLargeOutput(
       tool: toolName,
       raw_kb: (rawOutput.length / 1024).toFixed(1),
       stored_kb: (reducedStr.length / 1024).toFixed(1),
-      session_artifact_count: artifactStore.getSessionCount(sessionId),
     },
   });
 

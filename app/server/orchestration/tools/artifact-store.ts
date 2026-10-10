@@ -10,8 +10,11 @@
  * - Every artifact is written to the `artifacts` table (gzipped JSON), so
  *   IDs in replayed history stay readable after the memory copy is gone
  * - Memory holds parsed data for recently used artifacts: TTL based on
- *   lastAccessedAt, per-session cap with LRU eviction (memory only — the
- *   row stays in SQLite), periodic background cleanup every 60s
+ *   lastAccessedAt, periodic background cleanup every 60s
+ * - Per-session size budget (`max_session_bytes`) instead of a count cap, so
+ *   references from replayed history stay valid: when a store pushes the
+ *   session's rows over budget, the oldest by creation are deleted (rows and
+ *   memory copies), never the one just stored
  * - Database expiry (`db_ttl_hours`) is measured from creation, not access:
  *   an expired artifact returns refresh guidance (tool + input to re-run),
  *   and an hourly sweep deletes expired rows
@@ -59,7 +62,7 @@ export type ArtifactLookup =
 /** The persistence the store needs; the app binds the SQLite queries, tests a test DB. */
 export type ArtifactRows = Pick<
   typeof artifactQueries,
-  "insert" | "findForSession" | "deleteExpired"
+  "insert" | "findForSession" | "deleteExpired" | "evictOverBudget"
 >;
 
 /** "26h" / "45m": how long ago an artifact was fetched. */
@@ -114,6 +117,7 @@ export class ArtifactStore {
       lastAccessedAt: now,
     };
 
+    let persisted = false;
     try {
       this.rows.insert({
         id,
@@ -126,6 +130,7 @@ export class ArtifactStore {
         created_at: Math.floor(artifact.createdAt / 1000),
         expires_at: Math.floor(artifact.expiresAt / 1000),
       });
+      persisted = true;
     } catch (err) {
       // Still usable for this memory window; only the later read-back is lost.
       logger.warn("TOOL", "artifact_persist_failed", {
@@ -135,8 +140,38 @@ export class ArtifactStore {
       });
     }
 
-    this.warm(artifact);
+    this.artifacts.set(id, artifact);
+    if (persisted) this.enforceSessionBudget(sessionId, id);
     return id;
+  }
+
+  /**
+   * Delete the session's oldest rows (and their memory copies) while its total
+   * exceeds `max_session_bytes`, keeping `keepId`. Size is the noise-reduced JSON
+   * char count (`stored_size_chars`, pre-gzip): a close-enough proxy for bytes
+   * that also bounds the parsed data held in memory. Failures are logged; the
+   * tool call still succeeds.
+   */
+  private enforceSessionBudget(sessionId: string, keepId: string): void {
+    try {
+      const evicted = this.rows.evictOverBudget(
+        sessionId,
+        appConfig.artifact.max_session_bytes,
+        keepId,
+      );
+      if (evicted.length === 0) return;
+      for (const id of evicted) this.artifacts.delete(id);
+      logger.info("TOOL", "artifact_budget_evicted", {
+        data: { evicted },
+        ctx: { session_id: sessionId },
+      });
+    } catch (err) {
+      logger.warn("TOOL", "artifact_budget_evict_failed", {
+        error: err instanceof Error ? err : String(err),
+        data: { artifact_id: keepId },
+        ctx: { session_id: sessionId },
+      });
+    }
   }
 
   /**
@@ -181,7 +216,7 @@ export class ArtifactStore {
       expiresAt: row.expires_at * 1000,
       lastAccessedAt: now,
     };
-    this.warm(artifact);
+    this.artifacts.set(artifact.id, artifact);
     return { status: "ok", artifact };
   }
 
@@ -211,17 +246,6 @@ export class ArtifactStore {
   /** Whether an artifact's parsed data is currently held in memory. */
   isCached(id: string): boolean {
     return this.artifacts.has(id);
-  }
-
-  /**
-   * Count in-memory artifacts belonging to a session.
-   */
-  getSessionCount(sessionId: string): number {
-    let count = 0;
-    for (const artifact of this.artifacts.values()) {
-      if (artifact.sessionId === sessionId) count++;
-    }
-    return count;
   }
 
   /**
@@ -259,36 +283,6 @@ export class ArtifactStore {
         error: err instanceof Error ? err : String(err),
       });
       return 0;
-    }
-  }
-
-  /**
-   * Put an artifact in memory, enforcing the per-session cap by evicting
-   * the least-recently-accessed one (memory only).
-   * TODO(#31): replaced by a `max_session_bytes` budget.
-   */
-  private warm(artifact: Artifact): void {
-    if (this.getSessionCount(artifact.sessionId) >= appConfig.artifact.max_per_session) {
-      this.evictOldestInSession(artifact.sessionId);
-    }
-    this.artifacts.set(artifact.id, artifact);
-  }
-
-  /**
-   * Evict the least-recently-accessed artifact in a session from memory.
-   */
-  private evictOldestInSession(sessionId: string): void {
-    let oldest: Artifact | null = null;
-
-    for (const artifact of this.artifacts.values()) {
-      if (artifact.sessionId !== sessionId) continue;
-      if (!oldest || artifact.lastAccessedAt < oldest.lastAccessedAt) {
-        oldest = artifact;
-      }
-    }
-
-    if (oldest) {
-      this.artifacts.delete(oldest.id);
     }
   }
 

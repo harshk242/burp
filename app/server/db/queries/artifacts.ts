@@ -1,4 +1,4 @@
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { artifacts } from "../schema";
 
@@ -29,6 +29,33 @@ export function createArtifactQueries(db: DrizzleDb) {
         .where(lte(artifacts.expires_at, nowSec))
         .returning({ id: artifacts.id })
         .all().length;
+    },
+
+    /**
+     * Enforce a per-session size budget: delete the oldest rows (by created_at,
+     * then insertion order) until the session's total stored_size_chars is within
+     * maxChars. Keeps the newest rows whose running total, counted newest-first,
+     * fits; `keepId` is never deleted even if it alone exceeds the budget.
+     * Returns the deleted IDs.
+     */
+    evictOverBudget(sessionId: string, maxChars: number, keepId: string): string[] {
+      return db
+        .delete(artifacts)
+        .where(
+          sql`${artifacts.id} IN (
+            SELECT id FROM (
+              SELECT id, SUM(stored_size_chars) OVER (
+                ORDER BY created_at DESC, rowid DESC
+              ) AS newer_total
+              FROM artifacts
+              WHERE session_id = ${sessionId}
+            )
+            WHERE newer_total > ${maxChars} AND id != ${keepId}
+          )`,
+        )
+        .returning({ id: artifacts.id })
+        .all()
+        .map((r) => r.id);
     },
   };
 }

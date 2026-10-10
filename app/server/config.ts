@@ -38,7 +38,8 @@ const ArtifactConfigSchema = z.object({
   hard_cap_bytes: z.number().int().default(1_048_576),
   ttl_minutes: z.number().default(5),
   db_ttl_hours: z.number().default(24),
-  max_per_session: z.number().int().default(10),
+  // Per-session budget over noise-reduced JSON size (chars ≈ bytes); oldest evicted first.
+  max_session_bytes: z.number().int().default(20_971_520),
   preview_sample_items: z.number().int().default(2),
   preview_max_chars_per_value: z.number().int().default(150),
   jq_timeout_ms: z.number().int().default(5000),

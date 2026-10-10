@@ -1,7 +1,7 @@
 /**
  * Artifact store: SQLite rows behind an in-memory read-through cache.
  * Memory hit, miss → DB load → re-warm, expiry with refresh guidance,
- * periodic sweep, and cascade on session delete.
+ * periodic sweep, per-session byte-budget eviction, and cascade on session delete.
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createTestDb, type TestDb } from "../__test-utils__/db";
@@ -11,6 +11,8 @@ const app = createTestDb();
 mock.module("../db", () => ({ db: app.db, sqlite: app.sqlite, ...createQueries(app.db) }));
 
 const { ArtifactStore } = await import("../orchestration/tools/artifact-store");
+const { appConfig } = await import("../config");
+const DEFAULT_BUDGET = appConfig.artifact.max_session_bytes;
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const SESSION = "s1";
@@ -37,11 +39,24 @@ beforeEach(() => {
 
 afterEach(() => {
   mock.restore(); // Date.now spies
+  appConfig.artifact.max_session_bytes = DEFAULT_BUDGET;
 });
 
 afterAll(() => {
   for (const s of stores) s.destroy();
 });
+
+/** A payload whose stored JSON is exactly `chars` long. */
+function sized(chars: number): { p: string } {
+  return { p: "x".repeat(chars - '{"p":""}'.length) };
+}
+
+function sessionIds(sessionId: string): string[] {
+  return t.sqlite
+    .query<{ id: string }, [string]>("SELECT id FROM artifacts WHERE session_id = ? ORDER BY rowid")
+    .all(sessionId)
+    .map((r) => r.id);
+}
 
 function rowCount(): number {
   return t.sqlite.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM artifacts").get()!.n;
@@ -103,13 +118,75 @@ describe("ArtifactStore", () => {
     expect(store.isCached(id)).toBe(false);
   });
 
-  it("keeps the row when the per-session memory cap evicts the cached copy", async () => {
-    const ids = Array.from({ length: 11 }, (_, i) => store.store(SESSION, TOOL, INPUT, { i }, 100));
-    expect(store.getSessionCount(SESSION)).toBe(10);
-    expect(store.isCached(ids[0])).toBe(false);
-    expect(rowCount()).toBe(11);
+  it("keeps many artifacts while the session is within its byte budget", () => {
+    appConfig.artifact.max_session_bytes = 1000;
+    const ids = Array.from({ length: 11 }, () => store.store(SESSION, TOOL, INPUT, sized(90), 100));
+    expect(sessionIds(SESSION)).toEqual(ids); // 990 chars ≤ 1000
+    expect(ids.every((id) => store.isCached(id))).toBe(true);
+  });
 
-    expect((await store.query(ids[0], SESSION, ".i")).result).toBe(0);
+  it("evicts the oldest artifacts by creation time once over budget", async () => {
+    appConfig.artifact.max_session_bytes = 1000;
+    const created = Date.now();
+    const now = spyOn(Date, "now");
+    const ids = [0, 1, 2, 3].map((i) => {
+      now.mockReturnValue(created + i * 60_000);
+      return store.store(SESSION, TOOL, INPUT, sized(300), 100);
+    });
+    // 4 × 300 = 1200 > 1000 → only the oldest goes
+    expect(sessionIds(SESSION)).toEqual(ids.slice(1));
+    expect(store.isCached(ids[0])).toBe(false);
+    expect((await store.query(ids[0], SESSION, ".")).error).toContain("not found");
+
+    // A 700-char store leaves room for only the newest 300 (300 + 700 = 1000)
+    now.mockReturnValue(created + 4 * 60_000);
+    const big = store.store(SESSION, TOOL, INPUT, sized(700), 100);
+    expect(sessionIds(SESSION)).toEqual([ids[3], big]);
+    expect(store.isCached(ids[1])).toBe(false);
+    expect(store.isCached(ids[2])).toBe(false);
+    expect(store.isCached(ids[3])).toBe(true);
+  });
+
+  it("orders eviction by created_at, not by last access", async () => {
+    appConfig.artifact.max_session_bytes = 700;
+    const created = Date.now();
+    const now = spyOn(Date, "now").mockReturnValue(created);
+    const first = store.store(SESSION, TOOL, INPUT, sized(300), 100);
+    now.mockReturnValue(created + 60_000);
+    const second = store.store(SESSION, TOOL, INPUT, sized(300), 100);
+    now.mockReturnValue(created + 120_000);
+    expect(store.get(first, SESSION).status).toBe("ok"); // recently read, still oldest
+
+    const third = store.store(SESSION, TOOL, INPUT, sized(300), 100);
+    expect(sessionIds(SESSION)).toEqual([second, third]);
+  });
+
+  it("keeps the just-stored artifact even if it alone exceeds the budget", async () => {
+    appConfig.artifact.max_session_bytes = 500;
+    const older = store.store(SESSION, TOOL, INPUT, sized(200), 100);
+    const huge = store.store(SESSION, TOOL, INPUT, sized(800), 100);
+    expect(sessionIds(SESSION)).toEqual([huge]);
+    expect(store.isCached(older)).toBe(false);
+    expect((await store.query(huge, SESSION, ".p | length")).result).toBe(800 - 8);
+  });
+
+  it("leaves other sessions untouched when one goes over budget", () => {
+    appConfig.artifact.max_session_bytes = 500;
+    const other = [0, 1].map(() => store.store(OTHER_SESSION, TOOL, INPUT, sized(200), 100));
+    const mine = [0, 1, 2].map(() => store.store(SESSION, TOOL, INPUT, sized(200), 100));
+    expect(sessionIds(SESSION)).toEqual(mine.slice(1));
+    expect(sessionIds(OTHER_SESSION)).toEqual(other);
+    expect(other.every((id) => store.isCached(id))).toBe(true);
+  });
+
+  it("still returns an artifact ID when budget eviction fails", () => {
+    const evict = spyOn(q.artifactQueries, "evictOverBudget").mockImplementation(() => {
+      throw new Error("db locked");
+    });
+    const id = store.store(SESSION, TOOL, INPUT, DATA, 9000);
+    expect(store.isCached(id)).toBe(true);
+    expect(sessionIds(SESSION)).toEqual([id]);
+    evict.mockRestore();
   });
 
   it("expires 24h after creation even if read in between", async () => {
