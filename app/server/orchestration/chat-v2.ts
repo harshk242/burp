@@ -214,9 +214,11 @@ export async function* processChat(
           sanitize,
           activeTools,
           ctx,
+          signal,
         };
 
         for (const tc of toolCalls) {
+          signal?.throwIfAborted();
           const { record, part } = yield* dispatchToolCall(tc, dispatch);
           if (record) allToolCalls.push(record);
           toolResultParts.push(part);
@@ -240,11 +242,9 @@ export async function* processChat(
         continueLoop = false;
       }
     }
-          signal,
 
     const chatCost = summarizeTurnCost(callCosts);
     const baseRates = resolvePricing(llmConfig.provider, llmConfig.chatModel).base;
-          signal?.throwIfAborted();
 
     const assistantMsgId = uuidv4();
     const usageEventId = uuidv4();
@@ -313,6 +313,11 @@ export async function* processChat(
     // usage arrives after done — safe to patch tokenUsage onto the last message
     yield { type: "usage", data: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens } };
   } catch (error) {
+    if (signal?.aborted) {
+      // Client is gone: nothing to stream an error to.
+      logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed() });
+      return;
+    }
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error("CHAT", "process_failed", {
       ctx,
@@ -339,11 +344,6 @@ export async function generateSessionTitle(
   });
 
   try {
-    if (signal?.aborted) {
-      // Client is gone: nothing to stream an error to.
-      logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed() });
-      return;
-    }
     const { text } = await generateText({
       model: getTitleModel(),
       maxOutputTokens: 50,
