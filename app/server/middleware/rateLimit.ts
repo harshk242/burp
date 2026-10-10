@@ -24,7 +24,7 @@ import { appConfig } from "../config";
 import { logger } from "../logger";
 import type { AppEnv } from "../types";
 import {
-  calculateChatCost,
+  assertPricingConfigured,
   getNextUtcMidnight,
   getNextUtcMonthStart,
   resolveEffectiveLimits,
@@ -74,12 +74,7 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
   // ── 2. Dollar budget — BEST-EFFORT enforcement ───────────────────────────
   // Pricing must exist for the active chat model before we spend provider API.
   try {
-    calculateChatCost({
-      provider: appConfig.llm.provider,
-      model: appConfig.llm.chat_model,
-      inputTokens: 0,
-      outputTokens: 0,
-    });
+    assertPricingConfigured(appConfig.llm.provider, appConfig.llm.chat_model);
   } catch (error) {
     logger.error("AUTH", "pricing_not_configured", {
       ctx: { user_id: userId },

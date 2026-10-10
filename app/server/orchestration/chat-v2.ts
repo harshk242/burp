@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getChatModel, getTitleModel, loadLLMConfig, sanitizeToolName } from "../llm";
 import { db, messageQueries, chatSessionQueries, userQueries, dailyUsageQueries, usageEventQueries } from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
-import { calculateChatCost, getUtcDate, getUtcMonth } from "../usage";
+import { getUtcDate, getUtcMonth, priceCall, resolvePricing, summarizeTurnCost, type CallCost } from "../usage";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { buildInitialToolSet, dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
 import type { StreamEvent, ToolCallRecord } from "./types";
@@ -115,6 +115,7 @@ export async function* processChat(
     // Token accumulators — summed across all tool-call iterations
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    const callCosts: CallCost[] = [];
 
     while (continueLoop) {
       loopIteration++;
@@ -161,6 +162,17 @@ export async function* processChat(
       // Accumulate token counts across all tool-call iterations
       totalInputTokens += usage?.inputTokens ?? 0;
       totalOutputTokens += usage?.outputTokens ?? 0;
+      // Priced per call; all input at the uncached rate until the usage meter
+      // splits out cache reads/writes.
+      callCosts.push(
+        priceCall(llmConfig.provider, llmConfig.chatModel, {
+          noCacheTokens: usage?.inputTokens ?? 0,
+          cacheReadTokens: 0,
+          cacheWrite5mTokens: 0,
+          cacheWrite1hTokens: 0,
+          outputTokens: usage?.outputTokens ?? 0,
+        })
+      );
 
       logger.info("CHAT", "llm_response_received", {
         ctx,
@@ -218,12 +230,8 @@ export async function* processChat(
       }
     }
 
-    const chatCost = calculateChatCost({
-      provider: llmConfig.provider,
-      model: llmConfig.chatModel,
-      inputTokens: totalInputTokens,
-      outputTokens: totalOutputTokens,
-    });
+    const chatCost = summarizeTurnCost(callCosts);
+    const baseRates = resolvePricing(llmConfig.provider, llmConfig.chatModel).base;
 
     const assistantMsgId = uuidv4();
     const usageEventId = uuidv4();
@@ -252,12 +260,12 @@ export async function* processChat(
         date: usageDate,
         month: usageMonth,
         operation: "chat",
-        provider: chatCost.provider,
-        model: chatCost.model,
+        provider: llmConfig.provider,
+        model: llmConfig.chatModel,
         input_tokens: chatCost.inputTokens,
         output_tokens: chatCost.outputTokens,
-        input_cost_per_mtok_microusd: chatCost.inputCostPerMtokMicrousd,
-        output_cost_per_mtok_microusd: chatCost.outputCostPerMtokMicrousd,
+        input_cost_per_mtok_microusd: baseRates.input,
+        output_cost_per_mtok_microusd: baseRates.output,
         cost_microusd: chatCost.costMicrousd,
         session_id: sessionId,
         message_id: assistantMsgId,

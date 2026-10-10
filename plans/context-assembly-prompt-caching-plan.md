@@ -10,7 +10,7 @@ Every LLM call in a turn sends a **fixed prefix** (tools + system prompt). The c
 tools:    core tools + system__search_available_tools + system__inspect_artifact   (loaded)
           + every other registered tool, defer_loading: true, sorted by name      (hidden)  ← never changes
 system:   SYSTEM_PROMPT                                          [cache breakpoint 1]       ← never changes
-messages: user → assistant(tool_use search) → tool_result[text + tool_reference × N]
+messages: user → assistant(tool_use search) → tool_result[tool_reference × N, no text]
           → assistant(tool_use chembl__…) → tool_result → …      [cache breakpoint 2: last message, moves forward each call]
 ```
 
@@ -18,7 +18,7 @@ messages: user → assistant(tool_use search) → tool_result[text + tool_refere
 
 | # | Decision | Choice |
 |---|---|---|
-| 1 | How found tools reach the model | **`tool_reference` blocks inside the search tool's result.** Built natively by the AI SDK, with no fetch wrapper and no bookkeeping by message position. They're visible to AI SDK tracing. **Confirmed live by the Phase 0 gate (2026-10-09), with one constraint: the search `tool_result` may contain only `tool_reference` blocks, no text block (see Phase 0 check 2 and 1b).** |
+| 1 | How found tools reach the model | **`tool_reference` blocks inside the search tool's result.** Built natively by the AI SDK, with no fetch wrapper and no bookkeeping by message position. They're visible to AI SDK tracing. **Phase 0 gate (2026-10-09): the shape first specified (and in issue #17), a text part plus `tool_reference` parts in one `tool_result`, failed with 400 ("cannot be mixed with other content"). The revised references-only shape passed, and the gate passes on that revised design.** No fallback to `tool_addition` is needed: the text part was redundant, because each reference expands to the full tool definition (see Phase 0 check 2 and 1b). |
 | 2 | Tool masking / `tool_removal` | **Not now.** Additions only (discovery). See Phase 5. |
 | 3 | Sending mid-conversation system messages | **Native in `@ai-sdk/anthropic` 4.x**: a `role: "system"` message in `messages` with `providerOptions.anthropic.toolChanges`, and `allowSystemInMessages: true` on `streamText`. No fetch wrapper. Only Phase 5 needs it. (Revised 2026-10-09; it was a fetch wrapper, back when the provider rejected these messages.) |
 | 4 | Cache across user turns (lossless history) | **Phase 4b.** Phases 1–3 cache within a turn only. Phase 4 is split into three projects (4a thinking, 4b transcript, 4c artifacts; agreed 2026-10-09). |
@@ -28,17 +28,17 @@ messages: user → assistant(tool_use search) → tool_result[text + tool_refere
 
 ## Baseline (real data, before any change)
 
-From `logs/app.log`, `cache_diag` events, session `c7525aa4`, 2026-10-09 18:36 UTC. The data came from the temporary diagnostic block currently uncommitted in `chat-v2.ts:428-452`.
+From `logs/app.log`, `cache_diag` events, session `c7525aa4`, 2026-10-09 18:36 UTC. The data came from the temporary diagnostic block currently uncommitted in `chat-v2.ts:428-452`. Measured **before** `dfe0213` (search `top_k` 15 → 5), so each search then activated up to 15 tools; today it activates up to 5. The Phase 3 re-run measures the current state.
 
 - `cache_read = 0` and `cache_write = 0` on **every** call. No caching is requested.
-- Within one turn, `tool_count` goes 10 → 25 → 26 and `tools_hash` changes each time, so the prefix is rebuilt each time.
+- Within one turn, `tool_count` goes 10 → 25 → 26 and `tools_hash` changes each time, so the prefix is rebuilt each time (the jump of 15 is one search's `top_k` at the time).
 - One 6-call turn sent 4,399 + 7,604 + 8,232 + 9,231 + 11,477 + 25,418 = **66,361 uncached input tokens** (≈ $0.133 at $2/MTok).
 - Projection for the same turn with a stable prefix: about 41K tokens read from cache at $0.10/MTok, plus about 25K written at $2.50/MTok ≈ **$0.067, about 50% lower input cost**. This is an estimate; Phase 3 measures the real number. (Corrected 2026-10-09: Sonnet 5.5 cache reads are $0.10, not $0.20; see Phase 2.1.)
 
 ## Root causes being fixed
 
 1. No `cacheControl` anywhere.
-2. Found tools are added to the `tools` list mid-turn (`chat-v2.ts:494-505`). The search returns `top_k: 15` (`app/config.yaml:57`), but the model is shown only 8 (`chat-v2.ts:507-513`), so 7 hidden definitions are added per search.
+2. Found tools are added to the `tools` list mid-turn (`runSearchTool`, `tool-dispatch.ts:146-167`): up to `top_k` (`tool_search.top_k` in `app/config.yaml`, currently 5) definitions per search. (The earlier mismatch, where the search returned 15 but the model was shown only 8 so 7 hidden definitions were added, is already fixed by `dfe0213`: `top_k` is 5 and the search output lists every tool it activates.)
 3. `inspect_artifact` is added on the fly (`chat-v2.ts:215`).
 4. Tool order comes from the registry Map's internal order (`mcp/registry.ts:120`), not sorted.
 5. Cost is computed from total `inputTokens` summed over a turn (`chat-v2.ts:413`, `usage.ts` `calculateChatCost`). Cached reads would be overcharged and cache writes undercharged, per-request long-context tiers can't be applied, and failed turns aren't recorded (Phase 2.0).
@@ -62,62 +62,62 @@ From `logs/app.log`, `cache_diag` events, session `c7525aa4`, 2026-10-09 18:36 U
 
 ## Phase 0 — Live check of `tool_reference` (gate)
 
-Runs on the upgraded SDK (decision 7). `tool_reference` via the AI SDK is confirmed only in the provider source: `@ai-sdk/anthropic` 4.x `convert-to-anthropic-prompt.ts` (the `tool-reference` custom tool-result part becomes `tool_reference`) and `anthropic-prepare-tools.ts` (`deferLoading`). It hasn't been tested against the live API.
+Runs on the upgraded SDK (decision 7). `tool_reference` via the AI SDK is confirmed only in the provider source: `@ai-sdk/anthropic` 4.x `convert-to-anthropic-prompt.ts` (the `tool-reference` custom tool-result part becomes `tool_reference`) and `anthropic-prepare-tools.ts` (`deferLoading`). Before this gate it hadn't been tested against the live API; the gate below did that (see Status/Results).
 
 Note: the provider line references in this plan were re-located during Step 0 (2026-10-09). The 4.x packages ship ESM-only `dist/index.js` (no `index.mjs`); references are to `@ai-sdk/anthropic` 4.0.78 and `@ai-sdk/google` 4.0.93 and marked "(4.0.78)" / "(4.0.93)". The behaviour carried over; differences are noted inline.
 
 Write a throwaway script in `experiments/` (gitignored) using `streamText` with the real tool catalog:
 
 1. All non-core tools have `providerOptions.anthropic.deferLoading: true`. Check: request returns 200; record `inputTokens` with the deferred tools present vs. absent, to confirm deferred definitions aren't billed.
-2. Call 2 replays a `search_available_tools` result whose output is `{type: "content", value: [{type: "text", …}, {type: "custom", providerOptions: {anthropic: {type: "tool-reference", toolName}}}]}`. Check: the model can call a referenced tool. (Result: this mixed shape returns 400; the `tool-reference`-only shape works. See Status/Results.)
+2. Call 2 replays a `search_available_tools` result whose output is `{type: "content", value: [{type: "text", …}, {type: "custom", providerOptions: {anthropic: {type: "tool-reference", toolName}}}]}`. Check: the model can call a referenced tool. (Result: this mixed shape, as specified in #17, returns 400; the revised `tool-reference`-only shape works. See Status/Results.)
 3. Calls 2 and 3 carry a cache breakpoint. Check: `cache_read > 0` and the tools/system hashes stay the same.
-4. A search result that references a tool that is **already loaded** (a core tool). Check: the API accepts it. If it returns 400, `runToolSearch` (1b) leaves loaded tools out of the `tool-reference` parts and lists them in the text part only.
+4. A search result that references a tool that is **already loaded** (a core tool). Check: the API accepts it. (Result: accepted, 200, so no fallback is needed. Had it returned 400, the fallback could not have been "list loaded tools in a text part": with references-only results (check 2), a text part next to references is itself a 400. It would have had to leave loaded tools out of the result entirely; they're already declared in `tools`.)
 5. Minimum cacheable prompt length for `claude-sonnet-5-5`: look it up in the prompt-caching docs, then check it live. Call 1 is only about 4.4K tokens (Baseline). Check: call 1 reports `cache_write > 0`. If the prefix is under the minimum, caching silently does nothing on call 1; record that as expected and judge Phase 3 from call 2 onwards.
 
 **If it fails:** switch discovery to `tool_addition` system messages (native `toolChanges` provider option, see Phase 5 mechanics), and redo the decision 1 trade-off.
 
-**Status/Results (2026-10-09): gate passes. All five checks pass; check 2 changes the 1b output shape.** Decision 1 (`tool_reference` in the search result) stands, so there's no fallback to `tool_addition`. The one change: the search `tool_result` carries `tool_reference` blocks **only**, with no text block (1b updated).
-- Setup: `experiments/phase0-gate.ts` (gitignored), run as `cd app && LOG_LEVEL=ERROR bun ../experiments/phase0-gate.ts [all|1|2|3|4|5]` (`2` and `3` run the same call sequence). Model `claude-sonnet-5-5` (from `app/config.yaml`), `ai` 7.0.137, `@ai-sdk/anthropic` 4.0.78, live Anthropic API with the app's `ANTHROPIC_API_KEY` (`app/.env`). Real catalog: the script starts the unified MCP server in-process (`mcpManager.startAll()` + `toolRegistry.discoverTools`), giving 200 MCP tools from 9 platforms (uniprot disabled). Declarations are built with `toolRegistry.getVercelTool` (the `[server] description` format) plus `createSearchTool()` and `createInspectArtifactTool()` with `execute` removed (`toDeclarations`), sorted by name. That makes 202 tools: 11 loaded (9 `ALWAYS_LOADED_TOOLS` + the 2 system tools) and 191 deferred. Real `SYSTEM_PROMPT`; the user message is "Reply with exactly the word OK. Do not call any tools."; `maxOutputTokens: 256`. A `fetch` wrapper records the HTTP status and request body. The provider sends `defer_loading: true` on all 191 tools and needs no extra beta (only `structured-outputs-2025-11-13`, which the provider always adds).
-- **Check 1: passes.** All requests returned 200. `inputTokens`, all uncached (no cache markers):
+**Status/Results (2026-10-09): gate passes on the revised search-result shape.** Check 2 as originally specified (and in issue #17), a text part plus `tool_reference` parts in one `tool_result`, **failed with 400** ("Tool definitions/code execution functions cannot be mixed with other content"). The revised **references-only** shape passed: the model called the deferred tool it referenced. Checks 1, 3, 4 and 5 pass as specified. Decision 1 (`tool_reference` in the search result) stands with that revision, and no fallback to `tool_addition` is needed: the text summary was redundant, because each reference expands to the full tool definition, description included (1b updated).
+- Setup: `experiments/phase0-gate.ts` (gitignored), run as `cd app && LOG_LEVEL=ERROR bun ../experiments/phase0-gate.ts [all|1|2|3|4|5]` (`2` and `3` run the same call sequence). Each check records explicit verdicts: `required`, `expected-negative` (the mixed shape must return 400 with the mixed-content error) or `warn` (reported only). The script prints a call table and a verdict table and exits 1 if any non-`warn` verdict fails. `all` runs check 5 first, then 1, then the clean 2/3 sequence (call 1 → call 2 references-only → call 3), then the call-2 shape probes A and B, then 4, so no check warms another's prefix. Every sequence gets its own per-run nonce, appended to the description of `system__search_available_tools` (a loaded tool). Tools render before system, so a new nonce makes the whole tools + system prefix cold; within a sequence it's constant. The nonce adds 12 tokens to every prompt, so the numbers below are 12 above the earlier contaminated runs. Each call is labelled `cold`, `warm` or `none` (no cache markers). Model `claude-sonnet-5-5` (from `app/config.yaml`), `ai` 7.0.137, `@ai-sdk/anthropic` 4.0.78, live Anthropic API with the app's `ANTHROPIC_API_KEY` (`app/.env`). Real catalog: the script starts the unified MCP server in-process (`mcpManager.startAll()` + `toolRegistry.discoverTools`), giving 200 MCP tools from 9 platforms (uniprot disabled). Declarations are built with `toolRegistry.getVercelTool` (the `[server] description` format) plus `createSearchTool()` and `createInspectArtifactTool()` with `execute` removed (`toDeclarations`), sorted by name. That makes 202 tools: 11 loaded (9 `ALWAYS_LOADED_TOOLS` + the 2 system tools) and 191 deferred. Real `SYSTEM_PROMPT`; the user message is "Reply with exactly the word OK. Do not call any tools."; `maxOutputTokens: 256`. A `fetch` wrapper records the HTTP status and request body. The provider sends `defer_loading: true` on all 191 tools and needs no extra beta (only `structured-outputs-2025-11-13`, which the provider always adds).
+- Numbers below are from one clean `cd app && … phase0-gate.ts all` run (2026-10-09): exit 0, 21 verdicts, all pass, 0 warnings.
+- **Check 1: passes.** All requests returned 200 (asserted: all 200, 191 of 202 tools sent with `defer_loading`, deferred delta ≤ 500 tokens and ≥ 20× smaller than the all-loaded delta). `inputTokens`, all uncached (no cache markers):
 
   | Variant | Tools sent | Deferred | `inputTokens` |
   |---|---|---|---|
-  | core only (deferred tools absent) | 11 | 0 | 4,641 |
-  | core + 191 deferred | 202 | 191 | **4,734** |
-  | control: all 202 loaded | 202 | 0 | 38,991 |
+  | core only (deferred tools absent) | 11 | 0 | 4,653 |
+  | core + 191 deferred | 202 | 191 | **4,746** |
+  | control: all 202 loaded | 202 | 0 | 39,003 |
 
   The 191 deferred definitions add **93 tokens** in total, against about 34,350 tokens if they were loaded. That's a fixed overhead, probably the API's note that deferred tools exist; it isn't per tool. Deferred definitions aren't billed. Since the 93 tokens are part of the cached prefix (see check 5), they're paid once per cache write.
-- **Check 5: passes.** The minimum cacheable prompt length for `claude-sonnet-5-5` is **512 tokens** ([prompt-caching docs](https://platform.claude.com/docs/en/build-with-claude/prompt-caching), "Cache limitations", fetched 2026-10-09; same as Opus 5.5 / Haiku 5.5; Haiku 4.5 is 4,096). Shorter prompts are silently not cached. Live: call 1 (the 202-tool catalog with 191 deferred, and `instructions` as a `SystemModelMessage` with `cacheControl: {type: "ephemeral"}`) returned `inputTokens` 4,734 = `noCache` 96 + `cacheRead` 0 + **`cacheWrite` 4,638**. In `providerMetadata.anthropic.usage.cache_creation`, `ephemeral_5m_input_tokens` was 4,638 and `ephemeral_1h_input_tokens` was 0. So call 1 already writes the cache: the tools + system prefix (about 4.6K) is roughly 9× the minimum. Phase 3 can expect `cache_read > 0` from call 2 onwards.
+- **Check 5: passes.** The minimum cacheable prompt length for `claude-sonnet-5-5` is **512 tokens** ([prompt-caching docs](https://platform.claude.com/docs/en/build-with-claude/prompt-caching), "Cache limitations", fetched 2026-10-09; same as Opus 5.5 / Haiku 5.5; Haiku 4.5 is 4,096). Shorter prompts are silently not cached. Live, first call of the run on a fresh nonce (cold): call 1 (the 202-tool catalog with 191 deferred, and `instructions` as a `SystemModelMessage` with `cacheControl: {type: "ephemeral"}`) returned `inputTokens` 4,746 = `noCache` 96 + `cacheRead` 0 + **`cacheWrite` 4,650** (asserted: 200, prompt ≥ 512, `cacheRead` = 0, `cacheWrite` > 0). In `providerMetadata.anthropic.usage.cache_creation`, `ephemeral_5m_input_tokens` was 4,650 and `ephemeral_1h_input_tokens` was 0. So call 1 already writes the cache: the tools + system prefix (about 4.6K) is roughly 9× the minimum. Phase 3 can expect `cache_read > 0` from call 2 onwards.
 - **Checks 2–4 setup (#17).** Same 202-tool catalog, `SYSTEM_PROMPT` and model. Every call uses the 1d markers on a copy of the messages: `instructions` with `cacheControl`, plus message-level `cacheControl` on the last message and on the previous call's last message. `maxOutputTokens` is 512–1024 so adaptive thinking doesn't cut off the tool call. The fetch wrapper records the serialized request body. The script logs sha256 of `body.tools` and `body.system`, the `tool_reference` names found inside `tool_result` blocks, and which blocks carry `cache_control`. The search hits are fixed (`chembl__get_mechanism_of_action`, `open-targets__get_drug_info`, `chembl__get_drug_info`, all deferred), so the result doesn't depend on the embedding index.
-- **Check 2: passes with the `tool-reference`-only shape. The mixed shape planned in 1b returns 400.** The sequence:
-  - Call 1 (live): the user asks for imatinib's mechanism of action in ChEMBL. The model called `system__search_available_tools` with query "ChEMBL drug mechanism of action". That `tool_use` is kept as it is.
-  - Call 2 variants, each replaying that `tool_use` plus a result:
+- **Check 2: the original shape (#17) fails with 400; the revised references-only shape passes.** The sequence:
+  - Call 1 (live, cold): the user asks for imatinib's mechanism of action in ChEMBL. The model called `system__search_available_tools` with query "ChEMBL drug mechanism of action". That `tool_use` is kept as it is. (If the model doesn't search, the script constructs the `tool_use` and reports a `warn` verdict saying so; it didn't happen in this run.)
+  - Call 2 replays that `tool_use` plus result C. Shapes A and B are probes run after call 3 on the same history, so they can't warm the clean sequence:
 
     | Search result shape | HTTP | Model called |
     |---|---|---|
-    | A: text part (name + score) + 3 `tool-reference` parts in one `tool_result` (1b as planned) | **400** `invalid_request_error`: "Tool definitions/code execution functions cannot be mixed with other content" | n/a |
-    | B: `tool_result` with 3 references only, then the text as a separate user text block in the same user message | 200 | `chembl__get_mechanism_of_action` |
-    | **C: `tool_result` with 3 `tool-reference` parts only** | **200** | **`chembl__get_mechanism_of_action`** with `{chembl_id: "CHEMBL941"}` |
+    | **C (call 2): `tool_result` with 3 `tool-reference` parts only** | **200** | **`chembl__get_mechanism_of_action`** with `{chembl_id: "CHEMBL941"}` |
+    | A (probe, expected 400): text part (name + score) + 3 `tool-reference` parts in one `tool_result` (the original 1b / #17 shape) | **400** `invalid_request_error`: "Tool definitions/code execution functions cannot be mixed with other content" | n/a |
+    | B (probe): `tool_result` with 3 references only, then the text as a separate user text block in the same user message | 200 | `chembl__get_mechanism_of_action` |
 
   - The request body shows the custom parts serialized as `{"type":"tool_reference","tool_name":…}` inside `tool_result.content`, all 3 names. The model called a deferred tool that only the reference had loaded, with the right argument.
   - This matches the tool-search docs: their custom-search example returns `tool_result.content` made only of `tool_reference` blocks. Variant B works but puts server text in the user role, so 1b uses C.
-- **Check 3: passes.** Calls 1 → 2 (shape C) → 3 (call 2's assistant message plus a stubbed `chembl__get_mechanism_of_action` result), back to back:
+- **Check 3: passes.** Calls 1 → 2 (shape C) → 3 (call 2's assistant message plus a stubbed `chembl__get_mechanism_of_action` result), back to back on a fresh nonce:
 
-  | Call | `inputTokens` | `noCache` | `cacheRead` | `cacheWrite` (5m) | `cache_control` on |
-  |---|---|---|---|---|---|
-  | 1 | 4,785 | 4 | 4,781 | 0 | system, user msg |
-  | 2 | 5,237 | 2 | 4,781 | 454 | system, user msg (previous last), search `tool_result` (last) |
-  | 3 | 5,404 | 2 | **5,235** | 167 | system, search `tool_result` (previous last), tool `tool_result` (last) |
+  | Call | Cache | `inputTokens` | `noCache` | `cacheRead` | `cacheWrite` (5m) | `cache_control` on |
+  |---|---|---|---|---|---|---|
+  | 1 | cold | 4,797 | 4 | 0 | **4,793** | system, user msg |
+  | 2 | warm | 5,249 | 2 | 4,793 | 454 | system, user msg (previous last), search `tool_result` (last) |
+  | 3 | warm | 5,416 | 2 | **5,247** | 167 | system, search `tool_result` (previous last), tool `tool_result` (last) |
 
-  - `tools` hash `3446081092e6` and `system` hash `d47f804aa8f2` were identical on every call in the run, variants and check 4 included.
-  - Call 1 read the cache instead of writing it because a run a minute earlier had warmed the same prefix. In the first run (no earlier message prefix cached) call 1 read 4,638 (the tools + system prefix, cached by an earlier check-5 run) and wrote 143.
-  - Call 2 reads exactly call 1's whole prompt (the previous-last breakpoint hit). Call 3 reads all of call 2's prompt except 2 tokens. The `tool_reference` expansion is cached like any other content and doesn't disturb the prefix.
+  - Asserted: all 200; call 1 `cacheRead` = 0 and `cacheWrite` > 0; call 2 reads at least everything call 1 cached (4,793 ≥ 4,793); call 3 reads at least everything call 2 cached (5,247 ≥ 4,793 + 454); `tools` and `system` hashes identical across calls 1–3. The hashes depend on the run's nonce, so they differ between runs; `system` was `d47f804aa8f2` on every cached call.
+  - Call 1 is a genuine cold write of the whole prompt (tools + system + user message). Call 2 reads exactly call 1's whole prompt (the previous-last breakpoint hit). Call 3 reads all of call 2's prompt except 2 tokens. The `tool_reference` expansion is cached like any other content and doesn't disturb the prefix.
   - The AI SDK put message-level `cacheControl` on the last block of the message (`tool_result` for tool messages, `text` for the user message), as 1d expects.
 - **Check 4: passes. Referencing an already-loaded tool is accepted (200).**
-  - 4a: a references-only result naming `chembl__search_compounds` (core, loaded) and `chembl__get_mechanism_of_action` (deferred) → 200. The model called `chembl__search_compounds`.
+  - 4a (cold, own nonce): a references-only result naming `chembl__search_compounds` (core, loaded) and `chembl__get_mechanism_of_action` (deferred) → 200. The model called `chembl__search_compounds`.
   - So `runToolSearch` (1b) does **not** need to leave loaded tools out of the references; every hit shown gets a `tool-reference` part.
   - 4b, an extra check for parallel tool calls: one assistant message calls the search tool and a core tool, and the user message carries a references-only `tool_result` next to a plain-text `tool_result` → 200. The model called `chembl__get_mechanism_of_action`. The "mixed content" rule applies inside one `tool_result`, not across the results of a parallel batch.
-- Cost of the gate run: about 10 calls of about 5K input tokens, mostly cache reads.
+- Cost of the gate run: 11 calls of about 5K input tokens (one 39K all-loaded control), mostly cache writes and reads.
 - Docs facts to keep (tool search docs, fetched 2026-10-09): a deferred tool **can't carry `cache_control`** (returns 400), which matches 1d putting the breakpoint on the system message. At least one tool must be non-deferred. A custom search tool returning `tool_reference` blocks in a normal `tool_result` is supported, and every referenced name must be in `tools` (otherwise 400 "Tool reference '…' not found").
 
 ## Phase 1 — Fixed prefix + discovery by reference
@@ -129,13 +129,13 @@ Write a throwaway script in `experiments/` (gitignored) using `streamText` with 
 - **Keep an "all servers down" check, separate from the catalog.** Today `coreToolCount === 0` (`chat-v2.ts:340`) catches it because core tools are filtered by `available`. A catalog that ignores `available` always has tools, so that check would never fire and the chat would run with every tool call failing one by one. Replace it with `toolRegistry.availableCount === 0` before the loop, which returns the same "No MCP tools available" error. It reads availability without touching the tool list, so the prefix stays the same.
 - **The catalog can still change while the process runs.** When an MCP server recovers, `mcp/manager.ts:304` registers its tools again. If the server was down at startup, the catalog jumps from the system tools alone to about 210 tools. That's rare and costs one cache miss, but it must be visible: `tools_hash` is logged on every call (2.6), and `buildToolCatalog` logs a `catalog_changed` warning (old/new hash, tool count) whenever the hash differs from the previous build. The search index is built once at startup from available tools (`index.ts:50`), so search results are always a subset of the catalog and every `tool-reference` points at a declared tool.
 - Add `toolRegistry.toVercelTools(names, sanitize)` (or a generic version of `toVercelCoreTools`) so tool descriptions are built in exactly one place: the `[server] description` format.
-- Google: return today's set (core + search), and keep today's activation path in `chat-v2.ts` for Gemini only. It activates exactly the tools `runToolSearch` returns (1b), not every search hit, so Gemini also stops loading 7 tools the model never sees.
+- Google: return today's set (core + search), and keep today's activation path (`runSearchTool`, `tool-dispatch.ts:146-167`) for Gemini only. It activates the tools `runToolSearch` returns (1b), `top_k` of them (currently 5); since `dfe0213` that's already exactly the set the model is shown.
 
 ### 1b. Search returns references (`orchestration/tools/search-tool.ts`)
-- **`tool_search.top_k: 15` → `8`** in `app/config.yaml:57` and the `config.ts:105` default. The search computes exactly what is shown, and the `slice(0, 8)` calls in `chat-v2.ts:508-509` and `search-tool.ts` go away. The 15-vs-8 mismatch is fixed at the source, for both providers.
-- Export `runToolSearch(query, sanitize)`. It returns the top `top_k` and builds two outputs:
+- **`tool_search.top_k` stays 5** (`app/config.yaml` and the `config.ts` schema default). Nothing to change: `dfe0213` already set it (was 15) and removed the hardcoded top-8 slices in `search-tool.ts` and `tool-dispatch.ts`, so the search returns exactly what is shown, for both providers.
+- Export `runToolSearch(query, sanitize)`. It returns the top `top_k` (currently 5) and builds two outputs:
   - **For the model on Anthropic** (`type: "content"`): **only** `tool-reference` custom parts, one per tool shown, in score order. **No text part:** the API rejects a `tool_result` that mixes `tool_reference` with other content (400 "Tool definitions/code execution functions cannot be mixed with other content", Phase 0 check 2). The reference expands to the full definition, description included, so name and score text adds nothing. **Zero hits:** return a text-only result (e.g. "No matching tools found; try a different query"). That isn't mixed, so it's allowed. Loaded (core) tools get references too (check 4: accepted).
-  - **For the model on Gemini:** a text part with name and score. The activated tool declarations carry the descriptions. That saves about 8 descriptions per search compared to today.
+  - **For the model on Gemini:** a text part with name and score. The activated tool declarations carry the descriptions. That drops the up to `top_k` (currently 5) descriptions per search that today's output repeats.
   - **For the UI**: the JSON summary with name, description and score, as today.
 - Delete the duplicate `execute` in `createSearchTool`; the loop calls `runToolSearch`.
 - Remove the code that adds tools to `activeTools` (`chat-v2.ts:494-505`) for Anthropic.
@@ -509,9 +509,9 @@ Replaces Phase 4b.5's hard refusal once sessions regularly reach the budget.
 
 ## Risks
 
-- ~~`tool_reference` round-trip untested live~~ → confirmed live on 2026-10-09 (Phase 0 checks 1–5 all pass). Remaining risk: the "no mixed content" rule could be extended to other shapes. A unit test pins the references-only shape (Phase 3).
+- ~~`tool_reference` round-trip untested live~~ → tested live on 2026-10-09. The originally specified mixed text + `tool_reference` result (#17) returns 400; the revised references-only result passes, as do checks 1, 3, 4 and 5, so the gate passes on the revised design and `tool_addition` isn't needed. Remaining risk: the "no mixed content" rule could be extended to other shapes (e.g. a references-only result next to a text result in a parallel batch, which passes today, check 4b). A unit test pins the references-only shape (Phase 3), and the gate script re-checks it live (exit 1 on any failure).
 - Degraded replay may count as an edited history under the preserved-thinking rule → Phase 4b.6 #6 is the gate for 4b.4.
-- Up to 8 full tool schemas load per search; measure their token cost in Phase 3.
+- Up to `top_k` (currently 5) full tool schemas load per search; measure their token cost in Phase 3.
 - Two code paths (Anthropic vs Gemini) inside the catalog; keep the split in `tool-catalog.ts` only.
 - The uncommitted `cache_diag` block belongs to the validation session; Phase 2 replaces it.
 

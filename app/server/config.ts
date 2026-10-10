@@ -52,9 +52,29 @@ const ArtifactConfigSchema = z.object({
     .default({}),
 });
 
-const ModelPricingSchema = z.object({
+/**
+ * One set of per-MTok rates. Missing cache rates fall back to the overcharge
+ * side in `usage.ts`: reads at the input rate, 5m/1h writes at 1.25x/2x input.
+ */
+const RateSetSchema = z.object({
   input_usd_per_mtok: z.number().nonnegative(),
   output_usd_per_mtok: z.number().nonnegative(),
+  cache_read_usd_per_mtok: z.number().nonnegative().optional(),
+  cache_write_5m_usd_per_mtok: z.number().nonnegative().optional(),
+  cache_write_1h_usd_per_mtok: z.number().nonnegative().optional(),
+});
+
+/**
+ * A request whose prompt (all input incl. cache reads/writes) is strictly above
+ * `above_input_tokens` pays these rates for every category, output included.
+ * Every field is required so a typo can't fall back to the cheaper base rates.
+ */
+const LongContextSchema = RateSetSchema.required().extend({
+  above_input_tokens: z.number().int().positive(),
+});
+
+const ModelPricingSchema = RateSetSchema.extend({
+  long_context: LongContextSchema.optional(),
 });
 
 /** Semantic tool search embeddings. Independent of the chat `llm` provider. */
@@ -84,9 +104,34 @@ const AppConfigSchema = z.object({
     max_chat_input_chars: z.number().int().positive().default(20_000),
     pricing: z.record(z.string(), z.record(z.string(), ModelPricingSchema)).default({
       anthropic: {
+        "claude-sonnet-5-5": {
+          input_usd_per_mtok: 2,
+          output_usd_per_mtok: 10,
+          cache_read_usd_per_mtok: 0.1,
+          cache_write_5m_usd_per_mtok: 2.5,
+          cache_write_1h_usd_per_mtok: 4,
+        },
         "claude-haiku-4-5": {
           input_usd_per_mtok: 1,
           output_usd_per_mtok: 5,
+          cache_read_usd_per_mtok: 0.1,
+          cache_write_5m_usd_per_mtok: 1.25,
+          cache_write_1h_usd_per_mtok: 2,
+        },
+        "claude-haiku-5-5": {
+          input_usd_per_mtok: 0.1,
+          output_usd_per_mtok: 0.5,
+          cache_read_usd_per_mtok: 0.01,
+          cache_write_5m_usd_per_mtok: 0.125,
+          cache_write_1h_usd_per_mtok: 0.2,
+          long_context: {
+            above_input_tokens: 100_000,
+            input_usd_per_mtok: 0.5,
+            output_usd_per_mtok: 2.5,
+            cache_read_usd_per_mtok: 0.05,
+            cache_write_5m_usd_per_mtok: 0.625,
+            cache_write_1h_usd_per_mtok: 1,
+          },
         },
       },
       google: {
@@ -131,6 +176,7 @@ const AppConfigSchema = z.object({
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 export type PlatformConfig = z.infer<typeof PlatformSchema>;
 export type EmbeddingConfig = z.infer<typeof EmbeddingConfigSchema>;
+export type ModelPricing = z.infer<typeof ModelPricingSchema>;
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
