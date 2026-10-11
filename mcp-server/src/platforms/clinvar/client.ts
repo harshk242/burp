@@ -13,6 +13,7 @@ import {
   calculateBackoff,
   isRetryableStatus,
   buildClinVarSearchTerm,
+  toVariationId,
 } from './utils.js';
 import {
   parseESearchResult,
@@ -283,8 +284,10 @@ export class ClinVarClient {
     const records = await this.ncbiRequest(
       'efetch.fcgi',
       {
-        id: variationId,
+        id: toVariationId(variationId),
         rettype: 'vcv',
+        // Without it efetch returns an empty set for a numeric variation ID.
+        is_variationid: 'true',
         retmode: 'xml',
       },
       parseVCVRecord
@@ -302,8 +305,9 @@ export class ClinVarClient {
     return this.ncbiRequest(
       '/efetch.fcgi',
       {
-        id: variationIds.join(','),
+        id: variationIds.map(toVariationId).join(','),
         rettype: 'vcv',
+        is_variationid: 'true',
         retmode: 'xml',
       },
       parseVCVRecord

@@ -32,6 +32,7 @@ export interface LogContext {
   session_id?: string;
   request_id?: string;
   user_id?: string;
+  turn_id?: string;
 }
 
 // ── Configuration ──────────────────────────────────────────────────────────
@@ -178,6 +179,7 @@ function writeLog(
   if (opts?.ctx?.session_id) line += ` sid=${opts.ctx.session_id.slice(0, 8)}`;
   if (opts?.ctx?.request_id) line += ` rid=${opts.ctx.request_id}`;
   if (opts?.ctx?.user_id) line += ` uid=${opts.ctx.user_id.slice(0, 8)}`;
+  if (opts?.ctx?.turn_id) line += ` tid=${opts.ctx.turn_id.slice(0, 8)}`;
 
   // Append duration
   if (opts?.duration_ms !== undefined) line += ` duration_ms=${opts.duration_ms}`;

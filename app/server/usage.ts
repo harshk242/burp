@@ -1,23 +1,14 @@
-import { appConfig, type AppConfig } from "./config";
+import { appConfig, type AppConfig, type ModelPricing } from "./config";
 
 export const MICROUSD_PER_USD = 1_000_000;
-const TOKENS_PER_MTOK = 1_000_000;
+/** tokens × µUSD-per-MTok is an exact count of pico-USD (1e-12 USD). */
+const PICOUSD_PER_MICROUSD = 1_000_000;
 
 export class PricingConfigError extends Error {
   constructor(provider: string, model: string) {
     super(`Missing usage pricing for active chat model ${provider}/${model}`);
     this.name = "PricingConfigError";
   }
-}
-
-export interface ChatCost {
-  provider: string;
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  inputCostPerMtokMicrousd: number;
-  outputCostPerMtokMicrousd: number;
-  costMicrousd: number;
 }
 
 export function usdToMicrousd(usd: number): number {
@@ -92,39 +83,204 @@ export function getNextUtcMonthStart(date = new Date()): number {
   return Math.floor(resetDate.getTime() / 1000);
 }
 
-function getPricingEntry(provider: string, model: string, config: AppConfig = appConfig) {
-  const pricing = config.usage.pricing[provider]?.[model];
-  if (!pricing) {
+// ── Cost engine ──────────────────────────────────────────────────────────────
+// Each LLM call is priced on its own (the long-context tier depends on one
+// request's prompt size), in exact pico-USD integers. A turn sums its calls and
+// rounds up to µUSD once.
+
+/** One rate set in µUSD per MTok, cache fallbacks already applied. */
+export interface Rates {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite5m: number;
+  cacheWrite1h: number;
+}
+
+export interface ResolvedPricing {
+  base: Rates;
+  longContext: (Rates & { aboveInputTokens: number }) | null;
+  /** The config entry as written, for snapshotting with a usage row. */
+  entry: ModelPricing;
+}
+
+/** One streamText call. */
+export interface CallUsage {
+  noCacheTokens: number;
+  cacheReadTokens: number;
+  cacheWrite5mTokens: number;
+  cacheWrite1hTokens: number;
+  /** Includes reasoning/thinking tokens. */
+  outputTokens: number;
+}
+
+export type PricingTier = "base" | "long_context";
+
+export interface CallCost extends CallUsage {
+  /** noCache + cacheRead + cacheWrite5m + cacheWrite1h; picks the tier. */
+  promptTokens: number;
+  tier: PricingTier;
+  inputCostPicoUsd: number;
+  cacheReadCostPicoUsd: number;
+  /** 5m + 1h writes. */
+  cacheWriteCostPicoUsd: number;
+  outputCostPicoUsd: number;
+  costPicoUsd: number;
+}
+
+/**
+ * A whole turn. Category costs are floored and the total is rounded up once,
+ * so the parts can add up to a few µUSD less than `costMicrousd`.
+ */
+export interface ChatCost {
+  llmCalls: number;
+  longContextCalls: number;
+  /** All input tokens, every category. */
+  inputTokens: number;
+  noCacheTokens: number;
+  cacheReadTokens: number;
+  cacheWrite5mTokens: number;
+  cacheWrite1hTokens: number;
+  outputTokens: number;
+  inputCostMicrousd: number;
+  cacheReadCostMicrousd: number;
+  cacheWriteCostMicrousd: number;
+  outputCostMicrousd: number;
+  costPicoUsd: number;
+  costMicrousd: number;
+}
+
+/** Throws instead of letting a cost lose precision past 2^53. */
+function safe(value: number, what: string): number {
+  if (!Number.isSafeInteger(value)) {
+    throw new RangeError(`Cost overflow: ${what} = ${value} is not a safe integer`);
+  }
+  return value;
+}
+
+function toRates(set: {
+  input_usd_per_mtok: number;
+  output_usd_per_mtok: number;
+  cache_read_usd_per_mtok?: number;
+  cache_write_5m_usd_per_mtok?: number;
+  cache_write_1h_usd_per_mtok?: number;
+}): Rates {
+  // Exact: config.ts only accepts whole µUSD per MTok, so nothing is rounded off.
+  const input = usdToMicrousd(set.input_usd_per_mtok);
+  // Fallbacks never undercharge: reads at the full input rate, writes at the
+  // 1.25x / 2x multipliers documented for every Anthropic model.
+  return {
+    input,
+    output: usdToMicrousd(set.output_usd_per_mtok),
+    cacheRead: set.cache_read_usd_per_mtok !== undefined ? usdToMicrousd(set.cache_read_usd_per_mtok) : input,
+    cacheWrite5m:
+      set.cache_write_5m_usd_per_mtok !== undefined
+        ? usdToMicrousd(set.cache_write_5m_usd_per_mtok)
+        : Math.ceil((input * 5) / 4),
+    cacheWrite1h:
+      set.cache_write_1h_usd_per_mtok !== undefined ? usdToMicrousd(set.cache_write_1h_usd_per_mtok) : input * 2,
+  };
+}
+
+export function resolvePricing(provider: string, model: string, config: AppConfig = appConfig): ResolvedPricing {
+  const entry = config.usage.pricing[provider]?.[model];
+  if (!entry) {
     throw new PricingConfigError(provider, model);
   }
-  return pricing;
+  const lc = entry.long_context;
+  return {
+    base: toRates(entry),
+    longContext: lc ? { ...toRates(lc), aboveInputTokens: lc.above_input_tokens } : null,
+    entry,
+  };
 }
 
-function calculateTokenCostMicrousd(tokens: number, priceMicrousdPerMtok: number): number {
-  if (tokens <= 0 || priceMicrousdPerMtok <= 0) return 0;
-  return Math.ceil((tokens * priceMicrousdPerMtok) / TOKENS_PER_MTOK);
+/** Fails with PricingConfigError when the model has no pricing entry. */
+export function assertPricingConfigured(provider: string, model: string, config: AppConfig = appConfig): void {
+  resolvePricing(provider, model, config);
 }
 
-export function calculateChatCost(input: {
-  provider: string;
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  config?: AppConfig;
-}): ChatCost {
-  const pricing = getPricingEntry(input.provider, input.model, input.config);
-  const inputCostPerMtokMicrousd = usdToMicrousd(pricing.input_usd_per_mtok);
-  const outputCostPerMtokMicrousd = usdToMicrousd(pricing.output_usd_per_mtok);
-  const inputCost = calculateTokenCostMicrousd(input.inputTokens, inputCostPerMtokMicrousd);
-  const outputCost = calculateTokenCostMicrousd(input.outputTokens, outputCostPerMtokMicrousd);
+function tokenCount(value: number, what: string): number {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError(`Invalid token count: ${what} = ${value}`);
+  }
+  return value;
+}
+
+export function priceCall(
+  provider: string,
+  model: string,
+  usage: CallUsage,
+  config: AppConfig = appConfig
+): CallCost {
+  const pricing = resolvePricing(provider, model, config);
+  const noCacheTokens = tokenCount(usage.noCacheTokens, "noCacheTokens");
+  const cacheReadTokens = tokenCount(usage.cacheReadTokens, "cacheReadTokens");
+  const cacheWrite5mTokens = tokenCount(usage.cacheWrite5mTokens, "cacheWrite5mTokens");
+  const cacheWrite1hTokens = tokenCount(usage.cacheWrite1hTokens, "cacheWrite1hTokens");
+  const outputTokens = tokenCount(usage.outputTokens, "outputTokens");
+  const promptTokens = safe(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "promptTokens");
+
+  // The tier applies to the whole request, output included.
+  const lc = pricing.longContext;
+  const tier: PricingTier = lc && promptTokens > lc.aboveInputTokens ? "long_context" : "base";
+  const rates = tier === "long_context" && lc ? lc : pricing.base;
+
+  const inputCostPicoUsd = safe(noCacheTokens * rates.input, "input cost");
+  const cacheReadCostPicoUsd = safe(cacheReadTokens * rates.cacheRead, "cache read cost");
+  const cacheWriteCostPicoUsd = safe(
+    safe(cacheWrite5mTokens * rates.cacheWrite5m, "cache write 5m cost") +
+      safe(cacheWrite1hTokens * rates.cacheWrite1h, "cache write 1h cost"),
+    "cache write cost"
+  );
+  const outputCostPicoUsd = safe(outputTokens * rates.output, "output cost");
 
   return {
-    provider: input.provider,
-    model: input.model,
-    inputTokens: input.inputTokens,
-    outputTokens: input.outputTokens,
-    inputCostPerMtokMicrousd,
-    outputCostPerMtokMicrousd,
-    costMicrousd: inputCost + outputCost,
+    noCacheTokens,
+    cacheReadTokens,
+    cacheWrite5mTokens,
+    cacheWrite1hTokens,
+    outputTokens,
+    promptTokens,
+    tier,
+    inputCostPicoUsd,
+    cacheReadCostPicoUsd,
+    cacheWriteCostPicoUsd,
+    outputCostPicoUsd,
+    costPicoUsd: safe(inputCostPicoUsd + cacheReadCostPicoUsd + cacheWriteCostPicoUsd + outputCostPicoUsd, "call cost"),
+  };
+}
+
+/** Integer division on the remainder, so no float rounding can creep in. */
+function picoToMicrousdFloor(pico: number): number {
+  return (pico - (pico % PICOUSD_PER_MICROUSD)) / PICOUSD_PER_MICROUSD;
+}
+
+export function summarizeTurnCost(calls: readonly CallCost[]): ChatCost {
+  const sum = (pick: (call: CallCost) => number, what: string) =>
+    calls.reduce((total, call) => safe(total + pick(call), what), 0);
+
+  const noCacheTokens = sum((c) => c.noCacheTokens, "noCacheTokens");
+  const cacheReadTokens = sum((c) => c.cacheReadTokens, "cacheReadTokens");
+  const cacheWrite5mTokens = sum((c) => c.cacheWrite5mTokens, "cacheWrite5mTokens");
+  const cacheWrite1hTokens = sum((c) => c.cacheWrite1hTokens, "cacheWrite1hTokens");
+  const costPicoUsd = sum((c) => c.costPicoUsd, "turn cost");
+
+  return {
+    llmCalls: calls.length,
+    longContextCalls: calls.filter((c) => c.tier === "long_context").length,
+    inputTokens: safe(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "inputTokens"),
+    noCacheTokens,
+    cacheReadTokens,
+    cacheWrite5mTokens,
+    cacheWrite1hTokens,
+    outputTokens: sum((c) => c.outputTokens, "outputTokens"),
+    inputCostMicrousd: picoToMicrousdFloor(sum((c) => c.inputCostPicoUsd, "input cost")),
+    cacheReadCostMicrousd: picoToMicrousdFloor(sum((c) => c.cacheReadCostPicoUsd, "cache read cost")),
+    cacheWriteCostMicrousd: picoToMicrousdFloor(sum((c) => c.cacheWriteCostPicoUsd, "cache write cost")),
+    outputCostMicrousd: picoToMicrousdFloor(sum((c) => c.outputCostPicoUsd, "output cost")),
+    costPicoUsd,
+    // The only rounding step of the turn.
+    costMicrousd: picoToMicrousdFloor(costPicoUsd) + (costPicoUsd % PICOUSD_PER_MICROUSD === 0 ? 0 : 1),
   };
 }

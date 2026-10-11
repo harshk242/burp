@@ -136,6 +136,7 @@ CLERK_SECRET_KEY=sk_test_...
 
 # Recommended
 NCBI_API_KEY=<your-ncbi-key>
+OPENAI_API_KEY=sk-...   # semantic tool search (embedding.provider: openai); keyword-only without it
 
 # Optional
 CLAUDE_MODEL=claude-sonnet-4-6
@@ -145,6 +146,14 @@ MCP_SERVERS_BASE=../mcp-server
 ADMIN_EMAIL=you@example.com
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 ```
+
+With `OPENAI_API_KEY` set, the server keeps the semantic tool search index
+(`app/data/tool-embeddings.json`, or `tool_search.embeddings_path`) up to date by itself: in the
+background at boot and whenever the MCP tool set changes, it embeds only new or changed tools
+(everything after an `embedding:` provider/model/dimensions change) and logs
+`embeddings_sync_complete`. Search is keyword-only until the first sync finishes. Set
+`EMBEDDING_SYNC_ON_BOOT=false` to opt out; `bun run generate:embeddings` still rebuilds the index
+from scratch manually.
 
 **For the frontend** (`app/web/.env.local`):
 ```bash

@@ -18,3 +18,5 @@ app/tmp
 # Logs
 logs/
 .env.deploy.local
+
+experiments

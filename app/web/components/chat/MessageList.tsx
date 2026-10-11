@@ -5,6 +5,7 @@ import { MessageBubble } from "./MessageBubble";
 import { StreamingText } from "./StreamingText";
 import { ToolCallGroup } from "./ToolCallGroup";
 import { ReasoningBlock } from "./ReasoningBlock";
+import { joinReasoning } from "@/lib/reasoning";
 import type { Message, ToolCall } from "@/types";
 
 interface MessageListProps {
@@ -47,7 +48,7 @@ export function MessageList({
             {/* Collapsed reasoning (text that was reclassified via text_block_end) */}
             {reasoningSegments.length > 0 && (
               <ReasoningBlock
-                content={reasoningSegments.join("\n\n")}
+                content={joinReasoning(reasoningSegments)}
                 defaultExpanded={false}
               />
             )}

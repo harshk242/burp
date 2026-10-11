@@ -4,10 +4,24 @@
  * fused via Reciprocal Rank Fusion (RRF).
  */
 
-import { embed } from "ai";
-import { toolSearchQueries } from "../db";
+import type { createToolSearchQueries } from "../db/queries/tool-search";
+import type { QueryEmbedder } from "../embeddings/types";
+import { untilAborted } from "../embeddings/deadline";
 import { logger, startTimer } from "../logger";
 import { appConfig } from "../config";
+
+type ToolSearchQueries = ReturnType<typeof createToolSearchQueries>;
+
+/**
+ * Embedder and the tool vectors it produced, swapped as one unit so a search
+ * never compares a query from one model against vectors from another.
+ */
+interface EmbeddingSnapshot {
+  readonly embedder: QueryEmbedder;
+  readonly vectors: ReadonlyMap<string, Float32Array>;
+  /** Length shared by every stored vector; query vectors must match it. */
+  readonly dimension: number;
+}
 
 export interface SearchResult {
   fullName: string;
@@ -32,6 +46,8 @@ export interface HybridSearchConfig {
   shortQueryTokenThreshold: number;
   shortQueryBm25Weight: number;
   topK: number;
+  /** Candidates taken from each ranker before fusion; independent of topK. */
+  candidateK: number;
   rrfK: number;
 }
 
@@ -43,46 +59,47 @@ function loadConfig(): HybridSearchConfig {
     shortQueryTokenThreshold: ts.short_query_threshold,
     shortQueryBm25Weight: ts.short_query_bm25_weight,
     topK: ts.top_k,
+    candidateK: ts.candidate_k,
     rrfK: 60,
   };
 }
 
 export class HybridToolSearch {
-  private embeddings = new Map<string, Float32Array>();
-  private toolIndex = new Map<string, ToolInfo>();
+  private embeddings: EmbeddingSnapshot | null = null;
+  // Replaced wholesale on reindex (never mutated), so a search can hold a stable reference.
+  private toolIndex: ReadonlyMap<string, ToolInfo> = new Map();
   private config: HybridSearchConfig;
-  private embeddingModel: Parameters<typeof embed>[0]["model"] | null = null;
 
-  constructor() {
+  constructor(private readonly queries: ToolSearchQueries) {
     this.config = loadConfig();
   }
 
-  loadEmbeddings(filePath: string): void {
-    const elapsed = startTimer();
-    const raw = JSON.parse(require("fs").readFileSync(filePath, "utf-8"));
-
-    for (const entry of raw.tools) {
-      this.embeddings.set(entry.full_name, new Float32Array(entry.embedding));
+  /**
+   * Replace the embedder and tool vectors together. The vectors must all come
+   * from `embedder` and share one length (the index file reader guarantees both).
+   */
+  attachEmbeddings(embedder: QueryEmbedder, vectors: ReadonlyMap<string, Float32Array>): void {
+    const dimension = vectors.values().next().value?.length ?? 0;
+    for (const [name, vector] of vectors) {
+      if (vector.length !== dimension) throw new Error(`vector for ${name} has length ${vector.length}, expected ${dimension}`);
     }
-
-    logger.info("SEARCH", "embeddings_loaded", {
-      duration_ms: elapsed(),
-      data: {
-        model: raw.model,
-        dimension: raw.dimension,
-        tool_count: raw.tools.length,
-      },
+    this.embeddings = { embedder, vectors: new Map(vectors), dimension };
+    logger.info("SEARCH", "embeddings_attached", {
+      data: { embedder: embedder.id, dimension, tool_count: vectors.size },
     });
   }
 
+  /** Rebuild the keyword index and tool map from the full set of live tools. */
   indexTools(tools: ToolInfo[]): void {
     const elapsed = startTimer();
-    toolSearchQueries.clearAll();
+    const toolIndex = new Map<string, ToolInfo>();
+    this.queries.clearAll();
 
     for (const tool of tools) {
-      toolSearchQueries.insertTool(tool.fullName, tool.server, tool.toolName, tool.description);
-      this.toolIndex.set(tool.fullName, tool);
+      this.queries.insertTool(tool.fullName, tool.server, tool.toolName, tool.description);
+      toolIndex.set(tool.fullName, tool);
     }
+    this.toolIndex = toolIndex;
 
     logger.info("SEARCH", "fts_indexed", {
       duration_ms: elapsed(),
@@ -90,24 +107,22 @@ export class HybridToolSearch {
     });
   }
 
-  /**
-   * Set the embedding model for query-time embedding.
-   * Called after AI SDK dependencies are available.
-   */
-  setEmbeddingModel(model: Parameters<typeof embed>[0]["model"]): void {
-    this.embeddingModel = model;
-  }
-
-  async search(query: string): Promise<SearchResult[]> {
+  /** Rejects with `signal.reason` once `signal` aborts, even if the embedder ignores it. */
+  async search(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
     const elapsed = startTimer();
+    const snapshot = this.embeddings;
+    const toolIndex = this.toolIndex;
     const bm25Results = this.searchBM25(query);
-    const semanticResults = await this.searchSemantic(query);
+    const semanticResults = await this.searchSemantic(query, snapshot, toolIndex, signal);
+    signal?.throwIfAborted();
     const fused = this.fuseRRF(bm25Results, semanticResults, query);
 
     logger.info("SEARCH", "hybrid_search_complete", {
       duration_ms: elapsed(),
       data: {
         query,
+        // Which model ranked the semantic half (absent when keyword-only).
+        embedder: semanticResults.length > 0 ? snapshot?.embedder.id : undefined,
         bm25_hits: bm25Results.length,
         semantic_hits: semanticResults.length,
         fused_hits: fused.length,
@@ -128,7 +143,7 @@ export class HybridToolSearch {
 
       if (!ftsQuery) return [];
 
-      const rows = toolSearchQueries.searchBM25(ftsQuery, this.config.topK * 2);
+      const rows = this.queries.searchBM25(ftsQuery, this.config.candidateK);
       return rows.map((r, i) => ({
         fullName: r.full_name,
         server: r.server,
@@ -146,50 +161,56 @@ export class HybridToolSearch {
     }
   }
 
-  private async searchSemantic(query: string): Promise<SearchResult[]> {
-    if (this.embeddings.size === 0 || !this.embeddingModel) return [];
+  /**
+   * Rank tools in `toolIndex` against the query using `snapshot`. Both are read
+   * by the caller before any await, so a concurrent swap or reindex can't mix
+   * models or score tools that aren't registered. Any failure (timeout,
+   * provider error, wrong-length query vector) yields [] so the search falls
+   * back to keyword results; an abort of `signal` is rethrown instead.
+   */
+  private async searchSemantic(
+    query: string,
+    snapshot: EmbeddingSnapshot | null,
+    toolIndex: ReadonlyMap<string, ToolInfo>,
+    signal?: AbortSignal
+  ): Promise<SearchResult[]> {
+    if (!snapshot || snapshot.vectors.size === 0) return [];
 
     try {
-      const queryEmb = await this.getQueryEmbedding(query);
-      if (!queryEmb) return [];
+      const queryEmb = await untilAborted(snapshot.embedder.embedQuery(query, signal), signal);
+      // Zero scores would still earn RRF weight by rank, so skip semantic entirely.
+      if (queryEmb.length !== snapshot.dimension) {
+        logger.warn("SEARCH", "semantic_query_dimension_mismatch", {
+          data: { query, embedder: snapshot.embedder.id, expected: snapshot.dimension, actual: queryEmb.length },
+        });
+        return [];
+      }
 
-      const scored: Array<{ fullName: string; sim: number }> = [];
+      const scored: Array<{ tool: ToolInfo; sim: number }> = [];
 
-      for (const [name, toolEmb] of this.embeddings) {
-        scored.push({ fullName: name, sim: this.cosineSimilarity(queryEmb, toolEmb) });
+      for (const tool of toolIndex.values()) {
+        const toolEmb = snapshot.vectors.get(tool.fullName);
+        if (toolEmb) scored.push({ tool, sim: this.cosineSimilarity(queryEmb, toolEmb) });
       }
 
       scored.sort((a, b) => b.sim - a.sim);
 
-      return scored.slice(0, this.config.topK * 2).map((s, i) => {
-        const tool = this.toolIndex.get(s.fullName);
-        return {
-          fullName: s.fullName,
-          server: tool?.server ?? "",
-          toolName: tool?.toolName ?? "",
-          description: tool?.description ?? "",
-          score: s.sim,
-          semanticRank: i + 1,
-        };
-      });
+      return scored.slice(0, this.config.candidateK).map(({ tool, sim }, i) => ({
+        fullName: tool.fullName,
+        server: tool.server,
+        toolName: tool.toolName,
+        description: tool.description,
+        score: sim,
+        semanticRank: i + 1,
+      }));
     } catch (err) {
+      if (signal?.aborted) throw err;
       logger.warn("SEARCH", "semantic_search_failed", {
         error: err instanceof Error ? err : String(err),
-        data: { query },
+        data: { query, embedder: snapshot.embedder.id },
       });
       return [];
     }
-  }
-
-  private async getQueryEmbedding(query: string): Promise<Float32Array | null> {
-    if (!this.embeddingModel) return null;
-
-    const { embedding } = await embed({
-      model: this.embeddingModel,
-      value: query,
-    });
-
-    return new Float32Array(embedding);
   }
 
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
@@ -251,6 +272,6 @@ export class HybridToolSearch {
   }
 
   get embeddingsLoaded(): boolean {
-    return this.embeddings.size > 0;
+    return (this.embeddings?.vectors.size ?? 0) > 0;
   }
 }

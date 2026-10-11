@@ -6,8 +6,9 @@
  *   2. app/config.yaml (resolved relative to this module, not cwd)
  *   3. Built-in defaults (defined in Zod schema)
  *
- * Relative `log_dir` / `mcp_servers_base` resolve against app/ (not cwd), so the
- * server behaves the same wherever it is launched from. `database_url` resolves
+ * Relative `log_dir` / `mcp_servers_base` / `tool_search.embeddings_path` resolve
+ * against app/ (not cwd), so the server and scripts behave the same wherever
+ * they are launched from. `database_url` resolves
  * against the repo root (see db/paths.ts).
  *
  * Secrets (API keys, Clerk) are never stored here — they stay in .env.
@@ -18,6 +19,7 @@ import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
+import { EMBEDDING_PROVIDERS } from "./embeddings/types";
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -35,7 +37,9 @@ const ArtifactConfigSchema = z.object({
   inline_max_chars: z.number().int().default(15000),
   hard_cap_bytes: z.number().int().default(1_048_576),
   ttl_minutes: z.number().default(5),
-  max_per_session: z.number().int().default(10),
+  db_ttl_hours: z.number().default(24),
+  // Per-session budget over noise-reduced JSON size (chars ≈ bytes); oldest evicted first.
+  max_session_bytes: z.number().int().default(20_971_520),
   preview_sample_items: z.number().int().default(2),
   preview_max_chars_per_value: z.number().int().default(150),
   jq_timeout_ms: z.number().int().default(5000),
@@ -50,9 +54,57 @@ const ArtifactConfigSchema = z.object({
     .default({}),
 });
 
-const ModelPricingSchema = z.object({
-  input_usd_per_mtok: z.number().nonnegative(),
-  output_usd_per_mtok: z.number().nonnegative(),
+/**
+ * A per-MTok rate in USD. Pricing works in integer µUSD per MTok, so a rate must
+ * be a whole number of µUSD (at most 6 decimals): rounding a finer one could
+ * undercharge. The tolerance only absorbs float representation error.
+ */
+function usdPerMtok() {
+  return z
+    .number()
+    .nonnegative()
+    .refine((usd) => Math.abs(usd * 1e6 - Math.round(usd * 1e6)) < 1e-6, {
+      message: "must be a whole number of µUSD per MTok (at most 6 decimal places)",
+    });
+}
+
+/**
+ * One set of per-MTok rates. Missing cache rates fall back to the overcharge
+ * side in `usage.ts`: reads at the input rate, 5m/1h writes at 1.25x/2x input.
+ */
+const RateSetSchema = z.object({
+  input_usd_per_mtok: usdPerMtok(),
+  output_usd_per_mtok: usdPerMtok(),
+  cache_read_usd_per_mtok: usdPerMtok().optional(),
+  cache_write_5m_usd_per_mtok: usdPerMtok().optional(),
+  cache_write_1h_usd_per_mtok: usdPerMtok().optional(),
+});
+
+/**
+ * A request whose prompt (all input incl. cache reads/writes) is strictly above
+ * `above_input_tokens` pays these rates for every category, output included.
+ * Every field is required so a typo can't fall back to the cheaper base rates.
+ */
+const LongContextSchema = RateSetSchema.required().extend({
+  above_input_tokens: z.number().int().positive(),
+});
+
+const ModelPricingSchema = RateSetSchema.extend({
+  long_context: LongContextSchema.optional(),
+});
+
+/** Semantic tool search embeddings. Independent of the chat `llm` provider. */
+const EmbeddingConfigSchema = z.object({
+  provider: z.enum(EMBEDDING_PROVIDERS).default("openai"),
+  model: z.string().min(1).default("text-embedding-3-small"),
+  /** Output size; omit for the model's native size. Part of the embedder identity. */
+  dimensions: z.number().int().positive().optional(),
+  /** The semantic half of search falls back to keyword results after this. */
+  query_timeout_ms: z.number().int().positive().default(2000),
+  /** Keep the index in sync in the background at boot and when the tool set changes. */
+  sync_on_boot: z.boolean().default(true),
+  /** Deadline for the embedding call of one sync attempt. */
+  sync_timeout_ms: z.number().int().positive().default(120_000),
 });
 
 const AppConfigSchema = z.object({
@@ -68,9 +120,34 @@ const AppConfigSchema = z.object({
     max_chat_input_chars: z.number().int().positive().default(20_000),
     pricing: z.record(z.string(), z.record(z.string(), ModelPricingSchema)).default({
       anthropic: {
+        "claude-sonnet-5-5": {
+          input_usd_per_mtok: 2,
+          output_usd_per_mtok: 10,
+          cache_read_usd_per_mtok: 0.1,
+          cache_write_5m_usd_per_mtok: 2.5,
+          cache_write_1h_usd_per_mtok: 4,
+        },
         "claude-haiku-4-5": {
           input_usd_per_mtok: 1,
           output_usd_per_mtok: 5,
+          cache_read_usd_per_mtok: 0.1,
+          cache_write_5m_usd_per_mtok: 1.25,
+          cache_write_1h_usd_per_mtok: 2,
+        },
+        "claude-haiku-5-5": {
+          input_usd_per_mtok: 0.1,
+          output_usd_per_mtok: 0.5,
+          cache_read_usd_per_mtok: 0.01,
+          cache_write_5m_usd_per_mtok: 0.125,
+          cache_write_1h_usd_per_mtok: 0.2,
+          long_context: {
+            above_input_tokens: 100_000,
+            input_usd_per_mtok: 0.5,
+            output_usd_per_mtok: 2.5,
+            cache_read_usd_per_mtok: 0.05,
+            cache_write_5m_usd_per_mtok: 0.625,
+            cache_write_1h_usd_per_mtok: 1,
+          },
         },
       },
       google: {
@@ -86,7 +163,13 @@ const AppConfigSchema = z.object({
     chat_model: z.string().default("claude-haiku-4-5"),
     title_model: z.string().default("claude-haiku-4-5"),
     max_retries: z.number().int().default(3),
-    max_output_tokens: z.number().int().positive().default(4096),
+    /** Thinking tokens count toward this limit (adaptive thinking on Anthropic). */
+    max_output_tokens: z.number().int().positive().default(16000),
+    max_context_tokens: z.number().int().positive().default(180000),
+    /** Anthropic adaptive thinking: "summarized" returns readable thinking text, "omitted" returns empty blocks. */
+    thinking_display: z.enum(["omitted", "summarized", "updates"]).default("summarized"),
+    /** Anthropic effort. Required: the API default (high on Sonnet 5.5) must never apply silently. */
+    effort: z.enum(["low", "medium", "high", "xhigh", "max"]),
     max_tool_iterations: z.number().int().positive().default(6),
   }),
   server: z.object({
@@ -102,14 +185,20 @@ const AppConfigSchema = z.object({
     semantic_weight: z.number().default(1.0),
     short_query_threshold: z.number().int().default(4),
     short_query_bm25_weight: z.number().default(2.0),
-    top_k: z.number().int().default(15),
+    top_k: z.number().int().default(5),
+    candidate_k: z.number().int().default(30),
+    /** Tool embeddings index (v2). Relative paths resolve against app/. */
+    embeddings_path: z.string().default("./data/tool-embeddings.json"),
   }),
+  embedding: EmbeddingConfigSchema.default({}),
   platforms: z.record(z.string(), PlatformSchema).default({}),
   artifact: ArtifactConfigSchema.default({}),
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 export type PlatformConfig = z.infer<typeof PlatformSchema>;
+export type EmbeddingConfig = z.infer<typeof EmbeddingConfigSchema>;
+export type ModelPricing = z.infer<typeof ModelPricingSchema>;
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
@@ -126,15 +215,55 @@ function loadYamlFile(): Record<string, unknown> {
   }
 }
 
-function applyEnvOverrides(cfg: AppConfig): AppConfig {
-  const e = process.env;
+type Env = Record<string, string | undefined>;
 
+/** Strict boolean env parsing: a plain `!!` would read "false" as true. */
+export function parseBooleanEnv(name: string, value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (v === "true" || v === "1") return true;
+  if (v === "false" || v === "0") return false;
+  throw new Error(`Invalid ${name}=${JSON.stringify(value)}: expected "true", "false", "1" or "0"`);
+}
+
+/**
+ * Embedding env overrides. Provider and model must change together: a
+ * provider alone would pair, say, Google with an OpenAI model name.
+ * `EMBEDDING_DIMENSIONS=native` clears a configured size.
+ */
+function applyEmbeddingEnv(cfg: AppConfig, e: Env): void {
+  const emb: Record<string, unknown> = { ...cfg.embedding };
+  if (Boolean(e.EMBEDDING_PROVIDER) !== Boolean(e.EMBEDDING_MODEL)) {
+    throw new Error("Invalid embedding config: set EMBEDDING_PROVIDER and EMBEDDING_MODEL together");
+  }
+  if (e.EMBEDDING_PROVIDER) emb.provider = e.EMBEDDING_PROVIDER;
+  if (e.EMBEDDING_MODEL) emb.model = e.EMBEDDING_MODEL;
+  if (e.EMBEDDING_DIMENSIONS) {
+    emb.dimensions = e.EMBEDDING_DIMENSIONS === "native" ? undefined : Number(e.EMBEDDING_DIMENSIONS);
+  }
+  if (e.EMBEDDING_QUERY_TIMEOUT_MS) emb.query_timeout_ms = Number(e.EMBEDDING_QUERY_TIMEOUT_MS);
+  // Any set value is parsed, so an empty one fails instead of silently keeping the default.
+  if (e.EMBEDDING_SYNC_ON_BOOT !== undefined) emb.sync_on_boot = parseBooleanEnv("EMBEDDING_SYNC_ON_BOOT", e.EMBEDDING_SYNC_ON_BOOT);
+  if (e.EMBEDDING_SYNC_TIMEOUT_MS) emb.sync_timeout_ms = Number(e.EMBEDDING_SYNC_TIMEOUT_MS);
+
+  // Validate again after overrides so a bad provider or size fails at startup.
+  const parsed = EmbeddingConfigSchema.safeParse(emb);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new Error(`Invalid embedding config (after env overrides): ${issues}`);
+  }
+  cfg.embedding = parsed.data;
+}
+
+function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   // LLM
   if (e.LLM_PROVIDER) cfg.llm.provider = e.LLM_PROVIDER as AppConfig["llm"]["provider"];
   if (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL) cfg.llm.chat_model = (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL)!;
   if (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL) cfg.llm.title_model = (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL)!;
   if (e.LLM_MAX_RETRIES) cfg.llm.max_retries = parseInt(e.LLM_MAX_RETRIES, 10);
   if (e.LLM_MAX_OUTPUT_TOKENS) cfg.llm.max_output_tokens = parseInt(e.LLM_MAX_OUTPUT_TOKENS, 10);
+  if (e.LLM_MAX_CONTEXT_TOKENS !== undefined) {
+    cfg.llm.max_context_tokens = AppConfigSchema.shape.llm.shape.max_context_tokens.parse(Number(e.LLM_MAX_CONTEXT_TOKENS), { path: ["llm", "max_context_tokens"] });
+  }
   if (e.LLM_MAX_TOOL_ITERATIONS) cfg.llm.max_tool_iterations = parseInt(e.LLM_MAX_TOOL_ITERATIONS, 10);
 
   // Usage / cost limits
@@ -156,15 +285,20 @@ function applyEnvOverrides(cfg: AppConfig): AppConfig {
   if (e.TOOL_SEARCH_SHORT_QUERY_THRESHOLD) cfg.tool_search.short_query_threshold = parseInt(e.TOOL_SEARCH_SHORT_QUERY_THRESHOLD, 10);
   if (e.TOOL_SEARCH_SHORT_QUERY_BM25_WEIGHT) cfg.tool_search.short_query_bm25_weight = parseFloat(e.TOOL_SEARCH_SHORT_QUERY_BM25_WEIGHT);
   if (e.TOOL_SEARCH_TOP_K) cfg.tool_search.top_k = parseInt(e.TOOL_SEARCH_TOP_K, 10);
+  if (e.TOOL_SEARCH_CANDIDATE_K) cfg.tool_search.candidate_k = parseInt(e.TOOL_SEARCH_CANDIDATE_K, 10);
+  if (e.TOOL_EMBEDDINGS_PATH) cfg.tool_search.embeddings_path = e.TOOL_EMBEDDINGS_PATH;
+
+  applyEmbeddingEnv(cfg, e);
 
   return cfg;
 }
 
-function loadConfig(): AppConfig {
-  const raw = loadYamlFile();
-  const cfg = applyEnvOverrides(AppConfigSchema.parse(raw));
+/** Build the config from YAML + env. Exported for tests; the app uses `appConfig`. */
+export function loadConfig(env: Env = process.env, raw: Record<string, unknown> = loadYamlFile()): AppConfig {
+  const cfg = applyEnvOverrides(AppConfigSchema.parse(raw), env);
   cfg.server.log_dir = resolve(APP_DIR, cfg.server.log_dir);
   cfg.server.mcp_servers_base = resolve(APP_DIR, cfg.server.mcp_servers_base);
+  cfg.tool_search.embeddings_path = resolve(APP_DIR, cfg.tool_search.embeddings_path);
   return cfg;
 }
 

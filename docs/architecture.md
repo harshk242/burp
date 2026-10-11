@@ -94,14 +94,25 @@ Total: ~210+ MCP tools across 10 platforms
 |  |  | /public (Next  |  |  |         |  +---------------------+  |
 |  |  |  static export)|  |  |         |  | Google AI API       |  |
 |  |  | /api (Hono)    |  |  |         |  | - Gemini (optional) |  |
-|  |  | /mcp-server    |  |  |         |  | - Embeddings        |  |
+|  |  | /mcp-server    |  |  |         |  | - Embeddings (opt.) |  |
 |  |  +----------------+  |  |         |  +---------------------+  |
+|  |                      |  |         |                           |
+|  |                      |  |         |  +---------------------+  |
+|  |                      |  |         |  | OpenAI API          |  |
+|  |                      |  |         |  | - Tool embeddings   |  |
+|  |                      |  |         |  |   (OPENAI_API_KEY   |  |
+|  |                      |  |         |  |    fly secret)      |  |
+|  |                      |  |         |  +---------------------+  |
 |  |                      |  |         |                           |
 |  |  +----------------+  |  |         |  +---------------------+  |
 |  |  | Persistent Vol |  |  |         |  | 10x Biomedical      |  |
 |  |  | /app/data (1GB)|  |  |         |  | Database REST APIs  |  |
 |  |  | - app.db       |  |  |         |  +---------------------+  |
 |  |  |   (SQLite+WAL) |  |  |         +---------------------------+
+|  |  | - tool-        |  |  |
+|  |  |   embeddings.  |  |  |
+|  |  |   json (synced |  |  |
+|  |  |   on boot)     |  |  |
 |  |  +----------------+  |  |
 |  +---------------------+  |
 +---------------------------+
@@ -178,13 +189,13 @@ Stage 4 (runner)         : Combine all into final image
 ||  |  ┌──────────────────────┐  |  |  │ MCPManager   │ (singleton)        |  ||
 ||  |  │ getChatModel()       │  |  |  │ - register   │                    |  ||
 ||  |  │ getTitleModel()      │  |  |  │ - start/stop │                    |  ||
-||  |  │ getEmbeddingModel()  │  |  |  │ - callTool   │                    |  ||
+||  |  │ (chat only)          │  |  |  │ - callTool   │                    |  ||
 ||  |  └──────────────────────┘  |  |  │ - retry loop │                    |  ||
 ||  |                            |  |  └──────┬───────┘                    |  ||
 ||  |  Providers:                |  |         │ stdio                      |  ||
 ||  |  ┌────────┐ ┌────────┐    |  |         v                            |  ||
 ||  |  │Anthropic│ │ Google │    |  |  ┌──────────────┐                    |  ||
-||  |  │ (chat)  │ │(embed) │    |  |  │ Unified MCP  │ (child process)   |  ||
+||  |  │ (chat)  │ │ (chat) │    |  |  │ Unified MCP  │ (child process)   |  ||
 ||  |  └────────┘ └────────┘    |  |  │ Server       │                    |  ||
 ||  +----------------------------+  |  │ (Node.js)    │                    |  ||
 ||                                  |  └──────────────┘                    |  ||
@@ -194,7 +205,7 @@ Stage 4 (runner)         : Combine all into final image
 ||  |  Hybrid Search (RRF):     |  |  │ - discover   │                    |  ||
 ||  |  ┌─────────┐ ┌──────────┐ |  |  │ - lookup     │                    |  ||
 ||  |  │ BM25    │ │ Semantic │ |  |  │ - Vercel fmt │                    |  ||
-||  |  │ (FTS5)  │ │(Embeddings)│|  |  └──────────────┘                    |  ||
+||  |  │ (FTS5)  │ │(Embedder)│ |  |  └──────────────┘                    |  ||
 ||  |  └─────────┘ └──────────┘ |  +--------------------------------------+  ||
 ||  |        ↓ RRF Fusion ↓     |                                            ||
 ||  |   Top-K tool results      |  +--------------------------------------+  ||
@@ -375,11 +386,29 @@ User                  Frontend            Hono Server           Orchestration   
                               │                             │
                               │  SQLite FTS5 ─── BM25 index │
                               │  Embeddings ─── Cosine sim  │
-                              │        (Gemini embed)       │
+                              │  (Embedder: OpenAI default) │
                               │                             │
                               │  Fusion: RRF (Reciprocal    │
                               │  Rank Fusion)               │
                               └─────────────────────────────┘
+
+  Embedding index sync (embeddings/sync-queue.ts + sync-index.ts): at boot and
+  on every tool-set change (MCPManager.onToolsChanged when the server goes
+  down — its tools leave search — or recovers), the same snapshot that was
+  indexed for BM25 is synced in the background:
+  - keep entries made by the current embedder (at its configured size) whose
+    stored text still matches; embed only new/changed tools (everything after
+    a model switch), serving their stored vectors until the new ones land;
+  - per platform: prune removed tools of discovered platforms, carry over
+    platforms with no tools this run (server down) — never from another model;
+  - nothing changed → no API call, no write; otherwise atomic write, then
+    attachEmbeddings() with the snapshot's vectors;
+  - one sync at a time, latest snapshot wins (a newer request replaces the
+    waiting one); transient errors retry at ~1/5/15 min ±20%, auth/config and
+    invalid responses don't; failures keep what's attached (or BM25-only).
+  Controls: embedding.sync_on_boot (EMBEDDING_SYNC_ON_BOOT), sync_timeout_ms.
+  No key → no sync. Logs: embeddings_sync_complete / embeddings_sync_failed,
+  plus one embeddings_index_rejected warning when an existing file is unusable.
 
 
                          RUNTIME TOOL LOADING
@@ -698,12 +727,14 @@ the diagram below.
   │  │ 1. Environment Variables                             │       │
   │  │    PORT, DATABASE_URL, LLM_CHAT_MODEL, etc.          │       │
   │  │    Secrets: ANTHROPIC_API_KEY, CLERK_SECRET_KEY,      │       │
-  │  │    NCBI_API_KEY, GEMINI_API_KEY                       │       │
+  │  │    NCBI_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY       │       │
   │  └──────────────────────────────────────────────────────┘       │
   │                          ▼ overrides                            │
   │  ┌──────────────────────────────────────────────────────┐       │
   │  │ 2. app/config.yaml                                   │       │
   │  │    - LLM provider/model selection                     │       │
+  │  │    - Embedding provider/model/dimensions (separate)   │       │
+  │  │      + background index sync (sync_on_boot)          │       │
   │  │    - Server settings (port, DB path, CORS)            │       │
   │  │    - Tool search tuning (BM25/semantic weights)       │       │
   │  │    - Platform enable/disable + always-loaded tools    │       │
@@ -769,6 +800,10 @@ the diagram below.
   ├── app/                      ← Backend workspace ("burp")
   │   ├── package.json
   │   ├── config.yaml           ← Central non-secret configuration
+  │   ├── data/tool-embeddings.json ← Tool embeddings index v2 (tool_search.embeddings_path,
+  │   │                               resolves against app/; /app/data volume in Docker);
+  │   │                               kept in sync by the server in the background
+  │   ├── scripts/generate-tool-embeddings.ts ← Manual full rebuild with the configured embedder
   │   ├── server/
   │   │   ├── index.ts          ← Hono server entrypoint
   │   │   ├── config.ts         ← Config loader (YAML + env + Zod)
@@ -805,8 +840,15 @@ the diagram below.
   │   │   │   ├── manager.ts    ← MCP server lifecycle (stdio)
   │   │   │   ├── registry.ts   ← Tool registry + Vercel AI fmt
   │   │   │   └── platforms.config.ts ← Config.yaml → platform list
+  │   │   ├── embeddings/       ← Embedder abstraction (separate from llm/)
+  │   │   │   ├── factory.ts    ← createEmbedder(): OpenAI | Google over AI SDK
+  │   │   │   ├── index-file.ts ← tool-embeddings.json v2 read/validate/atomic write
+  │   │   │   ├── sync-index.ts ← One incremental sync: keep/embed/prune/carry over
+  │   │   │   ├── sync-queue.ts ← Background sync: latest wins, retries, error classes
+  │   │   │   └── types.ts      ← Embedder, identity, errors
   │   │   ├── search/
   │   │   │   ├── hybrid-search.ts ← BM25 + Semantic + RRF fusion
+  │   │   │   ├── reindex.ts    ← Registry → search index (+ embeddings sync request)
   │   │   │   └── index.ts
   │   │   └── orchestration/
   │   │       ├── chat-v2.ts    ← Core chat loop (agentic)
@@ -865,9 +907,8 @@ the diagram below.
   │   │       └── uniprot/      ← UniProt REST API
   │   └── dist/                 ← Compiled JS output
   │
-  ├── data/                     ← SQLite DB + embeddings
-  │   ├── app.db
-  │   └── tool-embeddings.json
+  ├── data/                     ← SQLite DB (DATABASE_URL resolves against repo root)
+  │   └── app.db
   │
   ├── Dockerfile                ← Multi-stage Docker build
   ├── docker-compose.yml        ← Local Docker compose

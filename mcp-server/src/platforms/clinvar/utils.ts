@@ -168,6 +168,14 @@ export function formatRsId(id: string): string {
 }
 
 /**
+ * Numeric ClinVar variation ID from a variation ID or VCV accession
+ * ("VCV000017661.150" -> "17661"), as efetch with is_variationid expects.
+ */
+export function toVariationId(id: string): string {
+  return id.trim().replace(/^VCV0*/i, '').replace(/\.\d+$/, '');
+}
+
+/**
  * Maps clinical significance string to normalized form
  */
 export function normalizeClinicalSignificance(sig: string): string {
@@ -188,10 +196,11 @@ export function normalizeClinicalSignificance(sig: string): string {
     'not provided': 'not provided',
   };
 
-  for (const [key, value] of Object.entries(mappings)) {
-    if (lower.includes(key)) {
-      return value;
-    }
+  // Exact terms only: a substring match would turn "Likely pathogenic" into
+  // "Pathogenic" and "Conflicting classifications of pathogenicity" into
+  // "Pathogenic". Combined terms ("Pathogenic/Likely pathogenic") stay as given.
+  if (Object.hasOwn(mappings, lower)) {
+    return mappings[lower];
   }
 
   return sig;

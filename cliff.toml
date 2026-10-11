@@ -1,0 +1,32 @@
+# git-cliff config: release notes for GitHub Releases, built from
+# Conventional Commits since the previous date tag (see deploy.yml).
+
+[changelog]
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }}\
+{% if commit.breaking %} **(breaking)**{% endif %} \
+([{{ commit.id | truncate(length=7, end="") }}](https://github.com/harshk242/burp/commit/{{ commit.id }}))
+{%- endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+# Drops non-conventional commits such as "Merge pull request #..."
+filter_unconventional = true
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^fix", group = "<!-- 1 -->Bug Fixes" },
+  { message = "^perf", group = "<!-- 2 -->Performance" },
+  { message = "^refactor", group = "<!-- 3 -->Refactoring" },
+  { message = "^docs", group = "<!-- 4 -->Documentation" },
+  { message = "^build", group = "<!-- 5 -->Build & Dependencies" },
+  { message = "^(chore|ci|test|style)", skip = true },
+]
+# Date-based release tags: vYYYY.MM.DD or vYYYY.MM.DD.N
+tag_pattern = "^v[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}(\\.[0-9]+)?$"
+sort_commits = "oldest"

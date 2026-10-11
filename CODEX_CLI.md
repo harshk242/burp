@@ -18,6 +18,30 @@ cd mcp-servers/pubmed && bun install && bun run build && cd ../..
 # Repeat for other servers as needed
 ```
 
+## Prompt Cache / Lossless Transcript Gate
+
+The manual gate for issue #32 is tracked in
+`app/scripts/prompt-cache-gate/`; it uses the normal workspace dependencies.
+From the repository root:
+
+```bash
+bun install --frozen-lockfile
+bun run --filter bio-mcp-unified build
+LOG_LEVEL=ERROR bun run gate:prompt-cache 4b
+```
+
+Live checks require `ANTHROPIC_API_KEY` in `app/.env` or the environment and an
+Anthropic chat model configured in `app/config.yaml`; they make billable API
+requests. Use `all` instead of `4b` to include the Phase 0 checks. To check only
+the provider's redacted-thinking round-trip without network access:
+
+```bash
+ANTHROPIC_API_KEY=offline LLM_PROVIDER=anthropic LOG_LEVEL=ERROR bun run gate:prompt-cache --offline
+```
+
+See [the gate README](app/scripts/prompt-cache-gate/README.md) for prerequisites,
+verdict meanings, and rerun guidance.
+
 ## Multi-Server Runner
 
 The runner is a lightweight MCP host that starts multiple servers and routes tool calls.

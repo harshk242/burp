@@ -5,7 +5,7 @@
  */
 
 import { jsonSchema, type Tool } from "ai";
-import type { mcpManager as MCPManagerType } from "./manager";
+import type { mcpManager as MCPManagerType, ToolDefinition } from "./manager";
 import { ALWAYS_LOADED_TOOLS } from "./platforms.config";
 import { logger, startTimer } from "../logger";
 
@@ -29,6 +29,20 @@ class ToolRegistry {
   }
 
   /**
+   * Register the tools one MCP server listed. The unified server returns
+   * prefixed names (e.g. "ensembl__search_genes"); they're parsed back into
+   * platform + bare name for registry keying.
+   */
+  registerServerTools(serverName: string, tools: ToolDefinition[]): void {
+    for (const tool of tools) {
+      const sep = tool.name.indexOf("__");
+      const server = sep !== -1 ? tool.name.substring(0, sep) : serverName;
+      const name = sep !== -1 ? tool.name.substring(sep + 2) : tool.name;
+      this.register(server, { name, description: tool.description || "", inputSchema: tool.inputSchema });
+    }
+  }
+
+  /**
    * Discover tools from all running MCP servers
    */
   async discoverTools(mcpManager: typeof MCPManagerType): Promise<void> {
@@ -43,27 +57,7 @@ class ToolRegistry {
         const serverElapsed = startTimer();
         try {
           const tools = await mcpManager.listTools(serverName);
-          for (const tool of tools) {
-            // Unified server returns prefixed tool names (e.g. "ensembl__search_genes")
-            // Parse them back into platform + bare name for registry keying
-            const sep = tool.name.indexOf("__");
-            if (sep !== -1) {
-              const platformName = tool.name.substring(0, sep);
-              const bareName = tool.name.substring(sep + 2);
-              this.register(platformName, {
-                name: bareName,
-                description: tool.description || "",
-                inputSchema: tool.inputSchema,
-              });
-            } else {
-              // Fallback: register as-is (shouldn't happen with unified server)
-              this.register(serverName, {
-                name: tool.name,
-                description: tool.description || "",
-                inputSchema: tool.inputSchema,
-              });
-            }
-          }
+          this.registerServerTools(serverName, tools);
           logger.info("REGISTRY", "server_tools_discovered", {
             duration_ms: serverElapsed(),
             data: { server: serverName, tool_count: tools.length },
@@ -102,37 +96,49 @@ class ToolRegistry {
   }
 
   /**
-   * Update availability for ALL tools (used when the unified server goes down/up)
+   * Update availability for ALL tools (used when the unified server goes down/up).
+   * Returns whether any tool's availability actually changed.
    */
-  setAllAvailability(available: boolean): void {
+  setAllAvailability(available: boolean): boolean {
+    let changed = false;
     for (const [key, tool] of this.tools) {
+      if (tool.available === available) continue;
       this.tools.set(key, { ...tool, available });
+      changed = true;
     }
-    logger.info("REGISTRY", "all_availability_changed", { data: { available } });
+    if (changed) logger.info("REGISTRY", "all_availability_changed", { data: { available } });
+    return changed;
   }
 
   /**
-   * Get core (always-loaded) tools in Vercel AI SDK format.
-   * Does NOT include execute — callers attach their own executors.
+   * The one place a registry tool becomes a model declaration: the
+   * `[server] description` format. Does NOT include execute — callers attach
+   * their own executors.
    */
-  toVercelCoreTools(
+  toVercelTools(
+    tools: Iterable<MCPTool>,
     sanitize?: (name: string) => string
   ): Record<string, Tool> {
     const result: Record<string, Tool> = {};
-
-    for (const tool of this.tools.values()) {
-      if (!tool.available) continue;
+    for (const tool of tools) {
       const fullName = `${tool.server}__${tool.name}`;
-      if (!ALWAYS_LOADED_TOOLS.has(fullName)) continue;
-
       const key = sanitize ? sanitize(fullName) : fullName;
       result[key] = {
         description: `[${tool.server}] ${tool.description}`,
         inputSchema: jsonSchema(tool.inputSchema as Parameters<typeof jsonSchema>[0]),
       };
     }
-
     return result;
+  }
+
+  /**
+   * Get available core (always-loaded) tools in Vercel AI SDK format.
+   */
+  toVercelCoreTools(
+    sanitize?: (name: string) => string
+  ): Record<string, Tool> {
+    const core = this.getAll(false).filter((t) => ALWAYS_LOADED_TOOLS.has(`${t.server}__${t.name}`));
+    return this.toVercelTools(core, sanitize);
   }
 
   /**
@@ -146,19 +152,11 @@ class ToolRegistry {
     const sep = fullName.indexOf("__");
     if (sep === -1) return null;
 
-    const server = fullName.substring(0, sep);
-    const bareName = fullName.substring(sep + 2);
-    const mcpTool = this.tools.get(`${server}:${bareName}`);
+    const mcpTool = this.tools.get(`${fullName.substring(0, sep)}:${fullName.substring(sep + 2)}`);
     if (!mcpTool) return null;
 
-    const key = sanitize ? sanitize(fullName) : fullName;
-    return {
-      key,
-      tool: {
-        description: `[${mcpTool.server}] ${mcpTool.description}`,
-        inputSchema: jsonSchema(mcpTool.inputSchema as Parameters<typeof jsonSchema>[0]),
-      },
-    };
+    const [entry] = Object.entries(this.toVercelTools([mcpTool], sanitize));
+    return { key: entry![0], tool: entry![1] };
   }
 
   /**

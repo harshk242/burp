@@ -3,9 +3,11 @@
  * Supports Anthropic and Google as providers.
  */
 
-import { appConfig } from "../config";
+import { appConfig, type AppConfig } from "../config";
 
 export type LLMProviderName = "anthropic" | "google";
+export type ThinkingDisplay = AppConfig["llm"]["thinking_display"];
+export type Effort = AppConfig["llm"]["effort"];
 
 export interface LLMConfig {
   provider: LLMProviderName;
@@ -13,7 +15,10 @@ export interface LLMConfig {
   titleModel: string;
   maxRetries: number;
   maxOutputTokens: number;
+  maxContextTokens: number;
   maxToolIterations: number;
+  thinkingDisplay: ThinkingDisplay;
+  effort: Effort;
 }
 
 const DEFAULTS: Record<LLMProviderName, { chat: string; title: string }> = {
@@ -37,6 +42,9 @@ export function loadLLMConfig(): LLMConfig {
     titleModel: llm.title_model || DEFAULTS[provider].title,
     maxRetries: llm.max_retries,
     maxOutputTokens: llm.max_output_tokens,
+    maxContextTokens: llm.max_context_tokens,
     maxToolIterations: llm.max_tool_iterations,
+    thinkingDisplay: llm.thinking_display,
+    effort: llm.effort,
   };
 }

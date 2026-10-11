@@ -4,6 +4,7 @@
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { toolRegistry } from "./registry";
 import { enabledPlatforms } from "./platforms.config";
@@ -43,6 +44,15 @@ export const MCP_SERVERS: MCPServerConfig[] = [
   },
 ];
 
+/** The MCP client's own deadline for a request sent with `timeout: timeoutMs`. */
+function isRequestTimeout(error: unknown, timeoutMs: number): boolean {
+  return (
+    error instanceof McpError &&
+    error.code === ErrorCode.RequestTimeout &&
+    (error.data as { timeout?: unknown } | undefined)?.timeout === timeoutMs
+  );
+}
+
 export type ServerStatus = "stopped" | "starting" | "running" | "error";
 
 export interface MCPServer {
@@ -71,9 +81,16 @@ const INITIAL_RETRY_DELAY_MS = 5000;
 const MAX_RETRY_DELAY_MS = 60000;
 const RETRY_BACKOFF_MULTIPLIER = 2;
 
-class MCPManager {
+export class MCPManager {
   private servers: Map<string, MCPServer> = new Map();
   private retryIntervalId: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Called when the set of available tools changes: a server goes down (its
+   * tools become unavailable) or recovers (its tools are re-registered).
+   * Set by the server entry point so this module stays free of search code.
+   */
+  onToolsChanged: (() => void) | null = null;
 
   /**
    * Register an MCP server configuration
@@ -178,8 +195,9 @@ class MCPManager {
     const server = this.servers.get(name);
     if (!server) return;
 
-    // Unified server: mark all platforms unavailable
-    toolRegistry.setAllAvailability(false);
+    // Unified server: mark all platforms unavailable. Only the first failure
+    // changes anything; repeated failed retries don't re-notify.
+    if (toolRegistry.setAllAvailability(false)) this.notifyToolsChanged(name);
 
     const delay = Math.min(
       INITIAL_RETRY_DELAY_MS * Math.pow(RETRY_BACKOFF_MULTIPLIER, server.retryCount),
@@ -194,9 +212,7 @@ class MCPManager {
     });
   }
 
-  /**
-   * Stop an MCP server
-   */
+  /** Stop an MCP server */
   async stop(name: string): Promise<void> {
     const server = this.servers.get(name);
     if (!server) return;
@@ -274,56 +290,51 @@ class MCPManager {
     logger.info("MCP", "all_servers_stopped");
   }
 
-  /**
-   * Start background retry loop for failed servers
-   */
+  /** Start background retry loop for failed servers */
   private startRetryLoop(): void {
     if (this.retryIntervalId) return;
 
-    this.retryIntervalId = setInterval(async () => {
-      const now = new Date();
-
-      for (const [name, server] of this.servers) {
-        if (
-          server.status === "error" &&
-          server.nextRetryAt &&
-          server.nextRetryAt <= now
-        ) {
-          logger.info("MCP", "server_retrying", { data: { server: name, retry_count: server.retryCount } });
-          await this.start(name);
-
-          if ((server.status as ServerStatus) === "running") {
-            try {
-              const tools = await this.listTools(name);
-              for (const tool of tools) {
-                // Parse prefixed tool names from unified server (e.g. "ensembl__search_genes")
-                const sep = tool.name.indexOf("__");
-                if (sep !== -1) {
-                  const platformName = tool.name.substring(0, sep);
-                  const bareName = tool.name.substring(sep + 2);
-                  toolRegistry.register(platformName, {
-                    name: bareName,
-                    description: tool.description || "",
-                    inputSchema: tool.inputSchema,
-                  }, true);
-                }
-              }
-              logger.info("MCP", "server_recovered_tools", { data: { server: name, tool_count: tools.length } });
-            } catch (error) {
-              server.status = "error";
-              server.error = `Tool discovery failed: ${error instanceof Error ? error.message : String(error)}`;
-              logger.error("MCP", "server_recovery_tool_discovery_failed", { data: { server: name }, error: error instanceof Error ? error : String(error) });
-              this.scheduleRetry(name);
-            }
-          }
-        }
-      }
-    }, 5000);
+    this.retryIntervalId = setInterval(() => this.retryDueServers(), 5000);
   }
 
   /**
-   * Stop the background retry loop
+   * Restart failed servers whose retry time has passed, re-registering their
+   * tools and firing onToolsChanged after each successful recovery.
    */
+  async retryDueServers(now = new Date()): Promise<void> {
+    for (const [name, server] of this.servers) {
+      if (server.status !== "error" || !server.nextRetryAt || server.nextRetryAt > now) continue;
+
+      logger.info("MCP", "server_retrying", { data: { server: name, retry_count: server.retryCount } });
+      await this.start(name);
+      if ((server.status as ServerStatus) !== "running") continue;
+
+      try {
+        const tools = await this.listTools(name);
+        toolRegistry.registerServerTools(name, tools);
+        logger.info("MCP", "server_recovered_tools", { data: { server: name, tool_count: tools.length } });
+      } catch (error) {
+        server.status = "error";
+        server.error = `Tool discovery failed: ${error instanceof Error ? error.message : String(error)}`;
+        logger.error("MCP", "server_recovery_tool_discovery_failed", { data: { server: name }, error: error instanceof Error ? error : String(error) });
+        this.scheduleRetry(name);
+        continue;
+      }
+
+      this.notifyToolsChanged(name);
+    }
+  }
+
+  /** Fire onToolsChanged; a failing callback is logged, never thrown. */
+  private notifyToolsChanged(server: string): void {
+    try {
+      this.onToolsChanged?.();
+    } catch (error) {
+      logger.error("MCP", "tools_changed_callback_failed", { data: { server }, error: error instanceof Error ? error : String(error) });
+    }
+  }
+
+  /** Stop the background retry loop */
   private stopRetryLoop(): void {
     if (this.retryIntervalId) {
       clearInterval(this.retryIntervalId);
@@ -360,7 +371,8 @@ class MCPManager {
     serverName: string,
     toolName: string,
     args: Record<string, unknown>,
-    timeoutMs = 30000
+    timeoutMs = 30000,
+    signal?: AbortSignal
   ): Promise<ToolResult> {
     // Route all calls through the unified server with prefixed tool name
     const server = this.servers.get("unified");
@@ -381,16 +393,23 @@ class MCPManager {
       data: { server: serverName, tool: toolName, input: args, timeout_ms: timeoutMs },
     });
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`Tool call timed out after ${timeoutMs}ms`)), timeoutMs);
-    });
-
-    const callPromise = server.client.callTool({
-      name: prefixedToolName,
-      arguments: args,
-    });
-
-    const result = await Promise.race([callPromise, timeoutPromise]);
+    // The MCP client owns the deadline: on timeout or abort it sends
+    // notifications/cancelled, drops the request and rejects; on a response it
+    // clears its timer.
+    let result: Awaited<ReturnType<Client["callTool"]>>;
+    try {
+      result = await server.client.callTool(
+        { name: prefixedToolName, arguments: args },
+        undefined,
+        { signal, timeout: timeoutMs }
+      );
+    } catch (error) {
+      // An abort is rethrown as-is (the client reports it as a timeout too).
+      if (!signal?.aborted && isRequestTimeout(error, timeoutMs)) {
+        throw new Error(`Tool call timed out after ${timeoutMs}ms`);
+      }
+      throw error;
+    }
 
     // Extract text content from result
     let content: unknown = result.content;
@@ -468,16 +487,12 @@ class MCPManager {
     };
   }
 
-  /**
-   * Get server status
-   */
+  /** Get server status */
   getStatus(name: string): MCPServer | undefined {
     return this.servers.get(name);
   }
 
-  /**
-   * Get all server statuses
-   */
+  /** Get all server statuses */
   getAllStatuses(): Record<string, { status: ServerStatus; error?: string }> {
     const statuses: Record<string, { status: ServerStatus; error?: string }> = {};
     for (const [name, server] of this.servers) {
@@ -486,18 +501,14 @@ class MCPManager {
     return statuses;
   }
 
-  /**
-   * Get list of running servers
-   */
+  /** Get list of running servers */
   getRunningServers(): string[] {
     return Array.from(this.servers.entries())
       .filter(([_, server]) => server.status === "running")
       .map(([name]) => name);
   }
 
-  /**
-   * Check if a server is available
-   */
+  /** Check if a server is available */
   isServerAvailable(_name: string): boolean {
     const server = this.servers.get("unified");
     return server?.status === "running" && server.client !== null;

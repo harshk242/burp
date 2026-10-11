@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { messages } from "../schema";
 import type { DbMessageRow } from "../../types";
@@ -34,7 +34,7 @@ export function createMessageQueries(db: DrizzleDb) {
     },
 
     findByChatId(chatId: string): DbMessageRow[] {
-      return db.select().from(messages).where(eq(messages.chat_id, chatId)).orderBy(asc(messages.created_at)).all();
+      return db.select().from(messages).where(eq(messages.chat_id, chatId)).orderBy(asc(messages.created_at), asc(sql`rowid`)).all();
     },
 
     findById(id: string): DbMessageRow | null {

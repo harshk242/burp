@@ -29,6 +29,48 @@
       "when": 1791564165050,
       "tag": "0003_tighten_not_null",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791604405030,
+      "tag": "0004_usage_cache_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791604806102,
+      "tag": "0005_usage_status_estimated",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791643946397,
+      "tag": "0006_artifacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1791655576270,
+      "tag": "0007_chat_turns",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791656013502,
+      "tag": "0008_model_transcript",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791667343918,
+      "tag": "0009_chat_turns_last_prompt_tokens",
+      "breakpoints": true
     }
   ]
 }

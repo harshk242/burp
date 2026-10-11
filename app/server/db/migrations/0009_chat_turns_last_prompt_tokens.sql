@@ -1,0 +1,1 @@
+ALTER TABLE `chat_turns` ADD `last_prompt_tokens` integer;

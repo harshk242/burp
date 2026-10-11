@@ -67,7 +67,9 @@ export function parseESearchResult(xml: string): { count: number; idList: string
 export function parseVCVRecord(xml: string): VCVRecord[] {
   try {
     const result = parser.parse(xml);
-    const variationArchives = result.ClinVarResult?.VariationArchive ||
+    // `ClinVarResult-Set` is what efetch rettype=vcv returns today.
+    const variationArchives = result['ClinVarResult-Set']?.VariationArchive ||
+                               result.ClinVarResult?.VariationArchive ||
                                result.ClinVarVariationRelease?.VariationArchive || [];
 
     return ensureArray(variationArchives).map((archive: AnyObject) => {
@@ -123,22 +125,33 @@ export function parseVCVRecord(xml: string): VCVRecord[] {
       const assertions = interpretedRecord.ClinicalAssertionList?.ClinicalAssertion ||
                         archive.ClassifiedRecord?.ClinicalAssertionList?.ClinicalAssertion || [];
       const clinicalAssertions: ClinicalAssertion[] = ensureArray(assertions).map((assertion: AnyObject) => {
-        const interpretation = assertion.Interpretation as AnyObject || {};
-        const traitSet = assertion.TraitSet as AnyObject || {};
-        const submitter = assertion.ClinVarSubmissionID as AnyObject || assertion.ClinVarAccession as AnyObject || {};
+        // Current schema: Classification { ReviewStatus, GermlineClassification };
+        // older records: Interpretation { Description } with a sibling ReviewStatus.
+        const classification = assertion.Classification as AnyObject | undefined;
+        const interpretation = ensureArray(assertion.Interpretation)[0] as AnyObject || {};
+        // TraitSet is parsed as an array (isArray above).
+        const traitSet = ensureArray(assertion.TraitSet)[0] as AnyObject || {};
+        const submission = assertion.ClinVarSubmissionID as AnyObject || {};
+        const accession = assertion.ClinVarAccession as AnyObject || {};
 
         return {
           id: extractText(assertion['@_ID']),
           clinicalSignificance: {
-            description: normalizeClinicalSignificance(extractText(interpretation.Description)) as any,
-            dateLastEvaluated: extractText(interpretation['@_DateLastEvaluated']),
-            reviewStatus: normalizeReviewStatus(extractText(assertion.ReviewStatus)) as any,
+            description: normalizeClinicalSignificance(
+              extractText(classification?.GermlineClassification) || extractText(interpretation.Description)
+            ) as any,
+            dateLastEvaluated: extractText(classification?.['@_DateLastEvaluated']) ||
+                               extractText(interpretation['@_DateLastEvaluated']),
+            reviewStatus: normalizeReviewStatus(
+              extractText(classification?.ReviewStatus) || extractText(assertion.ReviewStatus)
+            ) as any,
           },
           condition: parseCondition(traitSet),
           submitter: {
-            submitterId: extractText(submitter['@_OrgID']),
-            name: extractText(submitter['@_submitter']) || extractText(submitter.SubmitterName),
-            abbreviation: extractText(submitter['@_submitterAbbrev']),
+            submitterId: extractText(accession['@_OrgID']) || extractText(submission['@_OrgID']),
+            name: extractText(accession['@_SubmitterName']) || extractText(submission['@_submitter']) ||
+                  extractText(submission.SubmitterName),
+            abbreviation: extractText(submission['@_submitterAbbrev']),
           },
           methodType: extractText(assertion.ObservedInList?.ObservedIn?.Method?.MethodType),
           dateSubmitted: extractText(assertion['@_DateCreated']),
@@ -148,7 +161,7 @@ export function parseVCVRecord(xml: string): VCVRecord[] {
 
       // Extract aggregated classification
       const classification = interpretedRecord.Interpretations?.Interpretation?.[0] as AnyObject ||
-                            archive.ClassifiedRecord?.Classifications?.GermlineClassification as AnyObject || {};
+                            archive.ClassifiedRecord?.Classifications?.GermlineClassification as AnyObject || undefined;
       const aggregatedClassification: ClinicalSignificance | undefined = classification ? {
         description: normalizeClinicalSignificance(extractText(classification.Description)) as any,
         dateLastEvaluated: extractText(classification['@_DateLastEvaluated']),
@@ -235,20 +248,30 @@ export function parseESummaryResult(xml: string): VariantInfo[] {
       const geneSymbol = itemMap.gene_sort || extractText(doc.gene_sort) ||
                         extractText(doc.genes?.gene?.symbol);
 
+      // Since the 2024 DTD the classification is `germline_classification`;
+      // `clinical_significance` is the pre-2024 element.
+      const classification = (doc.germline_classification || doc.clinical_significance || {}) as AnyObject;
+      const variation = ensureArray(doc.variation_set?.variation)[0] as AnyObject | undefined;
+      const dbsnpXref = ensureArray(variation?.variation_xrefs?.variation_xref).find(
+        (xref: AnyObject) => extractText(xref.db_source) === 'dbSNP'
+      ) as AnyObject | undefined;
+      const rsNumber = itemMap.rs || extractText(variation?.dbsnp_id) || extractText(dbsnpXref?.db_id);
+
       return {
         variationId: uid,
-        name: itemMap.title || extractText(doc.title) || extractText(doc.variation_name),
-        variantType: itemMap.variant_type || extractText(doc.variant_type),
+        name: itemMap.title || extractText(doc.title) || extractText(variation?.variation_name),
+        variantType: itemMap.variant_type || extractText(variation?.variant_type) ||
+                     extractText(doc.variant_type) || extractText(doc.obj_type),
         gene: geneSymbol ? { symbol: geneSymbol } : undefined,
         clinicalSignificance: {
           description: normalizeClinicalSignificance(
-            itemMap.clinical_significance || extractText(doc.clinical_significance?.description)
+            itemMap.clinical_significance || extractText(classification.description)
           ) as any,
           reviewStatus: normalizeReviewStatus(
-            itemMap.review_status || extractText(doc.review_status)
+            itemMap.review_status || extractText(classification.review_status) || extractText(doc.review_status)
           ) as any,
         },
-        rsId: itemMap.rs || extractText(doc.variation_set?.variation?.dbsnp_id),
+        rsId: rsNumber ? `rs${rsNumber.replace(/^rs/i, '')}` : undefined,
       };
     });
   } catch (error) {
