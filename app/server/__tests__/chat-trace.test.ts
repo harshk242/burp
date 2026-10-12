@@ -2,7 +2,9 @@
  * Turn tracing through processChat: the trace tree of a real turn (mock model,
  * spied MCP call and tool search), the trace id on the chat_turns row, and the
  * levels / no-open-spans guarantee for refusal, stream failure, abort mid-stream
- * and mid-tool, the consumer calling return(), and a server shutdown.
+ * and mid-tool, the consumer calling return(), and a server shutdown. Also the
+ * turn signals (final finish reason, tool error count) on the row and the
+ * online scores computed from it.
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { MockLanguageModelV4 } from "ai/test";
@@ -13,7 +15,9 @@ import { mcpManager } from "../mcp/manager";
 import { ALWAYS_LOADED_TOOLS } from "../mcp/platforms.config";
 import { toolRegistry } from "../mcp/registry";
 import { hybridSearch } from "../search";
+import * as langfuse from "../observability/langfuse";
 import { resetTracingForTests } from "../observability/langfuse";
+import { turnSignals } from "../observability/turn-signals";
 import { traceIdForTurn } from "../observability/turn-trace";
 import { LEVEL, STATUS_MESSAGE, TYPE, byName, installMemoryTracing, json, one } from "../observability/__tests__/trace-test-utils";
 import { SEARCH_TOOL_NAME } from "../orchestration/context/tool-catalog";
@@ -50,7 +54,7 @@ const usage = {
   outputTokens: { total: 20, text: 20, reasoning: 0 },
 };
 
-const finish = (reason: "tool-calls" | "stop" | "content-filter"): StreamPart => ({
+const finish = (reason: "tool-calls" | "stop" | "content-filter" | "length"): StreamPart => ({
   type: "finish",
   finishReason: { unified: reason, raw: reason === "content-filter" ? "refusal" : reason },
   usage,
@@ -296,5 +300,55 @@ describe("turn tracing", () => {
     expect(turnRow(sessionId)).toMatchObject({ status: "aborted", error_message: "Server shutting down" });
     expect(one(mem.spans(), "chat-turn").attributes[LEVEL]).toBe("WARNING");
     expectClosed();
+  });
+});
+
+describe("turn signals", () => {
+  /** Score bodies sent through the shared score client. */
+  function captureScores() {
+    const scores: Record<string, unknown>[] = [];
+    const client = { score: { create: (body: Record<string, unknown>) => scores.push(body) } };
+    spyOn(langfuse, "getScoreClient").mockReturnValue(client as never);
+    return scores;
+  }
+
+  it("a tool error and a failed search, then a provider failure: the failed row keeps both errors", async () => {
+    const scores = captureScores();
+    spyOn(mcpManager, "callTool").mockRejectedValue(new Error("server down"));
+    spyOn(hybridSearch, "search").mockRejectedValue(new Error("index broken"));
+    model = scriptedModel([
+      () => streamOf([toolCall("c1"), toolCall("c2", SEARCH_KEY, '{"query":"x"}'), finish("tool-calls")]),
+      () => streamOf([{ type: "error", error: new Error("overloaded") }]),
+    ]);
+
+    const sessionId = crypto.randomUUID();
+    await collect(processChat(sessionId, USER_ID, "hi"));
+
+    const row = turnRow(sessionId);
+    expect(row).toMatchObject({ status: "error", error_code: "provider_error", tool_error_count: 2, final_finish_reason: "tool-calls" });
+    expect(turnSignals(row)).toEqual({ turn_outcome: "provider_error", answer_truncated: false, tool_error_count: 2 });
+    expect(scores.map((sc) => [sc.name, sc.value])).toEqual([
+      ["turn_outcome", "provider_error"],
+      ["answer_truncated", 0],
+      ["tool_error_count", 2],
+    ]);
+    for (const sc of scores) {
+      expect(sc.traceId).toBe(row.trace_id!);
+      expect(sc.environment).toBe(langfuse.tracingEnvironment);
+    }
+  });
+
+  it("a truncated answer stays ok but reports answer_truncated", async () => {
+    const scores = captureScores();
+    model = scriptedModel([() => streamOf([...text("cut o"), finish("length")])]);
+
+    const sessionId = crypto.randomUUID();
+    const events = await collect(processChat(sessionId, USER_ID, "hi"));
+    expect(events.some((e) => e.type === "done")).toBe(true);
+
+    const row = turnRow(sessionId);
+    expect(row).toMatchObject({ status: "ok", final_finish_reason: "length", tool_error_count: 0 });
+    expect(turnSignals(row)).toEqual({ turn_outcome: "ok", answer_truncated: true, tool_error_count: 0 });
+    expect(scores.find((sc) => sc.name === "answer_truncated")?.value).toBe(1);
   });
 });

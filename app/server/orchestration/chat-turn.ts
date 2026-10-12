@@ -9,6 +9,7 @@ import { AISDKError, type ProviderMetadata } from "ai";
 import { v4 as uuidv4 } from "uuid";
 import { db, chatTurnQueries, messageQueries, type ChatTurnOutcome } from "../db";
 import { logger, type LogContext } from "../logger";
+import { turnSignals, writeTurnScores } from "../observability/turn-signals";
 
 /** How a turn ended without succeeding (chat_turns.error_code, usage logs). */
 export type TurnErrorCode =
@@ -185,5 +186,20 @@ export function finishFailedTurn(turnId: string, outcome: ChatTurnOutcome, ctx: 
       error: error instanceof Error ? error : String(error),
       data: { turn_id: turnId, status: outcome.status, error_code: outcome.errorCode },
     });
+  }
+}
+
+/**
+ * Writes the finished turn's online scores to its trace, computed from the
+ * persisted row (observability/turn-signals.ts). Call after the turn's ledger
+ * write. Never throws.
+ */
+export function scoreTurn(turnId: string, ctx: LogContext): void {
+  try {
+    const row = chatTurnQueries.findById(turnId);
+    if (!row?.trace_id || row.status === "running") return;
+    writeTurnScores(row.trace_id, turnSignals(row), ctx);
+  } catch (error) {
+    logger.warn("TRACE", "turn_scores_failed", { ctx, error: error instanceof Error ? error : String(error) });
   }
 }

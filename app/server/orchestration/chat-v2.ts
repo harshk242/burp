@@ -38,6 +38,7 @@ import {
   recordTraceId,
   registerActiveTurn,
   refusalError,
+  scoreTurn,
   startTurn,
   type TurnFailure,
 } from "./chat-turn";
@@ -123,6 +124,8 @@ export async function* processChat(
   // The turn's Langfuse trace (observability/turn-trace.ts); a no-op until the turn starts.
   let trace = TurnTrace.disabled;
   let loopIteration = 0;
+  // Turn signals written on the chat_turns row whatever the outcome (observability/turn-signals.ts).
+  const signals = { finalFinishReason: null as string | null, toolErrorCount: 0 };
   let releaseLock: (() => void) | null = null;
 
   try {
@@ -281,6 +284,7 @@ export async function* processChat(
         systemPrompt: SYSTEM_PROMPT,
       });
       tracker.finish(call);
+      signals.finalFinishReason = finishReason;
       if (loopIteration === 1) {
         logger.info("CHAT", "first_call_cache_read", {
           ctx,
@@ -339,6 +343,7 @@ export async function* processChat(
           turnSignal.throwIfAborted();
           const { record, part } = yield* dispatchToolCall(tc, dispatch);
           if (record) allToolCalls.push(record);
+          if (part.output.type === "error-text") signals.toolErrorCount++;
           toolResultParts.push(part);
         }
 
@@ -396,6 +401,7 @@ export async function* processChat(
         iterations: loopIteration,
         assistantMessageId: assistantMsgId,
         lastPromptTokens: tracker.lastPromptTokens,
+        ...signals,
       });
 
       chatSessionQueries.touch(sessionId);
@@ -409,6 +415,7 @@ export async function* processChat(
       output: persistedAssistantText,
       metadata: { iterations: loopIteration, cost_usd: chatCost.costMicrousd / 1e6 },
     });
+    scoreTurn(turn.turnId, ctx);
 
     logger.info("CHAT", "process_complete", {
       ctx,
@@ -474,6 +481,7 @@ export async function* processChat(
             errorCode,
             errorMessage,
             iterations: loopIteration,
+            ...signals,
           },
           ctx
         );
@@ -485,6 +493,7 @@ export async function* processChat(
         metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
         cutOffCall,
       });
+      if (turnId) scoreTurn(turnId, ctx);
     }
     releaseLock?.();
     drained();

@@ -78,6 +78,13 @@
       "when": 1791770808158,
       "tag": "0010_chat_turns_trace_id",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1791832947047,
+      "tag": "0011_chat_turns_turn_signals",
+      "breakpoints": true
     }
   ]
 }
