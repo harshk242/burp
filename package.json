@@ -12,6 +12,7 @@
     "dev": "bun run --filter bio-mcp-unified build && concurrently -n mcp,backend,frontend -c cyan,green,blue \"bun run --filter bio-mcp-unified dev\" \"bun run --filter burp dev\" \"bun run --filter burp-web dev\"",
     "generate:embeddings": "bun run --filter burp generate:embeddings",
     "gate:prompt-cache": "bun run --filter burp gate:prompt-cache",
+    "eval:sync": "bun run --filter burp eval:sync",
     "test": "bun run --filter bio-mcp-unified test && bun run --filter burp test",
     "test:contracts": "bun run --filter bio-mcp-unified test:contracts"
   },

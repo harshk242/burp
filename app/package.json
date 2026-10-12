@@ -15,6 +15,7 @@
     "db:studio": "drizzle-kit studio",
     "generate:embeddings": "bun run scripts/generate-tool-embeddings.ts",
     "gate:prompt-cache": "DATABASE_URL=:memory: bun scripts/prompt-cache-gate/phase0-gate.ts",
+    "eval:sync": "bun run evals/sync.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
