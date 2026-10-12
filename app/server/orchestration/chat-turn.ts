@@ -19,6 +19,7 @@ export type TurnErrorCode =
   | "refusal" // the model's safety classifier declined (stop_reason "refusal")
   | "no_tools_available"
   | "internal_error"
+  | "budget_exceeded" // a shared cost budget (eval runner) ran out; such turns get no scores
   | "aborted" // the client disconnected
   | "closed"; // the consumer stopped iterating before the turn finished
 
@@ -192,13 +193,16 @@ export function finishFailedTurn(turnId: string, outcome: ChatTurnOutcome, ctx: 
 /**
  * Writes the finished turn's online scores to its trace, computed from the
  * persisted row (observability/turn-signals.ts). Call after the turn's ledger
- * write. Never throws.
+ * write. `observationId`: the turn's root observation when the turn is nested
+ * in a larger trace (eval runner), so turns sharing a trace keep their own
+ * scores. Budget-stopped turns get none. Never throws.
  */
-export function scoreTurn(turnId: string, ctx: LogContext): void {
+export function scoreTurn(turnId: string, ctx: LogContext, observationId: string | null = null): void {
   try {
     const row = chatTurnQueries.findById(turnId);
     if (!row?.trace_id || row.status === "running") return;
-    writeTurnScores(row.trace_id, turnSignals(row), ctx);
+    const signals = turnSignals(row);
+    if (signals) writeTurnScores({ traceId: row.trace_id, observationId }, signals, ctx);
   } catch (error) {
     logger.warn("TRACE", "turn_scores_failed", { ctx, error: error instanceof Error ? error : String(error) });
   }

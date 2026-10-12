@@ -5,11 +5,15 @@
  * Computed from the persisted chat_turns row only, so the offline eval runner
  * gets identical values from its own DB without depending on Langfuse
  * ingestion. Writing them to the turn's trace never throws.
+ *
+ * A turn stopped by a shared cost budget (`budget_exceeded`, eval runner) has
+ * no signals: it says nothing about the agent, so it is never scored.
  */
 
 import type { LangfuseClient } from "@langfuse/client";
 import { logger, type LogContext } from "../logger";
 import { getScoreClient, tracingEnvironment } from "./langfuse";
+import { scoreConfigId } from "./score-configs";
 
 export const TURN_OUTCOMES = [
   "ok",
@@ -46,7 +50,9 @@ function outcomeOf(row: TurnSignalRow): TurnOutcome {
     : "internal_error";
 }
 
-export function turnSignals(row: TurnSignalRow): TurnSignals {
+/** Null for budget-stopped turns (never scored). */
+export function turnSignals(row: TurnSignalRow): TurnSignals | null {
+  if (row.error_code === "budget_exceeded") return null;
   return {
     turn_outcome: outcomeOf(row),
     answer_truncated: row.final_finish_reason === "length",
@@ -56,23 +62,44 @@ export function turnSignals(row: TurnSignalRow): TurnSignals {
 
 type ScoreSink = Pick<LangfuseClient, "score">;
 
+/** Where a turn's scores go: its trace, or its root observation when the turn is nested in a larger trace. */
+export interface ScoreTarget {
+  traceId: string;
+  observationId?: string | null;
+}
+
 /**
- * Writes the signals as trace scores in the tracing environment. Score ids are
- * derived from the trace id, so writing a turn's scores twice upserts them.
- * No-op when tracing is off; never throws.
+ * Writes the signals as scores in the tracing environment, each referencing its
+ * score config. Score ids are derived from the target, so writing a turn's
+ * scores twice upserts them. No-op when tracing is off; never throws.
  */
 export function writeTurnScores(
-  traceId: string,
+  target: ScoreTarget,
   signals: TurnSignals,
   ctx: LogContext,
   client: ScoreSink | null = getScoreClient()
 ): void {
   if (!client) return;
   try {
-    const base = { traceId, environment: tracingEnvironment };
-    client.score.create({ ...base, id: `${traceId}-turn_outcome`, name: "turn_outcome", value: signals.turn_outcome, dataType: "CATEGORICAL" });
-    client.score.create({ ...base, id: `${traceId}-answer_truncated`, name: "answer_truncated", value: signals.answer_truncated ? 1 : 0, dataType: "BOOLEAN" });
-    client.score.create({ ...base, id: `${traceId}-tool_error_count`, name: "tool_error_count", value: signals.tool_error_count, dataType: "NUMERIC" });
+    const { traceId, observationId } = target;
+    const prefix = observationId ? `${traceId}-${observationId}` : traceId;
+    const values: [keyof TurnSignals, string | number, "CATEGORICAL" | "BOOLEAN" | "NUMERIC"][] = [
+      ["turn_outcome", signals.turn_outcome, "CATEGORICAL"],
+      ["answer_truncated", signals.answer_truncated ? 1 : 0, "BOOLEAN"],
+      ["tool_error_count", signals.tool_error_count, "NUMERIC"],
+    ];
+    for (const [name, value, dataType] of values) {
+      client.score.create({
+        traceId,
+        ...(observationId ? { observationId } : {}),
+        environment: tracingEnvironment,
+        id: `${prefix}-${name}`,
+        name,
+        value,
+        dataType,
+        configId: scoreConfigId(name),
+      });
+    }
   } catch (error) {
     logger.warn("TRACE", "turn_scores_failed", { ctx, error: error instanceof Error ? error : String(error) });
   }

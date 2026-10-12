@@ -271,6 +271,7 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   if (e.LLM_PROVIDER) cfg.llm.provider = e.LLM_PROVIDER as AppConfig["llm"]["provider"];
   if (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL) cfg.llm.chat_model = (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL)!;
   if (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL) cfg.llm.title_model = (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL)!;
+  if (e.LLM_EFFORT) cfg.llm.effort = AppConfigSchema.shape.llm.shape.effort.parse(e.LLM_EFFORT, { path: ["llm", "effort"] });
   if (e.LLM_MAX_RETRIES) cfg.llm.max_retries = parseInt(e.LLM_MAX_RETRIES, 10);
   if (e.LLM_MAX_OUTPUT_TOKENS) cfg.llm.max_output_tokens = parseInt(e.LLM_MAX_OUTPUT_TOKENS, 10);
   if (e.LLM_MAX_CONTEXT_TOKENS !== undefined) {

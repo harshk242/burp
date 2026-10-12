@@ -8,10 +8,11 @@
 
 import type { LanguageModelCallStartEvent, TextStreamPart, ToolSet } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { db, dailyUsageQueries, usageEventQueries } from "../db";
+import { db, chatSessionQueries, chatTurnQueries, dailyUsageQueries, messageQueries, usageEventQueries, userQueries } from "../db";
 import { estimateTokens, logger, type LogContext } from "../logger";
-import { getUtcDate, getUtcMonth, type CallCost, type CallUsage } from "../usage";
+import { getUtcDate, getUtcMonth, type CallCost, type CallUsage, type ChatCost } from "../usage";
 import { TurnError, type TurnErrorCode } from "./chat-turn";
+import type { ToolCallRecord } from "./types";
 import type { UsageMeter } from "./usage-meter";
 
 interface CallInFlight {
@@ -322,4 +323,77 @@ export function recordFailedTurn(turn: FailedTurn): CallCost | undefined {
     });
   }
   return estimate;
+}
+
+export interface OkTurn {
+  meter: UsageMeter;
+  cost: ChatCost;
+  userId: string;
+  sessionId: string;
+  turnId: string;
+  provider: string;
+  model: string;
+  answer: string;
+  reasoning: string | null;
+  toolCalls: ToolCallRecord[];
+  iterations: number;
+  lastPromptTokens: number | null | undefined;
+  finalFinishReason: string | null;
+  toolErrorCount: number;
+}
+
+/**
+ * The success path's ledger write, in one transaction: the assistant message
+ * (tokens, cost, reasoning), its `status: "ok"` usage_events row, the finished
+ * chat_turns row, and the session/user/daily counters. Returns the assistant
+ * message id.
+ */
+export function recordOkTurn(turn: OkTurn): string {
+  const { cost } = turn;
+  const assistantMsgId = uuidv4();
+  // Sync transaction on the shared connection: the *Queries calls below use the
+  // global `db`, so they run inside it without needing the `tx` handle.
+  db.transaction(() => {
+    messageQueries.create(
+      assistantMsgId,
+      turn.sessionId,
+      "assistant",
+      turn.answer,
+      turn.toolCalls.length > 0 ? JSON.stringify(turn.toolCalls) : null,
+      cost.inputTokens,
+      cost.outputTokens,
+      turn.reasoning,
+      cost.costMicrousd
+    );
+
+    usageEventQueries.create({
+      id: uuidv4(),
+      user_id: turn.userId,
+      date: getUtcDate(),
+      month: getUtcMonth(),
+      operation: "chat",
+      provider: turn.provider,
+      model: turn.model,
+      ...turn.meter.ledgerFields(cost),
+      status: "ok",
+      session_id: turn.sessionId,
+      message_id: assistantMsgId,
+      turn_id: turn.turnId,
+    });
+
+    chatTurnQueries.finish(turn.turnId, {
+      status: "ok",
+      iterations: turn.iterations,
+      assistantMessageId: assistantMsgId,
+      lastPromptTokens: turn.lastPromptTokens,
+      finalFinishReason: turn.finalFinishReason,
+      toolErrorCount: turn.toolErrorCount,
+    });
+
+    chatSessionQueries.touch(turn.sessionId);
+    userQueries.incrementQueries(turn.userId);
+    // Increment daily token totals (best-effort: done post-response; next request checks these)
+    dailyUsageQueries.incrementTokens(turn.userId, cost.inputTokens, cost.outputTokens);
+  });
+  return assistantMsgId;
 }

@@ -7,19 +7,9 @@
  */
 
 import type { ModelMessage, ToolResultPart } from "ai";
-import { v4 as uuidv4 } from "uuid";
 import { chatProviderOptions, loadLLMConfig, sanitizeToolName } from "../llm";
-import {
-  db,
-  messageQueries,
-  chatSessionQueries,
-  chatTurnQueries,
-  userQueries,
-  dailyUsageQueries,
-  usageEventQueries,
-} from "../db";
+import { chatSessionQueries } from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
-import { getUtcDate, getUtcMonth } from "../usage";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
 import { appendTranscript, contextVersion, loadTranscript, type TranscriptTag } from "./context/transcript";
@@ -28,7 +18,8 @@ import { buildToolCatalog, countDeferred, registeredToolNames } from "./context/
 import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
 import type { StreamEvent, ToolCallRecord } from "./types";
 import { UsageMeter } from "./usage-meter";
-import { CallTracker, recordFailedTurn } from "./turn-usage";
+import { CallTracker, recordFailedTurn, recordOkTurn } from "./turn-usage";
+import { TurnBudget, type CostBudget } from "./cost-budget";
 import {
   TURN_IN_PROGRESS_MESSAGE,
   TurnError,
@@ -45,7 +36,7 @@ import {
 import { joinReasoning } from "./reasoning";
 import { streamModelCall } from "./model-call";
 import { langfuseConfig } from "../observability/langfuse";
-import { TurnTrace } from "../observability/turn-trace";
+import { TurnTrace, type TraceParent } from "../observability/turn-trace";
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
@@ -84,12 +75,22 @@ const generationParameters = {
  * appended to model_transcript as the iteration finishes (context/transcript.ts).
  * Failed turns keep the messages they got to, refused responses included;
  * replay will read `ok` turns only.
+ *
+ * Options (eval runner): `traceParent` nests the turn's trace under that span;
+ * `costBudget` is checked before each model call and charged with every priced
+ * call (cost-budget.ts); running out fails the turn with `budget_exceeded`.
  */
+export interface ProcessChatOptions {
+  traceParent?: TraceParent;
+  costBudget?: CostBudget;
+}
+
 export async function* processChat(
   sessionId: string,
   userId: string,
   userMessage: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: ProcessChatOptions = {}
 ): AsyncGenerator<StreamEvent> {
   const chatElapsed = startTimer();
   const ctx: LogContext = { session_id: sessionId, user_id: userId };
@@ -109,6 +110,7 @@ export async function* processChat(
   // aborted turn can still see the calls that finished.
   const meter = new UsageMeter(llmConfig.provider, llmConfig.chatModel, ctx);
   const tracker = new CallTracker(llmConfig.maxContextTokens);
+  const budget = new TurnBudget(options.costBudget);
   // Set once the success path wrote its usage_events row.
   let ledgerWritten = false;
   // The turn's own signal: follows the caller's, and is aborted in `finally` so
@@ -175,6 +177,7 @@ export async function* processChat(
       userMessage,
       provider: llmConfig.provider,
       model: llmConfig.chatModel,
+      traceParent: options.traceParent,
       metadata: {
         effort: llmConfig.effort,
         context_version: transcriptTag.contextVersion,
@@ -237,6 +240,7 @@ export async function* processChat(
       if (loopIteration >= llmConfig.maxToolIterations) {
         throw new TurnError("max_tool_iterations", `Maximum tool iterations exceeded (${llmConfig.maxToolIterations})`);
       }
+      budget.check();
       loopIteration++;
       const iterElapsed = startTimer();
 
@@ -284,6 +288,7 @@ export async function* processChat(
         systemPrompt: SYSTEM_PROMPT,
       });
       tracker.finish(call);
+      budget.chargeCall(call.costPicoUsd);
       signals.finalFinishReason = finishReason;
       if (loopIteration === 1) {
         logger.info("CHAT", "first_call_cache_read", {
@@ -359,55 +364,20 @@ export async function* processChat(
     }
 
     const chatCost = meter.summary();
-
-    const assistantMsgId = uuidv4();
-    const usageEventId = uuidv4();
-    const usageDate = getUtcDate();
-    const usageMonth = getUtcMonth();
-
-    // Sync transaction on the shared connection: the *Queries calls below use the
-    // global `db`, so they run inside it without needing the `tx` handle.
-    db.transaction(() => {
-      // Store assistant message with accumulated token counts, cost, and reasoning.
-      messageQueries.create(
-        assistantMsgId,
-        sessionId,
-        "assistant",
-        persistedAssistantText,
-        allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
-        chatCost.inputTokens,
-        chatCost.outputTokens,
-        joinReasoning(reasoningBlocks) || null,
-        chatCost.costMicrousd
-      );
-
-      usageEventQueries.create({
-        id: usageEventId,
-        user_id: userId,
-        date: usageDate,
-        month: usageMonth,
-        operation: "chat",
-        provider: llmConfig.provider,
-        model: llmConfig.chatModel,
-        ...meter.ledgerFields(chatCost),
-        status: "ok",
-        session_id: sessionId,
-        message_id: assistantMsgId,
-        turn_id: turn.turnId,
-      });
-
-      chatTurnQueries.finish(turn.turnId, {
-        status: "ok",
-        iterations: loopIteration,
-        assistantMessageId: assistantMsgId,
-        lastPromptTokens: tracker.lastPromptTokens,
-        ...signals,
-      });
-
-      chatSessionQueries.touch(sessionId);
-      userQueries.incrementQueries(userId);
-      // Increment daily token totals (best-effort: done post-response; next request checks these)
-      dailyUsageQueries.incrementTokens(userId, chatCost.inputTokens, chatCost.outputTokens);
+    const assistantMsgId = recordOkTurn({
+      meter,
+      cost: chatCost,
+      userId,
+      sessionId,
+      turnId: turn.turnId,
+      provider: llmConfig.provider,
+      model: llmConfig.chatModel,
+      answer: persistedAssistantText,
+      reasoning: joinReasoning(reasoningBlocks) || null,
+      toolCalls: allToolCalls,
+      iterations: loopIteration,
+      lastPromptTokens: tracker.lastPromptTokens,
+      ...signals,
     });
     ledgerWritten = true;
     trace.end({
@@ -415,7 +385,7 @@ export async function* processChat(
       output: persistedAssistantText,
       metadata: { iterations: loopIteration, cost_usd: chatCost.costMicrousd / 1e6 },
     });
-    scoreTurn(turn.turnId, ctx);
+    scoreTurn(turn.turnId, ctx, trace.scoreObservationId);
 
     logger.info("CHAT", "process_complete", {
       ctx,
@@ -472,6 +442,8 @@ export async function* processChat(
         ctx,
         errorCode,
       });
+      // The cut-off estimate never passed the per-call charge.
+      budget.reconcile(meter.summary().costPicoUsd);
       const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
       if (turnId) {
         finishFailedTurn(
@@ -492,8 +464,9 @@ export async function* processChat(
         message: errorMessage,
         metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
         cutOffCall,
+        tags: errorCode === "budget_exceeded" ? ["budget_exceeded"] : undefined,
       });
-      if (turnId) scoreTurn(turnId, ctx);
+      if (turnId) scoreTurn(turnId, ctx, trace.scoreObservationId);
     }
     releaseLock?.();
     drained();

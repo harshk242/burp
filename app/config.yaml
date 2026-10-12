@@ -55,7 +55,7 @@ llm:
   max_output_tokens: 16000      # includes thinking tokens — env: LLM_MAX_OUTPUT_TOKENS
   max_context_tokens: 180000    # estimated input budget — env: LLM_MAX_CONTEXT_TOKENS
   thinking_display: summarized  # Anthropic adaptive thinking: omitted | summarized | updates
-  effort: medium                # Anthropic, required: low | medium | high | xhigh | max (API default is high)
+  effort: medium                # Anthropic, required: low | medium | high | xhigh | max (API default is high) — env: LLM_EFFORT
   max_tool_iterations: 20        # env: LLM_MAX_TOOL_ITERATIONS
 
 # ── Server ───────────────────────────────────────────────────

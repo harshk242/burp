@@ -1,7 +1,8 @@
 /**
  * Langfuse tracer setup: an isolated OpenTelemetry provider whose spans go to
- * Langfuse (nothing is registered globally), the shared LangfuseClient for
- * scores, and a bounded, idempotent shutdown that flushes both.
+ * Langfuse (nothing is registered globally unless `registerGlobal` asks for
+ * it), the shared LangfuseClient for scores, and a bounded, idempotent
+ * shutdown that flushes both.
  *
  * Tracing is on only when `observability.langfuse.enabled` is true and both
  * keys are set; otherwise `initTracing` does nothing and TurnTrace is a no-op.
@@ -9,12 +10,14 @@
 
 import { LangfuseClient } from "@langfuse/client";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
+import { context, trace } from "@opentelemetry/api";
 import { setLangfuseTracerProvider } from "@langfuse/tracing";
 import { defaultResource, resourceFromAttributes, type Resource } from "@opentelemetry/resources";
 import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { appConfig } from "../config";
 import { logger } from "../logger";
+import { loadScoreConfigIds } from "./score-configs";
 
 type Env = Record<string, string | undefined>;
 
@@ -61,8 +64,16 @@ export function tracingActive(): boolean {
  * Installs the Langfuse tracer provider. Returns whether tracing is on.
  * `spanProcessors` replaces the Langfuse exporter (tests use an in-memory one;
  * they turn tracing on regardless of keys). Safe to call more than once.
+ *
+ * `registerGlobal` (eval runner only) also registers the provider globally
+ * with an AsyncLocalStorage context manager, so code inside a Langfuse
+ * experiment task can read the task's active span (getActiveSpanId). The
+ * server never relies on async context (turn-trace.ts design rules).
+ *
+ * With the real exporter, score config ids are loaded in the background
+ * (`scoreConfigsReady`).
  */
-export function initTracing(options: { spanProcessors?: SpanProcessor[] } = {}): boolean {
+export function initTracing(options: { spanProcessors?: SpanProcessor[]; registerGlobal?: boolean } = {}): boolean {
   if (provider) return true;
   const custom = options.spanProcessors;
   if (!custom && !tracingConfigured()) {
@@ -76,8 +87,10 @@ export function initTracing(options: { spanProcessors?: SpanProcessor[] } = {}):
     const spanProcessors = custom ?? [new LangfuseSpanProcessor({ environment: tracingEnvironment, release })];
     provider = new NodeTracerProvider({ resource: tracingResource(release), spanProcessors });
     setLangfuseTracerProvider(provider);
+    if (options.registerGlobal) provider.register({ propagator: null });
     shutdownPromise = null;
     if (!custom) {
+      scoreConfigsLoad = loadScoreConfigIds(getScoreClient());
       logger.info("TRACE", "tracing_enabled", {
         data: { environment: tracingEnvironment, release, base_url: process.env.LANGFUSE_BASE_URL },
       });
@@ -88,6 +101,13 @@ export function initTracing(options: { spanProcessors?: SpanProcessor[] } = {}):
     provider = null;
     return false;
   }
+}
+
+let scoreConfigsLoad: Promise<void> = Promise.resolve();
+
+/** Resolves once the score config ids are loaded (or the load failed). Never rejects. */
+export function scoreConfigsReady(): Promise<void> {
+  return scoreConfigsLoad;
 }
 
 /** Shared client for scores (batched separately from spans); null when tracing is off. */
@@ -132,4 +152,6 @@ export function resetTracingForTests(): void {
   scoreClient = null;
   shutdownPromise = null;
   setLangfuseTracerProvider(null);
+  trace.disable();
+  context.disable();
 }

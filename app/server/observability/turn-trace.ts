@@ -6,6 +6,8 @@
  * Rules (plans/eval-pipeline-langfuse-plan.md, Phase 1a):
  * - The trace id is derived from the turn id (sha256, first 32 hex chars, the
  *   same as Langfuse's `createTraceId(turnId)`), so a turn row finds its trace.
+ *   With `traceParent` (eval runner) the turn root nests under that span
+ *   instead and shares its trace; the trace name is then left to the parent.
  * - No reliance on async context: every child is started from its parent and
  *   the trace attributes (session, user, name, tags) are stamped on each span.
  * - Tracing never breaks a turn: every method catches and logs. When tracing is
@@ -30,6 +32,14 @@ export interface TurnTraceStart {
   provider: string;
   model: string;
   metadata?: Record<string, unknown>;
+  /** Nest the turn under this span (same trace) instead of starting its own trace. */
+  traceParent?: TraceParent;
+}
+
+/** An existing span to nest a turn under. */
+export interface TraceParent {
+  traceId: string;
+  spanId: string;
 }
 
 export interface TurnTraceEnd {
@@ -41,6 +51,8 @@ export interface TurnTraceEnd {
   metadata?: Record<string, unknown>;
   /** Estimated usage of a call cut off mid-stream; goes on the generation still open. */
   cutOffCall?: CallCost;
+  /** Added to the trace tags on the root (e.g. `budget_exceeded`). */
+  tags?: string[];
 }
 
 export interface GenerationStart {
@@ -219,20 +231,27 @@ export class TurnTrace {
     private readonly root: LangfuseAgent | null,
     private readonly traceAttributes: Attributes,
     /** Null when tracing is off. */
-    readonly traceId: string | null
+    readonly traceId: string | null,
+    private readonly nested = false
   ) {}
 
   /** A trace that records nothing. */
   static readonly disabled = new TurnTrace(null, {}, null);
+
+  /** The turn's root observation id when it is nested in a larger trace (its scores go there); else null. */
+  get scoreObservationId(): string | null {
+    return this.nested && this.root ? this.root.id : null;
+  }
 
   static start(p: TurnTraceStart): TurnTrace {
     if (!tracingActive()) return TurnTrace.disabled;
     return safely(
       "trace_start_failed",
       () => {
-        const traceId = traceIdForTurn(p.turnId);
+        const parent = p.traceParent;
+        const traceId = parent?.traceId ?? traceIdForTurn(p.turnId);
         const traceAttributes: Attributes = {
-          [LangfuseOtelSpanAttributes.TRACE_NAME]: "chat-turn",
+          ...(parent ? {} : { [LangfuseOtelSpanAttributes.TRACE_NAME]: "chat-turn" }),
           [LangfuseOtelSpanAttributes.TRACE_SESSION_ID]: p.sessionId,
           [LangfuseOtelSpanAttributes.TRACE_USER_ID]: p.userId,
           [LangfuseOtelSpanAttributes.TRACE_TAGS]: [p.provider, p.model],
@@ -245,12 +264,12 @@ export class TurnTrace {
           },
           {
             asType: "agent",
-            // No real parent: a sampled remote context only carries the trace id.
-            parentSpanContext: { traceId, spanId: "0123456789abcdef", traceFlags: TraceFlags.SAMPLED, isRemote: true },
+            // Without a parent, a sampled remote context only carries the trace id.
+            parentSpanContext: { traceId, spanId: parent?.spanId ?? "0123456789abcdef", traceFlags: TraceFlags.SAMPLED, isRemote: true },
           }
         );
         root.otelSpan.setAttributes(traceAttributes);
-        return new TurnTrace(root, traceAttributes, traceId);
+        return new TurnTrace(root, traceAttributes, traceId, Boolean(parent));
       },
       TurnTrace.disabled
     );
@@ -313,6 +332,10 @@ export class TurnTrace {
     }
     const root = this.root;
     if (!root) return;
+    if (outcome.tags?.length) {
+      const tags = [...((this.traceAttributes[LangfuseOtelSpanAttributes.TRACE_TAGS] as string[] | undefined) ?? []), ...outcome.tags];
+      safely("trace_end_failed", () => root.otelSpan.setAttribute(LangfuseOtelSpanAttributes.TRACE_TAGS, tags), undefined);
+    }
     safely(
       "trace_end_failed",
       () =>
