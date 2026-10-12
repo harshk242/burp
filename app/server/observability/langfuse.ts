@@ -10,6 +10,7 @@
 import { LangfuseClient } from "@langfuse/client";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
 import { setLangfuseTracerProvider } from "@langfuse/tracing";
+import { defaultResource, resourceFromAttributes, type Resource } from "@opentelemetry/resources";
 import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { appConfig } from "../config";
@@ -40,6 +41,13 @@ function readGitShortSha(): string | undefined {
 
 export const tracingEnvironment = langfuseConfig.environment;
 
+export const SERVICE_NAME = "burp";
+
+/** OTel resource for every span; without it traces show `unknown_service:bun`. */
+export function tracingResource(release: string): Resource {
+  return defaultResource().merge(resourceFromAttributes({ "service.name": SERVICE_NAME, "service.version": release }));
+}
+
 let provider: NodeTracerProvider | null = null;
 let scoreClient: LangfuseClient | null = null;
 let shutdownPromise: Promise<void> | null = null;
@@ -66,7 +74,7 @@ export function initTracing(options: { spanProcessors?: SpanProcessor[] } = {}):
   try {
     const release = resolveRelease();
     const spanProcessors = custom ?? [new LangfuseSpanProcessor({ environment: tracingEnvironment, release })];
-    provider = new NodeTracerProvider({ spanProcessors });
+    provider = new NodeTracerProvider({ resource: tracingResource(release), spanProcessors });
     setLangfuseTracerProvider(provider);
     shutdownPromise = null;
     if (!custom) {

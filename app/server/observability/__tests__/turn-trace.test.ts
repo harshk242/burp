@@ -65,6 +65,8 @@ describe("TurnTrace", () => {
     expect(one(spans, "uniprot__search").attributes[TYPE]).toBe("tool");
     for (const span of spans) {
       expect(span.spanContext().traceId).toBe(trace.traceId!);
+      expect(span.resource.attributes["service.name"]).toBe("burp");
+      expect(span.resource.attributes["service.version"]).toEqual(expect.any(String));
       expect(span.attributes["session.id"]).toBe("session-1");
       expect(span.attributes["user.id"]).toBe("user-1");
       expect(span.attributes["langfuse.trace.name"]).toBe("chat-turn");
