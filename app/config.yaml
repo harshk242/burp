@@ -190,3 +190,13 @@ artifact:
       # Future: named, versioned jq transform sequences
       # profile_uniprot_gene_bridge_v1:
       #   - "..."
+
+# ── Observability ────────────────────────────────────────────
+# Langfuse tracing: one trace per chat turn. Keys stay in .env
+# (LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL); without them
+# tracing is a no-op. release = GIT_SHA env, else git short sha, else "unknown".
+observability:
+  langfuse:
+    enabled: true                 # env: LANGFUSE_ENABLED
+    environment: dev              # env: LANGFUSE_TRACING_ENVIRONMENT (dev | prod)
+    full_generation_input: false  # env: LANGFUSE_FULL_GENERATION_INPUT (debugging only)
