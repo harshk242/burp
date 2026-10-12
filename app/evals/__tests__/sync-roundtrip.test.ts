@@ -6,7 +6,8 @@
  * Pushes a probe item with awkward shapes (nulls, unicode, nested arrays, floats, empty
  * containers) to the `eval-sync-roundtrip` dataset, fetches it back, and checks the hash
  * recomputed from the fetched payload equals the local one. Catches any normalization
- * Langfuse applies. Idempotent: the item id is fixed.
+ * Langfuse applies. The probe item is deleted afterwards; the API cannot delete
+ * datasets, so the empty `eval-sync-roundtrip` dataset stays (delete it in the UI).
  */
 import { describe, expect, it } from "bun:test";
 import { contentHash } from "../lib/hash";
@@ -46,11 +47,15 @@ describe.skipIf(!enabled)("eval sync round-trip (live Langfuse)", () => {
     };
 
     await api.upsertItem(body);
-    const fetched = await api.getItem(body.id);
-    expect(fetched).not.toBeNull();
-    expect(fetched!.status).toBe("ACTIVE");
-    expect(fetched!.metadata?.content_hash).toBe(local);
-    expect(remoteContentHash(fetched!)).toBe(local);
+    try {
+      const fetched = await api.getItem(body.id);
+      expect(fetched).not.toBeNull();
+      expect(fetched!.status).toBe("ACTIVE");
+      expect(fetched!.metadata?.content_hash).toBe(local);
+      expect(remoteContentHash(fetched!)).toBe(local);
+    } finally {
+      await api.deleteItem(body.id);
+    }
   }, 30_000);
 
   it("synced smoke/deep items hash to their local content_hash", async () => {

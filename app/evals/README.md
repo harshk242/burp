@@ -95,5 +95,6 @@ Removing a whole dataset file does not archive its Langfuse items (sync only man
 exist in YAML); archive them in the UI.
 
 `EVAL_SYNC_ROUNDTRIP=1 bun test evals/__tests__/sync-roundtrip.test.ts` pushes a probe item to the
-`eval-sync-roundtrip` dataset, fetches it back and checks the recomputed hash still matches. Run it
-after Langfuse upgrades.
+`eval-sync-roundtrip` dataset, fetches it back, checks the recomputed hash still matches, then
+deletes the item. Run it after Langfuse upgrades. The API cannot delete datasets, so the empty
+`eval-sync-roundtrip` dataset stays; delete it in the UI if it bothers you.

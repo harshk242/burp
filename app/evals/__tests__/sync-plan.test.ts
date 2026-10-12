@@ -56,6 +56,9 @@ class FakeLangfuse implements LangfuseApi {
     this.items.set(body.id, item);
     return item;
   }
+  async deleteItem(id: string) {
+    this.items.delete(id);
+  }
 }
 
 const git: GitInfo = { sha: "abc1234", dirty: false };

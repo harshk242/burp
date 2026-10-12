@@ -62,6 +62,8 @@ export interface LangfuseApi {
   listItems(datasetName: string): Promise<RemoteDatasetItem[]>;
   getItem(id: string): Promise<RemoteDatasetItem | null>;
   upsertItem(body: DatasetItemBody): Promise<RemoteDatasetItem>;
+  /** Hard delete; only the round-trip test uses it. Sync archives, never deletes. */
+  deleteItem(id: string): Promise<void>;
 }
 
 export interface LangfuseApiOptions {
@@ -126,6 +128,9 @@ export function createLangfuseApi(opts: LangfuseApiOptions): LangfuseApi {
     listItems: (datasetName) => paginate<RemoteDatasetItem>("/api/public/dataset-items", { datasetName }),
     getItem: (id) => request<RemoteDatasetItem>("GET", `/api/public/dataset-items/${enc(id)}`, undefined, true),
     upsertItem: (body) => request<RemoteDatasetItem>("POST", "/api/public/dataset-items", body),
+    deleteItem: async (id) => {
+      await request("DELETE", `/api/public/dataset-items/${enc(id)}`, undefined, true);
+    },
   };
 }
 
