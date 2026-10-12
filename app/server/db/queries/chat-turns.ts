@@ -25,6 +25,11 @@ export function createChatTurnQueries(db: DrizzleDb) {
       db.insert(chatTurns).values({ id, session_id: sessionId, user_message_id: userMessageId }).run();
     },
 
+    /** Links the turn to its Langfuse trace. */
+    setTraceId(id: string, traceId: string): void {
+      db.update(chatTurns).set({ trace_id: traceId }).where(eq(chatTurns.id, id)).run();
+    },
+
     /**
      * Finalizes a running turn. A turn is finalized once: returns false (and
      * changes nothing) when it isn't `running` any more.

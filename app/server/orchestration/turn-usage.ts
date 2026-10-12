@@ -257,15 +257,19 @@ export interface FailedTurn {
  * token totals are incremented like a successful turn; the query counters are
  * not (the daily count was taken by the rate limiter when the turn started).
  *
- * Never throws: a failure here must not mask the turn's own error.
+ * Returns the estimate added for a cut-off call, if any (the turn's trace puts
+ * it on the cut-off generation). Never throws: a failure here must not mask
+ * the turn's own error.
  */
-export function recordFailedTurn(turn: FailedTurn): void {
+export function recordFailedTurn(turn: FailedTurn): CallCost | undefined {
   const { meter, ctx, errorCode } = turn;
+  let estimate: CallCost | undefined;
   try {
     // Anthropic turns request prompt caching (chat-v2), so new input may be cache-written.
     const cutOff = turn.tracker.estimateCutOffCall(turn.provider === "anthropic");
     if (cutOff) {
       const call = meter.add(cutOff.usage, { estimated: true });
+      estimate = call;
       logger.warn("CHAT", "usage_estimated", {
         ctx,
         data: {
@@ -278,7 +282,7 @@ export function recordFailedTurn(turn: FailedTurn): void {
         },
       });
     }
-    if (meter.callCount === 0) return;
+    if (meter.callCount === 0) return estimate;
 
     const cost = meter.summary();
     const usageEventId = uuidv4();
@@ -317,4 +321,5 @@ export function recordFailedTurn(turn: FailedTurn): void {
       data: { error_code: errorCode, llm_calls: meter.callCount },
     });
   }
+  return estimate;
 }

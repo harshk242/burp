@@ -39,6 +39,7 @@ function spawnServer(dbPath: string, actAs: string) {
       CLERK_SECRET_KEY: "",
       DEV_AGENT_TOKEN: TOKEN,
       DEV_AGENT_EMAIL: actAs,
+      LANGFUSE_ENABLED: "false", // never send test traces
     },
     stdout: "pipe",
     stderr: "pipe",

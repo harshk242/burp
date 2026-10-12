@@ -71,6 +71,13 @@
       "when": 1791667343918,
       "tag": "0009_chat_turns_last_prompt_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791770808158,
+      "tag": "0010_chat_turns_trace_id",
+      "breakpoints": true
     }
   ]
 }

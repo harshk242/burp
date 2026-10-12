@@ -112,6 +112,37 @@ export function acquireSessionLock(sessionId: string): (() => void) | null {
   };
 }
 
+// ── Active turns (graceful shutdown) ──────────────────────────────────────
+
+/** Running turns: each turn's abort controller and its drain (resolved when its `finally` ran). */
+const activeTurns = new Map<AbortController, Promise<void>>();
+
+/** Registers a running turn; call the returned function once the turn's cleanup finished. */
+export function registerActiveTurn(abort: AbortController): () => void {
+  let drained!: () => void;
+  activeTurns.set(abort, new Promise<void>((resolve) => (drained = resolve)));
+  return () => {
+    activeTurns.delete(abort);
+    drained();
+  };
+}
+
+/**
+ * Aborts every running turn and waits for their drains (failed-turn rows,
+ * trace end), bounded by `timeoutMs`. Returns how many were still running
+ * when the bound hit.
+ */
+export async function abortActiveTurns(timeoutMs: number): Promise<number> {
+  if (activeTurns.size === 0) return 0;
+  const drains = [...activeTurns.values()];
+  for (const abort of activeTurns.keys()) abort.abort(new Error("Server shutting down"));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<void>((resolve) => (timer = setTimeout(resolve, timeoutMs)));
+  await Promise.race([Promise.all(drains), timedOut]);
+  clearTimeout(timer);
+  return activeTurns.size;
+}
+
 // ── chat_turns row ────────────────────────────────────────────────────────
 
 /** Stores the user message and its turn (`running`) together; returns both ids. */
@@ -125,6 +156,16 @@ export function startTurn(sessionId: string, userMessage: string): { turnId: str
     chatTurnQueries.start(turnId, sessionId, userMessageId);
   });
   return { turnId, userMessageId };
+}
+
+/** Stores the turn's trace id. Never throws: tracing must not break a turn. */
+export function recordTraceId(turnId: string, traceId: string | null, ctx: LogContext): void {
+  if (!traceId) return;
+  try {
+    chatTurnQueries.setTraceId(turnId, traceId);
+  } catch (error) {
+    logger.warn("TRACE", "trace_id_write_failed", { ctx, error: error instanceof Error ? error : String(error) });
+  }
 }
 
 /**

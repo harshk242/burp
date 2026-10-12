@@ -10,6 +10,8 @@ import { createEmbedder, ToolEmbeddingSync } from "./embeddings";
 import { logger, startTimer, generateRequestId } from "./logger";
 import { appConfig } from "./config";
 import { redirectWwwToCanonical } from "./middleware/canonical-host";
+import { abortActiveTurns } from "./orchestration/chat-turn";
+import { initTracing, shutdownTracing } from "./observability/langfuse";
 import type { AppEnv } from "./types";
 
 // Apply pending migrations (adopting a legacy DB if needed) before listening.
@@ -92,22 +94,39 @@ initializeMCP().catch((error) => {
   logger.error("STARTUP", "mcp_init_failed", { error: error instanceof Error ? error : String(error) });
 });
 
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-  logger.info("SHUTDOWN", "sigterm_received");
-  embeddingSync?.stop();
-  await mcpManager.stopAll();
-  logger.flush();
-  process.exit(0);
-});
+// Langfuse tracing (observability/langfuse.ts); a no-op without keys.
+initTracing();
 
-process.on("SIGINT", async () => {
-  logger.info("SHUTDOWN", "sigint_received");
+// Graceful shutdown, shared by SIGTERM (Fly) and SIGINT. In-flight turns are
+// aborted and drained first (their cleanup ends the trace and writes the
+// failed-turn rows), then tracing is flushed alongside the MCP stop. The
+// bounds add up to 4.5 s, inside Fly's 5 s kill_timeout.
+const TURN_DRAIN_TIMEOUT_MS = 2000;
+const FLUSH_TIMEOUT_MS = 2500;
+let shuttingDown = false;
+
+async function shutdown(signal: "SIGTERM" | "SIGINT") {
+  logger.info("SHUTDOWN", `${signal.toLowerCase()}_received`);
+  if (shuttingDown) return; // a second signal changes nothing
+  shuttingDown = true;
   embeddingSync?.stop();
-  await mcpManager.stopAll();
+  const stillRunning = await abortActiveTurns(TURN_DRAIN_TIMEOUT_MS);
+  if (stillRunning > 0) logger.warn("SHUTDOWN", "turn_drain_timeout", { data: { turns: stillRunning } });
+  await Promise.all([
+    shutdownTracing({ timeoutMs: FLUSH_TIMEOUT_MS }),
+    Promise.race([
+      mcpManager.stopAll().catch((error) =>
+        logger.error("SHUTDOWN", "mcp_stop_failed", { error: error instanceof Error ? error : String(error) })
+      ),
+      Bun.sleep(FLUSH_TIMEOUT_MS),
+    ]),
+  ]);
   logger.flush();
   process.exit(0);
-});
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 const app = new Hono<AppEnv>();
 

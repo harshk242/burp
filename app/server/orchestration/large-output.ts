@@ -18,6 +18,14 @@ validatePolicies().then(({ valid, errors }) => {
   }
 });
 
+/** What the model gets for a tool output, and how it was produced (for the tool's trace span). */
+export interface LargeOutputResult {
+  output: string;
+  rawChars: number;
+  handling: "inline" | "truncated" | "noise_reduced" | "artifact";
+  artifactId?: string;
+}
+
 /**
  * ── Layer 3 of 3: Noise reduce, then artifact if still big (15K) ──
  *
@@ -43,11 +51,12 @@ export async function handleLargeOutput(
   rawOutput: string,
   sessionId: string,
   ctx: LogContext,
-): Promise<string> {
+): Promise<LargeOutputResult> {
   const cfg = appConfig.artifact;
+  const rawChars = rawOutput.length;
 
   // Small output: pass through unchanged
-  if (rawOutput.length <= cfg.inline_max_chars) return rawOutput;
+  if (rawChars <= cfg.inline_max_chars) return { output: rawOutput, rawChars, handling: "inline" };
 
   // Try to parse as JSON — non-JSON gets simple truncation
   // TODO: This truncation breaks structure for non-JSON text. Acceptable for
@@ -57,10 +66,10 @@ export async function handleLargeOutput(
   try {
     data = JSON.parse(rawOutput);
   } catch {
-    return (
+    const output =
       `[Output truncated from ${(rawOutput.length / 1024).toFixed(0)}KB — not valid JSON]\n` +
-      rawOutput.slice(0, cfg.inline_max_chars)
-    );
+      rawOutput.slice(0, cfg.inline_max_chars);
+    return { output, rawChars, handling: "truncated" };
   }
 
   // Tier 1: Noise reduction (deterministic, no LLM)
@@ -82,7 +91,7 @@ export async function handleLargeOutput(
   });
 
   // Under threshold after noise reduction: return directly
-  if (reducedStr.length <= cfg.inline_max_chars) return reducedStr;
+  if (reducedStr.length <= cfg.inline_max_chars) return { output: reducedStr, rawChars, handling: "noise_reduced" };
 
   // Tier 2: Store as artifact, return schema preview
   const artifactId = artifactStore.store(
@@ -110,5 +119,5 @@ export async function handleLargeOutput(
     },
   });
 
-  return JSON.stringify(preview);
+  return { output: JSON.stringify(preview), rawChars, handling: "artifact", artifactId };
 }

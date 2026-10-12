@@ -35,12 +35,16 @@ import {
   acquireSessionLock,
   classifyTurnError,
   finishFailedTurn,
+  recordTraceId,
+  registerActiveTurn,
   refusalError,
   startTurn,
   type TurnFailure,
 } from "./chat-turn";
 import { joinReasoning } from "./reasoning";
 import { streamModelCall } from "./model-call";
+import { langfuseConfig } from "../observability/langfuse";
+import { TurnTrace } from "../observability/turn-trace";
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
@@ -53,6 +57,12 @@ const transcriptTag: TranscriptTag = {
   provider: llmConfig.provider,
   model: llmConfig.chatModel,
   contextVersion: contextVersion(SYSTEM_PROMPT, providerOptions),
+};
+// modelParameters of every llm-call generation in the trace.
+const generationParameters = {
+  effort: llmConfig.effort,
+  max_output_tokens: llmConfig.maxOutputTokens,
+  thinking_display: llmConfig.thinkingDisplay,
 };
 
 // ── Main Chat Loop ─────────────────────────────────────────────────────────
@@ -104,10 +114,14 @@ export async function* processChat(
   // an early return() by the consumer also cancels the in-flight LLM/tool call.
   const turnAbort = new AbortController();
   const turnSignal = signal ? AbortSignal.any([signal, turnAbort.signal]) : turnAbort.signal;
+  // Shutdown aborts the turn through turnAbort and waits for this `finally`.
+  const drained = registerActiveTurn(turnAbort);
   // How the turn failed; unset if the consumer stopped iterating early ("closed").
   let failure: TurnFailure | undefined;
   // Set once the turn's chat_turns row exists.
   let turnId: string | null = null;
+  // The turn's Langfuse trace (observability/turn-trace.ts); a no-op until the turn starts.
+  let trace = TurnTrace.disabled;
   let loopIteration = 0;
   let releaseLock: (() => void) | null = null;
 
@@ -151,6 +165,23 @@ export async function* processChat(
     turnId = turn.turnId;
     ctx.turn_id = turnId;
     logger.info("CHAT", "turn_started", { ctx, data: { turn_id: turnId, turn_gap_seconds: turnGapSeconds } });
+    trace = TurnTrace.start({
+      turnId,
+      sessionId,
+      userId,
+      userMessage,
+      provider: llmConfig.provider,
+      model: llmConfig.chatModel,
+      metadata: {
+        effort: llmConfig.effort,
+        context_version: transcriptTag.contextVersion,
+        turn_gap_seconds: turnGapSeconds,
+        replayed_messages: messages.length,
+      },
+    });
+    recordTraceId(turnId, trace.traceId, ctx);
+    // Generations carry the messages added since the previous call (delta).
+    let tracedUpTo = messages.length;
 
     // Adds messages to what the next call sends and to the transcript, so
     // what is stored is exactly what was sent.
@@ -182,6 +213,7 @@ export async function* processChat(
         provider: llmConfig.provider,
       },
     });
+    trace.setMetadata({ loaded_tools: Object.keys(activeTools).length - deferredCount, deferred_tools: deferredCount });
 
     let continueLoop = true;
     let persistedAssistantText = ""; // final response text only (last iteration)
@@ -219,6 +251,14 @@ export async function* processChat(
       // SSE events, search activation, and output compression.
       const declarationTools = toDeclarations(activeTools);
       const callLastIndex = messages.length - 1;
+      const gen = trace.generation({
+        iteration: loopIteration,
+        model: llmConfig.chatModel,
+        input: langfuseConfig.full_generation_input ? messages : messages.slice(tracedUpTo),
+        modelParameters: generationParameters,
+        metadata: { message_count: messages.length, active_tools: Object.keys(activeTools).length },
+      });
+      tracedUpTo = messages.length;
       const { text: callText, segments: callSegments, finishReason, rawFinishReason, toolCalls, finalStep } =
         yield* streamModelCall({
           iteration: loopIteration,
@@ -229,6 +269,7 @@ export async function* processChat(
           tools: declarationTools,
           tracker,
           signal: turnSignal,
+          onFirstChunk: () => gen.firstChunk(),
         });
 
       const call = meter.record(finalStep.usage, finalStep.providerMetadata, {
@@ -245,6 +286,7 @@ export async function* processChat(
           ctx,
           data: { first_call_cache_read: call.cacheReadTokens, turn_gap_seconds: turnGapSeconds },
         });
+        trace.setMetadata({ first_call_cache_read: call.cacheReadTokens });
       }
       // The SDK's response messages as returned: they keep provider metadata
       // (thinking signatures, redacted thinking, Gemini thought signatures)
@@ -254,9 +296,20 @@ export async function* processChat(
       send(...finalStep.response.messages.filter((msg) => msg.role !== "tool"));
       // A safety refusal: billed (metered above), never saved as an answer.
       // Its response message stays in the transcript (failed turns aren't replayed).
+      const traced = {
+        call,
+        finishReason,
+        rawFinishReason,
+        text: callText,
+        reasoning: joinReasoning(callSegments.filter((seg) => seg.thinking).map((seg) => seg.text)),
+        toolCalls: (toolCalls ?? []).map((tc) => ({ name: tc.toolName, input: tc.input })),
+      };
       if (finishReason === "content-filter") {
-        throw refusalError(rawFinishReason, finalStep.providerMetadata);
+        const refusal = refusalError(rawFinishReason, finalStep.providerMetadata);
+        gen.fail(traced, refusal.message);
+        throw refusal;
       }
+      gen.finish(traced);
       previousLastIndex = callLastIndex;
       const isToolCall = finishReason === "tool-calls" && toolCalls && toolCalls.length > 0;
       // Stored reasoning: this call's thinking, plus its text when the text is
@@ -279,6 +332,7 @@ export async function* processChat(
           activeTools,
           ctx,
           signal: turnSignal,
+          trace,
         };
 
         for (const tc of toolCalls) {
@@ -350,6 +404,11 @@ export async function* processChat(
       dailyUsageQueries.incrementTokens(userId, chatCost.inputTokens, chatCost.outputTokens);
     });
     ledgerWritten = true;
+    trace.end({
+      status: "ok",
+      output: persistedAssistantText,
+      metadata: { iterations: loopIteration, cost_usd: chatCost.costMicrousd / 1e6 },
+    });
 
     logger.info("CHAT", "process_complete", {
       ctx,
@@ -373,8 +432,9 @@ export async function* processChat(
     yield { type: "usage", data: { inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens } };
   } catch (error) {
     if (turnSignal.aborted) {
-      // Client is gone: nothing to stream an error to.
-      failure = { code: "aborted", message: "Client disconnected", userMessage: "" };
+      // Client is gone (or the server is shutting down): nothing to stream an error to.
+      const message = turnAbort.signal.aborted ? "Server shutting down" : "Client disconnected";
+      failure = { code: "aborted", message, userMessage: "" };
       logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed(), data: { error_code: failure.code } });
       return;
     }
@@ -394,7 +454,7 @@ export async function* processChat(
     if (!ledgerWritten) {
       turnAbort.abort();
       const errorCode = failure?.code ?? "closed";
-      recordFailedTurn({
+      const cutOffCall = recordFailedTurn({
         meter,
         tracker,
         userId,
@@ -405,19 +465,28 @@ export async function* processChat(
         ctx,
         errorCode,
       });
+      const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
       if (turnId) {
         finishFailedTurn(
           turnId,
           {
             status: errorCode === "aborted" || errorCode === "closed" ? "aborted" : "error",
             errorCode,
-            errorMessage: failure?.message ?? "Consumer stopped reading before the turn finished",
+            errorMessage,
             iterations: loopIteration,
           },
           ctx
         );
       }
+      trace.end({
+        status: errorCode === "aborted" || errorCode === "closed" ? errorCode : "error",
+        errorCode,
+        message: errorMessage,
+        metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
+        cutOffCall,
+      });
     }
     releaseLock?.();
+    drained();
   }
 }

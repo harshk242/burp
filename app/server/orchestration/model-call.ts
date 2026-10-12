@@ -14,6 +14,9 @@ import type { StreamEvent } from "./types";
 
 type StreamResult = ReturnType<typeof streamText<ToolSet>>;
 
+/** Stream parts that mean the model started answering (completionStartTime). */
+const FIRST_CHUNK_PARTS = new Set<string>(["text-delta", "reasoning-delta", "tool-input-start", "tool-call"]);
+
 /** A stretch of the call's output in stream order: thinking or text. */
 export interface CallSegment {
   thinking: boolean;
@@ -31,6 +34,8 @@ export interface ModelCallRequest {
   tools: ToolSet;
   tracker: CallTracker;
   signal: AbortSignal;
+  /** Called once, on the first streamed output (text, thinking or a tool call). */
+  onFirstChunk?: () => void;
 }
 
 export interface ModelCallResult {
@@ -82,7 +87,12 @@ export async function* streamModelCall(req: ModelCallRequest): AsyncGenerator<St
   const segments: CallSegment[] = [];
   let text = "";
   let thinkingStarted = false;
+  let firstChunk = req.onFirstChunk;
   for await (const part of result.stream) {
+    if (firstChunk && FIRST_CHUNK_PARTS.has(part.type)) {
+      firstChunk();
+      firstChunk = undefined;
+    }
     if (part.type === "text-delta") {
       text += part.text;
       const last = segments.at(-1);
