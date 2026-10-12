@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { v4 as uuidv4 } from "uuid";
-import { chatSessionQueries, messageQueries } from "../db";
+import { chatSessionQueries, messageFeedbackQueries, messageQueries } from "../db";
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import {
   CreateSessionSchema,
@@ -219,11 +219,13 @@ sessions.openapi(getSessionRoute, async (c) => {
     }
 
     const messages = messageQueries.findByChatId(id);
+    const feedback = messageFeedbackQueries.findForSession(id, userId);
 
-    // Parse tool_calls JSON string for each message
+    // Parse tool_calls JSON string for each message; attach the user's feedback to assistant messages
     const parsedMessages = messages.map((msg) => ({
       ...msg,
       tool_calls: msg.tool_calls ? JSON.parse(msg.tool_calls) : null,
+      ...(msg.role === "assistant" ? { feedback: feedback.get(msg.id) ?? null } : {}),
     }));
 
     return c.json({ session, messages: parsedMessages }, 200);

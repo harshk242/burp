@@ -111,6 +111,21 @@ export const ToolCallSchema = z.object({
   error: z.string().optional(),
 });
 
+// 👍 = 1, 👎 = 0. The client never sees trace or score ids.
+export const FeedbackSchema = z.object({
+  value: z.union([z.literal(0), z.literal(1)]).openapi({ example: 1 }),
+  comment: z.string().nullable().openapi({ example: null }),
+});
+
+export const FeedbackRequestSchema = z.object({
+  value: z.union([z.literal(0), z.literal(1)]).openapi({ example: 0 }),
+  comment: z.string().max(2000).nullable().optional().openapi({ example: "Cited the wrong variant" }),
+});
+
+export const FeedbackResponseSchema = z.object({
+  feedback: FeedbackSchema.nullable(),
+});
+
 export const MessageSchema2 = z.object({
   id: z.string().uuid(),
   chat_id: z.string().uuid(),
@@ -125,6 +140,8 @@ export const MessageSchema2 = z.object({
   reasoning: z.string().nullable().default(null).openapi({ example: null }),
   // Main chat model cost charged for this assistant response
   cost_microusd: z.number().int().default(0).openapi({ example: 1200 }),
+  // The current user's feedback (assistant messages, session history only)
+  feedback: FeedbackSchema.nullable().optional(),
 });
 
 export const UsageEventSchema = z.object({
