@@ -1,13 +1,14 @@
 /**
  * Chat Orchestration v2 — Model-Agnostic via Vercel AI SDK
  *
- * Owns the model loop, the SSE event stream and DB persistence. Tool dispatch,
- * large-output handling and the system prompt live in their own modules.
+ * Owns the model loop, the SSE event stream and DB persistence. Each LLM call
+ * (model-call.ts), tool dispatch, large-output handling and the system prompt
+ * live in their own modules.
  */
 
-import { streamText, wrapLanguageModel, type ModelMessage, type ToolResultPart } from "ai";
+import type { ModelMessage, ToolResultPart } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { chatProviderOptions, getChatModel, loadLLMConfig, sanitizeToolName } from "../llm";
+import { chatProviderOptions, loadLLMConfig, sanitizeToolName } from "../llm";
 import {
   db,
   messageQueries,
@@ -34,12 +35,12 @@ import {
   acquireSessionLock,
   classifyTurnError,
   finishFailedTurn,
-  providerError,
   refusalError,
   startTurn,
   type TurnFailure,
 } from "./chat-turn";
 import { joinReasoning } from "./reasoning";
+import { streamModelCall } from "./model-call";
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
@@ -183,7 +184,6 @@ export async function* processChat(
     });
 
     let continueLoop = true;
-    let fullAssistantContent = "";
     let persistedAssistantText = ""; // final response text only (last iteration)
     const reasoningBlocks: string[] = []; // thinking (all iterations) + pre-tool-call text (non-final iterations)
     const allToolCalls: ToolCallRecord[] = [];
@@ -218,75 +218,18 @@ export async function* processChat(
       // Strip execute functions — we handle execution manually for
       // SSE events, search activation, and output compression.
       const declarationTools = toDeclarations(activeTools);
-
-      // A provider error part does not make the stream throw: the SDK emits an
-      // error part, hands it to onError and finishes the step with finishReason "error".
-      let streamError: unknown;
-      tracker.begin(loopIteration);
       const callLastIndex = messages.length - 1;
-      const result = streamText({
-        model: wrapLanguageModel({
-          model: getChatModel({ fetch: tracker.fetch }) as Parameters<typeof wrapLanguageModel>[0]["model"],
-          middleware: {
-            specificationVersion: "v4",
-            wrapStream: async ({ doStream }) => {
-              tracker.assertContextBudget();
-              return doStream();
-            },
-          },
-        }),
-        instructions,
-        messages: caching ? applyCacheMarkers(messages, previousLastIndex) : messages,
-        tools: declarationTools,
-        maxRetries: llmConfig.maxRetries,
-        maxOutputTokens: llmConfig.maxOutputTokens,
-        providerOptions,
-        abortSignal: turnSignal,
-        onLanguageModelCallStart: tracker.onRequest,
-        onChunk: tracker.onChunk,
-        onError: ({ error }) => {
-          streamError ??= error;
-        },
-      });
-
-      // Stream text and thinking. Thinking (summarized on Anthropic) is sent as
-      // `reasoning` events; the first delta of each thinking block carries
-      // `newBlock`. Segments keep this call's thinking and text in stream order.
-      const callSegments: { thinking: boolean; text: string }[] = [];
-      let thinkingStarted = false;
-      for await (const part of result.stream) {
-        if (part.type === "text-delta") {
-          fullAssistantContent += part.text;
-          const last = callSegments.at(-1);
-          if (last && !last.thinking) last.text += part.text;
-          else if (part.text) callSegments.push({ thinking: false, text: part.text });
-          yield { type: "text", data: part.text };
-        } else if (part.type === "reasoning-start") {
-          thinkingStarted = true;
-        } else if (part.type === "reasoning-delta" && part.text) {
-          const newBlock = thinkingStarted || callSegments.at(-1)?.thinking !== true;
-          thinkingStarted = false;
-          if (newBlock) callSegments.push({ thinking: true, text: part.text });
-          else callSegments.at(-1)!.text += part.text;
-          yield { type: "reasoning", data: { text: part.text, newBlock } };
-        } else if (part.type === "error") {
-          streamError ??= part.error;
-        }
-      }
-      // An abort can end the text stream without an error; stop before
-      // reading the step's results.
-      turnSignal.throwIfAborted();
-      // A failed call has no valid final usage: throw before metering it, so
-      // the tracker keeps it in flight and the turn records it as an estimate.
-      // Checked before awaiting the results, which would reject with a generic
-      // NoOutputGeneratedError when the call produced nothing.
-      if (streamError !== undefined) throw streamError instanceof TurnError ? streamError : providerError(streamError);
-
-      // Await the promise-based properties
-      const finishReason = await result.finishReason;
-      if (finishReason === "error") throw providerError(`LLM call ${loopIteration} finished with an error`);
-      const toolCalls = await result.toolCalls;
-      const finalStep = await result.finalStep;
+      const { text: callText, segments: callSegments, finishReason, rawFinishReason, toolCalls, finalStep } =
+        yield* streamModelCall({
+          iteration: loopIteration,
+          llmConfig,
+          providerOptions,
+          instructions,
+          messages: caching ? applyCacheMarkers(messages, previousLastIndex) : messages,
+          tools: declarationTools,
+          tracker,
+          signal: turnSignal,
+        });
 
       const call = meter.record(finalStep.usage, finalStep.providerMetadata, {
         iteration: loopIteration,
@@ -312,7 +255,7 @@ export async function* processChat(
       // A safety refusal: billed (metered above), never saved as an answer.
       // Its response message stays in the transcript (failed turns aren't replayed).
       if (finishReason === "content-filter") {
-        throw refusalError(await result.rawFinishReason, finalStep.providerMetadata);
+        throw refusalError(rawFinishReason, finalStep.providerMetadata);
       }
       previousLastIndex = callLastIndex;
       const isToolCall = finishReason === "tool-calls" && toolCalls && toolCalls.length > 0;
@@ -324,11 +267,9 @@ export async function* processChat(
 
       if (isToolCall) {
         // This iteration's text is reasoning (pre-tool-call); signal the client to reclassify it.
-        if (fullAssistantContent) {
+        if (callText) {
           yield { type: "text_block_end", data: { isReasoning: true } };
         }
-        // Reset text for next iteration (already streamed via SSE)
-        fullAssistantContent = "";
 
         const toolResultParts: ToolResultPart[] = [];
         const dispatch: DispatchContext = {
@@ -351,8 +292,8 @@ export async function* processChat(
         send({ role: "tool", content: toolResultParts });
       } else {
         // Final iteration — this text is the actual response.
-        if (fullAssistantContent) {
-          persistedAssistantText = fullAssistantContent;
+        if (callText) {
+          persistedAssistantText = callText;
         }
         continueLoop = false;
       }
