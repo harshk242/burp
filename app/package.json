@@ -16,6 +16,7 @@
     "generate:embeddings": "bun run scripts/generate-tool-embeddings.ts",
     "gate:prompt-cache": "DATABASE_URL=:memory: bun scripts/prompt-cache-gate/phase0-gate.ts",
     "eval:sync": "bun run evals/sync.ts",
+    "eval": "bun run evals/run.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

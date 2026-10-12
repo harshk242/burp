@@ -78,8 +78,8 @@ export function itemBody(datasetName: string, item: DatasetItem): DatasetItemBod
 }
 
 /** Hash recomputed from a fetched item's payload; never trusts the stored content_hash. */
-export function remoteContentHash(item: RemoteDatasetItem): string {
-  return contentHash({ input: item.input, expected_output: item.expectedOutput, metadata: item.metadata });
+export function remoteContentHash(item: { input?: unknown; expectedOutput?: unknown; metadata?: unknown }): string {
+  return contentHash({ input: item.input, expected_output: item.expectedOutput, metadata: item.metadata as Record<string, unknown> | null });
 }
 
 export function localDatasetHash(dataset: LoadedDataset["dataset"]): string {

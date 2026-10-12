@@ -13,6 +13,7 @@
     "generate:embeddings": "bun run --filter burp generate:embeddings",
     "gate:prompt-cache": "bun run --filter burp gate:prompt-cache",
     "eval:sync": "bun run --filter burp eval:sync",
+    "eval": "bun run --filter burp eval",
     "test": "bun run --filter bio-mcp-unified test && bun run --filter burp test",
     "test:contracts": "bun run --filter bio-mcp-unified test:contracts"
   },

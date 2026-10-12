@@ -6,7 +6,7 @@ Langfuse, which holds traces, experiment runs and scores. Design: `plans/eval-pi
 ## The loop
 
 1. **Trace** every chat turn (dev and prod) to Langfuse.
-2. **Run** a dataset as an experiment (Phase 2: `bun run eval --dataset smoke`), score it with the code
+2. **Run** a dataset as an experiment (`bun run eval --dataset smoke`), score it with the code
    evaluators named in `metrics.yaml`, and compare runs in Langfuse.
 3. **Analyze** failing and flagged traces; record failure modes in `failure-modes.md` (Phase 4).
 4. **Grow** the datasets from real traces and add metrics, rubrics or calibrated judges for the modes
@@ -26,6 +26,12 @@ Langfuse, which holds traces, experiment runs and scores. Design: `plans/eval-pi
 | `lib/load.ts` | YAML → validated objects; fails with `file:line:col` errors |
 | `lib/hash.ts` | Canonical JSON + `content_hash` / `dataset_hash` (shared with the Phase 2 runner) |
 | `lib/plan.ts`, `lib/langfuse-api.ts`, `sync.ts` | Git → Langfuse sync |
+| `run.ts`, `lib/runner.ts` | Experiment runner (`bun run eval`) |
+| `lib/task.ts`, `lib/task-output.ts` | Item task: drains each turn through `processChat`; output from persisted rows |
+| `lib/verify-dataset.ts` | Pinned dataset check against the local YAML (recomputed hashes, active ids) |
+| `lib/lifecycle.ts` | Signal-safe cleanup: stop → abort → drain → flush tracing → stop MCP |
+| `lib/aggregate.ts`, `lib/report.ts` | Run aggregates, pass/fail over reviewed items, repeat variance |
+| `evaluators/` | Code evaluators: pure `(taskOutput, item)` functions, fixture-tested |
 
 ## Add a dataset item
 
@@ -73,6 +79,37 @@ changes are reported but not pushed.
 Copy `rubrics/id-grounding.md`: definition, scale, pass bar, at least one pass and one fail example,
 known limits. Reference it from the metric as `rubric: rubrics/<name>.md`; the schema test checks the
 file exists.
+
+## Run an experiment
+
+```sh
+bun run eval --dataset smoke                         # all active items
+bun run eval --dataset smoke --items brca1-uniprot-lookup --max-cost-usd 0.5
+LLM_EFFORT=high bun run eval --dataset smoke --name effort-high
+bun run eval --dataset smoke --repeat 2              # 2 linked experiments + variance report
+bun run eval --help
+```
+
+Each invocation gets its own DB (`app/tmp/evals/<run-id>.db`, kept for inspection) and boots tools
+through the production path (`server/boot/tools.ts`). It refuses to start when:
+- the hosted dataset drifted from the YAML (a UI edit, an extra or missing item, an unsynced change):
+  hashes are recomputed from the fetched payloads; run `bun run eval:sync --apply`, or reproduce a
+  past run with `--dataset-version <ts>`;
+- tool search isn't indexed or the probe search (`"clinvar variant"`) finds nothing.
+
+Every item runs in a fresh session; each turn's trace nests under the experiment item span. The code
+evaluators score each item (`id_grounding`, `checkpoint_recall`, `expected_tool_coverage`,
+`turn_outcome`, `answer_truncated`, `tool_error_count`), each score referencing its config; the run
+gets `avg_*` means, `ok_rate`, cost, p50/p95 latency and failure counts. Items with
+`reviewed_by: null` run and are scored but don't count toward pass/fail.
+
+`--max-cost-usd` is one budget for all items and repeats, checked before every model call. Calls
+already streaming finish, so the cap can be overshot by about one model call per concurrent item.
+Items it stops are `skipped_budget` and get no scores. Experiment names are
+`<dataset>-<git sha>-<model>[-note][-rN]`; metadata records model, effort, context version, git SHA
+and dirty flag, dataset version and hash, evaluator/metric/rubric hashes and the search mode. Ctrl-C
+aborts running turns and waits (≤ 30 s) for them to record before flushing; a second Ctrl-C exits
+at once.
 
 ## Validate and sync
 
