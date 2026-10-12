@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
-import { DB_PATH, MigrationFkError, runMigrations, sqlite } from "./db";
+import { DB_PATH, MigrationFkError, messageFeedbackQueries, runMigrations, sqlite } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
 import { initializeTools } from "./boot/tools";
@@ -9,7 +9,9 @@ import { logger, startTimer, generateRequestId } from "./logger";
 import { appConfig } from "./config";
 import { redirectWwwToCanonical } from "./middleware/canonical-host";
 import { abortActiveTurns } from "./orchestration/chat-turn";
-import { initTracing, shutdownTracing } from "./observability/langfuse";
+import { initTracing, shutdownTracing, tracingEnvironment } from "./observability/langfuse";
+import { startFeedbackSync, stopFeedbackSync } from "./observability/feedback-sync";
+import { scoreWriterFromEnv } from "./observability/score-writer";
 import type { AppEnv } from "./types";
 
 // Apply pending migrations (adopting a legacy DB if needed) before listening.
@@ -35,8 +37,13 @@ tools.ready.catch((error) => {
   logger.error("STARTUP", "mcp_init_failed", { error: error instanceof Error ? error : String(error) });
 });
 
-// Langfuse tracing (observability/langfuse.ts); a no-op without keys.
-initTracing();
+// Langfuse tracing (observability/langfuse.ts); a no-op without keys. While
+// it is on, 👍/👎 feedback syncs to Langfuse and pending rows are reconciled
+// now and every 5 min (observability/feedback-sync.ts).
+if (initTracing()) {
+  const writer = scoreWriterFromEnv();
+  if (writer) startFeedbackSync({ queries: messageFeedbackQueries, writer, environment: tracingEnvironment });
+}
 
 // Graceful shutdown, shared by SIGTERM (Fly) and SIGINT. In-flight turns are
 // aborted and drained first (their cleanup ends the trace and writes the
@@ -51,6 +58,7 @@ async function shutdown(signal: "SIGTERM" | "SIGINT") {
   if (shuttingDown) return; // a second signal changes nothing
   shuttingDown = true;
   tools.embeddingSync?.stop();
+  stopFeedbackSync(); // pending rows stay pending; the next boot reconciles them
   const stillRunning = await abortActiveTurns(TURN_DRAIN_TIMEOUT_MS);
   if (stillRunning > 0) logger.warn("SHUTDOWN", "turn_drain_timeout", { data: { turns: stillRunning } });
   await Promise.all([
