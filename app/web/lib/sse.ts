@@ -202,9 +202,12 @@ function handleSSEEvent(
       break;
     }
 
-    case "done":
-      store.finalizeAssistantMessage();
+    case "done": {
+      // The server's id for the saved assistant message (feedback is keyed by it).
+      const { messageId } = (data ?? {}) as { messageId?: unknown };
+      store.finalizeAssistantMessage(typeof messageId === "string" ? messageId : undefined);
       break;
+    }
 
     case "usage": {
       // Arrives after "done" — finalizeAssistantMessage() has already committed

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Message, ToolCall } from "@/types";
+import type { Feedback, Message, ToolCall } from "@/types";
 import { generateId } from "@/lib/id";
 import { joinReasoning } from "@/lib/reasoning";
 
@@ -38,7 +38,13 @@ interface ChatState {
    * of a thinking block) starts a new segment; otherwise it extends the last one.
    */
   appendReasoning: (chunk: string, newBlock: boolean) => void;
-  finalizeAssistantMessage: () => void;
+  /**
+   * Commits the streamed turn as an assistant message. `messageId` (from the
+   * done event) is the server's id; without it the message can't take feedback.
+   */
+  finalizeAssistantMessage: (messageId?: string) => void;
+  /** Sets (or clears, with null) the user's feedback on a message. */
+  setFeedback: (messageId: string, feedback: Feedback | null) => void;
   /**
    * Patches tokenUsage onto the last assistant message in state.messages.
    * Must only be called AFTER finalizeAssistantMessage() (triggered by the
@@ -125,7 +131,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { reasoningSegments: [...segments, chunk], textRunOpen: false };
     }),
 
-  finalizeAssistantMessage: () => {
+  finalizeAssistantMessage: (messageId) => {
     const { streamingContent, pendingToolCalls, reasoningSegments } = get();
     if (streamingContent || pendingToolCalls.length > 0 || reasoningSegments.length > 0) {
       const reasoning = joinReasoning(reasoningSegments) || undefined;
@@ -133,7 +139,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: [
           ...state.messages,
           {
-            id: generateId(),
+            id: messageId ?? generateId(),
+            persisted: messageId !== undefined,
             role: "assistant",
             content: streamingContent,
             toolCalls: pendingToolCalls.length > 0 ? pendingToolCalls : undefined,
@@ -150,6 +157,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
     }
   },
+
+  setFeedback: (messageId, feedback) =>
+    set((state) => ({
+      messages: state.messages.map((m) => (m.id === messageId ? { ...m, feedback } : m)),
+    })),
 
   setLastMessageTokens: (input, output) =>
     set((state) => {

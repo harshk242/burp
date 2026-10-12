@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { useChatStore } from "../chatStore";
+import type { Message } from "@/types";
 
 const store = () => useChatStore.getState();
 
@@ -93,5 +94,51 @@ describe("chatStore reasoning", () => {
     store().appendStreamingContent("Plain");
     store().finalizeAssistantMessage();
     expect(store().messages[0]?.reasoning).toBeUndefined();
+  });
+});
+
+describe("chatStore feedback", () => {
+  const assistant = (id: string, extra: Partial<Message> = {}): Message => ({
+    id,
+    role: "assistant",
+    content: "answer",
+    createdAt: 1,
+    persisted: true,
+    ...extra,
+  });
+
+  it("finalizes under the server's message id so feedback can target it", () => {
+    store().appendStreamingContent("Answer");
+    store().finalizeAssistantMessage("srv-1");
+    expect(store().messages[0]).toMatchObject({ id: "srv-1", persisted: true });
+  });
+
+  it("marks a message finalized without a server id as not persisted", () => {
+    store().appendStreamingContent("Answer");
+    store().finalizeAssistantMessage();
+    expect(store().messages[0]?.persisted).toBe(false);
+    expect(store().messages[0]?.id).toBeTruthy();
+  });
+
+  it("sets, replaces and clears feedback on the target message only", () => {
+    store().setMessages([assistant("a"), assistant("b", { feedback: { value: 1, comment: null } })]);
+    store().setFeedback("a", { value: 0, comment: "wrong gene" });
+    expect(store().messages.map((m) => m.feedback)).toEqual([
+      { value: 0, comment: "wrong gene" },
+      { value: 1, comment: null },
+    ]);
+    store().setFeedback("a", { value: 1, comment: null });
+    expect(store().messages[0]?.feedback).toEqual({ value: 1, comment: null });
+    store().setFeedback("b", null);
+    expect(store().messages[1]?.feedback).toBeNull();
+  });
+
+  it("keeps loaded feedback until the session is reset", () => {
+    store().setMessages([assistant("a", { feedback: { value: 0, comment: null } })]);
+    store().appendStreamingContent("next");
+    store().finalizeAssistantMessage("b");
+    expect(store().messages[0]?.feedback).toEqual({ value: 0, comment: null });
+    store().reset();
+    expect(store().messages).toEqual([]);
   });
 });

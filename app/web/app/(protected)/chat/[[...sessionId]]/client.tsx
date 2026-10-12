@@ -146,6 +146,8 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
             tokenUsage,
             // Load reasoning from DB column (null/undefined → omit field)
             reasoning: msg.reasoning || undefined,
+            persisted: true,
+            feedback: msg.feedback ?? null,
           };
         });
 

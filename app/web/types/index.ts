@@ -47,7 +47,14 @@ export interface ToolCall {
   status: "pending" | "running" | "complete" | "error";
 }
 
+/** 👍 = 1, 👎 = 0 on an assistant message (the current user's) */
+export interface Feedback {
+  value: 0 | 1;
+  comment: string | null;
+}
+
 export interface Message {
+  /** Server message id when `persisted`, else a client-only id */
   id: string;
   role: "user" | "assistant";
   content: string;
@@ -57,6 +64,10 @@ export interface Message {
   tokenUsage?: { input: number; output: number };
   /** Pre-tool-call reasoning text (separate from final response) */
   reasoning?: string;
+  /** Saved on the server under `id` (loaded from history or confirmed by the done event); feedback needs it */
+  persisted?: boolean;
+  /** The user's feedback (assistant messages) */
+  feedback?: Feedback | null;
 }
 
 export interface DbMessage {
@@ -73,6 +84,8 @@ export interface DbMessage {
   cost_microusd?: number;
   /** Pre-tool-call reasoning text stored separately to avoid model context contamination */
   reasoning?: string | null;
+  /** The current user's feedback (assistant messages only) */
+  feedback?: Feedback | null;
 }
 
 // ============================================

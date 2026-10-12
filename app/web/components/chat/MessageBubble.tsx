@@ -7,6 +7,7 @@ import { User, Copy, Check, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ToolCallGroup } from "./ToolCallGroup";
 import { ReasoningBlock } from "./ReasoningBlock";
+import { MessageFeedback } from "./MessageFeedback";
 import { exportMessageAsPdf } from "@/lib/exportPdf";
 import type { Message } from "@/types";
 
@@ -169,13 +170,14 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
               </div>
               {/* Action bar below bubble */}
               <div className={cn(
-                "action-bar flex items-center gap-2 mt-1",
+                "action-bar flex flex-wrap items-center gap-2 mt-1",
                 isUser ? "justify-end" : "justify-start"
               )}>
                 <CopyButton text={message.content} />
                 {!isUser && (
                   <DownloadButton content={message.content} sessionTitle={sessionTitle} />
                 )}
+                {!isUser && message.persisted && <MessageFeedback message={message} />}
                 {/* Token count — only shown for assistant messages that have usage data */}
                 {!isUser && message.tokenUsage && (
                   <span className="text-[10px] text-foreground/60 select-none">
