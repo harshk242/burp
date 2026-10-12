@@ -4,9 +4,7 @@ import { serveStatic } from "hono/bun";
 import { DB_PATH, MigrationFkError, runMigrations, sqlite } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
-import { toolRegistry } from "./mcp/registry";
-import { attachStoredEmbeddings, createSearchReindexer, hybridSearch } from "./search";
-import { createEmbedder, ToolEmbeddingSync } from "./embeddings";
+import { initializeTools } from "./boot/tools";
 import { logger, startTimer, generateRequestId } from "./logger";
 import { appConfig } from "./config";
 import { redirectWwwToCanonical } from "./middleware/canonical-host";
@@ -30,67 +28,10 @@ try {
   process.exit(1);
 }
 
-// Null when the embedding provider's key is missing: search stays keyword-only
-// and makes no embedding calls.
-const embedder = createEmbedder(appConfig.embedding, { queryTimeoutMs: appConfig.embedding.query_timeout_ms });
-
-// Keeps the embeddings index in step with the tool set in the background and
-// attaches its vectors (latest snapshot wins). Off without a key or when
-// embedding.sync_on_boot is false.
-const embeddingSync =
-  embedder && appConfig.embedding.sync_on_boot
-    ? new ToolEmbeddingSync({
-        embedder,
-        path: appConfig.tool_search.embeddings_path,
-        timeoutMs: appConfig.embedding.sync_timeout_ms,
-        onReady: (e, vectors) => hybridSearch.attachEmbeddings(e, vectors),
-      })
-    : null;
-
-// Rebuild tool search from the live registry and sync embeddings to it. Runs at
-// boot and after an MCP server recovers, so recovered tools are searchable
-// without a restart.
-const reindexSearch = createSearchReindexer(toolRegistry, hybridSearch, embeddingSync);
-mcpManager.onToolsChanged = reindexSearch;
-
-// Initialize MCP servers and tool discovery
-async function initializeMCP() {
-  const elapsed = startTimer();
-
-  logger.info("STARTUP", "mcp_init_start");
-  mcpManager.registerAll();
-
-  logger.info("STARTUP", "mcp_servers_starting");
-  const { succeeded, failed } = await mcpManager.startAll();
-
-  logger.info("STARTUP", "mcp_servers_started", {
-    data: { succeeded, failed, total: succeeded + failed },
-  });
-
-  logger.info("STARTUP", "tool_discovery_start");
-  await toolRegistry.discoverTools(mcpManager);
-
-  reindexSearch();
-
-  // Without sync, attach whatever the index file holds for this embedder
-  // (optional — BM25 works without it). With sync, the sync attaches.
-  if (embedder && !embeddingSync) await attachStoredEmbeddings(hybridSearch, embedder, appConfig.tool_search.embeddings_path);
-
-  logger.info("STARTUP", "mcp_init_complete", {
-    duration_ms: elapsed(),
-    data: {
-      tools_available: toolRegistry.availableCount,
-      tools_total: toolRegistry.count,
-      search_indexed: hybridSearch.indexed,
-      embeddings_loaded: hybridSearch.embeddingsLoaded,
-      embedder: embedder?.id,
-      embeddings_sync: embeddingSync ? "background" : "off",
-    },
-  });
-}
-
-// Start MCP initialization (don't block server startup)
-initializeMCP().catch((error) => {
+// MCP servers, tool discovery, tool search and embeddings (boot/tools.ts).
+// Runs in the background: the server listens while tools come up.
+const tools = initializeTools();
+tools.ready.catch((error) => {
   logger.error("STARTUP", "mcp_init_failed", { error: error instanceof Error ? error : String(error) });
 });
 
@@ -109,7 +50,7 @@ async function shutdown(signal: "SIGTERM" | "SIGINT") {
   logger.info("SHUTDOWN", `${signal.toLowerCase()}_received`);
   if (shuttingDown) return; // a second signal changes nothing
   shuttingDown = true;
-  embeddingSync?.stop();
+  tools.embeddingSync?.stop();
   const stillRunning = await abortActiveTurns(TURN_DRAIN_TIMEOUT_MS);
   if (stillRunning > 0) logger.warn("SHUTDOWN", "turn_drain_timeout", { data: { turns: stillRunning } });
   await Promise.all([
