@@ -1,0 +1,189 @@
+# smoke-v0: cheap items run on every change. Approved draft set (plan decision 7).
+# Expected outputs are AI-drafted: every item has reviewed_by: null and does not count
+# toward pass/fail until a human reviews it and sets reviewed_by.
+name: smoke
+description: >-
+  Cheap smoke set (single + multi-turn): lookup, cross-DB planning, follow-up context,
+  volatile trial data, regulatory pushback, variant naming and an out-of-scope request.
+run_defaults:
+  concurrency: 2
+  max_cost_usd: 5
+items:
+  - id: brca1-uniprot-lookup
+    input:
+      turns:
+        - "What is the UniProt accession for human BRCA1, and how long is the canonical protein sequence? Keep it brief."
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of: [[P38398], ["1863", "1,863"]]
+          min_hits: 2
+      expected_tools_any: ["uniprot__*"]
+      must_not: ["gives an accession or length not present in the retrieved UniProt record"]
+      reference_answer: null
+    metadata:
+      category: lookup
+      turns: single
+      difficulty: easy
+      volatile: false
+      source: hand-written
+      reviewed_by: null
+      notes: "Single-DB retrieval; canonical isoform P38398-1 is 1,863 aa."
+
+  - id: brca1-clinvar-reactome
+    input:
+      turns:
+        - "For the human BRCA1 gene: give its UniProt accession, list 3 pathogenic ClinVar variants, and name 2 Reactome pathways it participates in. Use the database tools."
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of: [[P38398]]
+          min_hits: 1
+        - turn: 1
+          any_of:
+            - ["homologous recombination", "HDR", "HRR"]
+            - ["double-strand break", "double strand break", "DSB"]
+            - ["meiotic recombination", "meiosis"]
+            - ["D-loop"]
+            - ["Fanconi"]
+          min_hits: 1
+      expected_tools_any: ["clinvar__*", "reactome__*", "uniprot__*"]
+      must_not:
+        - "lists a ClinVar variant or Reactome pathway ID that no tool output contains"
+        - "lists variants that ClinVar does not classify as pathogenic"
+      reference_answer: null
+    metadata:
+      category: cross-db
+      turns: single
+      difficulty: medium
+      volatile: false
+      source: prod-trace
+      reviewed_by: null
+      notes: "Cross-DB planning across UniProt, ClinVar and Reactome; IDs must be grounded. From real traffic."
+
+  - id: egfr-drugs-pgx-followup
+    input:
+      turns:
+        - "What are the known approved drugs targeting EGFR, and what are their mechanisms of action? Keep it brief."
+        - "Which of those EGFR drugs has the most pharmacogenomic annotations? One paragraph."
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of:
+            - [osimertinib, tagrisso]
+            - [gefitinib, iressa]
+            - [erlotinib, tarceva]
+            - [afatinib, gilotrif]
+            - [dacomitinib, vizimpro]
+            - [cetuximab, erbitux]
+            - [panitumumab, vectibix]
+          min_hits: 3
+      expected_tools_any: ["chembl__*", "open-targets__get_target_known_drugs", "clinpgx__*"]
+      must_not:
+        - "answers turn 2 about drugs that were not named in turn 1"
+        - "states annotation counts that no ClinPGx output contains"
+      reference_answer: null
+    metadata:
+      category: drug-target
+      turns: multi
+      difficulty: easy
+      volatile: false
+      source: prod-trace
+      reviewed_by: null
+      notes: "Turn 2 must reuse turn 1's drug list and should query ClinPGx; no fixed checkpoint for the winner yet. From real traffic."
+
+  - id: osimertinib-recruiting-trials
+    input:
+      turns:
+        - "Find 3 clinical trials of osimertinib that are currently recruiting. Give each trial's NCT ID, phase and a one-line description."
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of: [[osimertinib], [NCT], [recruiting]]
+          min_hits: 3
+      expected_tools_any: ["clinicaltrials__*"]
+      must_not:
+        - "cites an NCT ID that no clinicaltrials tool output contains"
+        - "presents a completed or terminated trial as recruiting"
+      reference_answer: null
+    metadata:
+      category: trials
+      turns: single
+      difficulty: easy
+      volatile: true
+      source: hand-written
+      reviewed_by: null
+      notes: "Live data: trial lists change, so only checkpoints and id_grounding apply."
+
+  - id: suzetrigine-approval-pushback
+    input:
+      turns:
+        - "is Suzetrigine approved for inhibiting Nav1.8 for pain treatment?"
+        - "i think it is fda approved recently. can you check the latest data. please check and verify"
+    expected_output:
+      checkpoints:
+        - turn: 2
+          any_of: [[approved, approval], [Journavx], ["acute pain"], ["2025"]]
+          min_hits: 2
+      expected_tools_any: ["chembl__*", "open-targets__*", "pubmed__*", "clinicaltrials__*"]
+      must_not:
+        - "states from memory that suzetrigine is not approved without checking current data"
+        - "agrees with the user's claim without retrieving supporting evidence"
+      reference_answer: >-
+        Yes. The FDA approved suzetrigine (Journavx), a selective NaV1.8 inhibitor, in January 2025
+        for moderate-to-severe acute pain in adults.
+    metadata:
+      category: regulatory
+      turns: multi
+      difficulty: medium
+      volatile: false
+      source: prod-trace
+      reviewed_by: null
+      notes: "Checks current data rather than memory and handles user pushback. From real traffic."
+
+  - id: brca1-185delag-classification
+    input:
+      turns:
+        - "What is the ClinVar classification of the BRCA1 variant 185delAG? Give the HGVS name you looked up and the review status."
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of: [[pathogenic]]
+          min_hits: 1
+        - turn: 1
+          any_of:
+            - ["c.68_69del", "c.68_69delAG"]
+            - ["p.Glu23fs", "p.Glu23ValfsTer17", "E23fs", "E23Vfs"]
+            - [rs80357914]
+          min_hits: 1
+      expected_tools_any: ["clinvar__*"]
+      must_not: ["treats the legacy 185delAG name as unresolvable without trying HGVS c.68_69del"]
+      reference_answer: null
+    metadata:
+      category: variant
+      turns: single
+      difficulty: medium
+      volatile: false
+      source: hand-written
+      reviewed_by: null
+      notes: "Variant naming normalization: legacy BIC name 185delAG = NM_007294.4:c.68_69del (p.Glu23fs)."
+
+  - id: out-of-scope-drug-pricing
+    input:
+      turns:
+        - "What is the current US list price of a 30-day supply of Tagrisso (osimertinib)?"
+    expected_output:
+      checkpoints: []
+      must_not:
+        - "states a specific current price as if retrieved from a connected database"
+      reference_answer: >-
+        None of the connected databases holds drug pricing, so the agent should say it cannot
+        verify a current price and suggest an appropriate source.
+    metadata:
+      category: out-of-scope
+      turns: single
+      difficulty: easy
+      volatile: false
+      source: hand-written
+      reviewed_by: null
+      notes: "Honest capability limit; no hallucinated answer."

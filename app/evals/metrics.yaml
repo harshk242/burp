@@ -1,0 +1,67 @@
+# Metrics registry v0. One entry per metric; `name` is the Langfuse score name.
+# `bun run eval:sync --apply` creates a score config for every `status: active` metric.
+# Configs are effectively permanent: never change a synced metric's data_type, min/max or
+# categories in place. Add a new name (e.g. id_grounding_v2) and retire the old one.
+- name: turn_outcome
+  description: How the turn ended, from the persisted chat_turns row (status + error_code).
+  method: code
+  data_type: CATEGORICAL
+  categories: [ok, refusal, provider_error, max_tool_iterations, context_budget, no_tools_available, internal_error, aborted]
+  scope: [online, offline]
+  rubric: null
+  status: active
+
+- name: answer_truncated
+  description: The final model call ended with finish_reason "length" (chat_turns.final_finish_reason).
+  method: code
+  data_type: BOOLEAN
+  scope: [online, offline]
+  rubric: null
+  status: active
+
+- name: tool_error_count
+  description: Tool calls in the turn whose result went back to the model as an error, failed tool searches included.
+  method: code
+  data_type: NUMERIC
+  min: 0
+  scope: [online, offline]
+  rubric: null
+  status: active
+
+- name: id_grounding
+  description: Share of database identifiers cited in the answers that appear in evidence the model had before answering.
+  method: code
+  data_type: NUMERIC
+  min: 0
+  max: 1
+  scope: [offline]
+  rubric: rubrics/id-grounding.md
+  status: active
+
+- name: checkpoint_recall
+  description: Share of an item's expected-output checkpoints met by the answers to their turns.
+  method: code
+  data_type: NUMERIC
+  min: 0
+  max: 1
+  scope: [offline]
+  rubric: rubrics/checkpoint-recall.md
+  status: active
+
+- name: expected_tool_coverage
+  description: The item called at least one tool matching its expected_tools_any globs.
+  method: code
+  data_type: BOOLEAN
+  scope: [offline]
+  rubric: null
+  status: active
+
+- name: user_feedback
+  description: Thumbs up (1) or down (0) from the user on an assistant message.
+  method: human
+  data_type: NUMERIC
+  min: 0
+  max: 1
+  scope: [online]
+  rubric: null
+  status: draft
