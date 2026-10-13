@@ -13,11 +13,13 @@ describe("feedback dialog helpers", () => {
     expect(feedbackDialogTitle(0)).toBe("What went wrong?");
   });
 
-  test("send needs non-blank text and no save in flight", () => {
-    expect(canSendFeedback("", false)).toBe(false);
-    expect(canSendFeedback("   \n", false)).toBe(false);
-    expect(canSendFeedback("wrong PMID", false)).toBe(true);
-    expect(canSendFeedback("wrong PMID", true)).toBe(false);
+  test("send needs a category or non-blank text, and no save in flight", () => {
+    expect(canSendFeedback("", 0, false)).toBe(false);
+    expect(canSendFeedback("   \n", 0, false)).toBe(false);
+    expect(canSendFeedback("wrong PMID", 0, false)).toBe(true);
+    expect(canSendFeedback("", 1, false)).toBe(true);
+    expect(canSendFeedback("wrong PMID", 0, true)).toBe(false);
+    expect(canSendFeedback("", 2, true)).toBe(false);
   });
 
   test("counter appears only near the limit", () => {

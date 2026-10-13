@@ -8,8 +8,9 @@ export function feedbackDialogTitle(value: 0 | 1): string {
   return value === 1 ? "What did you like?" : "What went wrong?";
 }
 
-export function canSendFeedback(comment: string, saving: boolean): boolean {
-  return !saving && comment.trim().length > 0;
+/** Send needs at least one category or non-blank text, and no save in flight. */
+export function canSendFeedback(comment: string, categoryCount: number, saving: boolean): boolean {
+  return !saving && (categoryCount > 0 || comment.trim().length > 0);
 }
 
 export function showCommentCounter(comment: string): boolean {

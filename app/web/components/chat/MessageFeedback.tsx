@@ -9,8 +9,9 @@ import type { Feedback, Message } from "@/types";
 import { FeedbackDialog } from "./FeedbackDialog";
 
 /**
- * 👍/👎 on a saved assistant message. Clicking a thumb saves the rating, then
- * opens a dialog for an optional comment; clicking the active thumb clears it.
+ * 👍/👎 on a saved assistant message. Clicking a thumb saves the rating (with no
+ * categories, so a flip never keeps the other polarity's), then opens a dialog
+ * for optional categories and a comment; clicking the active thumb clears it.
  * Disabled while a reply is streaming or a save is in flight; a failed save
  * restores the old state.
  */
@@ -56,7 +57,7 @@ export function MessageFeedback({ message }: { message: Message }) {
       return;
     }
     returnFocusRef.current = value === 1 ? upRef.current : downRef.current;
-    const saved = await save({ value, comment: null });
+    const saved = await save({ value, comment: null, categories: [] });
     setError(!saved);
     if (saved) {
       setDialogValue(value);
@@ -101,7 +102,7 @@ export function MessageFeedback({ message }: { message: Message }) {
         value={dialogValue}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onSubmit={(comment) => save({ value: dialogValue, comment })}
+        onSubmit={(categories, comment) => save({ value: dialogValue, comment: comment || null, categories })}
         saving={saving}
         returnFocusRef={returnFocusRef}
       />

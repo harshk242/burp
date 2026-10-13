@@ -1,3 +1,5 @@
+import type { FeedbackCategoryId } from "@/lib/feedback-categories";
+
 // ============================================
 // User Types
 // ============================================
@@ -51,6 +53,8 @@ export interface ToolCall {
 export interface Feedback {
   value: 0 | 1;
   comment: string | null;
+  /** Selected category ids of the rating's polarity (lib/feedback-categories), sorted; [] when none */
+  categories: FeedbackCategoryId[];
 }
 
 export interface Message {

@@ -5,6 +5,7 @@
  */
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import type { FeedbackCategory } from "../../schemas/feedback-categories";
 import { messages } from "./chat";
 import { users } from "./users";
 
@@ -21,6 +22,8 @@ export const messageFeedback = sqliteTable(
     // 1 = 👍, 0 = 👎, NULL = cleared (tombstone: the row stays so the score gets deleted).
     value: integer("value"),
     comment: text("comment"),
+    // Selected category ids (schemas/feedback-categories.ts), deduped and sorted; [] when none or cleared.
+    categories: text("categories", { mode: "json" }).$type<FeedbackCategory[]>().notNull().default(sql`'[]'`),
     created_at: integer("created_at").notNull().default(sql`(unixepoch())`),
     updated_at: integer("updated_at").notNull().default(sql`(unixepoch())`),
     // Incremented on every write; sync clears sync_pending only if it still matches the pushed revision.

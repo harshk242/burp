@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { ALL_CATEGORY_IDS, MAX_FEEDBACK_CATEGORIES } from "./feedback-categories";
 
 // ============================================
 // Common Schemas
@@ -112,14 +113,24 @@ export const ToolCallSchema = z.object({
 });
 
 // 👍 = 1, 👎 = 0. The client never sees trace or score ids.
+const FeedbackCategorySchema = z.enum(ALL_CATEGORY_IDS);
+
 export const FeedbackSchema = z.object({
   value: z.union([z.literal(0), z.literal(1)]).openapi({ example: 1 }),
   comment: z.string().nullable().openapi({ example: null }),
+  categories: z.array(FeedbackCategorySchema).openapi({ example: ["accurate", "well_sourced"] }),
 });
 
+// Every category must belong to the rating's polarity (checked in routes/feedback.ts).
 export const FeedbackRequestSchema = z.object({
   value: z.union([z.literal(0), z.literal(1)]).openapi({ example: 0 }),
   comment: z.string().max(2000).nullable().optional().openapi({ example: "Cited the wrong variant" }),
+  categories: z
+    .array(FeedbackCategorySchema)
+    .max(MAX_FEEDBACK_CATEGORIES)
+    .optional()
+    .default([])
+    .openapi({ example: ["wrong_citation"] }),
 });
 
 export const FeedbackResponseSchema = z.object({

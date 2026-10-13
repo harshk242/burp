@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { feedbackCategoriesFor, toggleFeedbackCategory, type FeedbackCategoryId } from "@/lib/feedback-categories";
 import {
   FEEDBACK_COMMENT_MAX,
   canSendFeedback,
@@ -18,14 +19,15 @@ import {
   isSubmitShortcut,
   showCommentCounter,
 } from "@/lib/feedback-dialog";
+import { cn } from "@/lib/utils";
 
 interface FeedbackDialogProps {
   /** Polarity of the rating that opened the dialog. */
   value: 0 | 1;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Saves the comment; resolves false on failure so the dialog stays open. */
-  onSubmit: (comment: string) => Promise<boolean>;
+  /** Saves the categories and comment; resolves false on failure so the dialog stays open. */
+  onSubmit: (categories: FeedbackCategoryId[], comment: string) => Promise<boolean>;
   saving: boolean;
   /** Thumb that opened the dialog. It opens programmatically (no Radix trigger), so focus is restored explicitly. */
   returnFocusRef: RefObject<HTMLButtonElement | null>;
@@ -33,25 +35,28 @@ interface FeedbackDialogProps {
 
 /**
  * Follow-up pop-up after a 👍/👎 is saved. The rating is already stored, so
- * Skip / Esc / overlay / ✕ just close it; Send adds an optional comment.
+ * Skip / Esc / overlay / ✕ just close it; Send adds the picked categories
+ * (pills for the rating's polarity) and an optional comment.
  */
 export function FeedbackDialog({ value, open, onOpenChange, onSubmit, saving, returnFocusRef }: FeedbackDialogProps) {
+  const [categories, setCategories] = useState<FeedbackCategoryId[]>([]);
   const [comment, setComment] = useState("");
   const [error, setError] = useState(false);
 
   useEffect(() => {
     if (open) {
+      setCategories([]);
       setComment("");
       setError(false);
     }
   }, [open]);
 
-  const canSend = canSendFeedback(comment, saving);
+  const canSend = canSendFeedback(comment, categories.length, saving);
 
   async function submit() {
     if (!canSend) return;
     setError(false);
-    if (await onSubmit(comment.trim())) onOpenChange(false);
+    if (await onSubmit(categories, comment.trim())) onOpenChange(false);
     else setError(true);
   }
 
@@ -79,8 +84,28 @@ export function FeedbackDialog({ value, open, onOpenChange, onSubmit, saving, re
         >
           <DialogHeader>
             <DialogTitle>{feedbackDialogTitle(value)}</DialogTitle>
-            <DialogDescription>Your rating is saved. Add a comment if you like.</DialogDescription>
+            <DialogDescription>Your rating is saved. Pick what applies or add a comment if you like.</DialogDescription>
           </DialogHeader>
+          <div role="group" aria-label="Feedback categories" className="flex flex-wrap gap-2">
+            {feedbackCategoriesFor(value).map((category) => {
+              const selected = categories.includes(category.id);
+              return (
+                <Button
+                  key={category.id}
+                  type="button"
+                  variant={selected ? "default" : "ghost"}
+                  size="sm"
+                  className={cn("h-8 rounded-full border", selected ? "border-primary" : "border-input")}
+                  aria-pressed={selected}
+                  title={category.hint ?? undefined}
+                  disabled={saving}
+                  onClick={() => setCategories((prev) => toggleFeedbackCategory(prev, category.id))}
+                >
+                  {category.label}
+                </Button>
+              );
+            })}
+          </div>
           <div className="grid gap-1">
             <Textarea
               value={comment}

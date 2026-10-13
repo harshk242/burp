@@ -6,6 +6,7 @@
  */
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import type { FeedbackCategory } from "../../schemas/feedback-categories";
 import type { DrizzleDb } from "../connection";
 import { chatTurns, messageFeedback, messages } from "../schema";
 
@@ -28,14 +29,17 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
     and(eq(messageFeedback.message_id, messageId), eq(messageFeedback.user_id, userId));
 
   return {
-    /** Sets the value (re-creating a cleared row in place, so its id is kept). */
-    upsert(key: FeedbackKey, value: FeedbackValue, comment: string | null): DbMessageFeedback {
+    /**
+     * Sets the value, comment and categories (re-creating a cleared row in place, so its id is kept).
+     * Categories are stored as given; the route validates, dedupes and sorts them.
+     */
+    upsert(key: FeedbackKey, value: FeedbackValue, comment: string | null, categories: FeedbackCategory[] = []): DbMessageFeedback {
       return db
         .insert(messageFeedback)
-        .values({ id: uuidv4(), message_id: key.messageId, user_id: key.userId, value, comment })
+        .values({ id: uuidv4(), message_id: key.messageId, user_id: key.userId, value, comment, categories })
         .onConflictDoUpdate({
           target: [messageFeedback.message_id, messageFeedback.user_id],
-          set: { value, comment, ...pendingWrite },
+          set: { value, comment, categories, ...pendingWrite },
         })
         .returning()
         .get();
@@ -46,7 +50,7 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
       return (
         db
           .update(messageFeedback)
-          .set({ value: null, comment: null, ...pendingWrite })
+          .set({ value: null, comment: null, categories: [], ...pendingWrite })
           .where(byKey(key))
           .returning()
           .get() ?? null
@@ -95,9 +99,17 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
     },
 
     /** The user's current (non-cleared) feedback on a session's messages, by message id. */
-    findForSession(sessionId: string, userId: string): Map<string, { value: FeedbackValue; comment: string | null }> {
+    findForSession(
+      sessionId: string,
+      userId: string
+    ): Map<string, { value: FeedbackValue; comment: string | null; categories: FeedbackCategory[] }> {
       const rows = db
-        .select({ message_id: messageFeedback.message_id, value: messageFeedback.value, comment: messageFeedback.comment })
+        .select({
+          message_id: messageFeedback.message_id,
+          value: messageFeedback.value,
+          comment: messageFeedback.comment,
+          categories: messageFeedback.categories,
+        })
         .from(messageFeedback)
         .where(
           and(
@@ -110,7 +122,9 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
           )
         )
         .all();
-      return new Map(rows.map((r) => [r.message_id, { value: r.value as FeedbackValue, comment: r.comment }]));
+      return new Map(
+        rows.map((r) => [r.message_id, { value: r.value as FeedbackValue, comment: r.comment, categories: r.categories }])
+      );
     },
   };
 }

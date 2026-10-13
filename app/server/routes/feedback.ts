@@ -3,6 +3,7 @@ import { chatSessionQueries, messageFeedbackQueries, messageQueries, type DbMess
 import { clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
 import { requestFeedbackSync } from "../observability/feedback-sync";
 import { ErrorSchema, FeedbackRequestSchema, FeedbackResponseSchema } from "../schemas";
+import { categoriesForValue, normalizeCategories } from "../schemas/feedback-categories";
 import type { AppEnv } from "../types";
 
 /**
@@ -24,7 +25,7 @@ const json = <T extends z.ZodTypeAny>(description: string, schema: T) => ({
 });
 
 const errors = {
-  400: json("Not an assistant message", ErrorSchema),
+  400: json("Not an assistant message, or a category that doesn't match the rating", ErrorSchema),
   403: json("Forbidden - Not your session", ErrorSchema),
   404: json("Message not found", ErrorSchema),
   500: json("Internal server error", ErrorSchema),
@@ -44,14 +45,17 @@ function checkOwnership(messageId: string, userId: string): OwnershipCheck {
 }
 
 const toResponse = (row: DbMessageFeedback | null) =>
-  row && row.value !== null ? { feedback: { value: row.value as 0 | 1, comment: row.comment } } : { feedback: null };
+  row && row.value !== null
+    ? { feedback: { value: row.value as 0 | 1, comment: row.comment, categories: row.categories } }
+    : { feedback: null };
 
 const putFeedbackRoute = createRoute({
   method: "put",
   path: "/{messageId}/feedback",
   tags: ["Sessions"],
   summary: "Set message feedback",
-  description: "Thumbs up (1) or down (0) on an assistant message, with an optional comment. Replaces earlier feedback.",
+  description:
+    "Thumbs up (1) or down (0) on an assistant message, with optional categories (of the rating's polarity) and comment. Replaces earlier feedback.",
   security: [{ bearerAuth: [] }],
   request: {
     params,
@@ -62,13 +66,18 @@ const putFeedbackRoute = createRoute({
 
 feedback.openapi(putFeedbackRoute, async (c) => {
   const { messageId } = c.req.valid("param");
-  const { value, comment } = c.req.valid("json");
+  const { value, comment, categories } = c.req.valid("json");
   const userId = c.get("userId") as string;
   try {
     const check = checkOwnership(messageId, userId);
     if (!check.ok) return c.json({ error: check.error }, check.status);
+    const allowed = categoriesForValue(value);
+    const mismatched = categories.filter((id) => !allowed.includes(id));
+    if (mismatched.length > 0) {
+      return c.json({ error: `Categories don't match the rating: ${[...new Set(mismatched)].join(", ")}` }, 400);
+    }
     const key = { messageId, userId };
-    const row = messageFeedbackQueries.upsert(key, value, comment?.trim() || null);
+    const row = messageFeedbackQueries.upsert(key, value, comment?.trim() || null, normalizeCategories(categories));
     requestFeedbackSync(key);
     return c.json(toResponse(row), 200);
   } catch (error) {

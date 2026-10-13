@@ -1,0 +1,1 @@
+ALTER TABLE `message_feedback` ADD `categories` text DEFAULT '[]' NOT NULL;
