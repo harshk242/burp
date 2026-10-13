@@ -21,8 +21,11 @@ export interface ExperimentSpec {
   metadata: Record<string, unknown>;
   /** Verified active items to run (already filtered by --items). */
   items: FetchedItem[];
-  /** Local YAML items by id (identical content, verified). */
-  localItems: Map<string, DatasetItem>;
+  /**
+   * The same items parsed from their pinned payload (pinned-items.ts): what the
+   * evaluators score against and what decides pass/fail eligibility.
+   */
+  evalItems: Map<string, DatasetItem>;
   datasetVersion: string;
   concurrency: number;
   task: TaskContext;
@@ -38,12 +41,17 @@ export interface ExperimentOutcome {
   summary: RunSummary;
 }
 
-function toItemRun(result: ExperimentItemResult, localItems: Map<string, DatasetItem>): ItemRun {
+function evalItem(evalItems: Map<string, DatasetItem>, id: string): DatasetItem {
+  const item = evalItems.get(id);
+  if (!item) throw new Error(`no pinned item ${id}`);
+  return item;
+}
+
+function toItemRun(result: ExperimentItemResult, evalItems: Map<string, DatasetItem>): ItemRun {
   const output = result.output as TaskOutput;
-  const local = localItems.get(output.item_id);
   return {
     itemId: output.item_id,
-    reviewed: local ? countsTowardScores(local) : false,
+    reviewed: countsTowardScores(evalItem(evalItems, output.item_id)),
     output,
     evaluations: result.evaluations.map((e) => ({ name: e.name, value: e.value as number | string })),
   };
@@ -65,19 +73,17 @@ export async function runExperiment(client: LangfuseClient, spec: ExperimentSpec
     evaluators: [
       async ({ output }) => {
         const out = output as TaskOutput;
-        const local = spec.localItems.get(out.item_id);
-        if (!local) throw new Error(`no local item ${out.item_id}`);
-        return evaluateItem(out, local).map((e) => ({ ...e, configId: scoreConfigId(e.name) }));
+        return evaluateItem(out, evalItem(spec.evalItems, out.item_id)).map((e) => ({ ...e, configId: scoreConfigId(e.name) }));
       },
     ],
     runEvaluators: [
       async ({ itemResults }) => {
-        summary = summarizeRun(itemResults.map((r) => toItemRun(r, spec.localItems)));
+        summary = summarizeRun(itemResults.map((r) => toItemRun(r, spec.evalItems)));
         return runEvaluations(summary);
       },
     ],
   });
-  const itemRuns = result.itemResults.map((r) => toItemRun(r, spec.localItems));
+  const itemRuns = result.itemResults.map((r) => toItemRun(r, spec.evalItems));
   const done = new Set(itemRuns.map((r) => r.itemId));
   return {
     name: spec.name,

@@ -32,6 +32,7 @@ import { runArms, type ArmRunResult } from "./matrix";
 import { runExperiment, type ExperimentOutcome, type FetchedItem } from "./experiment";
 import { RunLifecycle } from "./lifecycle";
 import { loadEvalHome } from "./load";
+import { pinnedEvalItems, PinnedItemError } from "./pinned-items";
 import { printOutcome, printVariance } from "./report";
 import { assertSearchReady, PROBE_QUERY, RunAbort } from "./search-check";
 import { experimentName, gitState, runMetadata, scoringHashes, type SearchState } from "./run-meta";
@@ -64,8 +65,15 @@ async function fetchVerifiedItems(client: LangfuseClient, args: RunArgs, dataset
     if (unknown.length) throw new RunAbort(`unknown item id(s) for ${args.dataset}: ${unknown.join(", ")}`);
     items = active.filter((i) => args.items!.includes(i.id));
   }
+  let evalItems;
+  try {
+    evalItems = pinnedEvalItems(items);
+  } catch (error) {
+    if (error instanceof PinnedItemError) throw new RunAbort(`${args.dataset} @ ${version}: ${error.message}`);
+    throw error;
+  }
   log(`dataset ${args.dataset} @ ${version}: ${active.length} active item(s), dataset_hash ${check.datasetHash.slice(0, 12)}; running ${items.length}`);
-  return { version, items, datasetHash: check.datasetHash };
+  return { version, items, evalItems, datasetHash: check.datasetHash };
 }
 
 /** Boots tools like the server, waits for the embedding sync, and checks search works. */
@@ -142,7 +150,6 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
     const git = gitState();
     const comparisonGroup = randomUUID();
     const rubrics = home.metrics.flatMap((m) => (m.status === "active" && m.rubric ? [m.rubric] : []));
-    const localItems = new Map(dataset.items.map((i) => [i.id, i]));
     const repeatGroups = new Map(arms.map((arm) => [arm, randomUUID()]));
     if (comparing) log(`comparison_group ${comparisonGroup}`);
 
@@ -187,7 +194,7 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
             items: args.items,
           }),
           items: pinned.items,
-          localItems,
+          evalItems: pinned.evalItems,
           datasetVersion: shared.datasetVersion,
           concurrency,
           task: { userId, provider: arm.provider, llm: arm.override, budget: shared.budget, lifecycle, log },

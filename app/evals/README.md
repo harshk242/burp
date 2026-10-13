@@ -29,6 +29,7 @@ Langfuse, which holds traces, experiment runs and scores. Design: `plans/eval-pi
 | `run.ts`, `lib/runner.ts` | Experiment runner (`bun run eval`) |
 | `lib/task.ts`, `lib/task-output.ts` | Item task: drains each turn through `processChat`; output from persisted rows |
 | `lib/verify-dataset.ts` | Pinned dataset check against the local YAML (recomputed hashes, active ids) |
+| `lib/pinned-items.ts` | Pinned items parsed with the dataset schemas: what evaluators and pass/fail use |
 | `lib/lifecycle.ts` | Signal-safe cleanup: stop → abort → drain → flush tracing → stop MCP |
 | `lib/aggregate.ts`, `lib/report.ts` | Run aggregates, pass/fail over reviewed items, repeat variance |
 | `matrices/` | Comparison arms (model + effort) per matrix file, run with `--matrix <name>` |
@@ -107,7 +108,9 @@ Every item runs in a fresh session; each turn's trace nests under the experiment
 evaluators score each item (`id_grounding`, `checkpoint_recall`, `expected_tool_coverage`,
 `turn_outcome`, `answer_truncated`, `tool_error_count`), each score referencing its config; the run
 gets `avg_*` means, `ok_rate`, cost, p50/p95 latency and failure counts. Items with
-`reviewed_by: null` run and are scored but don't count toward pass/fail.
+`reviewed_by: null` run and are scored but don't count toward pass/fail. Expectations and
+`reviewed_by` come from the pinned Langfuse items (`lib/pinned-items.ts`), not the YAML, so a
+`--dataset-version` run scores against that version, including items since removed from the YAML.
 
 `--max-cost-usd` is one budget for all items and repeats, checked before every model call. Calls
 already streaming finish, so the cap can be overshot by about one model call per concurrent item.
