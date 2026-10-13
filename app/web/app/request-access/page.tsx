@@ -176,6 +176,12 @@ export default function RequestAccessPage() {
                   "Submit Request"
                 )}
               </Button>
+
+              <p className="text-xs text-muted-foreground">
+                Privacy: the questions you ask BURP and its answers are sent
+                to Langfuse Cloud (US region) so we can monitor and evaluate
+                answer quality.
+              </p>
             </form>
           </CardContent>
         </Card>
