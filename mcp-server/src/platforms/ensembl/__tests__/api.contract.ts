@@ -8,20 +8,26 @@
  */
 
 import { describe, it } from 'vitest';
-import axios from 'axios';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
-import { retryEnsemblContractRequest } from './request-retry.js';
+import { ENSEMBL_BASE_URL, ENSEMBL_POLICY, createEnsemblClient } from '../client.js';
 
-const BASE = 'https://rest.ensembl.org';
-const JSON_HEADERS = { 'Content-Type': 'application/json', Accept: 'application/json' };
-const ENSEMBL_CONTRACT_TIMEOUT_MS = 75_000;
+const BASE = ENSEMBL_BASE_URL;
+const ENSEMBL_CONTRACT_TIMEOUT_MS = 150_000;
+
+/** Contract tests ride out longer bad patches than production (plan: "Ensembl policy"). */
+const CONTRACT_OVERRIDES = {
+  maxAttempts: 4,
+  backoffMs: [2_000, 5_000, 10_000],
+  totalBudgetMs: 120_000,
+};
+
+const client = createEnsemblClient({ policy: { ...ENSEMBL_POLICY, ...CONTRACT_OVERRIDES } });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Only the HTTP request is retried; schema assertions run once on the result.
 async function fetchJson(url: string, params?: Record<string, string>): Promise<unknown> {
-  const res = await retryEnsemblContractRequest(() =>
-    axios.get(url, { params, headers: JSON_HEADERS, timeout: 30_000 }),
-  );
+  const res = await client.get(url, { params });
   return res.data;
 }
 

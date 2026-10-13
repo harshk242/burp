@@ -1,5 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { UpstreamError } from '../../../shared/exceptions.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 // ── Validation ──────────────────────────────────────────────────────────────
@@ -228,7 +229,12 @@ async function handleSearchGenes(args: Record<string, unknown>) {
       note: 'REST API only supports exact gene symbol lookup, not fuzzy search',
       result: response.data,
     };
-  } catch {
+  } catch (error) {
+    // Only a rejected lookup means "no such symbol"; outages, timeouts and
+    // rate limits must reach the agent as structured upstream errors.
+    if (!(error instanceof UpstreamError) || (error.kind !== 'not_found' && error.kind !== 'bad_request')) {
+      throw error;
+    }
     throw new Error(
       `No gene found with symbol: ${args.query}. REST API only supports exact gene symbol lookup. Try exact Ensembl gene symbols (e.g., TP53, BRCA1, BRCA2).`,
     );

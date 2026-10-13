@@ -1,4 +1,5 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 
 // ── Ensembl API interfaces ──────────────────────────────────────────────────
 
@@ -140,6 +141,49 @@ export interface EnsemblAssemblyInfo {
   karyotype: string[];
 }
 
+// ── Retry policy ────────────────────────────────────────────────────────────
+
+/**
+ * Production retry policy, from Ensembl's live behaviour (see
+ * plans/shared-http-retry-plan.md, "Ensembl live evidence"): short bursts of
+ * fast proxy 500s are absorbed; slow failures are capped by the 40s budget.
+ * 429 waits for Retry-After / x-ratelimit-reset only if it fits the budget.
+ */
+export const ENSEMBL_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: 3,
+  backoffMs: [1_000, 3_000],
+  jitter: 0.25,
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+  on429: 'wait',
+});
+
+export const ENSEMBL_BASE_URL = 'https://rest.ensembl.org';
+
+export interface EnsemblClientOptions {
+  /** Retry policy (default ENSEMBL_POLICY). */
+  policy?: RetryPolicy;
+  /** Transport override (tests). */
+  adapter?: AxiosAdapter;
+  /** Injectable sleep/clock/random for the retry loop (tests). */
+  retryDeps?: RetryDeps;
+}
+
+/** An Ensembl REST client with the shared retry attached. */
+export function createEnsemblClient(options: EnsemblClientOptions = {}): AxiosInstance {
+  const client = axios.create({
+    baseURL: ENSEMBL_BASE_URL,
+    timeout: 30_000,
+    headers: {
+      'User-Agent': 'Ensembl-MCP-Server/1.0.0',
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(client, options.policy ?? ENSEMBL_POLICY, 'ensembl', options.retryDeps);
+}
+
 // ── Singleton axios client ──────────────────────────────────────────────────
 
 let apiClient: AxiosInstance | null = null;
@@ -151,16 +195,8 @@ export function getClient(): AxiosInstance {
   return apiClient;
 }
 
-export function init(_env: Record<string, string | undefined>): void {
-  apiClient = axios.create({
-    baseURL: 'https://rest.ensembl.org',
-    timeout: 30_000,
-    headers: {
-      'User-Agent': 'Ensembl-MCP-Server/1.0.0',
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-  });
+export function init(_env: Record<string, string | undefined>, options: EnsemblClientOptions = {}): void {
+  apiClient = createEnsemblClient(options);
 }
 
 export function cleanup(): void {

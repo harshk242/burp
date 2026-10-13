@@ -1,5 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { getToolCallContext } from '../../../shared/tool-call-context.js';
 import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
 
 // ── Validation ──────────────────────────────────────────────────────────────
@@ -265,7 +266,16 @@ async function handleBatchSequenceFetch(args: Record<string, unknown>) {
   const format = args.format || 'fasta';
   const results = [];
 
-  for (const region of args.regions) {
+  const context = getToolCallContext();
+
+  for (const [index, region] of args.regions.entries()) {
+    // Regions share the tool-call deadline: once it is gone, don't send the rest.
+    if (context && context.remainingMs() <= 0) {
+      for (const skipped of args.regions.slice(index)) {
+        results.push({ region: skipped, success: false, skipped: 'deadline' });
+      }
+      break;
+    }
     try {
       const data = await fetchSingleSequence({ region, species, format });
       results.push({ region, success: true, data });
