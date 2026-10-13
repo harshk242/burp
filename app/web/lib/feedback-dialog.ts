@@ -13,6 +13,11 @@ export function canSendFeedback(comment: string, categoryCount: number, saving: 
   return !saving && (categoryCount > 0 || comment.trim().length > 0);
 }
 
+/** Skip / Esc / overlay / ✕ can't close the dialog mid-Send: the thumb is disabled until the save settles, so focus couldn't return to it. */
+export function canDismissFeedback(saving: boolean): boolean {
+  return !saving;
+}
+
 export function showCommentCounter(comment: string): boolean {
   return comment.length >= FEEDBACK_COMMENT_MAX - FEEDBACK_COUNTER_THRESHOLD;
 }

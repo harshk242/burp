@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { feedbackCategoriesFor, toggleFeedbackCategory, type FeedbackCategoryId } from "@/lib/feedback-categories";
 import {
   FEEDBACK_COMMENT_MAX,
+  canDismissFeedback,
   canSendFeedback,
   feedbackDialogTitle,
   isSubmitShortcut,
@@ -35,7 +36,7 @@ interface FeedbackDialogProps {
 
 /**
  * Follow-up pop-up after a 👍/👎 is saved. The rating is already stored, so
- * Skip / Esc / overlay / ✕ just close it; Send adds the picked categories
+ * Skip / Esc / overlay / ✕ just close it (except while a Send is in flight); Send adds the picked categories
  * (pills for the rating's polarity) and an optional comment.
  */
 export function FeedbackDialog({ value, open, onOpenChange, onSubmit, saving, returnFocusRef }: FeedbackDialogProps) {
@@ -52,6 +53,11 @@ export function FeedbackDialog({ value, open, onOpenChange, onSubmit, saving, re
   }, [open]);
 
   const canSend = canSendFeedback(comment, categories.length, saving);
+  const canDismiss = canDismissFeedback(saving);
+
+  function dismiss(next: boolean) {
+    if (next || canDismiss) onOpenChange(next);
+  }
 
   async function submit() {
     if (!canSend) return;
@@ -61,9 +67,10 @@ export function FeedbackDialog({ value, open, onOpenChange, onSubmit, saving, re
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={dismiss}>
       <DialogContent
         className="sm:max-w-md"
+        closeDisabled={!canDismiss}
         onCloseAutoFocus={(e) => {
           e.preventDefault();
           returnFocusRef.current?.focus();
@@ -128,7 +135,7 @@ export function FeedbackDialog({ value, open, onOpenChange, onSubmit, saving, re
             </p>
           )}
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="ghost" size="sm" disabled={!canDismiss} onClick={() => dismiss(false)}>
               Skip
             </Button>
             <Button type="submit" size="sm" disabled={!canSend}>

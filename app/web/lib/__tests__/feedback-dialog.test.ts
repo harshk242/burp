@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   FEEDBACK_COMMENT_MAX,
+  canDismissFeedback,
   canSendFeedback,
   feedbackDialogTitle,
   isSubmitShortcut,
@@ -20,6 +21,11 @@ describe("feedback dialog helpers", () => {
     expect(canSendFeedback("", 1, false)).toBe(true);
     expect(canSendFeedback("wrong PMID", 0, true)).toBe(false);
     expect(canSendFeedback("", 2, true)).toBe(false);
+  });
+
+  test("dismissal is blocked while a send is in flight", () => {
+    expect(canDismissFeedback(false)).toBe(true);
+    expect(canDismissFeedback(true)).toBe(false);
   });
 
   test("counter appears only near the limit", () => {
