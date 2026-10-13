@@ -137,6 +137,54 @@ describe('TokenBucketRateLimiter', () => {
       await expect(other).resolves.toBeUndefined();
       expect(limiter.getPendingCount()).toBe(0);
     });
+
+    it('a later waiter whose wait ends first, then aborts, leaves no timer behind to consume tokens', async () => {
+      vi.useFakeTimers();
+      const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 1, burstSize: 1 });
+      limiter.tryAcquire();
+
+      let firstResolved = false;
+      const first = limiter.waitForToken().then(() => {
+        firstResolved = true;
+      });
+      // The wall clock jumps without firing timers: the second waiter sees a
+      // nearly refilled bucket, so its wait would end before the first's.
+      vi.setSystemTime(Date.now() + 900);
+      const controller = new AbortController();
+      const second = limiter.waitForToken(controller.signal);
+
+      await vi.advanceTimersByTimeAsync(150);
+      await first;
+      expect(firstResolved).toBe(true);
+      expect(limiter.getPendingCount()).toBe(1);
+
+      controller.abort(new Error('stop'));
+      await expect(second).rejects.toThrow('stop');
+      expect(limiter.getPendingCount()).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+
+      await vi.runAllTimersAsync();
+      expect(limiter.getAvailableTokens()).toBeGreaterThanOrEqual(0);
+      vi.advanceTimersByTime(1_000);
+      expect(limiter.tryAcquire()).toBe(true);
+    });
+
+    it('serves waiters in order and takes exactly one token per waiter', async () => {
+      vi.useFakeTimers();
+      const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 2, burstSize: 2 });
+      limiter.tryAcquire();
+      limiter.tryAcquire();
+
+      const order: number[] = [];
+      const waits = [1, 2, 3].map((n) => limiter.waitForToken().then(() => order.push(n)));
+      await vi.advanceTimersByTimeAsync(500);
+      expect(order).toEqual([1]);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await Promise.all(waits);
+      expect(order).toEqual([1, 2, 3]);
+      expect(limiter.getAvailableTokens()).toBeCloseTo(0, 5);
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 
   describe('getConfig', () => {

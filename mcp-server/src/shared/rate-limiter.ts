@@ -13,6 +13,8 @@ export class TokenBucketRateLimiter {
   private readonly maxTokens: number;
   private readonly refillRate: number;
   private pendingRequests: Array<() => void> = [];
+  // One timer drains the queue in order; it only runs while waiters are queued.
+  private drainTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: RateLimiterOptions) {
     this.maxTokens = options.burstSize || options.requestsPerSecond;
@@ -30,42 +32,54 @@ export class TokenBucketRateLimiter {
   }
 
   /**
-   * Takes a token, waiting for one if the bucket is empty. An abort rejects
-   * with the signal's reason and removes the waiter from the queue.
+   * Serves queued waiters in order while tokens are available, then re-arms
+   * the timer for the next token if anyone is still waiting. A token is only
+   * consumed when handed to a live waiter.
+   */
+  private drain(): void {
+    clearTimeout(this.drainTimer);
+    this.drainTimer = undefined;
+    this.refill();
+    while (this.pendingRequests.length > 0 && this.tokens >= 1) {
+      this.tokens -= 1;
+      this.pendingRequests.shift()!();
+    }
+    if (this.pendingRequests.length > 0) {
+      const waitTime = ((1 - this.tokens) / this.refillRate) * 1000;
+      this.drainTimer = setTimeout(() => this.drain(), waitTime);
+    }
+  }
+
+  /**
+   * Takes a token, waiting for one if the bucket is empty or others are
+   * already waiting. An abort rejects with the signal's reason and removes
+   * the waiter from the queue.
    */
   async waitForToken(signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) throw signal.reason;
     this.refill();
-    if (this.tokens >= 1) {
+    if (this.pendingRequests.length === 0 && this.tokens >= 1) {
       this.tokens -= 1;
       return;
     }
 
-    const tokensNeeded = 1 - this.tokens;
-    const waitTime = (tokensNeeded / this.refillRate) * 1000;
-
     return new Promise<void>((resolve, reject) => {
       const onAbort = () => {
-        // Drop this waiter and its timer so the queue and timers stay paired.
-        clearTimeout(timer);
         const index = this.pendingRequests.indexOf(waiter);
         if (index !== -1) this.pendingRequests.splice(index, 1);
+        if (this.pendingRequests.length === 0) {
+          clearTimeout(this.drainTimer);
+          this.drainTimer = undefined;
+        }
         reject(signal!.reason);
       };
       const waiter = () => {
         signal?.removeEventListener('abort', onAbort);
         resolve();
       };
-      this.pendingRequests.push(waiter);
-      const timer = setTimeout(() => {
-        this.refill();
-        this.tokens -= 1;
-        const nextRequest = this.pendingRequests.shift();
-        if (nextRequest) {
-          nextRequest();
-        }
-      }, waitTime);
       signal?.addEventListener('abort', onAbort, { once: true });
+      this.pendingRequests.push(waiter);
+      this.drain();
     });
   }
 
