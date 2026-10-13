@@ -1,18 +1,7 @@
 // PubMed API Client with rate limiting and caching
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
-import {
-  NetworkError,
-  NCBIAPIError,
-  RateLimitError,
-} from './exceptions.js';
-import {
-  filterNoneValues,
-  generateCacheKey,
-  sleep,
-  calculateBackoff,
-  isRetryableStatus,
-} from './utils.js';
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { filterNoneValues, generateCacheKey } from './utils.js';
 import {
   parseESearchResult,
   parseESummaryResult,
@@ -20,6 +9,7 @@ import {
   parseELinkResult,
 } from './xml-parser.js';
 import { TokenBucketRateLimiter, createNcbiRateLimiter } from '../../shared/rate-limiter.js';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 import type {
   CacheEntry,
   PubMedClientOptions,
@@ -33,6 +23,47 @@ const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 1000;
+
+// ── Retry policy ────────────────────────────────────────────────────────────
+
+/** Waits of `2^n × baseMs` before retry n+1 (1s, 2s with the default base). */
+function exponentialBackoff(baseMs: number): (attempt: number) => number {
+  return (attempt) => 2 ** (attempt - 1) * baseMs;
+}
+
+/**
+ * Production retry policy (plans/shared-http-retry-plan.md, "Platform
+ * inventory"): 3 attempts, `2^n × retryDelay` backoff, retry on network/5xx,
+ * 429 fails fast with Retry-After (default 5s), 40s request budget. The
+ * client adds the NCBI token bucket as `beforeAttempt`.
+ */
+export const PUBMED_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: DEFAULT_MAX_RETRIES,
+  backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+  on429: 'fail',
+  defaultRetryAfterMs: 5_000,
+});
+
+export interface PubMedHttpOptions {
+  /** Retry policy (default PUBMED_POLICY). */
+  policy?: RetryPolicy;
+  /** Transport override (tests). */
+  adapter?: AxiosAdapter;
+  /** Injectable sleep/clock/random for the retry loop (tests). */
+  retryDeps?: RetryDeps;
+}
+
+/** An NCBI E-utilities Axios instance with the shared retry attached. */
+export function createPubMedHttp(options: PubMedHttpOptions = {}): AxiosInstance {
+  const instance = axios.create({
+    baseURL: NCBI_BASE_URL,
+    timeout: 30000,
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(instance, options.policy ?? PUBMED_POLICY, 'pubmed', options.retryDeps);
+}
 
 export interface ESearchParams {
   db?: string;
@@ -75,7 +106,7 @@ export class PubMedClient {
   private readonly retryDelay: number;
   private readonly cache: Map<string, CacheEntry>;
   private readonly rateLimiter: TokenBucketRateLimiter;
-  private axiosInstance: AxiosInstance;
+  private readonly axiosInstance: AxiosInstance;
 
   constructor(options: PubMedClientOptions = {}) {
     this.apiKey = options.apiKey || process.env.NCBI_API_KEY;
@@ -83,16 +114,24 @@ export class PubMedClient {
     this.maxRetries = options.maxRetries || DEFAULT_MAX_RETRIES;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
-    this.rateLimiter = createNcbiRateLimiter(!!this.apiKey);
+    this.rateLimiter = options.rateLimiter ?? createNcbiRateLimiter(!!this.apiKey);
 
-    this.axiosInstance = axios.create({
-      baseURL: NCBI_BASE_URL,
-      timeout: 30000,
+    this.axiosInstance = createPubMedHttp({
+      policy: {
+        ...PUBMED_POLICY,
+        maxAttempts: this.maxRetries,
+        backoffMs: exponentialBackoff(this.retryDelay),
+        // A token before every attempt; the wait counts against the budget.
+        beforeAttempt: (signal) => this.rateLimiter.waitForToken(signal),
+      },
+      adapter: options.adapter,
+      retryDeps: options.retryDeps,
     });
   }
 
   /**
-   * Execute a request with rate limiting, caching, and retries
+   * Execute a request with caching; rate limiting and retries run in the
+   * shared retry adapter.
    */
   private async request<T>(
     endpoint: string,
@@ -113,67 +152,20 @@ export class PubMedClient {
       return cachedEntry.data as T;
     }
 
-    // Execute with retries
-    let lastError: Error | undefined;
+    const response = await this.axiosInstance.get(endpoint, {
+      params: fullParams,
+      responseType: 'text',
+    });
 
-    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      try {
-        // Wait for rate limiter
-        await this.rateLimiter.waitForToken();
+    const data = parser(response.data);
 
-        const response = await this.axiosInstance.get(endpoint, {
-          params: fullParams,
-          responseType: 'text',
-        });
+    // Cache result
+    this.cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    });
 
-        const data = parser(response.data);
-
-        // Cache result
-        this.cache.set(cacheKey, {
-          data,
-          timestamp: Date.now(),
-        });
-
-        return data;
-      } catch (error) {
-        lastError = error as Error;
-
-        if (axios.isAxiosError(error)) {
-          const axiosError = error as AxiosError;
-          const status = axiosError.response?.status;
-
-          if (status === 429) {
-            const retryAfter = parseInt(
-              axiosError.response?.headers['retry-after'] || '5',
-              10
-            );
-            throw new RateLimitError(
-              'NCBI rate limit exceeded',
-              retryAfter * 1000
-            );
-          }
-
-          if (status && !isRetryableStatus(status)) {
-            throw new NetworkError(
-              `HTTP error ${status}: ${axiosError.message}`,
-              status
-            );
-          }
-
-          if (attempt < this.maxRetries - 1) {
-            const delay = calculateBackoff(attempt, this.retryDelay);
-            console.warn(
-              `Request failed (attempt ${attempt + 1}/${this.maxRetries}), retrying in ${delay}ms...`
-            );
-            await sleep(delay);
-          }
-        } else {
-          throw error;
-        }
-      }
-    }
-
-    throw lastError || new NetworkError('Request failed after all retries');
+    return data;
   }
 
   /**
