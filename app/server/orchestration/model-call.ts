@@ -25,7 +25,7 @@ export interface CallSegment {
 
 export interface ModelCallRequest {
   iteration: number;
-  llmConfig: Pick<LLMConfig, "maxRetries" | "maxOutputTokens">;
+  llmConfig: Pick<LLMConfig, "chatModel" | "maxRetries" | "maxOutputTokens">;
   providerOptions: ChatProviderOptions | undefined;
   instructions: string | SystemModelMessage;
   /** What is sent: the turn's messages, with cache markers when caching. */
@@ -60,7 +60,7 @@ export async function* streamModelCall(req: ModelCallRequest): AsyncGenerator<St
   tracker.begin(req.iteration);
   const result = streamText({
     model: wrapLanguageModel({
-      model: getChatModel({ fetch: tracker.fetch }) as Parameters<typeof wrapLanguageModel>[0]["model"],
+      model: getChatModel({ fetch: tracker.fetch, model: llmConfig.chatModel }) as Parameters<typeof wrapLanguageModel>[0]["model"],
       middleware: {
         specificationVersion: "v4",
         wrapStream: async ({ doStream }) => {

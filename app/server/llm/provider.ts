@@ -19,6 +19,8 @@ const google = createGoogle({ apiKey: googleApiKey });
 export interface ModelOptions {
   /** Transport for this model only; builds a dedicated provider instance. */
   fetch?: typeof fetch;
+  /** Chat model id for this call (a turn's LLM override); defaults to the configured one. */
+  model?: string;
 }
 
 function getModel(modelId: string, provider: LLMProviderName, options: ModelOptions = {}): LanguageModel {
@@ -34,7 +36,7 @@ function getModel(modelId: string, provider: LLMProviderName, options: ModelOpti
 }
 
 export function getChatModel(options?: ModelOptions): LanguageModel {
-  return getModel(config.chatModel, config.provider, options);
+  return getModel(options?.model ?? config.chatModel, config.provider, options);
 }
 
 export function getTitleModel(): LanguageModel {

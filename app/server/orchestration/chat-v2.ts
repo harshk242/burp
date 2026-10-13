@@ -7,12 +7,12 @@
  */
 
 import type { ModelMessage, ToolResultPart } from "ai";
-import { chatProviderOptions, loadLLMConfig, sanitizeToolName } from "../llm";
+import { sanitizeToolName, type TurnLLMOverride } from "../llm";
 import { chatSessionQueries } from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
-import { appendTranscript, contextVersion, loadTranscript, type TranscriptTag } from "./context/transcript";
+import { appendTranscript, loadTranscript } from "./context/transcript";
 import { toolRegistry } from "../mcp/registry";
 import { buildToolCatalog, countDeferred, registeredToolNames } from "./context/tool-catalog";
 import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
@@ -37,25 +37,10 @@ import { joinReasoning } from "./reasoning";
 import { streamModelCall } from "./model-call";
 import { langfuseConfig } from "../observability/langfuse";
 import { TurnTrace, type TraceParent } from "../observability/turn-trace";
+import { resolveTurnLLM } from "./turn-llm";
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
-
-const llmConfig = loadLLMConfig();
-// Thinking + effort (Anthropic); undefined on Google.
-const providerOptions = chatProviderOptions(llmConfig);
-// Stored on every model_transcript row (compatibility check for replay).
-const transcriptTag: TranscriptTag = {
-  provider: llmConfig.provider,
-  model: llmConfig.chatModel,
-  contextVersion: contextVersion(SYSTEM_PROMPT, providerOptions),
-};
-// modelParameters of every llm-call generation in the trace.
-const generationParameters = {
-  effort: llmConfig.effort,
-  max_output_tokens: llmConfig.maxOutputTokens,
-  thinking_display: llmConfig.thinkingDisplay,
-};
 
 // ── Main Chat Loop ─────────────────────────────────────────────────────────
 
@@ -79,10 +64,14 @@ const generationParameters = {
  * Options (eval runner): `traceParent` nests the turn's trace under that span;
  * `costBudget` is checked before each model call and charged with every priced
  * call (cost-budget.ts); running out fails the turn with `budget_exceeded`.
+ * `llm` overrides model, effort and max_output_tokens for this turn
+ * (turn-llm.ts); pricing, trace generations, chat_turns and usage_events all
+ * use the effective settings. Without it the turn uses app config.
  */
 export interface ProcessChatOptions {
   traceParent?: TraceParent;
   costBudget?: CostBudget;
+  llm?: TurnLLMOverride;
 }
 
 export async function* processChat(
@@ -94,6 +83,7 @@ export async function* processChat(
 ): AsyncGenerator<StreamEvent> {
   const chatElapsed = startTimer();
   const ctx: LogContext = { session_id: sessionId, user_id: userId };
+  const { llmConfig, providerOptions, transcriptTag, generationParameters } = resolveTurnLLM(options.llm);
   const sanitize = (name: string) => sanitizeToolName(name, llmConfig.provider);
 
   logger.info("CHAT", "process_start", {
