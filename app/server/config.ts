@@ -143,6 +143,13 @@ const AppConfigSchema = z.object({
           cache_write_5m_usd_per_mtok: 1.25,
           cache_write_1h_usd_per_mtok: 2,
         },
+        "claude-opus-5-5": {
+          input_usd_per_mtok: 4,
+          output_usd_per_mtok: 20,
+          cache_read_usd_per_mtok: 0.2,
+          cache_write_5m_usd_per_mtok: 5,
+          cache_write_1h_usd_per_mtok: 8,
+        },
         "claude-haiku-5-5": {
           input_usd_per_mtok: 0.1,
           output_usd_per_mtok: 0.5,

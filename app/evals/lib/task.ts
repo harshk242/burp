@@ -10,7 +10,7 @@
 import { randomUUID } from "node:crypto";
 import { getActiveSpanId, getActiveTraceId } from "@langfuse/tracing";
 import { chatTurnQueries, messageQueries, modelTranscriptQueries, usageEventQueries } from "../../server/db";
-import { desanitizeToolName, type LLMProviderName } from "../../server/llm";
+import { desanitizeToolName, type LLMProviderName, type TurnLLMOverride } from "../../server/llm";
 import type { TraceParent } from "../../server/observability/turn-trace";
 import type { SharedCostBudget } from "../../server/orchestration/cost-budget";
 import { processChat } from "../../server/orchestration/chat-v2";
@@ -21,6 +21,8 @@ import { buildTaskOutput } from "./task-output";
 export interface TaskContext {
   userId: string;
   provider: LLMProviderName;
+  /** The arm's model/effort/max_output_tokens; unset = app config. */
+  llm?: TurnLLMOverride;
   budget: SharedCostBudget;
   lifecycle: RunLifecycle;
   log: (line: string) => void;
@@ -86,6 +88,7 @@ export function createItemTask(ctx: TaskContext): (item: ItemLike) => Promise<Ta
         for await (const _event of processChat(sessionId, ctx.userId, message, ctx.lifecycle.abort.signal, {
           traceParent,
           costBudget: ctx.budget,
+          llm: ctx.llm,
         })) {
           // Events go to the DB; the output is read from persisted rows.
         }

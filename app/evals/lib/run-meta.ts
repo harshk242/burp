@@ -14,15 +14,19 @@ export interface NameParts {
   dataset: string;
   gitSha: string;
   model: string;
+  effort: string;
+  /** The arm's own note (matrix files), tells apart arms with the same model and effort. */
+  armNote?: string | null;
   note: string | null;
   /** 1-based; only appended when the run is one of several repeats. */
   repeatIndex: number;
   repeatCount: number;
 }
 
-/** `<dataset>-<git short sha>-<model>[-note][-rN]`. */
+/** `<dataset>-<git short sha>-<model>-<effort>[-armNote][-note][-rN]`. */
 export function experimentName(p: NameParts): string {
-  const parts = [p.dataset, p.gitSha, p.model];
+  const parts = [p.dataset, p.gitSha, p.model, p.effort];
+  if (p.armNote) parts.push(p.armNote);
   if (p.note) parts.push(p.note);
   if (p.repeatCount > 1) parts.push(`r${p.repeatIndex}`);
   return parts.join("-");
@@ -81,6 +85,16 @@ export interface RunMetadataInput {
   model: string;
   provider: string;
   effort: string;
+  thinkingDisplay: string;
+  maxOutputTokens: number;
+  /** arm | default (raised arm default) | config. */
+  maxOutputTokensSource: string;
+  maxContextTokens: number;
+  /** Shared by every arm (experiment) of one invocation. */
+  comparisonGroup: string;
+  arm: string;
+  armIndex: number;
+  armCount: number;
   contextVersion: string;
   git: { sha: string; dirty: boolean };
   datasetName: string;
@@ -104,6 +118,14 @@ export function runMetadata(m: RunMetadataInput): Record<string, unknown> {
     model: m.model,
     provider: m.provider,
     effort: m.effort,
+    thinking_display: m.thinkingDisplay,
+    max_output_tokens: m.maxOutputTokens,
+    max_output_tokens_source: m.maxOutputTokensSource,
+    max_context_tokens: m.maxContextTokens,
+    comparison_group: m.comparisonGroup,
+    arm: m.arm,
+    arm_index: m.armIndex,
+    arm_count: m.armCount,
     context_version: m.contextVersion,
     git_sha: m.git.sha,
     git_dirty: m.git.dirty,

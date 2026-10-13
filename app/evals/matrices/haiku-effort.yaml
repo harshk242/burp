@@ -1,0 +1,10 @@
+# Haiku 5.5 across every effort level (plan 2.4). Haiku 5.5 switches to its
+# long-context rates above 100k input tokens; the report shows how often.
+#   bun run eval --dataset smoke --matrix haiku-effort
+description: Haiku 5.5 effort sweep
+arms:
+  - { model: claude-haiku-5-5, effort: low }
+  - { model: claude-haiku-5-5, effort: medium }
+  - { model: claude-haiku-5-5, effort: high }
+  - { model: claude-haiku-5-5, effort: xhigh }
+  - { model: claude-haiku-5-5, effort: max }

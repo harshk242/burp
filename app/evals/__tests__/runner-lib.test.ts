@@ -25,6 +25,8 @@ describe("args", () => {
       maxCostUsd: 1.5,
       note: "effort-high",
       datasetVersion: null,
+      matrix: null,
+      arms: [],
     });
     expect(parseRunArgs(["--help"])).toBeNull();
     expect(parseRunArgs(["--dataset", "smoke", "--dataset-version", "2026-10-12T10:00:00Z"])!.datasetVersion).toBe("2026-10-12T10:00:00.000Z");
@@ -89,10 +91,11 @@ describe("dataset verification", () => {
 });
 
 describe("experiment name", () => {
-  it("<dataset>-<sha>-<model>[-note][-rN]", () => {
-    const base = { dataset: "smoke", gitSha: "cdb76d5", model: "claude-sonnet-5-5", note: null, repeatIndex: 1, repeatCount: 1 };
-    expect(experimentName(base)).toBe("smoke-cdb76d5-claude-sonnet-5-5");
-    expect(experimentName({ ...base, note: "effort-high", repeatIndex: 2, repeatCount: 2 })).toBe("smoke-cdb76d5-claude-sonnet-5-5-effort-high-r2");
+  it("<dataset>-<sha>-<model>-<effort>[-armNote][-note][-rN]", () => {
+    const base = { dataset: "smoke", gitSha: "cdb76d5", model: "claude-sonnet-5-5", effort: "medium", note: null, repeatIndex: 1, repeatCount: 1 };
+    expect(experimentName(base)).toBe("smoke-cdb76d5-claude-sonnet-5-5-medium");
+    expect(experimentName({ ...base, note: "probe", repeatIndex: 2, repeatCount: 2 })).toBe("smoke-cdb76d5-claude-sonnet-5-5-medium-probe-r2");
+    expect(experimentName({ ...base, armNote: "out32k", note: "probe" })).toBe("smoke-cdb76d5-claude-sonnet-5-5-medium-out32k-probe");
   });
 });
 

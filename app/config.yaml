@@ -28,6 +28,12 @@ usage:
         cache_read_usd_per_mtok: 0.10
         cache_write_5m_usd_per_mtok: 2.50
         cache_write_1h_usd_per_mtok: 4.00
+      claude-opus-5-5:
+        input_usd_per_mtok: 4.00
+        output_usd_per_mtok: 20.00
+        cache_read_usd_per_mtok: 0.20
+        cache_write_5m_usd_per_mtok: 5.00
+        cache_write_1h_usd_per_mtok: 8.00
       claude-haiku-5-5:
         input_usd_per_mtok: 0.10
         output_usd_per_mtok: 0.50

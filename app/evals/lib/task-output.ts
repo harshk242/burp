@@ -28,6 +28,7 @@ export interface UsageRow {
   turn_id: string | null;
   cost_microusd: number;
   llm_calls: number | null;
+  long_context_calls?: number | null;
 }
 
 export interface SessionRows {
@@ -104,6 +105,7 @@ export function buildTaskOutput(rows: SessionRows): TaskOutput {
       tool_calls: toolCallsOf(rows.transcript.filter((r) => r.turn_id === turn.id), toolName),
       cost_usd: usage.reduce((sum, u) => sum + u.cost_microusd, 0) / 1e6,
       llm_calls: usage.reduce((sum, u) => sum + (u.llm_calls ?? 0), 0),
+      long_context_calls: usage.reduce((sum, u) => sum + (u.long_context_calls ?? 0), 0),
       duration_ms: Math.round(rows.durationsMs[i] ?? 0),
       trace_id: turn.trace_id,
     };

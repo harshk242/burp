@@ -3,25 +3,32 @@
  * after DATABASE_URL points at the run's own DB, because server modules read
  * config at import.
  *
- * Order: own DB + eval user → tracing (with async context for the task span)
- * → pinned dataset fetched and verified against the local YAML → tools booted
- * through the production path, search indexed and probed → N experiments
- * sharing one cost budget → report. Cleanup is signal-safe (lifecycle.ts).
+ * Order: arms checked (pricing, Models API; arm-setup.ts) → own DB + eval
+ * user → tracing (with async context for the task span) → pinned dataset
+ * fetched and verified against the local YAML → tools booted through the
+ * production path, search indexed and probed → per arm, N experiments, all
+ * arms on the same dataset version and one cost budget (matrix.ts) → reports
+ * (variance per arm, comparison across arms). Cleanup is signal-safe
+ * (lifecycle.ts).
  */
 import { randomUUID } from "node:crypto";
 import type { LangfuseClient } from "@langfuse/client";
 import { initializeTools, toolsReport, type ToolsBoot } from "../../server/boot/tools";
 import { runMigrations, sqlite, userQueries } from "../../server/db";
-import { chatProviderOptions, loadLLMConfig } from "../../server/llm";
+import { chatProviderOptions, effectiveLLMConfig, loadLLMConfig } from "../../server/llm";
 import { mcpManager } from "../../server/mcp/manager";
 import { getScoreClient, initTracing, scoreConfigsReady, shutdownTracing } from "../../server/observability/langfuse";
 import { contextVersion } from "../../server/orchestration/context/transcript";
 import { SYSTEM_PROMPT } from "../../server/orchestration/context/system-prompt";
 import { SharedCostBudget } from "../../server/orchestration/cost-budget";
 import { hybridSearch } from "../../server/search";
-import { assertPricingConfigured } from "../../server/usage";
 import { DEFAULT_CONCURRENCY, DEFAULT_MAX_COST_USD, type RunArgs } from "./args";
 import { varianceReport } from "./aggregate";
+import { armEstimates, prepareArms } from "./arm-setup";
+import type { ResolvedArm } from "./arms";
+import { buildComparison, saveItemRun, type SavedComparison } from "./compare";
+import { comparisonMarkdown, printComparison } from "./compare-render";
+import { runArms, type ArmRunResult } from "./matrix";
 import { runExperiment, type ExperimentOutcome, type FetchedItem } from "./experiment";
 import { RunLifecycle } from "./lifecycle";
 import { loadEvalHome } from "./load";
@@ -35,7 +42,7 @@ export interface RunEnv {
   runId: string;
   /** Repo-relative DB path (DATABASE_URL). */
   dbPath: string;
-  /** Where the variance report goes. */
+  /** Where the variance and comparison reports go. */
   outDir: string;
 }
 
@@ -70,6 +77,19 @@ async function bootTools(boot: ToolsBoot): Promise<SearchState> {
   return search;
 }
 
+/** The context version of an arm's requests (system prompt + provider options). */
+function armContextVersion(arm: ResolvedArm): string {
+  return contextVersion(SYSTEM_PROMPT, chatProviderOptions(effectiveLLMConfig(loadLLMConfig(), arm.override)));
+}
+
+async function writeVariance(outDir: string, runId: string, arm: ResolvedArm, repeatGroup: string, outcomes: ExperimentOutcome[]): Promise<void> {
+  const path = `${outDir}/${repeatGroup}.json`;
+  const report = varianceReport(outcomes.map((o) => o.itemRuns));
+  await Bun.write(path, `${JSON.stringify({ repeat_group: repeatGroup, run_id: runId, arm: arm.label, experiments: outcomes.map((o) => o.runName), items: report }, null, 2)}\n`);
+  printVariance(report, log);
+  log(`variance report (${arm.label}): ${path}`);
+}
+
 export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
   let tools: ToolsBoot | null = null;
   const lifecycle = new RunLifecycle({
@@ -79,6 +99,13 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
   });
   const removeHandlers = lifecycle.installSignalHandlers();
   try {
+    // Arms first: a bad model, effort level or missing pricing fails before any spend.
+    const config = loadLLMConfig();
+    const { arms, comparing } = await prepareArms(args, config, {
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      baseUrl: process.env.ANTHROPIC_BASE_URL,
+    });
+
     runMigrations(sqlite);
     const userId = randomUUID();
     userQueries.create(userId, `eval-runner-${env.runId}`, "eval-runner@localhost", "eval-runner", null, "user", null, null);
@@ -88,81 +115,123 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
       throw new RunAbort("Langfuse tracing is off: set LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY (app/.env) and observability.langfuse.enabled");
     }
     const client = getScoreClient()!;
-    const llm = loadLLMConfig();
-    assertPricingConfigured(llm.provider, llm.chatModel);
 
     const home = loadEvalHome();
     const loaded = home.datasets.find((d) => d.dataset.name === args.dataset);
     if (!loaded) throw new RunAbort(`unknown dataset "${args.dataset}" (have: ${home.datasets.map((d) => d.dataset.name).join(", ")})`);
     const dataset = loaded.dataset;
+    // One pinned dataset version for every arm and repeat.
     const pinned = await fetchVerifiedItems(client, args, dataset);
     if (pinned.items.length === 0) throw new RunAbort("no items to run");
+
+    const concurrency = args.concurrency ?? dataset.run_defaults?.concurrency ?? DEFAULT_CONCURRENCY;
+    const maxCostUsd = args.maxCostUsd ?? dataset.run_defaults?.max_cost_usd ?? DEFAULT_MAX_COST_USD;
+    const estimates = armEstimates(arms, pinned.items.map((i) => ({ turns: (i.input as { turns?: unknown[] } | undefined)?.turns?.length ?? 1 })), args.repeat);
+    log(`budget $${maxCostUsd} shared by ${arms.length} arm(s) × ${args.repeat} repeat(s) (overshoot ≤ ~1 call per concurrent item), concurrency ${concurrency}`);
+    arms.forEach((arm, i) => {
+      log(`  arm ${arm.label}: max_output_tokens ${arm.maxOutputTokens} (${arm.maxOutputTokensSource}), max_context_tokens ${arm.maxContextTokens}; rough estimate $${estimates[i]!.totalUsd.toFixed(2)} ($${estimates[i]!.perItemUsd.toFixed(3)}/item)`);
+    });
+    const estimatedTotal = estimates.reduce((s, e) => s + e.totalUsd, 0);
+    if (estimatedTotal > maxCostUsd) log(`  note: rough estimate $${estimatedTotal.toFixed(2)} exceeds the budget; later arms may be skipped_budget`);
 
     tools = initializeTools();
     const search = await bootTools(tools);
     await scoreConfigsReady();
 
-    const concurrency = args.concurrency ?? dataset.run_defaults?.concurrency ?? DEFAULT_CONCURRENCY;
-    const maxCostUsd = args.maxCostUsd ?? dataset.run_defaults?.max_cost_usd ?? DEFAULT_MAX_COST_USD;
     const budget = SharedCostBudget.usd(maxCostUsd);
     const git = gitState();
-    const repeatGroup = randomUUID();
+    const comparisonGroup = randomUUID();
     const rubrics = home.metrics.flatMap((m) => (m.status === "active" && m.rubric ? [m.rubric] : []));
     const localItems = new Map(dataset.items.map((i) => [i.id, i]));
-    const outcomes: ExperimentOutcome[] = [];
-    log(`model ${llm.chatModel} (effort ${llm.effort}), concurrency ${concurrency}, budget $${maxCostUsd} (overshoot ≤ ~1 call per concurrent item)`);
+    const repeatGroups = new Map(arms.map((arm) => [arm, randomUUID()]));
+    if (comparing) log(`comparison_group ${comparisonGroup}`);
 
-    for (let r = 1; r <= args.repeat; r++) {
-      if (lifecycle.stopping) break;
-      if (budget.exhausted) {
-        log(`budget exhausted: skipping repeat(s) ${r}..${args.repeat}`);
-        break;
-      }
-      const name = experimentName({ dataset: args.dataset, gitSha: git.sha, model: llm.chatModel, note: args.note, repeatIndex: r, repeatCount: args.repeat });
-      log(`\n▶ ${name}`);
-      const outcome = await runExperiment(client, {
-        name,
-        description: `${dataset.description} (run ${env.runId})`,
-        metadata: runMetadata({
-          model: llm.chatModel,
-          provider: llm.provider,
-          effort: llm.effort,
-          contextVersion: contextVersion(SYSTEM_PROMPT, chatProviderOptions(llm)),
-          git,
-          datasetName: args.dataset,
-          datasetVersion: pinned.version,
-          datasetHash: pinned.datasetHash,
-          datasetVersionPinned: args.datasetVersion !== null,
-          scoring: scoringHashes(rubrics),
-          search,
-          runId: env.runId,
-          repeatGroup,
-          repeatIndex: r,
-          repeatCount: args.repeat,
-          maxCostUsd,
+    const results: ArmRunResult<ResolvedArm, ExperimentOutcome>[] = await runArms({
+      arms,
+      repeat: args.repeat,
+      shared: { datasetVersion: pinned.version, budget },
+      isStopping: () => lifecycle.stopping,
+      log,
+      runOne: async (arm, r, shared) => {
+        const name = experimentName({ dataset: args.dataset, gitSha: git.sha, model: arm.model, effort: arm.effort, armNote: arm.note, note: args.note, repeatIndex: r, repeatCount: args.repeat });
+        log(`\n▶ ${name}`);
+        const outcome = await runExperiment(client, {
+          name,
+          description: `${dataset.description} (run ${env.runId})`,
+          metadata: runMetadata({
+            model: arm.model,
+            provider: arm.provider,
+            effort: arm.effort,
+            thinkingDisplay: arm.thinkingDisplay,
+            maxOutputTokens: arm.maxOutputTokens,
+            maxOutputTokensSource: arm.maxOutputTokensSource,
+            maxContextTokens: arm.maxContextTokens,
+            comparisonGroup,
+            arm: arm.label,
+            armIndex: arms.indexOf(arm) + 1,
+            armCount: arms.length,
+            contextVersion: armContextVersion(arm),
+            git,
+            datasetName: args.dataset,
+            datasetVersion: shared.datasetVersion,
+            datasetHash: pinned.datasetHash,
+            datasetVersionPinned: args.datasetVersion !== null,
+            scoring: scoringHashes(rubrics),
+            search,
+            runId: env.runId,
+            repeatGroup: repeatGroups.get(arm)!,
+            repeatIndex: r,
+            repeatCount: args.repeat,
+            maxCostUsd,
+            concurrency,
+            items: args.items,
+          }),
+          items: pinned.items,
+          localItems,
+          datasetVersion: shared.datasetVersion,
           concurrency,
-          items: args.items,
-        }),
-        items: pinned.items,
-        localItems,
-        datasetVersion: pinned.version,
-        concurrency,
-        task: { userId, provider: llm.provider, budget, lifecycle, log },
-      });
-      outcomes.push(outcome);
-      printOutcome(outcome, log);
-    }
+          task: { userId, provider: arm.provider, llm: arm.override, budget: shared.budget, lifecycle, log },
+        });
+        printOutcome(outcome, log);
+        return outcome;
+      },
+    });
     log(`\nspent $${budget.spentUsd.toFixed(4)} of $${maxCostUsd}`);
 
-    if (args.repeat > 1 && outcomes.length > 1) {
-      const path = `${env.outDir}/${repeatGroup}.json`;
-      const report = varianceReport(outcomes.map((o) => o.itemRuns));
-      await Bun.write(path, `${JSON.stringify({ repeat_group: repeatGroup, run_id: env.runId, experiments: outcomes.map((o) => o.runName), items: report }, null, 2)}\n`);
-      printVariance(report, log);
-      log(`variance report: ${path}`);
+    for (const { arm, outcomes } of results) {
+      if (args.repeat > 1 && outcomes.length > 1) await writeVariance(env.outDir, env.runId, arm, repeatGroups.get(arm)!, outcomes);
+    }
+    if (comparing) {
+      const saved: SavedComparison = {
+        comparison_group: comparisonGroup,
+        run_id: env.runId,
+        dataset: args.dataset,
+        dataset_version: pinned.version,
+        git_sha: git.sha,
+        repeat: args.repeat,
+        max_cost_usd: maxCostUsd,
+        spent_usd: budget.spentUsd,
+        arms: results.map(({ arm, status, outcomes }, i) => ({
+          label: arm.label,
+          provider: arm.provider,
+          model: arm.model,
+          effort: arm.effort,
+          max_output_tokens: arm.maxOutputTokens,
+          max_context_tokens: arm.maxContextTokens,
+          status,
+          estimate_usd: Number(estimates[i]!.totalUsd.toFixed(4)),
+          experiments: outcomes.map((o, r) => ({ name: o.name, run_name: o.runName, url: o.datasetRunUrl ?? null, repeat_index: r + 1, items: o.itemRuns.map(saveItemRun) })),
+        })),
+      };
+      const report = buildComparison(saved);
+      const base = `${env.outDir}/${comparisonGroup}`;
+      await Bun.write(`${base}.json`, `${JSON.stringify({ report, runs: saved }, null, 2)}\n`);
+      await Bun.write(`${base}.md`, comparisonMarkdown(report));
+      printComparison(report, log);
+      log(`comparison report: ${base}.{json,md}`);
     }
     if (lifecycle.signalExitCode !== null) return lifecycle.signalExitCode;
-    return outcomes.some((o) => o.missing.length > 0) ? 1 : 0;
+    return results.some((r) => r.outcomes.some((o) => o.missing.length > 0)) ? 1 : 0;
   } catch (error) {
     if (lifecycle.signalExitCode !== null) return lifecycle.signalExitCode;
     console.error(error instanceof RunAbort ? `eval aborted: ${error.message}` : error);

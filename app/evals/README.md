@@ -31,6 +31,10 @@ Langfuse, which holds traces, experiment runs and scores. Design: `plans/eval-pi
 | `lib/verify-dataset.ts` | Pinned dataset check against the local YAML (recomputed hashes, active ids) |
 | `lib/lifecycle.ts` | Signal-safe cleanup: stop → abort → drain → flush tracing → stop MCP |
 | `lib/aggregate.ts`, `lib/report.ts` | Run aggregates, pass/fail over reviewed items, repeat variance |
+| `matrices/` | Comparison arms (model + effort) per matrix file, run with `--matrix <name>` |
+| `lib/arms.ts`, `lib/arm-setup.ts`, `lib/capabilities.ts` | Arm parsing and matrix files; preflight: pricing + Models API capability check |
+| `lib/matrix.ts`, `lib/estimate.ts` | Sequential arm loop on one dataset version and budget; rough per-arm cost estimate |
+| `lib/compare.ts`, `lib/compare-render.ts` | Comparison report across arms (JSON + markdown + console) |
 | `evaluators/` | Code evaluators: pure `(taskOutput, item)` functions, fixture-tested |
 
 ## Add a dataset item
@@ -85,8 +89,10 @@ file exists.
 ```sh
 bun run eval --dataset smoke                         # all active items
 bun run eval --dataset smoke --items brca1-uniprot-lookup --max-cost-usd 0.5
-LLM_EFFORT=high bun run eval --dataset smoke --name effort-high
+LLM_EFFORT=high bun run eval --dataset smoke --name probe
 bun run eval --dataset smoke --repeat 2              # 2 linked experiments + variance report
+bun run eval --dataset smoke --matrix sonnet-effort  # one experiment per arm + comparison report
+bun run eval --dataset smoke --arm claude-sonnet-5-5:high --arm claude-haiku-5-5:high --repeat 2
 bun run eval --help
 ```
 
@@ -106,10 +112,35 @@ gets `avg_*` means, `ok_rate`, cost, p50/p95 latency and failure counts. Items w
 `--max-cost-usd` is one budget for all items and repeats, checked before every model call. Calls
 already streaming finish, so the cap can be overshot by about one model call per concurrent item.
 Items it stops are `skipped_budget` and get no scores. Experiment names are
-`<dataset>-<git sha>-<model>[-note][-rN]`; metadata records model, effort, context version, git SHA
-and dirty flag, dataset version and hash, evaluator/metric/rubric hashes and the search mode. Ctrl-C
+`<dataset>-<git sha>-<model>-<effort>[-arm note][-note][-rN]`; metadata records provider, model,
+effort, thinking display, max output/context tokens, `comparison_group`, context version, git SHA and
+dirty flag, dataset version and hash, evaluator/metric/rubric hashes and the search mode. Ctrl-C
 aborts running turns and waits (≤ 30 s) for them to record before flushing; a second Ctrl-C exits
 at once.
+
+## Compare models and effort levels (arms)
+
+An arm is one Anthropic setup: model + effort, optionally `max_output_tokens`. Arms come from a
+git-tracked matrix file (`matrices/<name>.yaml`, a list of `{ model, effort, max_output_tokens?, note? }`)
+and/or repeatable `--arm <model>:<effort>[:<max_output_tokens>]`. Without arms the run uses app
+config, exactly as above.
+
+Before anything runs, every arm model must be priced in `config.yaml` and is checked against the
+Anthropic Models API (`GET /v1/models/{id}`): unknown models, missing adaptive thinking or an
+unsupported effort level abort the run. All arms run on one pinned dataset version, one after another
+(items within an arm keep `--concurrency`), each `--repeat` times, under one `--max-cost-usd` budget;
+a rough per-arm estimate is printed first. Once the budget is spent the remaining arms are
+`skipped_budget`. Arms without `max_output_tokens` get 64000 (capped at the model's limit) so
+xhigh/max aren't cut by the 16k production cap; `max_context_tokens` is app config for every arm.
+
+Each arm is its own Langfuse experiment; all share a `comparison_group` in their metadata (filter on it
+to compare them side by side). After the last arm the runner prints a table and writes
+`app/tmp/evals/<comparison_group>.json` (the report plus the saved run results it was built from) and
+`.md`: per arm, score means (± stddev [min–max] across repeats), `turn_outcome` breakdown,
+`answer_truncated` rate, total and per-item cost, long-context pricing-tier calls, p50/p95 latency and
+mean LLM/tool calls per item; per score, the delta against the first arm, marked "within noise" when
+it is no larger than the wider min–max range of the two arms' per-repeat means (needs `--repeat` ≥ 2);
+and the items whose outcome, pass rate or code scores differ between arms.
 
 ## Validate and sync
 

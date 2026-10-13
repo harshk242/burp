@@ -40,10 +40,10 @@ export function percentile(values: number[], p: number): number | null {
 
 const itemCost = (o: TaskOutput) => o.turns.reduce((sum, t) => sum + t.cost_usd, 0);
 const itemLatency = (o: TaskOutput) => o.turns.reduce((sum, t) => sum + t.duration_ms, 0);
-const scoreOf = (item: ItemRun, name: string) => item.evaluations.find((e) => e.name === name)?.value;
+const scoreOf = (item: Pick<ItemRun, "evaluations">, name: string) => item.evaluations.find((e) => e.name === name)?.value;
 
 /** Pass bars (rubrics): outcome ok, and every present code score at its maximum. */
-export function itemPasses(item: ItemRun): boolean {
+export function itemPasses(item: Pick<ItemRun, "evaluations">): boolean {
   if (scoreOf(item, "turn_outcome") !== "ok") return false;
   for (const name of ["id_grounding", "checkpoint_recall", "expected_tool_coverage"]) {
     const value = scoreOf(item, name);

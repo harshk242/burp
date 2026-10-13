@@ -3,6 +3,11 @@
  *
  *   bun run eval --dataset smoke [--items id1,id2] [--repeat 1] [--concurrency 2]
  *                [--max-cost-usd 5] [--name note] [--dataset-version <ts>]
+ *                [--matrix <name>] [--arm <model>:<effort>[:<max_output_tokens>]]...
+ *
+ * Arms (Phase 2.4): each arm (model + effort) is its own experiment on the same
+ * pinned dataset version, linked by a comparison_group, with a local
+ * comparison report. No arm = app config.
  *
  * Runs from app/ so app/.env loads. Server config is read at import, so this
  * entry only parses arguments and sets the environment (the run's own DB,

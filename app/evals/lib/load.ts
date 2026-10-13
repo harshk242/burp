@@ -31,13 +31,13 @@ export interface EvalHome {
   metrics: Metric[];
 }
 
-interface ParsedYaml {
+export interface ParsedYaml {
   doc: Document.Parsed;
   lines: LineCounter;
   file: string;
 }
 
-function parseYaml(absPath: string, rootDir: string): { parsed?: ParsedYaml; problems: string[] } {
+export function parseYaml(absPath: string, rootDir: string): { parsed?: ParsedYaml; problems: string[] } {
   const file = relative(rootDir, absPath);
   const lines = new LineCounter();
   const doc = parseDocument(readFileSync(absPath, "utf8"), { lineCounter: lines, prettyErrors: false });
@@ -60,7 +60,7 @@ function locate({ doc, lines, file }: ParsedYaml, path: ReadonlyArray<string | n
   return `${file}:1:1`;
 }
 
-function validate<S extends z.ZodTypeAny>(
+export function validate<S extends z.ZodTypeAny>(
   schema: S,
   parsed: ParsedYaml,
   problems: string[],

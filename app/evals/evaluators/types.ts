@@ -31,6 +31,8 @@ export interface TaskTurn {
   tool_calls: TaskToolCall[];
   cost_usd: number;
   llm_calls: number;
+  /** LLM calls billed at the model's long-context rates (pricing tier hit). */
+  long_context_calls?: number;
   /** Wall-clock time around the turn's drain (chat_turns timestamps are whole seconds). */
   duration_ms: number;
   trace_id: string | null;

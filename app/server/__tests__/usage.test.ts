@@ -178,6 +178,21 @@ describe("pricing config", () => {
     }
   });
 
+  it("config.yaml and the built-in defaults carry the Opus 5.5 rates", () => {
+    const fromYaml = loadConfig({}).usage.pricing.anthropic;
+    const defaults = loadConfig({}, { llm: { effort: "medium" }, server: {}, tool_search: {} }).usage.pricing.anthropic;
+    for (const pricing of [fromYaml, defaults]) {
+      expect(pricing["claude-opus-5-5"]).toEqual({
+        input_usd_per_mtok: 4,
+        output_usd_per_mtok: 20,
+        cache_read_usd_per_mtok: 0.2,
+        cache_write_5m_usd_per_mtok: 5,
+        cache_write_1h_usd_per_mtok: 8,
+      });
+    }
+    expect(() => assertPricingConfigured("anthropic", "claude-opus-5-5")).not.toThrow();
+  });
+
   it("assertPricingConfigured fails only for unpriced models", () => {
     expect(() => assertPricingConfigured("anthropic", "claude-haiku-5-5")).not.toThrow();
     expect(() => assertPricingConfigured("anthropic", "not-configured")).toThrow(PricingConfigError);
