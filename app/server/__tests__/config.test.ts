@@ -86,6 +86,17 @@ describe("context budget", () => {
   });
 });
 
+describe("MCP tool timeout", () => {
+  it("defaults to 60s and applies a valid MCP_TOOL_TIMEOUT_MS override", () => {
+    expect(loadConfig({}, {}).server.mcp_tool_timeout_ms).toBe(60_000);
+    expect(loadConfig({ MCP_TOOL_TIMEOUT_MS: "45000" }, {}).server.mcp_tool_timeout_ms).toBe(45_000);
+  });
+
+  it.each(["", "0", "-1", "1.5", "abc", "12abc", "Infinity"])("rejects invalid MCP_TOOL_TIMEOUT_MS=%p", (value) => {
+    expect(() => loadConfig({ MCP_TOOL_TIMEOUT_MS: value }, {})).toThrow(/mcp_tool_timeout_ms/);
+  });
+});
+
 describe("embedding sync controls", () => {
   it("defaults to syncing with a two-minute attempt deadline", () => {
     const { embedding } = loadConfig({}, {});
