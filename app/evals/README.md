@@ -132,18 +132,24 @@ Before anything runs, every arm model must be priced in `config.yaml` and is che
 Anthropic Models API (`GET /v1/models/{id}`): unknown models, missing adaptive thinking or an
 unsupported effort level abort the run. All arms run on one pinned dataset version, one after another
 (items within an arm keep `--concurrency`), each `--repeat` times, under one `--max-cost-usd` budget;
-a rough per-arm estimate is printed first. Once the budget is spent the remaining arms are
-`skipped_budget`. Arms without `max_output_tokens` get 64000 (capped at the model's limit) so
+a rough per-arm estimate is printed first. Arm status: `complete` only when every repeat scored every
+item; `partial_budget` when the budget skipped items of a repeat or later repeats (the arm stops
+there); `skipped_budget` for arms the budget never reached; `stopped` after Ctrl-C; `incomplete` when
+items failed without a result. Arms without `max_output_tokens` get 64000 (capped at the model's limit) so
 xhigh/max aren't cut by the 16k production cap; `max_context_tokens` is app config for every arm.
 
 Each arm is its own Langfuse experiment; all share a `comparison_group` in their metadata (filter on it
 to compare them side by side). After the last arm the runner prints a table and writes
 `app/tmp/evals/<comparison_group>.json` (the report plus the saved run results it was built from) and
-`.md`: per arm, score means (± stddev [min–max] across repeats), `turn_outcome` breakdown,
+`.md`: per arm, coverage (items scored in every repeat / items in the run), score means (± stddev
+[min–max] across repeats, labelled `{k/N items}` when coverage is partial), `turn_outcome` breakdown,
 `answer_truncated` rate, total and per-item cost, long-context pricing-tier calls, p50/p95 latency and
-mean LLM/tool calls per item; per score, the delta against the first arm, marked "within noise" when
-it is no larger than the wider min–max range of the two arms' per-repeat means (needs `--repeat` ≥ 2);
-and the items whose outcome, pass rate or code scores differ between arms.
+mean LLM/tool calls per item; per score, the delta against the first arm. The delta is computed only
+on the items both arms scored, using each arm's repeats that ran every item (all its repeats if none
+did), and is withheld (`no_shared_items`) when they share none, so a budget cut or failed items never
+read as a model difference; the shared-item count is shown when it is below the run's items. It is
+marked "within noise" when it is no larger than the wider min–max range of the two arms' per-repeat
+means on those items (needs ≥ 2 compared repeats per arm); and the items whose outcome, pass rate or code scores differ between arms.
 
 ## Validate and sync
 

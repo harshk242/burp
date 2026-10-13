@@ -199,6 +199,7 @@ describe("arm loop", () => {
       repeat: 2,
       shared: { datasetVersion: "2026-10-12T00:00:00.000Z", budget: b },
       isStopping: () => false,
+      interruption: () => null,
       runOne: async (arm, r, shared) => {
         expect(++running).toBe(1);
         await Bun.sleep(1);
@@ -220,6 +221,7 @@ describe("arm loop", () => {
       repeat: 2,
       shared: { datasetVersion: "v", budget: b },
       isStopping: () => false,
+      interruption: () => null,
       runOne: async (arm, r) => {
         b.spent++;
         return `${arm}${r}`;
@@ -239,11 +241,81 @@ describe("arm loop", () => {
       repeat: 1,
       shared: { datasetVersion: "v", budget: budget(Infinity) },
       isStopping: () => stopping,
+      interruption: () => null,
       runOne: async (arm) => {
         stopping = true;
         return arm;
       },
     });
     expect(results.map((r) => r.status)).toEqual(["complete", "stopped"]);
+  });
+
+  /** Outcome of one repeat: which items ran, were budget-skipped, or never produced a result. */
+  type Repeat = { label: string; skipped: number; missing: number };
+  const cutBy = (o: Repeat) => (o.missing ? "stopped" : o.skipped ? "budget" : null);
+
+  it("budget exhausted inside an arm's experiment: the arm is partial_budget, not complete", async () => {
+    // 3 items per repeat, budget of 2 item charges: arm a's first repeat skips its last item.
+    const b = budget(2);
+    const log: string[] = [];
+    const results = await runArms<string, Repeat, typeof b>({
+      arms: ["a", "b"],
+      repeat: 2,
+      shared: { datasetVersion: "v", budget: b },
+      isStopping: () => false,
+      interruption: cutBy,
+      log: (line) => log.push(line),
+      runOne: async (arm, r) => {
+        let skipped = 0;
+        for (let i = 0; i < 3; i++) b.exhausted ? skipped++ : b.spent++;
+        return { label: `${arm}${r}`, skipped, missing: 0 };
+      },
+    });
+    expect(results.map((r) => [r.arm, r.status, r.outcomes.map((o) => o.label)])).toEqual([
+      ["a", "partial_budget", ["a1"]],
+      ["b", "skipped_budget", []],
+    ]);
+    expect(log).toContain("budget exhausted: skipping repeat(s) 2..2");
+  });
+
+  it("a budget cut in the last repeat still marks the arm partial_budget", async () => {
+    const b = budget(5);
+    const results = await runArms<string, Repeat, typeof b>({
+      arms: ["a"],
+      repeat: 2,
+      shared: { datasetVersion: "v", budget: b },
+      isStopping: () => false,
+      interruption: cutBy,
+      runOne: async (arm, r) => {
+        let skipped = 0;
+        for (let i = 0; i < 3; i++) b.exhausted ? skipped++ : b.spent++;
+        return { label: `${arm}${r}`, skipped, missing: 0 };
+      },
+    });
+    expect(results.map((r) => [r.status, r.outcomes.map((o) => o.skipped)])).toEqual([["partial_budget", [0, 1]]]);
+  });
+
+  it("items left unrun by a stop make the arm stopped; failed items make it incomplete but later repeats still run", async () => {
+    const stopped = await runArms<string, Repeat, ReturnType<typeof budget>>({
+      arms: ["a", "b"],
+      repeat: 2,
+      shared: { datasetVersion: "v", budget: budget(Infinity) },
+      isStopping: () => false,
+      interruption: cutBy,
+      runOne: async (arm, r) => ({ label: `${arm}${r}`, skipped: 0, missing: arm === "a" ? 1 : 0 }),
+    });
+    expect(stopped.map((r) => [r.arm, r.status, r.outcomes.length])).toEqual([
+      ["a", "stopped", 1],
+      ["b", "complete", 2],
+    ]);
+    const failed = await runArms<string, Repeat, ReturnType<typeof budget>>({
+      arms: ["a"],
+      repeat: 2,
+      shared: { datasetVersion: "v", budget: budget(Infinity) },
+      isStopping: () => false,
+      interruption: (o) => (o.missing ? "failed" : null),
+      runOne: async (arm, r) => ({ label: `${arm}${r}`, skipped: 0, missing: r === 1 ? 1 : 0 }),
+    });
+    expect(failed.map((r) => [r.status, r.outcomes.length])).toEqual([["incomplete", 2]]);
   });
 });

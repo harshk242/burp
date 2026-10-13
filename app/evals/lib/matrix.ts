@@ -4,7 +4,11 @@
  * arm `repeat` times, all on one shared context: the pinned dataset version
  * and one cost budget for the whole matrix. Once the budget is spent the
  * remaining repeats and arms are not started and are reported as
- * `skipped_budget`.
+ * `skipped_budget`. An arm's status also reflects what happened inside its
+ * repeats (`interruption`): a repeat whose items the budget cut short makes the
+ * arm `partial_budget`, one the signal cut short makes it `stopped`, and
+ * items that failed otherwise make it `incomplete`, so `complete` always
+ * means every repeat ran every item.
  */
 
 /** What every arm shares. */
@@ -14,14 +18,16 @@ export interface MatrixShared<B extends { readonly exhausted: boolean }> {
 }
 
 export type ArmStatus =
-  /** Every repeat ran (items may still have been budget-skipped inside the last one). */
+  /** Every repeat ran every item. */
   | "complete"
-  /** Some repeats ran, then the budget ran out. */
+  /** The budget ran out inside the arm: items of a repeat were skipped, or later repeats never started. */
   | "partial_budget"
   /** Never started: the budget was spent before it. */
   | "skipped_budget"
   /** The run was stopped (signal) before or during this arm. */
-  | "stopped";
+  | "stopped"
+  /** Every repeat ran, but some items produced no result (their task threw). */
+  | "incomplete";
 
 export interface ArmRunResult<A, O> {
   arm: A;
@@ -35,6 +41,11 @@ export interface RunArmsInput<A, O, B extends { readonly exhausted: boolean }> {
   shared: MatrixShared<B>;
   isStopping: () => boolean;
   runOne: (arm: A, repeatIndex: number, shared: MatrixShared<B>) => Promise<O>;
+  /**
+   * What cut a finished repeat short, if anything: budget-skipped items, items
+   * the stop signal left unrun, or items that failed for another reason.
+   */
+  interruption: (outcome: O) => "budget" | "stopped" | "failed" | null;
   log?: (line: string) => void;
 }
 
@@ -55,7 +66,19 @@ export async function runArms<A, O, B extends { readonly exhausted: boolean }>(
         input.log?.(`budget exhausted: skipping ${outcomes.length ? `repeat(s) ${r}..${input.repeat}` : "arm"}`);
         break;
       }
-      outcomes.push(await input.runOne(arm, r, input.shared));
+      const outcome = await input.runOne(arm, r, input.shared);
+      outcomes.push(outcome);
+      const cut = input.interruption(outcome);
+      if (cut === "stopped") {
+        status = "stopped";
+        break;
+      }
+      if (cut === "budget") {
+        status = "partial_budget";
+        if (r < input.repeat) input.log?.(`budget exhausted: skipping repeat(s) ${r + 1}..${input.repeat}`);
+        break;
+      }
+      if (cut === "failed") status = "incomplete";
     }
     results.push({ arm, status, outcomes });
   }

@@ -158,6 +158,10 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
       repeat: args.repeat,
       shared: { datasetVersion: pinned.version, budget },
       isStopping: () => lifecycle.stopping,
+      interruption: (o) => {
+        if (o.missing.length) return lifecycle.stopping ? "stopped" : "failed";
+        return o.itemRuns.some((i) => i.output.skipped === "budget") ? "budget" : null;
+      },
       log,
       runOne: async (arm, r, shared) => {
         const name = experimentName({ dataset: args.dataset, gitSha: git.sha, model: arm.model, effort: arm.effort, armNote: arm.note, note: args.note, repeatIndex: r, repeatCount: args.repeat });
@@ -227,7 +231,7 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
           max_context_tokens: arm.maxContextTokens,
           status,
           estimate_usd: Number(estimates[i]!.totalUsd.toFixed(4)),
-          experiments: outcomes.map((o, r) => ({ name: o.name, run_name: o.runName, url: o.datasetRunUrl ?? null, repeat_index: r + 1, items: o.itemRuns.map(saveItemRun) })),
+          experiments: outcomes.map((o, r) => ({ name: o.name, run_name: o.runName, url: o.datasetRunUrl ?? null, repeat_index: r + 1, items: o.itemRuns.map(saveItemRun), missing: [...o.missing].sort() })),
         })),
       };
       const report = buildComparison(saved);

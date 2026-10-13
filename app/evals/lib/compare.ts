@@ -7,10 +7,17 @@
  * Per arm: mean per score across repeats (± min/max/stddev), turn_outcome
  * breakdown, answer_truncated rate, total and per-item cost, long-context
  * pricing tier hits, p50/p95 item latency, mean LLM and tool calls per item.
- * Each arm's score means are compared with the first (baseline) arm; a
- * difference no larger than the repeat spread (the wider min–max range of the
- * two arms' per-repeat means) is "within noise". Per-item disagreements list
- * items whose outcome, pass rate or code scores differ between arms.
+ * Per-arm means cover whatever that arm scored, so they carry its coverage
+ * (items scored in every repeat / items in the run). Each arm is compared with
+ * the first (baseline) arm on the items both scored, never on their own means:
+ * a budget cut or failed items would otherwise show up as a model difference.
+ * The delta uses each arm's repeats that ran every item (all its repeats if
+ * none did) and the items scored in all of those repeats of both arms; with no
+ * such shared items the delta is withheld. A difference no larger than the
+ * repeat spread (the wider min–max range of the two arms' per-repeat means on
+ * the shared items) is "within noise". Per-item disagreements list items whose
+ * outcome, pass rate or code scores differ between arms (each value is about
+ * that one item, so coverage doesn't skew it).
  */
 import type { ItemRun } from "./aggregate";
 import { itemPasses, percentile, spread, type Spread } from "./aggregate";
@@ -35,6 +42,8 @@ export interface SavedExperiment {
   url: string | null;
   repeat_index: number;
   items: SavedItemRun[];
+  /** Items with no result (their task threw or the run was stopped); absent in older saved runs. */
+  missing?: string[];
 }
 
 export interface SavedArm {
@@ -71,7 +80,9 @@ export interface ArmReport {
   item_runs: number;
   scored_item_runs: number;
   skipped_budget_item_runs: number;
-  /** Per score: spread of the per-repeat means (ok_rate included). */
+  /** Items scored in every repeat this arm ran, out of the run's items: the coverage behind `scores`. */
+  coverage: { items: number; scored_every_repeat: number };
+  /** Per score: spread of the per-repeat means over the items each repeat scored (ok_rate included). */
   scores: Record<string, Spread>;
   turn_outcome: Record<string, number>;
   answer_truncated_rate: number | null;
@@ -83,15 +94,20 @@ export interface ArmReport {
   reviewed: { items: number; passed: number };
 }
 
-export type DeltaVerdict = "within_noise" | "differs" | "no_repeat_spread";
+export type DeltaVerdict = "within_noise" | "differs" | "no_repeat_spread" | "no_shared_items";
 
 export interface ScoreDelta {
   arm: string;
   score: string;
-  baseline_mean: number;
-  arm_mean: number;
-  delta: number;
-  /** The wider min–max range of the two arms' per-repeat means; null without repeats. */
+  /** Items both arms scored (in every compared repeat); the means and delta are over these only. */
+  shared_items: number;
+  /** Repeats each side contributed (those that ran every item, else all). */
+  repeats_compared: { baseline: number; arm: number };
+  /** Null when withheld (`no_shared_items`). */
+  baseline_mean: number | null;
+  arm_mean: number | null;
+  delta: number | null;
+  /** The wider min–max range of the two arms' per-repeat means on the shared items; null without repeats. */
   noise: number | null;
   verdict: DeltaVerdict;
 }
@@ -113,6 +129,8 @@ export interface ComparisonReport {
   max_cost_usd: number;
   spent_usd: number;
   baseline: string | null;
+  /** Items in the run (scored, budget-skipped or missing, across all arms). */
+  items: number;
   arms: ArmReport[];
   deltas: ScoreDelta[];
   disagreements: Disagreement[];
@@ -145,19 +163,43 @@ export function saveItemRun(item: ItemRun): SavedItemRun {
 
 const passes = (item: SavedItemRun) => itemPasses({ evaluations: Object.entries(item.scores).map(([name, value]) => ({ name, value })) });
 
-function armReport(arm: SavedArm): ArmReport {
-  const runs = arm.experiments.flatMap((e) => e.items);
-  const scored = runs.filter((i) => !i.skipped);
-  // Per repeat: the mean of each numeric score over its scored items, plus ok_rate.
+/** Every item of the run: scored, budget-skipped or missing in any arm's repeat. */
+const runItemIds = (arms: SavedArm[]) =>
+  new Set(arms.flatMap((a) => a.experiments.flatMap((e) => [...e.items.map((i) => i.item_id), ...(e.missing ?? [])])));
+
+const scoredIds = (exp: SavedExperiment) => new Set(exp.items.filter((i) => !i.skipped).map((i) => i.item_id));
+
+/** Items scored in every one of `experiments` (none without experiments). */
+function scoredInAll(experiments: SavedExperiment[]): Set<string> {
+  const [first, ...rest] = experiments.map(scoredIds);
+  if (!first) return new Set();
+  return new Set([...first].filter((id) => rest.every((s) => s.has(id))));
+}
+
+/** Repeats used for deltas: those that ran every item, or all of them if none did. */
+function comparableRepeats(arm: SavedArm, items: Set<string>): SavedExperiment[] {
+  const full = arm.experiments.filter((e) => scoredIds(e).size === items.size && !e.missing?.length);
+  return full.length ? full : arm.experiments;
+}
+
+/** Per repeat: the mean of each numeric score over its scored items (only `keep` ones if given), plus ok_rate. */
+function perRepeatMeans(experiments: SavedExperiment[], keep?: Set<string>): Map<string, number[]> {
   const perRepeat = new Map<string, number[]>();
-  for (const exp of arm.experiments) {
-    const items = exp.items.filter((i) => !i.skipped);
+  for (const exp of experiments) {
+    const items = exp.items.filter((i) => !i.skipped && (!keep || keep.has(i.item_id)));
     const names = new Set(items.flatMap((i) => Object.keys(i.scores).filter((k) => typeof i.scores[k] === "number")));
     const means: [string, number | null][] = [...names].map((n) => [n, mean(items.flatMap((i) => (typeof i.scores[n] === "number" ? [i.scores[n] as number] : [])))]);
     const outcomes = items.map((i) => i.scores.turn_outcome).filter((v) => v !== undefined);
     if (outcomes.length) means.push(["ok_rate", outcomes.filter((v) => v === "ok").length / outcomes.length]);
     for (const [name, value] of means) if (value !== null) perRepeat.set(name, [...(perRepeat.get(name) ?? []), value]);
   }
+  return perRepeat;
+}
+
+function armReport(arm: SavedArm, items: Set<string>): ArmReport {
+  const runs = arm.experiments.flatMap((e) => e.items);
+  const scored = runs.filter((i) => !i.skipped);
+  const perRepeat = perRepeatMeans(arm.experiments);
   const outcomes = new Map<string, number>();
   for (const item of scored) {
     const v = item.scores.turn_outcome;
@@ -180,6 +222,7 @@ function armReport(arm: SavedArm): ArmReport {
     item_runs: runs.length,
     scored_item_runs: scored.length,
     skipped_budget_item_runs: runs.length - scored.length,
+    coverage: { items: items.size, scored_every_repeat: scoredInAll(arm.experiments).size },
     scores: sortedRecord([...perRepeat].map(([name, values]) => [name, roundSpread(spread(values))])),
     turn_outcome: sortedRecord([...outcomes]),
     answer_truncated_rate: nullable(mean(truncated)),
@@ -197,18 +240,33 @@ function armReport(arm: SavedArm): ArmReport {
   };
 }
 
-function deltas(arms: ArmReport[]): ScoreDelta[] {
-  const [base, ...rest] = arms.filter((a) => a.repeats_run > 0);
+/** Each arm against the baseline, on the items both scored in every compared repeat. */
+function deltas(arms: SavedArm[], items: Set<string>): ScoreDelta[] {
+  const [base, ...rest] = arms.filter((a) => a.experiments.length > 0);
   if (!base) return [];
+  const baseRepeats = comparableRepeats(base, items);
+  const baseCovered = scoredInAll(baseRepeats);
   const out: ScoreDelta[] = [];
   for (const arm of rest) {
-    for (const score of Object.keys(arm.scores).filter((s) => s in base.scores).sort()) {
-      const a = arm.scores[score]!;
-      const b = base.scores[score]!;
+    const armRepeats = comparableRepeats(arm, items);
+    const shared = new Set([...scoredInAll(armRepeats)].filter((id) => baseCovered.has(id)));
+    if (!shared.size) {
+      // Nothing scored by both: name the scores each arm has, but no numbers.
+      const baseNames = perRepeatMeans(base.experiments);
+      const names = [...perRepeatMeans(arm.experiments).keys()].filter((n) => baseNames.has(n)).sort();
+      const repeats_compared = { baseline: baseRepeats.length, arm: armRepeats.length };
+      for (const score of names) out.push({ arm: arm.label, score, shared_items: 0, repeats_compared, baseline_mean: null, arm_mean: null, delta: null, noise: null, verdict: "no_shared_items" });
+      continue;
+    }
+    const baseMeans = perRepeatMeans(baseRepeats, shared);
+    const armMeans = perRepeatMeans(armRepeats, shared);
+    for (const score of [...armMeans.keys()].filter((s) => baseMeans.has(s)).sort()) {
+      const a = spread(armMeans.get(score)!);
+      const b = spread(baseMeans.get(score)!);
       const delta = round(a.mean - b.mean);
       const noise = a.n > 1 && b.n > 1 ? round(Math.max(a.max - a.min, b.max - b.min)) : null;
       const verdict: DeltaVerdict = noise === null ? "no_repeat_spread" : Math.abs(delta) <= noise ? "within_noise" : "differs";
-      out.push({ arm: arm.label, score, baseline_mean: b.mean, arm_mean: a.mean, delta, noise, verdict });
+      out.push({ arm: arm.label, score, shared_items: shared.size, repeats_compared: { baseline: baseRepeats.length, arm: armRepeats.length }, baseline_mean: round(b.mean), arm_mean: round(a.mean), delta, noise, verdict });
     }
   }
   return out;
@@ -256,7 +314,8 @@ function disagreements(arms: SavedArm[]): Disagreement[] {
 }
 
 export function buildComparison(saved: SavedComparison): ComparisonReport {
-  const arms = saved.arms.map(armReport);
+  const items = runItemIds(saved.arms);
+  const arms = saved.arms.map((a) => armReport(a, items));
   return {
     comparison_group: saved.comparison_group,
     run_id: saved.run_id,
@@ -267,8 +326,9 @@ export function buildComparison(saved: SavedComparison): ComparisonReport {
     max_cost_usd: saved.max_cost_usd,
     spent_usd: round(saved.spent_usd),
     baseline: arms.find((a) => a.repeats_run > 0)?.label ?? null,
+    items: items.size,
     arms,
-    deltas: deltas(arms),
+    deltas: deltas(saved.arms, items),
     disagreements: disagreements(saved.arms),
   };
 }

@@ -1,17 +1,28 @@
 /**
  * Comparison report (plan 2.4) from saved run results: per-arm aggregates,
- * "within noise" from the repeat spread, per-item disagreements, skipped arms,
- * and determinism. Fixture: 2 items × 2 repeats for a complete arm, a
- * budget-cut arm and an arm the budget never reached.
+ * "within noise" from the repeat spread, deltas only on the items both arms
+ * scored, per-item disagreements, skipped arms, and determinism. Fixture:
+ * 2 items × 2 repeats for a complete arm, an arm whose second repeat the
+ * budget cut (item y skipped) and an arm the budget never reached.
  */
 import { describe, expect, it } from "bun:test";
 import type { ItemRun } from "../lib/aggregate";
-import { buildComparison, saveItemRun, type SavedComparison } from "../lib/compare";
+import { buildComparison, saveItemRun, type SavedComparison, type SavedItemRun } from "../lib/compare";
 import { comparisonMarkdown } from "../lib/compare-render";
 import fixture from "./fixtures/comparison-runs.json";
 
 const saved = fixture as SavedComparison;
 const [sonnet, haiku, opus] = ["claude-sonnet-5-5-low", "claude-haiku-5-5-low", "claude-opus-5-5-low"];
+
+/** The fixture with haiku's budget-skipped run of y scored instead: both arms ran everything twice. */
+function bothComplete(): SavedComparison {
+  const full = structuredClone(saved);
+  const arm = full.arms[1]!;
+  arm.status = "complete";
+  const y = arm.experiments[1]!.items.find((i) => i.item_id === "y")!;
+  Object.assign(y, { skipped: false, scores: { answer_truncated: 0, checkpoint_recall: 1, id_grounding: 1, turn_outcome: "ok" } } satisfies Partial<SavedItemRun>);
+  return full;
+}
 
 describe("comparison report", () => {
   const report = buildComparison(saved);
@@ -29,6 +40,7 @@ describe("comparison report", () => {
       item_runs: 4,
       scored_item_runs: 4,
       skipped_budget_item_runs: 0,
+      coverage: { items: 2, scored_every_repeat: 2 },
       scores: {
         answer_truncated: { n: 2, mean: 0, min: 0, max: 0, stddev: 0 },
         checkpoint_recall: { n: 2, mean: 0.75, min: 0.5, max: 1, stddev: 0.25 },
@@ -50,6 +62,7 @@ describe("comparison report", () => {
       item_runs: 4,
       scored_item_runs: 3,
       skipped_budget_item_runs: 1,
+      coverage: { items: 2, scored_every_repeat: 1 },
       answer_truncated_rate: 0.333333,
       cost: { total_usd: 0.0045, per_item_usd: 0.001125 },
       pricing_tier: { llm_calls: 8, long_context_calls: 2, long_context_call_share: 0.25, items_with_long_context: 2 },
@@ -63,13 +76,62 @@ describe("comparison report", () => {
   });
 
   it("a difference within the wider repeat range is within noise", () => {
-    expect(report.deltas.map((d) => [d.score, d.delta, d.noise, d.verdict])).toEqual([
-      ["answer_truncated", 0.25, 0.5, "within_noise"],
-      ["checkpoint_recall", 0.25, 0.5, "within_noise"],
-      ["id_grounding", 0.25, 0, "differs"],
-      ["ok_rate", 0.25, 0.5, "within_noise"],
+    const deltas = buildComparison(bothComplete()).deltas;
+    expect(deltas.map((d) => [d.score, d.shared_items, d.delta, d.noise, d.verdict])).toEqual([
+      ["answer_truncated", 2, 0.25, 0.5, "within_noise"],
+      ["checkpoint_recall", 2, 0.25, 0.5, "within_noise"],
+      ["id_grounding", 2, 0.25, 0, "differs"],
+      ["ok_rate", 2, 0.25, 0.5, "within_noise"],
     ]);
-    expect(report.deltas.every((d) => d.arm === haiku)).toBe(true);
+    expect(deltas.every((d) => d.arm === haiku && d.repeats_compared.arm === 2)).toBe(true);
+  });
+
+  it("a repeat the budget cut short is left out of the delta, not averaged over fewer items", () => {
+    // Haiku's repeat 2 scored only x: its own mean mixes item sets, so the delta uses repeat 1 (both items).
+    expect(report.deltas.map((d) => [d.arm, d.score, d.shared_items, d.repeats_compared, d.baseline_mean, d.arm_mean, d.delta, d.verdict])).toEqual([
+      [haiku, "answer_truncated", 2, { baseline: 2, arm: 1 }, 0, 0.5, 0.5, "no_repeat_spread"],
+      [haiku, "checkpoint_recall", 2, { baseline: 2, arm: 1 }, 0.75, 1, 0.25, "no_repeat_spread"],
+      [haiku, "id_grounding", 2, { baseline: 2, arm: 1 }, 0.75, 1, 0.25, "no_repeat_spread"],
+      [haiku, "ok_rate", 2, { baseline: 2, arm: 1 }, 0.75, 1, 0.25, "no_repeat_spread"],
+    ]);
+  });
+
+  it("arms that scored different items are compared on the shared items only", () => {
+    // Haiku's only repeat scored x; y was budget-skipped. Sonnet's y (id_grounding 0.5) must not enter the delta.
+    const cut = structuredClone(saved);
+    const arm = cut.arms[1]!;
+    arm.experiments = [arm.experiments[1]!];
+    const report = buildComparison(cut);
+    const d = report.deltas.find((x) => x.score === "id_grounding")!;
+    expect(d).toEqual({ arm: haiku, score: "id_grounding", shared_items: 1, repeats_compared: { baseline: 2, arm: 1 }, baseline_mean: 1, arm_mean: 1, delta: 0, noise: null, verdict: "no_repeat_spread" });
+    // The arm's own mean stays visible, labelled with its coverage.
+    expect(report.arms[1]!.coverage).toEqual({ items: 2, scored_every_repeat: 1 });
+    expect(comparisonMarkdown(report)).toContain("| 1.000 {1/2 items} (Δ +0.000 on 1/2 shared items, no repeat spread (repeats 2 vs 1)) |");
+  });
+
+  it("an item missing from an arm (task failed) also leaves the shared set", () => {
+    const cut = bothComplete();
+    const exp = cut.arms[1]!.experiments;
+    for (const e of exp) {
+      e.items = e.items.filter((i) => i.item_id !== "y");
+      e.missing = ["y"];
+    }
+    const report = buildComparison(cut);
+    expect(report.items).toBe(2);
+    expect(new Set(report.deltas.map((d) => d.shared_items))).toEqual(new Set([1]));
+  });
+
+  it("with no item scored by both arms the delta is withheld", () => {
+    const cut = structuredClone(saved);
+    const only = (labelIndex: number, id: string) => {
+      for (const e of cut.arms[labelIndex]!.experiments) for (const i of e.items) if (i.item_id !== id) Object.assign(i, { skipped: true, scores: {} });
+    };
+    only(0, "x");
+    only(1, "y");
+    const report = buildComparison(cut);
+    expect(report.deltas.length).toBeGreaterThan(0);
+    for (const d of report.deltas) expect(d).toMatchObject({ shared_items: 0, baseline_mean: null, arm_mean: null, delta: null, verdict: "no_shared_items" });
+    expect(comparisonMarkdown(report)).toContain("(Δ withheld: no shared items)");
   });
 
   it("without repeats there is no spread to call noise", () => {
@@ -98,8 +160,10 @@ describe("comparison report", () => {
   it("markdown marks within-noise deltas and carries the budget", () => {
     const md = comparisonMarkdown(report);
     expect(md).toContain("Budget: spent $0.0745 of $0.1000 (shared by all arms). Baseline: claude-sonnet-5-5-low.");
-    expect(md).toContain("| 0.250 ± 0.250 [0.000–0.500] (Δ +0.250, within noise) |");
-    expect(md).toContain("| 1.000 ± 0.000 [1.000–1.000] (Δ +0.250) |");
+    expect(md).toContain("| 0.250 ± 0.250 [0.000–0.500] {1/2 items} (Δ +0.500, no repeat spread (repeats 2 vs 1)) |");
+    const full = comparisonMarkdown(buildComparison(bothComplete()));
+    expect(full).toContain("| 0.250 ± 0.250 [0.000–0.500] (Δ +0.250, within noise) |");
+    expect(full).toContain("| 1.000 ± 0.000 [1.000–1.000] (Δ +0.250) |");
   });
 });
 
