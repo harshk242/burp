@@ -122,3 +122,12 @@ export class UpstreamError extends MCPError {
     this.cause = details.cause;
   }
 }
+
+/**
+ * True when the upstream rejected the lookup itself (404 or another 4xx), so
+ * "not found" is an honest answer. Outages, timeouts, rate limits and
+ * non-upstream errors are not, and must be rethrown.
+ */
+export function isRejectedLookup(error: unknown): error is UpstreamError {
+  return error instanceof UpstreamError && (error.kind === 'not_found' || error.kind === 'bad_request');
+}

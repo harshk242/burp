@@ -1,5 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { isRejectedLookup } from '../../../shared/exceptions.js';
 import { getClient, isValidChemblIdArgs, getExternalUrl } from '../client.js';
 
 // ── Validation ─────────────────────────────────────────────────────────────
@@ -165,12 +166,15 @@ async function handleGetExternalReferences(args: Record<string, unknown>) {
 
   try {
     response = await client.get(`/molecule/${args.chembl_id}.json`);
-  } catch {
-    // If not a molecule, try target
+  } catch (error) {
+    // If not a molecule, try target. Outages, timeouts and rate limits must
+    // reach the agent as structured upstream errors, not as "not found".
+    if (!isRejectedLookup(error)) throw error;
     try {
       response = await client.get(`/target/${args.chembl_id}.json`);
       entityType = 'target';
-    } catch {
+    } catch (targetError) {
+      if (!isRejectedLookup(targetError)) throw targetError;
       throw new Error('ChEMBL ID not found as molecule or target');
     }
   }

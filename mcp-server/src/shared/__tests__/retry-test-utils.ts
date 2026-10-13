@@ -9,6 +9,9 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { createCallToolHandler } from '../../call-tool.js';
+import type { ToolHandler } from '../../types.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../http-retry.js';
 
 export type Step =
@@ -130,4 +133,25 @@ export async function rejection(promise: Promise<unknown>): Promise<any> {
     return error;
   }
   throw new Error('expected the promise to reject');
+}
+
+/** Runs a platform tool through the real CallTool handler (tool-call context, structured errors). */
+export function callTool(
+  handlers: Record<string, ToolHandler>,
+  name: string,
+  args: Record<string, unknown>,
+  meta?: Record<string, unknown>,
+): Promise<CallToolResult> {
+  const handle = createCallToolHandler(new Map(Object.entries(handlers)));
+  return handle(
+    { method: 'tools/call', params: { name, arguments: args, _meta: meta } },
+    { signal: new AbortController().signal },
+  );
+}
+
+/** The text of a tool result's first content item. */
+export function toolText(result: CallToolResult): string {
+  const item = result.content[0];
+  if (item.type !== 'text') throw new Error('expected text content');
+  return item.text;
 }

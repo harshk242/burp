@@ -1,4 +1,5 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 
 // ── ChEMBL API interfaces ──────────────────────────────────────────────────
 
@@ -62,6 +63,45 @@ export interface AssayInfo {
   confidence_score?: number;
 }
 
+// ── Retry policy ───────────────────────────────────────────────────────────
+
+/**
+ * Production retry policy (plans/shared-http-retry-plan.md, "Platform
+ * inventory"): one attempt as before, now with a 40s request budget and the
+ * tool-call deadline; failures surface as a structured `UpstreamError`.
+ */
+export const CHEMBL_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: 1,
+  backoffMs: [0],
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+});
+
+export const CHEMBL_BASE_URL = 'https://www.ebi.ac.uk/chembl/api/data';
+
+export interface ChemblClientOptions {
+  /** Retry policy (default CHEMBL_POLICY). */
+  policy?: RetryPolicy;
+  /** Transport override (tests). */
+  adapter?: AxiosAdapter;
+  /** Injectable sleep/clock/random for the retry loop (tests). */
+  retryDeps?: RetryDeps;
+}
+
+/** A ChEMBL REST client with the shared retry attached. */
+export function createChemblClient(options: ChemblClientOptions = {}): AxiosInstance {
+  const client = axios.create({
+    baseURL: CHEMBL_BASE_URL,
+    timeout: 30_000,
+    headers: {
+      'User-Agent': 'ChEMBL-MCP-Server/1.0.0',
+      Accept: 'application/json',
+    },
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(client, options.policy ?? CHEMBL_POLICY, 'chembl', options.retryDeps);
+}
+
 // ── Singleton axios client ─────────────────────────────────────────────────
 
 let apiClient: AxiosInstance | null = null;
@@ -73,15 +113,8 @@ export function getClient(): AxiosInstance {
   return apiClient;
 }
 
-export function init(_env: Record<string, string | undefined>): void {
-  apiClient = axios.create({
-    baseURL: 'https://www.ebi.ac.uk/chembl/api/data',
-    timeout: 30_000,
-    headers: {
-      'User-Agent': 'ChEMBL-MCP-Server/1.0.0',
-      Accept: 'application/json',
-    },
-  });
+export function init(_env: Record<string, string | undefined>, options: ChemblClientOptions = {}): void {
+  apiClient = createChemblClient(options);
 }
 
 export function cleanup(): void {
