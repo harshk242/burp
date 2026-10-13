@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { buildToolRegistry, createServer } from '../server.js';
-import type { PlatformModule } from '../types.js';
+import { getToolCallContext } from '../shared/tool-call-context.js';
+import { stubClient } from '../shared/__tests__/retry-test-utils.js';
+import type { PlatformModule, ToolHandler } from '../types.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -120,5 +124,54 @@ describe('createServer', () => {
 
   it('creates a server that can be constructed with zero tools', () => {
     expect(() => createServer([], new Map())).not.toThrow();
+  });
+});
+
+// ── CallTool over the MCP protocol ────────────────────────────────────────────
+
+async function connect(handlers: Record<string, ToolHandler>) {
+  const platform: PlatformModule = {
+    ...makePlatform('test', Object.keys(handlers)),
+    handlers,
+  };
+  const { allTools, allHandlers } = buildToolRegistry([platform]);
+  const server = createServer(allTools, allHandlers);
+  const client = new Client({ name: 'test-client', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  return client;
+}
+
+describe('CallTool handler over the protocol', () => {
+  it('reads _meta.deadline_ms and returns _meta.retry', async () => {
+    const { client: http } = stubClient([503, 200]);
+    let remaining: number | undefined;
+    const client = await connect({
+      fetch: async () => {
+        remaining = getToolCallContext()?.remainingMs();
+        return (await http.get('/x')).data;
+      },
+    });
+
+    const result = await client.callTool({ name: 'test__fetch', arguments: {}, _meta: { deadline_ms: 20_000 } });
+
+    expect(remaining).toBeGreaterThan(14_000);
+    expect(remaining).toBeLessThanOrEqual(15_000);
+    expect(result.isError).toBeFalsy();
+    expect(result._meta?.retry).toMatchObject({ attempts: 2, outcome: 'recovered' });
+    await client.close();
+  });
+
+  it('returns a structured upstream error with _meta.retry', async () => {
+    const { client: http } = stubClient([404]);
+    const client = await connect({ fetch: async () => (await http.get('/x')).data });
+
+    const result = await client.callTool({ name: 'test__fetch', arguments: {} });
+
+    expect(result.isError).toBe(true);
+    const content = result.content as Array<{ type: string; text: string }>;
+    expect(JSON.parse(content[0].text)).toMatchObject({ error: 'not_found', reason: 'not_found', status: 404 });
+    expect(result._meta?.retry).toMatchObject({ outcome: 'failed', failed_requests: 1 });
+    await client.close();
   });
 });
