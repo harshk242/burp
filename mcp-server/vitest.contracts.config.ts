@@ -7,11 +7,12 @@ export default defineConfig({
     globals: false,
     include: ['src/**/*.contract.ts'],
     exclude: ['node_modules/**', 'dist/**'],
-    // Real HTTP calls need generous timeouts
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
-    // Retry once on flaky network
-    retry: 1,
+    // Retries live in each platform's contract client (shared HTTP retry,
+    // 120s budget per request), so Vitest never re-runs a test. Each file sets
+    // its own per-test timeout; the defaults sit above one request's budget.
+    testTimeout: 150_000,
+    hookTimeout: 150_000,
+    retry: 0,
     // Sequential to avoid hammering rate limits
     pool: 'forks',
     poolOptions: { forks: { singleFork: true } },
