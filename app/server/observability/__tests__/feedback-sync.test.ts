@@ -208,6 +208,38 @@ describe("feedback sync", () => {
     expect(writer.remote.get(scoreId)?.value).toBe(1);
   });
 
+  it("a superseded delete that lands after the newer upsert is repaired before the row counts as synced", async () => {
+    q.messageFeedbackQueries.upsert(key, 0, null);
+    await makeSync().sync(key);
+    q.messageFeedbackQueries.clear(key);
+    writer.deferDeletes = true; // Langfuse acknowledges the delete (202) but applies it later
+    let clicked = false;
+    let sync = makeSync({
+      sleep: async () => {
+        if (!clicked) q.messageFeedbackQueries.upsert(key, 1, null); // 👍 during the settle wait
+        clicked = true;
+      },
+    });
+    expect(await sync.sync(key)).toBe("pending");
+    expect(row().delete_unconfirmed).toBe(1);
+
+    // The 👍 push: the queued delete lands while its read-back waits.
+    sync = makeSync({ sleep: async () => writer.landDeletes() });
+    expect(await sync.sync(key)).toBe("failed");
+    expect(writer.remote.get(scoreId)?.value).toBe(1); // re-upserted after the read saw it gone
+    expect(row()).toMatchObject({ value: 1, sync_pending: 1, delete_unconfirmed: 1 });
+
+    clock += 60 * 60_000;
+    await sync.reconcile(); // nothing left to land: present through the deadline
+    expect(row()).toMatchObject({ value: 1, sync_pending: 0, delete_unconfirmed: 0 });
+    expect(writer.remote.get(scoreId)?.value).toBe(1);
+
+    q.messageFeedbackQueries.upsert(key, 0, null);
+    const before = writer.log.length;
+    expect(await sync.sync(key)).toBe("synced");
+    expect(writer.log.slice(before).map((c) => c.op)).toEqual(["upsert"]); // no read-back without a pending delete
+  });
+
   it("marks rows synced without a remote write when the turn has no trace", async () => {
     q = createQueries(createTestDb().db);
     seedTracedTurn(q, null);

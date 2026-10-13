@@ -13,6 +13,11 @@
  *   does not order a create and a delete for one id (a delete sent before the
  *   create was ingested is lost and the score reappears ~10–30 s later), so the
  *   confirm read waits out the ingestion lag and deletes again if needed.
+ * - The reverse also holds: a delete is only queued when acknowledged, so it can
+ *   land after a later upsert. `delete_unconfirmed` is set before every delete
+ *   and cleared only once a read-back confirms the latest state; while it is
+ *   set, an upsert counts only if the score is still present through the
+ *   confirm deadline, and is re-sent (row stays pending) if a read misses it.
  * - Rows whose turn has no trace (tracing was off) are marked synced without a
  *   remote write.
  * - Reconciliation retries pending rows on boot and every 5 min, with backoff
@@ -22,7 +27,7 @@
 import { createHash } from "node:crypto";
 import type { DbMessageFeedback, FeedbackKey } from "../db/queries";
 import { logger } from "../logger";
-import type { ScoreWriter } from "./score-writer";
+import type { ScoreUpsert, ScoreWriter } from "./score-writer";
 import { scoreConfigId } from "./score-configs";
 
 export const FEEDBACK_SCORE_NAME = "user_feedback";
@@ -32,6 +37,7 @@ export interface FeedbackSyncQueries {
   find(key: FeedbackKey): DbMessageFeedback | null;
   findPending(): DbMessageFeedback[];
   markSynced(key: FeedbackKey, revision: number): boolean;
+  setDeleteUnconfirmed(key: FeedbackKey, unconfirmed: boolean): void;
   traceIdForMessage(messageId: string): string | null;
 }
 
@@ -41,7 +47,7 @@ export interface FeedbackSyncOptions {
   environment: string;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
-  /** Tombstone confirm read: first read `settleMs` after the delete, then every `pollMs` until `deadlineMs`. */
+  /** Confirm reads: first read `settleMs` after the write, then every `pollMs` until `deadlineMs`. */
   confirm?: { settleMs: number; pollMs: number; deadlineMs: number };
   /** Reconciliation backoff per score id after a failed push. */
   backoff?: { baseMs: number; maxMs: number };
@@ -81,7 +87,8 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     return superseded();
   }
 
-  async function confirmAbsent(scoreId: string, superseded: () => boolean): Promise<"absent" | "present" | "superseded"> {
+  /** Reads the score back after the ingestion lag: "absent" at the first read that misses it, "present" if every read up to the deadline sees it. */
+  async function readBack(scoreId: string, superseded: () => boolean): Promise<"absent" | "present" | "superseded"> {
     if (await waitUnlessSuperseded(confirm.settleMs, superseded)) return "superseded";
     for (let waited = confirm.settleMs; ; waited += confirm.pollMs) {
       if (!(await writer.exists(scoreId))) return "absent";
@@ -97,9 +104,15 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     const traceId = queries.traceIdForMessage(key.messageId);
     const synced = (): PushResult => (queries.markSynced(key, revision) ? "synced" : "pending");
     if (!traceId) return synced();
+    const superseded = () => queries.find(key)?.revision !== revision;
+    // The latest remote state is confirmed, so no earlier delete can still land.
+    const confirmed = (): PushResult => {
+      queries.setDeleteUnconfirmed(key, false);
+      return synced();
+    };
 
     if (row.value !== null) {
-      await writer.upsert({
+      const score: ScoreUpsert = {
         id: scoreId,
         traceId,
         name: FEEDBACK_SCORE_NAME,
@@ -109,13 +122,22 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
         comment: row.comment,
         configId: scoreConfigId(FEEDBACK_SCORE_NAME),
         metadata: { message_id: key.messageId },
-      });
-      return synced();
+      };
+      await writer.upsert(score);
+      if (row.delete_unconfirmed === 0) return synced();
+      const outcome = await readBack(scoreId, superseded);
+      if (outcome === "present") return confirmed();
+      if (outcome === "superseded") return "pending";
+      // A queued delete landed after the upsert: send it again, confirm on a later push.
+      await writer.upsert(score);
+      logger.warn("TRACE", "feedback_score_deleted_late", { data: { score_id: scoreId, revision } });
+      return "failed";
     }
 
+    queries.setDeleteUnconfirmed(key, true);
     await writer.remove(scoreId);
-    const outcome = await confirmAbsent(scoreId, () => queries.find(key)?.revision !== revision);
-    if (outcome === "absent") return synced();
+    const outcome = await readBack(scoreId, superseded);
+    if (outcome === "absent") return confirmed();
     if (outcome === "superseded") return "pending";
     // An acknowledged upsert was ingested after the delete: delete again, confirm on a later push.
     await writer.remove(scoreId);

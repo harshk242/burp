@@ -1,7 +1,8 @@
 /**
  * message_feedback: one row per (assistant message, user). Every write bumps
  * `revision` and sets `sync_pending`; observability/feedback-sync.ts clears it
- * with a compare-and-set on the revision it pushed.
+ * with a compare-and-set on the revision it pushed. `delete_unconfirmed` is
+ * sync bookkeeping only (see feedback-sync.ts).
  */
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
@@ -76,6 +77,11 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
         .returning({ sync_pending: messageFeedback.sync_pending })
         .get();
       return updated?.sync_pending === 0;
+    },
+
+    /** Sets or clears delete_unconfirmed (a sent delete that may not have been applied yet). Not a write: revision is unchanged. */
+    setDeleteUnconfirmed(key: FeedbackKey, unconfirmed: boolean): void {
+      db.update(messageFeedback).set({ delete_unconfirmed: unconfirmed ? 1 : 0 }).where(byKey(key)).run();
     },
 
     /** The Langfuse trace of the turn that produced the assistant message (null when tracing was off). */

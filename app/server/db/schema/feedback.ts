@@ -29,6 +29,9 @@ export const messageFeedback = sqliteTable(
     // Last revision Langfuse acknowledged (NULL = never synced).
     synced_revision: integer("synced_revision"),
     synced_at: integer("synced_at"),
+    // 1 = a delete was sent and not yet confirmed applied. Langfuse queues deletes and may apply
+    // one after a later upsert, so until this clears every upsert is read back before it counts.
+    delete_unconfirmed: integer("delete_unconfirmed").notNull().default(0),
   },
   (t) => [
     check("message_feedback_value_check", sql`value IN (0, 1)`),

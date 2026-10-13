@@ -28,6 +28,9 @@ export class FakeScoreWriter implements ScoreWriter {
   mode: "auto" | "manual" = "auto";
   failNext: unknown[] = [];
   existsAnswer: ((id: string) => boolean) | null = null;
+  /** When set, acknowledged deletes are queued (as Langfuse does) and apply only on `landDeletes()`. */
+  deferDeletes = false;
+  private queuedDeletes: string[] = [];
   private waiters: (() => void)[] = [];
 
   upsert(body: ScoreUpsert): Promise<void> {
@@ -47,9 +50,17 @@ export class FakeScoreWriter implements ScoreWriter {
     return this.held.shift()!;
   }
 
+  /** Applies the acknowledged deletes queued while `deferDeletes` was set. */
+  landDeletes(): void {
+    for (const id of this.queuedDeletes.splice(0)) this.remote.delete(id);
+  }
+
   private apply(op: WriterOp, id: string, body?: ScoreUpsert) {
     if (op === "upsert") this.remote.set(id, body!);
-    if (op === "remove") this.remote.delete(id);
+    if (op === "remove") {
+      if (this.deferDeletes) this.queuedDeletes.push(id);
+      else this.remote.delete(id);
+    }
   }
 
   private call(op: WriterOp, id: string, body?: ScoreUpsert): Promise<void> {
