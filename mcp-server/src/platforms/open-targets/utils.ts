@@ -34,30 +34,6 @@ export function generateCacheKey(
 }
 
 /**
- * Sleep utility for retry delays
- */
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Calculates exponential backoff delay
- */
-export function calculateBackoff(
-  attempt: number,
-  baseDelay: number = 1000
-): number {
-  return Math.pow(2, attempt) * baseDelay;
-}
-
-/**
- * Checks if an HTTP status code is retryable
- */
-export function isRetryableStatus(status: number): boolean {
-  return status >= 500 || status === 429;
-}
-
-/**
  * Formats an Ensembl gene ID
  */
 export function formatEnsemblId(id: string): string {

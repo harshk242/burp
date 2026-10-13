@@ -9,7 +9,7 @@
  * Paths use the schema-validator format: `$.search.hits[].description`.
  */
 
-import axios from 'axios';
+import type { AxiosInstance } from 'axios';
 import {
   buildClientSchema,
   getIntrospectionQuery,
@@ -31,13 +31,13 @@ import {
   type SelectionSetNode,
 } from 'graphql';
 
-/** Fetch and build a client schema from a live GraphQL endpoint. */
-export async function fetchGraphQLSchema(url: string): Promise<GraphQLSchema> {
-  const res = await axios.post(
-    url,
-    { query: getIntrospectionQuery() },
-    { headers: { 'Content-Type': 'application/json' }, timeout: 20_000 },
-  );
+/**
+ * Fetch and build a client schema from a live GraphQL endpoint. Pass the
+ * platform's contract instance (shared retry attached); `url` is resolved
+ * against its baseURL.
+ */
+export async function fetchGraphQLSchema(http: AxiosInstance, url = ''): Promise<GraphQLSchema> {
+  const res = await http.post(url, { query: getIntrospectionQuery() });
   if (res.data.errors?.length) {
     throw new Error(`Introspection failed: ${JSON.stringify(res.data.errors)}`);
   }
