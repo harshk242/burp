@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_TOOL_CALL_MS,
   MAX_REQUEST_RECORDS,
@@ -8,6 +8,13 @@ import {
   type RequestRecord,
 } from '../tool-call-context.js';
 import { rejection, stubClient } from './retry-test-utils.js';
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('tool-call context', () => {
   it('exists only inside runWithToolCallContext', async () => {
@@ -76,8 +83,9 @@ describe('tool-call context', () => {
       const controller = new AbortController();
       const { client } = stubClient(steps);
       return runWithToolCallContext({ timeoutMs: 5_000, signal: controller.signal }, async (context) => {
-        if (cancel) setTimeout(() => controller.abort(), 10);
-        await client.get('/x').catch(() => {});
+        const request = client.get('/x').catch(() => {});
+        if (cancel) controller.abort();
+        await request;
         return context.buildRetryMeta({ isError })?.outcome;
       });
     };
@@ -110,12 +118,14 @@ describe('tool-call context', () => {
 
   it('records the platform in first-use order and a request skipped at the deadline', async () => {
     const { client } = stubClient([200]);
-    const meta = await runWithToolCallContext({ timeoutMs: 20 }, async (context) => {
+    const pending = runWithToolCallContext({ timeoutMs: 20 }, async (context) => {
       await client.get('/a');
       await new Promise((resolve) => setTimeout(resolve, 40));
       await client.get('/b').catch(() => {});
       return context.buildRetryMeta({ isError: false });
     });
+    await vi.advanceTimersByTimeAsync(40);
+    const meta = await pending;
     expect(meta!.requests[1]).toMatchObject({ attempts: 0, statuses: [], reason: 'budget_timeout' });
     expect(meta!.outcome).toBe('partial');
   });
@@ -124,6 +134,41 @@ describe('tool-call context', () => {
     expect(resolveToolCallTimeoutMs(60_000)).toBe(55_000);
     expect(resolveToolCallTimeoutMs(undefined)).toBe(DEFAULT_TOOL_CALL_MS);
     expect(resolveToolCallTimeoutMs('60000')).toBe(DEFAULT_TOOL_CALL_MS);
-    expect(resolveToolCallTimeoutMs(4_000)).toBe(2_000);
+    expect(resolveToolCallTimeoutMs(8_000)).toBe(3_000);
+    expect(resolveToolCallTimeoutMs(5_000)).toBe(0);
+    expect(resolveToolCallTimeoutMs(4_000)).toBe(0);
+  });
+
+  it('fails requests as timeout without sending them when the deadline leaves no time', async () => {
+    const { client, calls } = stubClient([200]);
+    const error = await runWithToolCallContext({ timeoutMs: resolveToolCallTimeoutMs(4_000) }, () =>
+      rejection(client.get('/x')),
+    );
+    expect(error).toMatchObject({ kind: 'timeout', reason: 'budget_timeout', attempts: 0 });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('keeps concurrent tool calls isolated: records, deadlines and signals', async () => {
+    const a = stubClient([{ status: 200, delayMs: 30 }]);
+    const b = stubClient(['hang']);
+    const controllerB = new AbortController();
+    const callA = runWithToolCallContext({ timeoutMs: 1_000 }, async (context) => {
+      await a.client.get('/a/1');
+      await a.client.get('/a/2');
+      return { meta: context.buildRetryMeta({ isError: false }), remaining: context.remainingMs() };
+    });
+    const callB = runWithToolCallContext({ timeoutMs: 50, signal: controllerB.signal }, async (context) => {
+      await b.client.get('/b/1').catch(() => {});
+      return { meta: context.buildRetryMeta({ isError: true }), remaining: context.remainingMs() };
+    });
+    await vi.advanceTimersByTimeAsync(60);
+    const [resultA, resultB] = await Promise.all([callA, callB]);
+
+    expect(resultA.meta!.requests.map((r) => r.path)).toEqual(['/a/1', '/a/2']);
+    expect(resultA.meta!.outcome).toBe('success');
+    expect(resultA.remaining).toBe(940);
+    expect(resultB.meta!.requests).toEqual([expect.objectContaining({ path: '/b/1', reason: 'budget_timeout' })]);
+    expect(resultB.meta!.outcome).toBe('failed');
+    expect(resultB.remaining).toBe(0);
   });
 });

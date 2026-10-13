@@ -20,7 +20,14 @@ describe('classifyError', () => {
     ['ENOTFOUND', 'network'],
     ['EAI_AGAIN', 'network'],
     ['ERR_NETWORK', 'network'],
+    ['EPIPE', 'network'],
     ['ERR_INVALID_URL', 'bad_request'],
+    ['ERR_BAD_REQUEST', 'bad_request'],
+    ['ERR_BAD_OPTION', 'bad_request'],
+    ['ERR_BAD_OPTION_VALUE', 'bad_request'],
+    ['ERR_NOT_SUPPORT', 'bad_request'],
+    ['ERR_SOMETHING_NEW', 'unknown'],
+    [undefined, 'unknown'],
   ])('maps Axios code %s to %s', (code, reason) => {
     expect(classifyError(axiosFailure({ code }))).toBe(reason);
   });
@@ -37,8 +44,9 @@ describe('classifyError', () => {
     expect(classifyError(axiosFailure({ status }))).toBe(reason);
   });
 
-  it('treats a Network Error message without a response as network', () => {
+  it('treats Network Error / socket hang up messages without a response as network', () => {
     expect(classifyError(axiosFailure({ message: 'Network Error' }))).toBe('network');
+    expect(classifyError(axiosFailure({ message: 'socket hang up' }))).toBe('network');
   });
 
   it('classifies Axios cancellation as cancelled', () => {
@@ -95,6 +103,16 @@ describe('Retry-After parsing', () => {
     expect(parseRetryAfter(' 1.5 ', now)).toBe(1_500);
     expect(parseRetryAfter(new Date(now + 3_000).toUTCString(), now)).toBe(3_000);
     expect(parseRetryAfter(new Date(now - 3_000).toUTCString(), now)).toBe(0);
+    expect(parseRetryAfter('Thursday, 01-Jan-26 00:00:03 GMT', now)).toBe(3_000);
+    expect(parseRetryAfter('Thu Jan  1 00:00:03 2026', now)).toBe(3_000);
+  });
+
+  it('rejects negative numbers, non-HTTP dates and delays that overflow', () => {
+    expect(parseRetryAfter('-1', now)).toBeUndefined();
+    expect(parseRetryAfter('2026-01-01T00:00:03Z', now)).toBeUndefined();
+    expect(parseRetryAfter('9'.repeat(400), now)).toBeUndefined();
+    expect(parseRateLimitReset('-5', now)).toBeUndefined();
+    expect(parseRateLimitReset('9'.repeat(400), now)).toBeUndefined();
   });
 
   it('ignores missing or invalid values', () => {
@@ -113,6 +131,10 @@ describe('Retry-After parsing', () => {
     const resetOnly = axiosFailure({ status: 429, headers: { 'x-ratelimit-reset': '9' } });
     expect(getRetryAfterMs(both, now)).toBe(2_000);
     expect(getRetryAfterMs(resetOnly, now)).toBe(9_000);
+    for (const bad of ['-1', 'soon', '9'.repeat(400)]) {
+      const fallback = axiosFailure({ status: 429, headers: { 'Retry-After': bad, 'x-ratelimit-reset': '9' } });
+      expect(getRetryAfterMs(fallback, now)).toBe(9_000);
+    }
     expect(getRetryAfterMs(axiosFailure({ status: 429 }), now)).toBeUndefined();
     expect(getRetryAfterMs(new Error('x'), now)).toBeUndefined();
   });

@@ -169,7 +169,8 @@ export async function withRetry<T>(
   };
   const fail = (reason: UpstreamReason, cause: unknown, retryAfterMs: number | null = null): never => {
     finish(reason === 'cancelled' ? 'cancelled' : 'failed', reason);
-    const status = [...record.statuses].reverse().find((s) => s !== null) ?? null;
+    // The final attempt's status; per-attempt history stays in the record.
+    const status = record.statuses.at(-1) ?? null;
     const details = { reason, platform, status, attempts: record.attempts, elapsedMs: record.ms };
     throw new UpstreamError(formatUpstreamMessage(details), {
       ...details,
@@ -185,7 +186,9 @@ export async function withRetry<T>(
     if (reason === 'rate_limited') {
       const on429 = policy.on429 ?? 'wait';
       if (on429 === 'fail') return null;
-      if (on429 === 'wait' && retryAfterMs !== undefined) {
+      if (on429 === 'wait') {
+        // No usable server-directed wait, or one that doesn't fit: fail fast.
+        if (retryAfterMs === undefined) return null;
         const tooLong = retryAfterMs > (policy.maxRetryAfterMs ?? Infinity) || retryAfterMs >= remaining();
         return tooLong ? null : retryAfterMs;
       }
@@ -223,17 +226,25 @@ export async function withRetry<T>(
       if (timeoutMs <= 0) fail('budget_timeout', lastError ?? null);
 
       record.attempts = attempt;
-      let reason: RetryReason;
+      let settled: { ok: true; value: T } | { ok: false; error: unknown };
       try {
-        const result = await fn({ attempt, signal: combined, timeoutMs });
-        record.statuses.push(options.statusOf?.(result) ?? null);
-        finish('success', null);
-        return result;
+        // Raced against the combined signal: a callback that ignores the
+        // signal can't outlive the budget or a cancellation.
+        settled = { ok: true, value: await raceAbort(fn({ attempt, signal: combined, timeoutMs }), combined) };
       } catch (error) {
-        lastError = error;
-        record.statuses.push(getErrorStatus(error));
-        reason = abortReason() ?? classifyError(error);
+        settled = { ok: false, error };
       }
+      if (settled.ok) {
+        // A response that lands after the budget or a cancellation is discarded.
+        const late = abortReason();
+        record.statuses.push(late ? null : (options.statusOf?.(settled.value) ?? null));
+        if (late) fail(late, combined.reason);
+        finish('success', null);
+        return settled.value;
+      }
+      lastError = settled.error;
+      record.statuses.push(getErrorStatus(lastError));
+      const reason = abortReason() ?? classifyError(lastError);
 
       if (reason === 'unknown') {
         finish('failed', 'unknown');
@@ -257,6 +268,10 @@ export async function withRetry<T>(
 }
 
 const RETRY_ADAPTER = Symbol('httpRetryAdapter');
+/** Where the request interceptor parks the caller's signal, out of Axios's sight. */
+const CALLER_SIGNAL = Symbol('httpRetryCallerSignal');
+
+type RetryRequestConfig = InternalAxiosRequestConfig & { [CALLER_SIGNAL]?: AbortSignal };
 
 /** Path of an Axios request without host or query string. */
 export function requestPath(config: InternalAxiosRequestConfig): string {
@@ -270,6 +285,9 @@ export function requestPath(config: InternalAxiosRequestConfig): string {
 /**
  * Wraps the instance's adapter so the whole retry loop runs inside it: request
  * interceptors run once per logical request and retries can't nest.
+ *
+ * Call it right after `axios.create`: its request interceptor must be the
+ * first one registered so it runs last, just before dispatch.
  */
 export function attachRetry(
   instance: AxiosInstance,
@@ -282,11 +300,22 @@ export function attachRetry(
     throw new Error(`attachRetry: retry is already attached to this ${platform} instance`);
   }
   const adapter = axios.getAdapter(instance.defaults.adapter);
-  const retrying = (config: InternalAxiosRequestConfig): Promise<AxiosResponse> => {
-    const callerSignal = config.signal instanceof AbortSignal ? config.signal : undefined;
-    // Axios replaces any adapter rejection with its own CanceledError when
-    // config.signal is aborted; the loop owns the caller signal from here on so
-    // a cancellation surfaces as UpstreamError(cancelled) like every other path.
+  // Axios rejects with a bare CanceledError, before and after the adapter, when
+  // config.signal is aborted, and replaces any adapter rejection with one. The
+  // loop owns the caller signal instead, so every cancellation (already aborted,
+  // aborted while interceptors ran, or mid-retry) surfaces as
+  // UpstreamError(cancelled). The interceptor is async (the default), which
+  // also keeps Axios on its promise chain.
+  instance.interceptors.request.use((config: RetryRequestConfig) => {
+    if (config.signal instanceof AbortSignal) {
+      config[CALLER_SIGNAL] = config.signal;
+      config.signal = undefined;
+    }
+    return config;
+  });
+  const retrying = (config: RetryRequestConfig): Promise<AxiosResponse> => {
+    const callerSignal =
+      config[CALLER_SIGNAL] ?? (config.signal instanceof AbortSignal ? config.signal : undefined);
     config.signal = undefined;
     return withRetry(({ signal, timeoutMs }) => adapter({ ...config, signal, timeout: timeoutMs }), policy, {
       ...deps,

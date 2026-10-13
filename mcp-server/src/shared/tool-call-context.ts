@@ -167,6 +167,7 @@ export function resolveToolCallTimeoutMs(deadlineMs: unknown): number {
   if (typeof deadlineMs !== 'number' || !Number.isFinite(deadlineMs) || deadlineMs <= 0) {
     return DEFAULT_TOOL_CALL_MS;
   }
-  // Very short client timeouts keep at least half their time rather than none.
-  return Math.max(deadlineMs - DEADLINE_MARGIN_MS, Math.floor(deadlineMs / 2));
+  // A client timeout within the margin leaves no time: requests fail as
+  // `timeout` without being sent rather than outliving the client.
+  return Math.max(0, deadlineMs - DEADLINE_MARGIN_MS);
 }

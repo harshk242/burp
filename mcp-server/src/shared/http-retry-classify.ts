@@ -77,6 +77,7 @@ export const REASON_TO_KIND: Readonly<Record<UpstreamReason, Readonly<UpstreamKi
 });
 
 const TIMEOUT_CODES = new Set(['ECONNABORTED', 'ETIMEDOUT']);
+// Transport failures known to be transient: the request may not have reached the upstream.
 const NETWORK_CODES = new Set([
   'ECONNRESET',
   'ECONNREFUSED',
@@ -84,11 +85,16 @@ const NETWORK_CODES = new Set([
   'EAI_AGAIN',
   'EPIPE',
   'EHOSTUNREACH',
+  'EHOSTDOWN',
   'ENETUNREACH',
+  'ENETDOWN',
   'ERR_NETWORK',
 ]);
-// Axios codes raised before anything is sent: retrying cannot help.
+const NETWORK_MESSAGES = new Set(['Network Error', 'socket hang up']);
+// Axios codes for a request rejected locally (bad URL, protocol or option):
+// nothing reached the upstream and retrying cannot help.
 const CONFIG_CODES = new Set([
+  'ERR_BAD_REQUEST',
   'ERR_BAD_OPTION',
   'ERR_BAD_OPTION_VALUE',
   'ERR_INVALID_URL',
@@ -97,7 +103,11 @@ const CONFIG_CODES = new Set([
   'ERR_FR_TOO_MANY_REDIRECTS',
 ]);
 
-/** Classifies one attempt's failure. Non-Axios errors are always `unknown`. */
+/**
+ * Classifies one attempt's failure. Non-Axios errors, and Axios failures that
+ * are neither a known transport error nor a local request error, are `unknown`
+ * (never retried, rethrown as-is).
+ */
 export function classifyError(error: unknown): RetryReason {
   if (axios.isCancel(error)) return 'cancelled';
   if (!axios.isAxiosError(error)) return 'unknown';
@@ -115,10 +125,9 @@ export function classifyError(error: unknown): RetryReason {
   const code = error.code ?? '';
   if (code === 'ERR_CANCELED') return 'cancelled';
   if (TIMEOUT_CODES.has(code)) return 'attempt_timeout';
-  if (NETWORK_CODES.has(code) || error.message === 'Network Error') return 'network';
+  if (NETWORK_CODES.has(code) || NETWORK_MESSAGES.has(error.message)) return 'network';
   if (CONFIG_CODES.has(code)) return 'bad_request';
-  // Any other Axios failure without a response never reached the upstream.
-  return 'network';
+  return 'unknown';
 }
 
 /** Default retry decision for a reason (429 is decided separately by `on429`). */
@@ -146,12 +155,30 @@ export function getHeader(headers: unknown, name: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+const NON_NEGATIVE_NUMBER = /^\s*\d+(?:\.\d+)?\s*$/;
+// RFC 9110 HTTP-date: IMF-fixdate, obsolete RFC 850 and asctime formats.
+const HTTP_DATE = new RegExp(
+  [
+    /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/,
+    /^[A-Z][a-z]+, \d{2}-[A-Z][a-z]{2}-\d{2} \d{2}:\d{2}:\d{2} GMT$/,
+    /^[A-Z][a-z]{2} [A-Z][a-z]{2} [ \d]\d \d{2}:\d{2}:\d{2} \d{4}$/,
+  ].map((r) => r.source).join('|'),
+);
+
+/** A finite, non-negative delay in ms, or undefined. */
+function finiteDelay(ms: number): number | undefined {
+  return Number.isFinite(ms) ? Math.max(0, ms) : undefined;
+}
+
 /** Parses a Retry-After value (delay-seconds or HTTP-date) into milliseconds. */
 export function parseRetryAfter(value: unknown, now = Date.now()): number | undefined {
   if (typeof value !== 'string') return undefined;
-  if (/^\s*\d+(?:\.\d+)?\s*$/.test(value)) return Number(value) * 1_000;
-  const date = Date.parse(value);
-  return Number.isNaN(date) ? undefined : Math.max(0, date - now);
+  if (NON_NEGATIVE_NUMBER.test(value)) return finiteDelay(Number(value) * 1_000);
+  const trimmed = value.trim();
+  if (!HTTP_DATE.test(trimmed)) return undefined;
+  // asctime carries no zone; HTTP-dates are always GMT.
+  const date = Date.parse(trimmed.endsWith('GMT') ? trimmed : `${trimmed} GMT`);
+  return Number.isNaN(date) ? undefined : finiteDelay(date - now);
 }
 
 /**
@@ -159,10 +186,10 @@ export function parseRetryAfter(value: unknown, now = Date.now()): number | unde
  * values that look like Unix epoch seconds are treated as an absolute time.
  */
 export function parseRateLimitReset(value: unknown, now = Date.now()): number | undefined {
-  if (typeof value !== 'string' || !/^\s*\d+(?:\.\d+)?\s*$/.test(value)) return undefined;
+  if (typeof value !== 'string' || !NON_NEGATIVE_NUMBER.test(value)) return undefined;
   const seconds = Number(value);
-  if (seconds > 1_000_000_000) return Math.max(0, seconds * 1_000 - now);
-  return seconds * 1_000;
+  if (seconds > 1_000_000_000) return finiteDelay(seconds * 1_000 - now);
+  return finiteDelay(seconds * 1_000);
 }
 
 /** Server-directed wait for a 429, from `Retry-After` then `x-ratelimit-reset`. */

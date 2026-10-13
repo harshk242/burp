@@ -1,6 +1,8 @@
+import axios from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { UpstreamError } from '../exceptions.js';
-import { computeBackoffMs, withRetry, type RetryPolicy } from '../http-retry.js';
+import { attachRetry, computeBackoffMs, withRetry, type RetryPolicy } from '../http-retry.js';
+import { runWithToolCallContext } from '../tool-call-context.js';
 import { axiosFailure, basePolicy, fakeClock, rejection, stubClient } from './retry-test-utils.js';
 
 describe('request counts', () => {
@@ -77,6 +79,42 @@ describe('request counts', () => {
   });
 });
 
+describe('final failure details', () => {
+  it("reports the final attempt's status and keeps the history in the record", async () => {
+    const { client } = stubClient([500, 'network', 'network']);
+    const { error, meta } = await runWithToolCallContext({ timeoutMs: 5_000 }, async (context) => ({
+      error: await rejection(client.get('/x')),
+      meta: context.buildRetryMeta({ isError: true }),
+    }));
+    expect(error).toMatchObject({ reason: 'network', status: null, attempts: 3 });
+    expect(meta?.requests[0].statuses).toEqual([500, null, null]);
+  });
+
+  it.each(['ERR_BAD_REQUEST', 'ERR_BAD_OPTION_VALUE', 'ERR_INVALID_URL', 'ERR_NOT_SUPPORT'])(
+    'fails a local %s request error once as bad_request',
+    async (code) => {
+      const fn = vi.fn().mockRejectedValue(axiosFailure({ code }));
+      const error = await rejection(withRetry(fn, basePolicy, { platform: 'p', sleep: async () => {} }));
+      expect(error).toMatchObject({ kind: 'bad_request', reason: 'bad_request', attempts: 1 });
+      expect(fn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not send an unsupported-protocol URL three times (real Axios adapter, no network)', async () => {
+    const client = attachRetry(axios.create(), basePolicy, 'p', { sleep: async () => {} });
+    const error = await rejection(client.get('ftp://example.invalid/x'));
+    expect(error).toMatchObject({ kind: 'bad_request', reason: 'bad_request', attempts: 1 });
+    expect(error.cause.code).toBe('ERR_BAD_REQUEST');
+  });
+
+  it('rethrows an unrecognised Axios failure as-is after one attempt', async () => {
+    const failure = axiosFailure({ code: 'ERR_SOMETHING_NEW' });
+    const fn = vi.fn().mockRejectedValue(failure);
+    await expect(withRetry(fn, basePolicy, { platform: 'p', sleep: async () => {} })).rejects.toBe(failure);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('withRetry', () => {
   it('never retries non-Axios errors and rethrows them unchanged', async () => {
     const failure = new Error('schema changed');
@@ -142,11 +180,25 @@ describe('429 handling', () => {
     }
   });
 
-  it('wait: falls back to the normal backoff without a header', async () => {
+  it.each([
+    ['no header', {}],
+    ['an invalid Retry-After', { 'retry-after': 'soon' }],
+    ['a negative Retry-After', { 'retry-after': '-1' }],
+  ])('wait: fails fast as rate_limited with %s', async (_, headers) => {
     const sleep = vi.fn().mockResolvedValue(undefined);
-    const { client } = stubClient([429, 200], { backoffMs: [123] }, { deps: { sleep } });
+    const { client, calls } = stubClient([{ status: 429, headers }, 200], { backoffMs: [123] }, { deps: { sleep } });
+    const error = await rejection(client.get('/x'));
+    expect(error).toMatchObject({ kind: 'rate_limited', reason: 'rate_limited', retryAfterMs: null, attempts: 1 });
+    expect(calls).toHaveLength(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('wait: falls back to x-ratelimit-reset when Retry-After is unusable', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const headers = { 'retry-after': '-1', 'x-ratelimit-reset': '3' };
+    const { client } = stubClient([{ status: 429, headers }, 200], {}, { deps: { sleep } });
     await expect(client.get('/x')).resolves.toMatchObject({ status: 200 });
-    expect(sleep).toHaveBeenCalledWith(123, expect.any(AbortSignal));
+    expect(sleep).toHaveBeenCalledWith(3_000, expect.any(AbortSignal));
   });
 
   it('retry: backs off as usual and ignores Retry-After', async () => {

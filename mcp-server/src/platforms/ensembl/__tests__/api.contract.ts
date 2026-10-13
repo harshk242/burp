@@ -19,6 +19,7 @@ const CONTRACT_OVERRIDES = {
   maxAttempts: 4,
   backoffMs: [2_000, 5_000, 10_000],
   totalBudgetMs: 120_000,
+  jitter: 0,
 };
 
 const client = createEnsemblClient({ policy: { ...ENSEMBL_POLICY, ...CONTRACT_OVERRIDES } });
