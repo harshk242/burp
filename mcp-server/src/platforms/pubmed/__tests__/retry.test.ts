@@ -72,6 +72,35 @@ describe('PubMedClient on the shared retry', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('does not retry an HTTP 408 response, like any other 4xx', async () => {
+    const { client, calls } = stubPubMed([408, 200]);
+    expect(await rejection(client.search('CRISPR'))).toMatchObject({
+      platform: 'pubmed',
+      kind: 'timeout',
+      status: 408,
+      attempts: 1,
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('still retries a transport timeout with no HTTP response', async () => {
+    const { client, calls, sleep } = stubPubMed(['timeout', 'timeout', 200]);
+    await expect(client.search('CRISPR')).resolves.toBeDefined();
+    expect(calls).toHaveLength(3);
+    expect(sleep).toHaveBeenCalledTimes(2);
+
+    const exhausted = stubPubMed(['timeout']);
+    expect(await rejection(exhausted.client.search('CRISPR'))).toMatchObject({ kind: 'timeout', status: null, attempts: 3 });
+    expect(exhausted.calls).toHaveLength(3);
+  });
+
+  it('keeps the HTTP 408 rule when the constructor overrides retries', async () => {
+    const { client, calls } = stubPubMed([408, 200], { maxRetries: 4, retryDelay: 10 });
+    expect(await rejection(client.search('CRISPR'))).toMatchObject({ status: 408, attempts: 1 });
+    expect(calls).toHaveLength(1);
+    expect(PUBMED_POLICY.retryOn).toBeTypeOf('function');
+  });
+
   it('fails fast on 429 with Retry-After, defaulting to 5s', async () => {
     const directed = stubPubMed([{ status: 429, headers: { 'retry-after': '7' } }, 200]);
     expect(await rejection(directed.client.search('CRISPR'))).toMatchObject({

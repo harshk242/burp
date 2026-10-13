@@ -135,6 +135,16 @@ export function isRetryableReason(reason: RetryReason): boolean {
   return reason === 'network' || reason === 'attempt_timeout' || reason === 'http_5xx';
 }
 
+/**
+ * `retryOn` for upstreams that fail every non-429 4xx at once (NCBI): the
+ * default rule minus HTTP 408, while transport timeouts with no response are
+ * still retried.
+ */
+export function isRetryableTransportOr5xx(reason: RetryReason, error: unknown): boolean {
+  if (reason === 'attempt_timeout' && getErrorStatus(error) !== null) return false;
+  return isRetryableReason(reason);
+}
+
 /** HTTP status of an Axios error, or null when there was no response. */
 export function getErrorStatus(error: unknown): number | null {
   return axios.isAxiosError(error) ? (error.response?.status ?? null) : null;

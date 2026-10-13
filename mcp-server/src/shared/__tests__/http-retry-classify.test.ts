@@ -7,6 +7,7 @@ import {
   getHeader,
   getRetryAfterMs,
   isRetryableReason,
+  isRetryableTransportOr5xx,
   parseRateLimitReset,
   parseRetryAfter,
 } from '../http-retry-classify.js';
@@ -64,6 +65,18 @@ describe('classifyError', () => {
     for (const reason of ['budget_timeout', 'rate_limited', 'not_found', 'bad_request', 'cancelled', 'unknown']) {
       expect(isRetryableReason(reason as never)).toBe(false);
     }
+  });
+});
+
+describe('isRetryableTransportOr5xx', () => {
+  it('drops HTTP 408 but keeps transport timeouts, network and 5xx', () => {
+    const http408 = axiosFailure({ status: 408 });
+    const transport = axiosFailure({ code: 'ECONNABORTED' });
+    expect(isRetryableTransportOr5xx(classifyError(http408), http408)).toBe(false);
+    expect(isRetryableTransportOr5xx(classifyError(transport), transport)).toBe(true);
+    expect(isRetryableTransportOr5xx('network', axiosFailure({ code: 'ECONNRESET' }))).toBe(true);
+    expect(isRetryableTransportOr5xx('http_5xx', axiosFailure({ status: 503 }))).toBe(true);
+    expect(isRetryableTransportOr5xx('bad_request', axiosFailure({ status: 400 }))).toBe(false);
   });
 });
 

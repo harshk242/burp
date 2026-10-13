@@ -14,6 +14,7 @@ import {
 } from './xml-parser.js';
 import { TokenBucketRateLimiter, createNcbiRateLimiter } from '../../shared/rate-limiter.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
+import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import type {
   CacheEntry,
   ClinVarClientOptions,
@@ -38,13 +39,15 @@ function exponentialBackoff(baseMs: number): (attempt: number) => number {
 
 /**
  * NCBI E-utilities policy (plans/shared-http-retry-plan.md, "Platform
- * inventory"): 3 attempts, `2^n × retryDelay` backoff, retry on network/5xx,
+ * inventory"): 3 attempts, `2^n × retryDelay` backoff, retry on network/5xx
+ * and transport timeouts (any other 4xx, HTTP 408 included, fails at once),
  * 429 fails fast with Retry-After (default 5s), 40s request budget. The
  * client adds the NCBI token bucket as `beforeAttempt`.
  */
 export const CLINVAR_NCBI_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: DEFAULT_MAX_RETRIES,
   backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
+  retryOn: isRetryableTransportOr5xx,
   totalBudgetMs: 40_000,
   perAttemptTimeoutMs: 30_000,
   on429: 'fail',
