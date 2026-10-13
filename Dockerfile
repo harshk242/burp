@@ -57,6 +57,11 @@ ENV PORT=3000
 ENV DATABASE_URL=/app/data/app.db
 ENV MCP_SERVERS_BASE=/app/mcp-server
 
+# Deployed commit's short sha; traces use it as the Langfuse `release`
+# (observability/langfuse.ts). Declared last so a new sha only rebuilds this layer.
+ARG GIT_SHA=""
+ENV GIT_SHA=$GIT_SHA
+
 EXPOSE 3000
 
 VOLUME ["/app/data"]

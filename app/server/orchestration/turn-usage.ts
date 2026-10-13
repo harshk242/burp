@@ -8,10 +8,11 @@
 
 import type { LanguageModelCallStartEvent, TextStreamPart, ToolSet } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { db, dailyUsageQueries, usageEventQueries } from "../db";
+import { db, chatSessionQueries, chatTurnQueries, dailyUsageQueries, messageQueries, usageEventQueries, userQueries } from "../db";
 import { estimateTokens, logger, type LogContext } from "../logger";
-import { getUtcDate, getUtcMonth, type CallCost, type CallUsage } from "../usage";
+import { getUtcDate, getUtcMonth, type CallCost, type CallUsage, type ChatCost } from "../usage";
 import { TurnError, type TurnErrorCode } from "./chat-turn";
+import type { ToolCallRecord } from "./types";
 import type { UsageMeter } from "./usage-meter";
 
 interface CallInFlight {
@@ -257,15 +258,19 @@ export interface FailedTurn {
  * token totals are incremented like a successful turn; the query counters are
  * not (the daily count was taken by the rate limiter when the turn started).
  *
- * Never throws: a failure here must not mask the turn's own error.
+ * Returns the estimate added for a cut-off call, if any (the turn's trace puts
+ * it on the cut-off generation). Never throws: a failure here must not mask
+ * the turn's own error.
  */
-export function recordFailedTurn(turn: FailedTurn): void {
+export function recordFailedTurn(turn: FailedTurn): CallCost | undefined {
   const { meter, ctx, errorCode } = turn;
+  let estimate: CallCost | undefined;
   try {
     // Anthropic turns request prompt caching (chat-v2), so new input may be cache-written.
     const cutOff = turn.tracker.estimateCutOffCall(turn.provider === "anthropic");
     if (cutOff) {
       const call = meter.add(cutOff.usage, { estimated: true });
+      estimate = call;
       logger.warn("CHAT", "usage_estimated", {
         ctx,
         data: {
@@ -278,7 +283,7 @@ export function recordFailedTurn(turn: FailedTurn): void {
         },
       });
     }
-    if (meter.callCount === 0) return;
+    if (meter.callCount === 0) return estimate;
 
     const cost = meter.summary();
     const usageEventId = uuidv4();
@@ -317,4 +322,78 @@ export function recordFailedTurn(turn: FailedTurn): void {
       data: { error_code: errorCode, llm_calls: meter.callCount },
     });
   }
+  return estimate;
+}
+
+export interface OkTurn {
+  meter: UsageMeter;
+  cost: ChatCost;
+  userId: string;
+  sessionId: string;
+  turnId: string;
+  provider: string;
+  model: string;
+  answer: string;
+  reasoning: string | null;
+  toolCalls: ToolCallRecord[];
+  iterations: number;
+  lastPromptTokens: number | null | undefined;
+  finalFinishReason: string | null;
+  toolErrorCount: number;
+}
+
+/**
+ * The success path's ledger write, in one transaction: the assistant message
+ * (tokens, cost, reasoning), its `status: "ok"` usage_events row, the finished
+ * chat_turns row, and the session/user/daily counters. Returns the assistant
+ * message id.
+ */
+export function recordOkTurn(turn: OkTurn): string {
+  const { cost } = turn;
+  const assistantMsgId = uuidv4();
+  // Sync transaction on the shared connection: the *Queries calls below use the
+  // global `db`, so they run inside it without needing the `tx` handle.
+  db.transaction(() => {
+    messageQueries.create(
+      assistantMsgId,
+      turn.sessionId,
+      "assistant",
+      turn.answer,
+      turn.toolCalls.length > 0 ? JSON.stringify(turn.toolCalls) : null,
+      cost.inputTokens,
+      cost.outputTokens,
+      turn.reasoning,
+      cost.costMicrousd
+    );
+
+    usageEventQueries.create({
+      id: uuidv4(),
+      user_id: turn.userId,
+      date: getUtcDate(),
+      month: getUtcMonth(),
+      operation: "chat",
+      provider: turn.provider,
+      model: turn.model,
+      ...turn.meter.ledgerFields(cost),
+      status: "ok",
+      session_id: turn.sessionId,
+      message_id: assistantMsgId,
+      turn_id: turn.turnId,
+    });
+
+    chatTurnQueries.finish(turn.turnId, {
+      status: "ok",
+      iterations: turn.iterations,
+      assistantMessageId: assistantMsgId,
+      lastPromptTokens: turn.lastPromptTokens,
+      finalFinishReason: turn.finalFinishReason,
+      toolErrorCount: turn.toolErrorCount,
+    });
+
+    chatSessionQueries.touch(turn.sessionId);
+    userQueries.incrementQueries(turn.userId);
+    // Increment daily token totals (best-effort: done post-response; next request checks these)
+    dailyUsageQueries.incrementTokens(turn.userId, cost.inputTokens, cost.outputTokens);
+  });
+  return assistantMsgId;
 }

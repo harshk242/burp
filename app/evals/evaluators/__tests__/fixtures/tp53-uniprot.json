@@ -1,0 +1,39 @@
+{
+  "item_id": "fixture-tp53-uniprot",
+  "session_id": "fixture-tp53",
+  "turns": [
+    {
+      "turn": 1,
+      "user_message": "What is the UniProt accession for human TP53? One line.",
+      "answer": "The UniProt accession for human TP53 is **P04637** (Ensembl ENSG00000141510). Ensembl also lists several other TP53 entries, mostly isoform or fragment records.",
+      "status": "ok",
+      "error_code": null,
+      "final_finish_reason": "stop",
+      "tool_error_count": 0,
+      "tool_calls": [
+        {
+          "name": "ensembl__search_genes",
+          "input": {
+            "query": "TP53",
+            "limit": 1
+          },
+          "model_output": "[fetched_at: 2026-10-12T19:24:17Z]\n{\"search_type\":\"exact_symbol_match\",\"note\":\"REST API only supports exact gene symbol lookup, not fuzzy search\",\"result\":{\"object_type\":\"Gene\",\"biotype\":\"protein_coding\",\"db_type\":\"core\",\"canonical_transcript\":\"ENST00000269305.9\",\"logic_name\":\"ensembl_havana_gene_homo_sapiens\",\"end\":7687546,\"seq_region_name\":\"17\",\"display_name\":\"TP53\",\"version\":21,\"strand\":-1,\"assembly_name\":\"GRCh38\",\"id\":\"ENSG00000141510\",\"description\":\"tumor protein p53 [Source:HGNC Symbol;Acc:HGNC:11998]\",\"species\":\"homo_sapiens\",\"source\":\"ensembl_havana\",\"start\":7661779}}",
+          "error": false
+        },
+        {
+          "name": "ensembl__get_xrefs",
+          "input": {
+            "gene_id": "ENSG00000141510",
+            "external_db": "Uniprot_gn"
+          },
+          "model_output": "[fetched_at: 2026-10-12T19:24:31Z]\n[{\"db_display_name\":\"UniProtKB Gene Name\",\"version\":\"0\",\"primary_id\":\"A0A386NBZ1\",\"dbname\":\"Uniprot_gn\",\"info_text\":\"\",\"description\":\"tumor protein p53\",\"synonyms\":[],\"display_id\":\"TP53\",\"info_type\":\"DEPENDENT\"},{\"description\":\"tumor protein p53\",\"display_id\":\"TP53\",\"synonyms\":[],\"info_text\":\"\",\"info_type\":\"DEPENDENT\",\"primary_id\":\"K7PPA8\",\"dbname\":\"Uniprot_gn\",\"db_display_name\":\"UniProtKB Gene Name\",\"version\":\"0\"},{\"primary_id\":\"J3KP33\",\"dbname\":\"Uniprot_gn\",\"db_display_name\":\"UniProtKB Gene Name\",\"version\":\"0\",\"description\":\"tumor protein p53\",\"display_id\":\"TP53\",\"synonyms\":[],\"info_text\":\"\",\"info_type\":\"DEPENDENT\"},{\"dbname\":\"Uniprot_gn\",\"primary_id\":\"A0A087WT22\",\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\",\"info_type\":\"DEPENDENT\",\"synonyms\":[],\"display_id\":\"TP53\",\"description\":\"tumor protein p53\",\"info_text\":\"\"},{\"display_id\":\"TP53\",\"synonyms\":[],\"description\":\"tumor protein p53\",\"info_text\":\"\",\"info_type\":\"DEPENDENT\",\"dbname\":\"Uniprot_gn\",\"primary_id\":\"E7EQX7\",\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\"},{\"db_display_name\":\"UniProtKB Gene Name\",\"version\":\"0\",\"primary_id\":\"P04637\",\"dbname\":\"Uniprot_gn\",\"info_type\":\"DEPENDENT\",\"info_text\":\"\",\"description\":\"tumor protein p53\",\"display_id\":\"TP53\",\"synonyms\":[]},{\"primary_id\":\"E9PFT5\",\"dbname\":\"Uniprot_gn\",\"db_display_name\":\"UniProtKB Gene Name\",\"version\":\"0\",\"description\":\"tumor protein p53\",\"display_id\":\"TP53\",\"synonyms\":[],\"info_text\":\"\",\"info_type\":\"DEPENDENT\"},{\"info_text\":\"\",\"description\":\"tumor protein p53\",\"synonyms\":[],\"display_id\":\"TP53\",\"info_type\":\"DEPENDENT\",\"db_display_name\":\"UniProtKB Gene Name\",\"version\":\"0\",\"primary_id\":\"A0AAQ5BHX5\",\"dbname\":\"Uniprot_gn\"},{\"info_type\":\"DEPENDENT\",\"info_text\":\"\",\"synonyms\":[],\"display_id\":\"TP53\",\"description\":\"tumor protein p53\",\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\",\"dbname\":\"Uniprot_gn\",\"primary_id\":\"A0A087X1Q1\"},{\"info_type\":\"DEPENDENT\",\"info_text\":\"\",\"display_id\":\"TP53\",\"synonyms\":[],\"description\":\"tumor protein p53\",\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\",\"dbname\":\"Uniprot_gn\",\"primary_id\":\"A0AAQ5BHY1\"},{\"display_id\":\"TP53\",\"synonyms\":[],\"description\":\"tumor protein p53\",\"info_text\":\"\",\"info_type\":\"DEPENDENT\",\"dbname\":\"Uniprot_gn\",\"primary_id\":\"S4R334\",\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\"},{\"info_type\":\"DEPENDENT\",\"display_id\":\"TP53\",\"synonyms\":[],\"description\":\"tumor protein p53\",\"info_text\":\"\",\"dbname\":\"Uniprot_gn\",\"primary_id\":\"A0A0U1RQC9\",\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\"},{\"dbname\":\"Uniprot_gn\",\"primary_id\":\"I3L0W9\",\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\",\"display_id\":\"TP53\",\"synonyms\":[],\"description\":\"tumor protein p53\",\"info_text\":\"\",\"info_type\":\"DEPENDENT\"},{\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\",\"dbname\":\"Uniprot_gn\",\"primary_id\":\"A0AAQ5BHZ9\",\"info_type\":\"DEPENDENT\",\"info_text\":\"\",\"synonyms\":[],\"display_id\":\"TP53\",\"description\":\"tumor protein p53\"},{\"synonyms\":[],\"display_id\":\"TP53\",\"description\":\"tumor protein p53\",\"info_text\":\"\",\"info_type\":\"DEPENDENT\",\"dbname\":\"Uniprot_gn\",\"primary_id\":\"H2EHT1\",\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\"},{\"version\":\"0\",\"db_display_name\":\"UniProtKB Gene Name\",\"dbname\":\"Uniprot_gn\",\"primary_id\":\"A0A087WXZ1\",\"info_text\":\"\",\"synonyms\":[],\"display_id\":\"TP53\",\"description\":\"tumor protein p53\",\"info_type\":\"DEPENDENT\"}]",
+          "error": false
+        }
+      ],
+      "cost_usd": 0.0123,
+      "llm_calls": 3,
+      "duration_ms": 21000,
+      "trace_id": null
+    }
+  ]
+}

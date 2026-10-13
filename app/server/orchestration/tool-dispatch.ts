@@ -16,6 +16,7 @@ import { handleLargeOutput } from "./large-output";
 import { runToolSearch } from "./tools/search-tool";
 import { SEARCH_TOOL_NAME, type ToolSet } from "./context/tool-catalog";
 import type { StreamEvent, ToolCallRecord } from "./types";
+import type { TurnTrace } from "../observability/turn-trace";
 
 export type { ToolSet } from "./context/tool-catalog";
 
@@ -28,6 +29,8 @@ export interface DispatchContext {
   ctx: LogContext;
   /** Aborted when the client disconnects; cancels in-flight tool calls. */
   signal?: AbortSignal;
+  /** The turn's trace: each call gets a tool (or retriever, for search) span. */
+  trace?: TurnTrace;
 }
 
 export interface ToolCallInput {
@@ -40,6 +43,10 @@ export interface DispatchResult {
   /** Absent when a search call fails (it is not recorded in tool_calls). */
   record?: ToolCallRecord;
   part: ToolResultPart;
+  /** Extra metadata for the call's trace span (large-output handling). */
+  traceMetadata?: Record<string, unknown>;
+  /** Span output when it differs from the result part (search: the hit names). */
+  traceOutput?: unknown;
 }
 
 interface ParsedCall {
@@ -116,14 +123,32 @@ export async function* dispatchToolCall(
       input,
     },
   };
+  const isSearch = parsed.server === "system" && originalName === SEARCH_TOOL_NAME;
+  // Left open on abort (the throws below); ending the turn closes it.
+  const span = dc.trace?.tool({
+    name: originalName,
+    input,
+    asType: isSearch ? "retriever" : "tool",
+    metadata: { server: parsed.server, tool_call_id: tc.toolCallId },
+  });
   // The client may have gone while tool_start was being written.
   dc.signal?.throwIfAborted();
 
   let result: DispatchResult;
   if (parsed.server !== "system") result = yield* runMcpTool(call, dc);
-  else if (originalName === SEARCH_TOOL_NAME) result = yield* runSearchTool(call, dc);
+  else if (isSearch) result = yield* runSearchTool(call, dc);
   else result = yield* runSystemTool(call, dc);
-  return { ...result, part: withFetchedAt(result.part) };
+  const part = withFetchedAt(result.part);
+  if (span) {
+    // What the model saw: the result part as sent (after large-output handling, with fetched_at).
+    const { output } = part;
+    const seen = output.type === "text" || output.type === "error-text" ? output.value : output;
+    const traced = { output: result.traceOutput ?? seen, metadata: { server: parsed.server, ...result.traceMetadata } };
+    const raw = result.part.output;
+    if (raw.type === "error-text") span.fail(traced, raw.value);
+    else span.finish(traced);
+  }
+  return { record: result.record, part };
 }
 
 /** ISO timestamp (UTC, whole seconds) of when a tool result was produced. */
@@ -203,6 +228,7 @@ async function* runSearchTool(
         toolName: call.tc.toolName,
         output: search.modelOutput,
       },
+      traceOutput: search.hits.map((h) => h.name),
     };
   } catch (err) {
     // An aborted turn ends here; don't turn the abort into a tool result.
@@ -260,6 +286,7 @@ async function* runSystemTool(
     return {
       record: { ...record, output: output.length > 2000 ? output.slice(0, 2000) + "..." : output },
       part: resultPart(call, output),
+      traceMetadata: { raw_chars: output.length },
     };
   } catch (err) {
     // An aborted turn ends here; don't turn the abort into a tool result.
@@ -283,7 +310,8 @@ async function* runMcpTool(
   };
   try {
     const rawOutput = await createMcpToolExecutor(call.originalName, dc.signal)(call.input);
-    const output = await handleLargeOutput(call.originalName, call.input, rawOutput, dc.sessionId, dc.ctx);
+    const large = await handleLargeOutput(call.originalName, call.input, rawOutput, dc.sessionId, dc.ctx);
+    const output = large.output;
 
     yield {
       type: "tool_end",
@@ -298,6 +326,12 @@ async function* runMcpTool(
     return {
       record: { ...record, output: rawOutput.length > 2000 ? output.slice(0, 2000) + "..." : rawOutput },
       part: resultPart(call, output),
+      traceMetadata: {
+        raw_chars: large.rawChars,
+        output_handling: large.handling,
+        stored_as_artifact: large.handling === "artifact",
+        artifact_id: large.artifactId,
+      },
     };
   } catch (err) {
     // An aborted turn ends here; don't turn the abort into a tool result.

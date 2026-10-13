@@ -70,6 +70,13 @@ export const chatTurns = sqliteTable(
     // Measured prompt of the turn's last LLM call (ok turns): seeds the next
     // turn's context-budget estimate.
     last_prompt_tokens: integer("last_prompt_tokens"),
+    // Langfuse trace of the turn; NULL when tracing was off.
+    trace_id: text("trace_id"),
+    // finish_reason of the turn's last completed LLM call ("length" = truncated
+    // answer); NULL when no call completed. Read by observability/turn-signals.ts.
+    final_finish_reason: text("final_finish_reason"),
+    // Tool results that went back to the model as errors, failed searches included.
+    tool_error_count: integer("tool_error_count").notNull().default(0),
     started_at: integer("started_at").notNull().default(sql`(unixepoch())`),
     finished_at: integer("finished_at"),
   },

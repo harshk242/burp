@@ -13,6 +13,6 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["server/**/*.ts"],
+  "include": ["server/**/*.ts", "evals/**/*.ts"],
   "exclude": ["node_modules"]
 }

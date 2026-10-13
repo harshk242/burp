@@ -1,0 +1,1 @@
+ALTER TABLE `chat_turns` ADD `trace_id` text;

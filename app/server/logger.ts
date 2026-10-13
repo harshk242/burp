@@ -26,7 +26,8 @@ export type LogCategory =
   | "DB"
   | "STREAM"
   | "TITLE"
-  | "SEARCH";
+  | "SEARCH"
+  | "TRACE";
 
 export interface LogContext {
   session_id?: string;

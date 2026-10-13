@@ -28,6 +28,12 @@ usage:
         cache_read_usd_per_mtok: 0.10
         cache_write_5m_usd_per_mtok: 2.50
         cache_write_1h_usd_per_mtok: 4.00
+      claude-opus-5-5:
+        input_usd_per_mtok: 4.00
+        output_usd_per_mtok: 20.00
+        cache_read_usd_per_mtok: 0.20
+        cache_write_5m_usd_per_mtok: 5.00
+        cache_write_1h_usd_per_mtok: 8.00
       claude-haiku-5-5:
         input_usd_per_mtok: 0.10
         output_usd_per_mtok: 0.50
@@ -55,7 +61,7 @@ llm:
   max_output_tokens: 16000      # includes thinking tokens — env: LLM_MAX_OUTPUT_TOKENS
   max_context_tokens: 180000    # estimated input budget — env: LLM_MAX_CONTEXT_TOKENS
   thinking_display: summarized  # Anthropic adaptive thinking: omitted | summarized | updates
-  effort: medium                # Anthropic, required: low | medium | high | xhigh | max (API default is high)
+  effort: medium                # Anthropic, required: low | medium | high | xhigh | max (API default is high) — env: LLM_EFFORT
   max_tool_iterations: 20        # env: LLM_MAX_TOOL_ITERATIONS
 
 # ── Server ───────────────────────────────────────────────────
@@ -190,3 +196,13 @@ artifact:
       # Future: named, versioned jq transform sequences
       # profile_uniprot_gene_bridge_v1:
       #   - "..."
+
+# ── Observability ────────────────────────────────────────────
+# Langfuse tracing: one trace per chat turn. Keys stay in .env
+# (LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL); without them
+# tracing is a no-op. release = GIT_SHA env, else git short sha, else "unknown".
+observability:
+  langfuse:
+    enabled: true                 # env: LANGFUSE_ENABLED
+    environment: dev              # env: LANGFUSE_TRACING_ENVIRONMENT (dev | prod)
+    full_generation_input: false  # env: LANGFUSE_FULL_GENERATION_INPUT (debugging only)

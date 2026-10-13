@@ -7,8 +7,9 @@
 
 import { AISDKError, type ProviderMetadata } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { db, chatTurnQueries, messageQueries, type ChatTurnOutcome } from "../db";
+import { db, chatSessionQueries, chatTurnQueries, messageQueries, type ChatTurnOutcome } from "../db";
 import { logger, type LogContext } from "../logger";
+import { turnSignals, writeTurnScores } from "../observability/turn-signals";
 
 /** How a turn ended without succeeding (chat_turns.error_code, usage logs). */
 export type TurnErrorCode =
@@ -18,6 +19,7 @@ export type TurnErrorCode =
   | "refusal" // the model's safety classifier declined (stop_reason "refusal")
   | "no_tools_available"
   | "internal_error"
+  | "budget_exceeded" // a shared cost budget (eval runner) ran out; such turns get no scores
   | "aborted" // the client disconnected
   | "closed"; // the consumer stopped iterating before the turn finished
 
@@ -112,19 +114,69 @@ export function acquireSessionLock(sessionId: string): (() => void) | null {
   };
 }
 
+// ── Active turns (graceful shutdown) ──────────────────────────────────────
+
+/** Running turns: each turn's abort controller and its drain (resolved when its `finally` ran). */
+const activeTurns = new Map<AbortController, Promise<void>>();
+
+/** Registers a running turn; call the returned function once the turn's cleanup finished. */
+export function registerActiveTurn(abort: AbortController): () => void {
+  let drained!: () => void;
+  activeTurns.set(abort, new Promise<void>((resolve) => (drained = resolve)));
+  return () => {
+    activeTurns.delete(abort);
+    drained();
+  };
+}
+
+/**
+ * Aborts every running turn and waits for their drains (failed-turn rows,
+ * trace end), bounded by `timeoutMs`. Returns how many were still running
+ * when the bound hit.
+ */
+export async function abortActiveTurns(timeoutMs: number): Promise<number> {
+  if (activeTurns.size === 0) return 0;
+  const drains = [...activeTurns.values()];
+  for (const abort of activeTurns.keys()) abort.abort(new Error("Server shutting down"));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<void>((resolve) => (timer = setTimeout(resolve, timeoutMs)));
+  await Promise.race([Promise.all(drains), timedOut]);
+  clearTimeout(timer);
+  return activeTurns.size;
+}
+
 // ── chat_turns row ────────────────────────────────────────────────────────
 
-/** Stores the user message and its turn (`running`) together; returns both ids. */
-export function startTurn(sessionId: string, userMessage: string): { turnId: string; userMessageId: string } {
+/**
+ * Stores the user message and its turn (`running`) together; returns both ids.
+ * `newSessionUserId`: the session doesn't exist yet and is created in the same
+ * transaction for that user, so a failed first turn leaves no empty session.
+ */
+export function startTurn(
+  sessionId: string,
+  userMessage: string,
+  newSessionUserId: string | null = null
+): { turnId: string; userMessageId: string } {
   const turnId = uuidv4();
   const userMessageId = uuidv4();
   // One transaction: a turn always has its user message, and vice versa. The
   // queries use the shared connection, so they run inside it without `tx`.
   db.transaction(() => {
+    if (newSessionUserId) chatSessionQueries.create(sessionId, newSessionUserId, null);
     messageQueries.create(userMessageId, sessionId, "user", userMessage, null);
     chatTurnQueries.start(turnId, sessionId, userMessageId);
   });
   return { turnId, userMessageId };
+}
+
+/** Stores the turn's trace id. Never throws: tracing must not break a turn. */
+export function recordTraceId(turnId: string, traceId: string | null, ctx: LogContext): void {
+  if (!traceId) return;
+  try {
+    chatTurnQueries.setTraceId(turnId, traceId);
+  } catch (error) {
+    logger.warn("TRACE", "trace_id_write_failed", { ctx, error: error instanceof Error ? error : String(error) });
+  }
 }
 
 /**
@@ -144,5 +196,23 @@ export function finishFailedTurn(turnId: string, outcome: ChatTurnOutcome, ctx: 
       error: error instanceof Error ? error : String(error),
       data: { turn_id: turnId, status: outcome.status, error_code: outcome.errorCode },
     });
+  }
+}
+
+/**
+ * Writes the finished turn's online scores to its trace, computed from the
+ * persisted row (observability/turn-signals.ts). Call after the turn's ledger
+ * write. `observationId`: the turn's root observation when the turn is nested
+ * in a larger trace (eval runner), so turns sharing a trace keep their own
+ * scores. Budget-stopped turns get none. Never throws.
+ */
+export function scoreTurn(turnId: string, ctx: LogContext, observationId: string | null = null): void {
+  try {
+    const row = chatTurnQueries.findById(turnId);
+    if (!row?.trace_id || row.status === "running") return;
+    const signals = turnSignals(row);
+    if (signals) writeTurnScores({ traceId: row.trace_id, observationId }, signals, ctx);
+  } catch (error) {
+    logger.warn("TRACE", "turn_scores_failed", { ctx, error: error instanceof Error ? error : String(error) });
   }
 }

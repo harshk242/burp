@@ -48,3 +48,25 @@ export function loadLLMConfig(): LLMConfig {
     effort: llm.effort,
   };
 }
+
+/**
+ * Per-turn LLM settings (eval arms): any field set replaces the app config's
+ * value for one processChat turn. Provider, retries, context budget and tool
+ * iterations always come from app config.
+ */
+export interface TurnLLMOverride {
+  model?: string;
+  effort?: Effort;
+  max_output_tokens?: number;
+}
+
+/** The app config with a turn's override applied; the config itself when there is none. */
+export function effectiveLLMConfig(base: LLMConfig, override?: TurnLLMOverride): LLMConfig {
+  if (!override) return base;
+  return {
+    ...base,
+    chatModel: override.model ?? base.chatModel,
+    effort: override.effort ?? base.effort,
+    maxOutputTokens: override.max_output_tokens ?? base.maxOutputTokens,
+  };
+}

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { useChatStore } from "../chatStore";
+import { dbMessageToMessage } from "@/lib/history";
+import type { DbMessage, Message } from "@/types";
 
 const store = () => useChatStore.getState();
 
@@ -93,5 +95,73 @@ describe("chatStore reasoning", () => {
     store().appendStreamingContent("Plain");
     store().finalizeAssistantMessage();
     expect(store().messages[0]?.reasoning).toBeUndefined();
+  });
+});
+
+describe("chatStore feedback", () => {
+  const assistant = (id: string, extra: Partial<Message> = {}): Message => ({
+    id,
+    role: "assistant",
+    content: "answer",
+    createdAt: 1,
+    persisted: true,
+    ...extra,
+  });
+
+  it("finalizes under the server's message id so feedback can target it", () => {
+    store().appendStreamingContent("Answer");
+    store().finalizeAssistantMessage("srv-1");
+    expect(store().messages[0]).toMatchObject({ id: "srv-1", persisted: true });
+  });
+
+  it("marks a message finalized without a server id as not persisted", () => {
+    store().appendStreamingContent("Answer");
+    store().finalizeAssistantMessage();
+    expect(store().messages[0]?.persisted).toBe(false);
+    expect(store().messages[0]?.id).toBeTruthy();
+  });
+
+  it("sets, replaces and clears feedback on the target message only", () => {
+    store().setMessages([assistant("a"), assistant("b", { feedback: { value: 1, comment: null, categories: [] } })]);
+    store().setFeedback("a", { value: 0, comment: "wrong gene", categories: ["factually_incorrect"] });
+    expect(store().messages.map((m) => m.feedback)).toEqual([
+      { value: 0, comment: "wrong gene", categories: ["factually_incorrect"] },
+      { value: 1, comment: null, categories: [] },
+    ]);
+    store().setFeedback("a", { value: 1, comment: null, categories: [] });
+    expect(store().messages[0]?.feedback).toEqual({ value: 1, comment: null, categories: [] });
+    store().setFeedback("b", null);
+    expect(store().messages[1]?.feedback).toBeNull();
+  });
+
+  it("round-trips feedback categories from session history through the store", () => {
+    const row: DbMessage = {
+      id: "a",
+      chat_id: "chat",
+      role: "assistant",
+      content: "answer",
+      tool_calls: null,
+      created_at: 1,
+      feedback: { value: 1, comment: "great", categories: ["accurate", "well_sourced"] },
+    };
+    store().setMessages([dbMessageToMessage(row), dbMessageToMessage({ ...row, id: "b", feedback: null })]);
+    expect(store().messages.map((m) => m.feedback)).toEqual([
+      { value: 1, comment: "great", categories: ["accurate", "well_sourced"] },
+      null,
+    ]);
+    // A thumb flip saves categories: [] and replaces the old polarity's.
+    store().setFeedback("a", { value: 0, comment: null, categories: [] });
+    expect(store().messages[0]?.feedback).toEqual({ value: 0, comment: null, categories: [] });
+    store().setFeedback("a", { value: 0, comment: null, categories: ["incomplete", "outdated"] });
+    expect(store().messages[0]?.feedback?.categories).toEqual(["incomplete", "outdated"]);
+  });
+
+  it("keeps loaded feedback until the session is reset", () => {
+    store().setMessages([assistant("a", { feedback: { value: 0, comment: null, categories: [] } })]);
+    store().appendStreamingContent("next");
+    store().finalizeAssistantMessage("b");
+    expect(store().messages[0]?.feedback).toEqual({ value: 0, comment: null, categories: [] });
+    store().reset();
+    expect(store().messages).toEqual([]);
   });
 });

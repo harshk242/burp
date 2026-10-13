@@ -1,58 +1,46 @@
 /**
  * Chat Orchestration v2 — Model-Agnostic via Vercel AI SDK
  *
- * Owns the model loop, the SSE event stream and DB persistence. Tool dispatch,
- * large-output handling and the system prompt live in their own modules.
+ * Owns the model loop, the SSE event stream and DB persistence. Each LLM call
+ * (model-call.ts), tool dispatch, large-output handling and the system prompt
+ * live in their own modules.
  */
 
-import { streamText, wrapLanguageModel, type ModelMessage, type ToolResultPart } from "ai";
-import { v4 as uuidv4 } from "uuid";
-import { chatProviderOptions, getChatModel, loadLLMConfig, sanitizeToolName } from "../llm";
-import {
-  db,
-  messageQueries,
-  chatSessionQueries,
-  chatTurnQueries,
-  userQueries,
-  dailyUsageQueries,
-  usageEventQueries,
-} from "../db";
+import type { ModelMessage, ToolResultPart } from "ai";
+import { sanitizeToolName, type TurnLLMOverride } from "../llm";
+import { chatSessionQueries } from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
-import { getUtcDate, getUtcMonth } from "../usage";
 import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
-import { appendTranscript, contextVersion, loadTranscript, type TranscriptTag } from "./context/transcript";
+import { appendTranscript, loadTranscript } from "./context/transcript";
 import { toolRegistry } from "../mcp/registry";
 import { buildToolCatalog, countDeferred, registeredToolNames } from "./context/tool-catalog";
 import { dispatchToolCall, toDeclarations, type DispatchContext } from "./tool-dispatch";
 import type { StreamEvent, ToolCallRecord } from "./types";
 import { UsageMeter } from "./usage-meter";
-import { CallTracker, recordFailedTurn } from "./turn-usage";
+import { CallTracker, recordFailedTurn, recordOkTurn } from "./turn-usage";
+import { TurnBudget, type CostBudget } from "./cost-budget";
 import {
   TURN_IN_PROGRESS_MESSAGE,
   TurnError,
   acquireSessionLock,
   classifyTurnError,
   finishFailedTurn,
-  providerError,
+  recordTraceId,
+  registerActiveTurn,
   refusalError,
+  scoreTurn,
   startTurn,
   type TurnFailure,
 } from "./chat-turn";
 import { joinReasoning } from "./reasoning";
+import { streamModelCall } from "./model-call";
+import { langfuseConfig } from "../observability/langfuse";
+import { TurnTrace, type TraceParent } from "../observability/turn-trace";
+import { resolveTurnLLM } from "./turn-llm";
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
-
-const llmConfig = loadLLMConfig();
-// Thinking + effort (Anthropic); undefined on Google.
-const providerOptions = chatProviderOptions(llmConfig);
-// Stored on every model_transcript row (compatibility check for replay).
-const transcriptTag: TranscriptTag = {
-  provider: llmConfig.provider,
-  model: llmConfig.chatModel,
-  contextVersion: contextVersion(SYSTEM_PROMPT, providerOptions),
-};
 
 // ── Main Chat Loop ─────────────────────────────────────────────────────────
 
@@ -72,15 +60,30 @@ const transcriptTag: TranscriptTag = {
  * appended to model_transcript as the iteration finishes (context/transcript.ts).
  * Failed turns keep the messages they got to, refused responses included;
  * replay will read `ok` turns only.
+ *
+ * Options (eval runner): `traceParent` nests the turn's trace under that span;
+ * `costBudget` is checked before each model call and charged with every priced
+ * call (cost-budget.ts); running out fails the turn with `budget_exceeded`.
+ * `llm` overrides model, effort and max_output_tokens for this turn
+ * (turn-llm.ts); pricing, trace generations, chat_turns and usage_events all
+ * use the effective settings. Without it the turn uses app config.
  */
+export interface ProcessChatOptions {
+  traceParent?: TraceParent;
+  costBudget?: CostBudget;
+  llm?: TurnLLMOverride;
+}
+
 export async function* processChat(
   sessionId: string,
   userId: string,
   userMessage: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: ProcessChatOptions = {}
 ): AsyncGenerator<StreamEvent> {
   const chatElapsed = startTimer();
   const ctx: LogContext = { session_id: sessionId, user_id: userId };
+  const { llmConfig, providerOptions, transcriptTag, generationParameters } = resolveTurnLLM(options.llm);
   const sanitize = (name: string) => sanitizeToolName(name, llmConfig.provider);
 
   logger.info("CHAT", "process_start", {
@@ -97,17 +100,24 @@ export async function* processChat(
   // aborted turn can still see the calls that finished.
   const meter = new UsageMeter(llmConfig.provider, llmConfig.chatModel, ctx);
   const tracker = new CallTracker(llmConfig.maxContextTokens);
+  const budget = new TurnBudget(options.costBudget);
   // Set once the success path wrote its usage_events row.
   let ledgerWritten = false;
   // The turn's own signal: follows the caller's, and is aborted in `finally` so
   // an early return() by the consumer also cancels the in-flight LLM/tool call.
   const turnAbort = new AbortController();
   const turnSignal = signal ? AbortSignal.any([signal, turnAbort.signal]) : turnAbort.signal;
+  // Shutdown aborts the turn through turnAbort and waits for this `finally`.
+  const drained = registerActiveTurn(turnAbort);
   // How the turn failed; unset if the consumer stopped iterating early ("closed").
   let failure: TurnFailure | undefined;
   // Set once the turn's chat_turns row exists.
   let turnId: string | null = null;
+  // The turn's Langfuse trace (observability/turn-trace.ts); a no-op until the turn starts.
+  let trace = TurnTrace.disabled;
   let loopIteration = 0;
+  // Turn signals written on the chat_turns row whatever the outcome (observability/turn-signals.ts).
+  const signals = { finalFinishReason: null as string | null, toolErrorCount: 0 };
   let releaseLock: (() => void) | null = null;
 
   try {
@@ -119,18 +129,13 @@ export async function* processChat(
       return;
     }
 
-    // One turn per session at a time. Taken synchronously with the session
-    // insert below, so two first requests to a new session can't both pass.
+    // One turn per session at a time. Taken before the new-session insert in
+    // startTurn, so two first requests to a new session can't both pass.
     releaseLock = acquireSessionLock(sessionId);
     if (!releaseLock) {
       logger.warn("CHAT", "turn_in_progress", { ctx });
       yield { type: "error", data: { error: TURN_IN_PROGRESS_MESSAGE, code: "turn_in_progress" } };
       return;
-    }
-
-    if (!session) {
-      chatSessionQueries.create(sessionId, userId, null);
-      logger.info("CHAT", "session_created", { ctx });
     }
 
     // History (read before this turn's user message is stored)
@@ -145,11 +150,31 @@ export async function* processChat(
     const messages = history.messages;
     const turnGapSeconds = history.previousFinishedAt === undefined ? null : Math.max(0, Date.now() / 1000 - history.previousFinishedAt);
 
-    // Store the user message with its turn (status running).
-    const turn = startTurn(sessionId, userMessage);
+    // Store the user message with its turn (status running); a new session is
+    // created with them, so a turn that fails before this point stores nothing.
+    const turn = startTurn(sessionId, userMessage, session ? null : userId);
+    if (!session) logger.info("CHAT", "session_created", { ctx });
     turnId = turn.turnId;
     ctx.turn_id = turnId;
     logger.info("CHAT", "turn_started", { ctx, data: { turn_id: turnId, turn_gap_seconds: turnGapSeconds } });
+    trace = TurnTrace.start({
+      turnId,
+      sessionId,
+      userId,
+      userMessage,
+      provider: llmConfig.provider,
+      model: llmConfig.chatModel,
+      traceParent: options.traceParent,
+      metadata: {
+        effort: llmConfig.effort,
+        context_version: transcriptTag.contextVersion,
+        turn_gap_seconds: turnGapSeconds,
+        replayed_messages: messages.length,
+      },
+    });
+    recordTraceId(turnId, trace.traceId, ctx);
+    // Generations carry the messages added since the previous call (delta).
+    let tracedUpTo = messages.length;
 
     // Adds messages to what the next call sends and to the transcript, so
     // what is stored is exactly what was sent.
@@ -181,9 +206,9 @@ export async function* processChat(
         provider: llmConfig.provider,
       },
     });
+    trace.setMetadata({ loaded_tools: Object.keys(activeTools).length - deferredCount, deferred_tools: deferredCount });
 
     let continueLoop = true;
-    let fullAssistantContent = "";
     let persistedAssistantText = ""; // final response text only (last iteration)
     const reasoningBlocks: string[] = []; // thinking (all iterations) + pre-tool-call text (non-final iterations)
     const allToolCalls: ToolCallRecord[] = [];
@@ -202,6 +227,7 @@ export async function* processChat(
       if (loopIteration >= llmConfig.maxToolIterations) {
         throw new TurnError("max_tool_iterations", `Maximum tool iterations exceeded (${llmConfig.maxToolIterations})`);
       }
+      budget.check();
       loopIteration++;
       const iterElapsed = startTimer();
 
@@ -218,75 +244,27 @@ export async function* processChat(
       // Strip execute functions — we handle execution manually for
       // SSE events, search activation, and output compression.
       const declarationTools = toDeclarations(activeTools);
-
-      // A provider error part does not make the stream throw: the SDK emits an
-      // error part, hands it to onError and finishes the step with finishReason "error".
-      let streamError: unknown;
-      tracker.begin(loopIteration);
       const callLastIndex = messages.length - 1;
-      const result = streamText({
-        model: wrapLanguageModel({
-          model: getChatModel({ fetch: tracker.fetch }) as Parameters<typeof wrapLanguageModel>[0]["model"],
-          middleware: {
-            specificationVersion: "v4",
-            wrapStream: async ({ doStream }) => {
-              tracker.assertContextBudget();
-              return doStream();
-            },
-          },
-        }),
-        instructions,
-        messages: caching ? applyCacheMarkers(messages, previousLastIndex) : messages,
-        tools: declarationTools,
-        maxRetries: llmConfig.maxRetries,
-        maxOutputTokens: llmConfig.maxOutputTokens,
-        providerOptions,
-        abortSignal: turnSignal,
-        onLanguageModelCallStart: tracker.onRequest,
-        onChunk: tracker.onChunk,
-        onError: ({ error }) => {
-          streamError ??= error;
-        },
+      const gen = trace.generation({
+        iteration: loopIteration,
+        model: llmConfig.chatModel,
+        input: langfuseConfig.full_generation_input ? messages : messages.slice(tracedUpTo),
+        modelParameters: generationParameters,
+        metadata: { message_count: messages.length, active_tools: Object.keys(activeTools).length },
       });
-
-      // Stream text and thinking. Thinking (summarized on Anthropic) is sent as
-      // `reasoning` events; the first delta of each thinking block carries
-      // `newBlock`. Segments keep this call's thinking and text in stream order.
-      const callSegments: { thinking: boolean; text: string }[] = [];
-      let thinkingStarted = false;
-      for await (const part of result.stream) {
-        if (part.type === "text-delta") {
-          fullAssistantContent += part.text;
-          const last = callSegments.at(-1);
-          if (last && !last.thinking) last.text += part.text;
-          else if (part.text) callSegments.push({ thinking: false, text: part.text });
-          yield { type: "text", data: part.text };
-        } else if (part.type === "reasoning-start") {
-          thinkingStarted = true;
-        } else if (part.type === "reasoning-delta" && part.text) {
-          const newBlock = thinkingStarted || callSegments.at(-1)?.thinking !== true;
-          thinkingStarted = false;
-          if (newBlock) callSegments.push({ thinking: true, text: part.text });
-          else callSegments.at(-1)!.text += part.text;
-          yield { type: "reasoning", data: { text: part.text, newBlock } };
-        } else if (part.type === "error") {
-          streamError ??= part.error;
-        }
-      }
-      // An abort can end the text stream without an error; stop before
-      // reading the step's results.
-      turnSignal.throwIfAborted();
-      // A failed call has no valid final usage: throw before metering it, so
-      // the tracker keeps it in flight and the turn records it as an estimate.
-      // Checked before awaiting the results, which would reject with a generic
-      // NoOutputGeneratedError when the call produced nothing.
-      if (streamError !== undefined) throw streamError instanceof TurnError ? streamError : providerError(streamError);
-
-      // Await the promise-based properties
-      const finishReason = await result.finishReason;
-      if (finishReason === "error") throw providerError(`LLM call ${loopIteration} finished with an error`);
-      const toolCalls = await result.toolCalls;
-      const finalStep = await result.finalStep;
+      tracedUpTo = messages.length;
+      const { text: callText, segments: callSegments, finishReason, rawFinishReason, toolCalls, finalStep } =
+        yield* streamModelCall({
+          iteration: loopIteration,
+          llmConfig,
+          providerOptions,
+          instructions,
+          messages: caching ? applyCacheMarkers(messages, previousLastIndex) : messages,
+          tools: declarationTools,
+          tracker,
+          signal: turnSignal,
+          onFirstChunk: () => gen.firstChunk(),
+        });
 
       const call = meter.record(finalStep.usage, finalStep.providerMetadata, {
         iteration: loopIteration,
@@ -297,11 +275,14 @@ export async function* processChat(
         systemPrompt: SYSTEM_PROMPT,
       });
       tracker.finish(call);
+      budget.chargeCall(call.costPicoUsd);
+      signals.finalFinishReason = finishReason;
       if (loopIteration === 1) {
         logger.info("CHAT", "first_call_cache_read", {
           ctx,
           data: { first_call_cache_read: call.cacheReadTokens, turn_gap_seconds: turnGapSeconds },
         });
+        trace.setMetadata({ first_call_cache_read: call.cacheReadTokens });
       }
       // The SDK's response messages as returned: they keep provider metadata
       // (thinking signatures, redacted thinking, Gemini thought signatures)
@@ -311,9 +292,20 @@ export async function* processChat(
       send(...finalStep.response.messages.filter((msg) => msg.role !== "tool"));
       // A safety refusal: billed (metered above), never saved as an answer.
       // Its response message stays in the transcript (failed turns aren't replayed).
+      const traced = {
+        call,
+        finishReason,
+        rawFinishReason,
+        text: callText,
+        reasoning: joinReasoning(callSegments.filter((seg) => seg.thinking).map((seg) => seg.text)),
+        toolCalls: (toolCalls ?? []).map((tc) => ({ name: tc.toolName, input: tc.input })),
+      };
       if (finishReason === "content-filter") {
-        throw refusalError(await result.rawFinishReason, finalStep.providerMetadata);
+        const refusal = refusalError(rawFinishReason, finalStep.providerMetadata);
+        gen.fail(traced, refusal.message);
+        throw refusal;
       }
+      gen.finish(traced);
       previousLastIndex = callLastIndex;
       const isToolCall = finishReason === "tool-calls" && toolCalls && toolCalls.length > 0;
       // Stored reasoning: this call's thinking, plus its text when the text is
@@ -324,11 +316,9 @@ export async function* processChat(
 
       if (isToolCall) {
         // This iteration's text is reasoning (pre-tool-call); signal the client to reclassify it.
-        if (fullAssistantContent) {
+        if (callText) {
           yield { type: "text_block_end", data: { isReasoning: true } };
         }
-        // Reset text for next iteration (already streamed via SSE)
-        fullAssistantContent = "";
 
         const toolResultParts: ToolResultPart[] = [];
         const dispatch: DispatchContext = {
@@ -338,12 +328,14 @@ export async function* processChat(
           activeTools,
           ctx,
           signal: turnSignal,
+          trace,
         };
 
         for (const tc of toolCalls) {
           turnSignal.throwIfAborted();
           const { record, part } = yield* dispatchToolCall(tc, dispatch);
           if (record) allToolCalls.push(record);
+          if (part.output.type === "error-text") signals.toolErrorCount++;
           toolResultParts.push(part);
         }
 
@@ -351,64 +343,36 @@ export async function* processChat(
         send({ role: "tool", content: toolResultParts });
       } else {
         // Final iteration — this text is the actual response.
-        if (fullAssistantContent) {
-          persistedAssistantText = fullAssistantContent;
+        if (callText) {
+          persistedAssistantText = callText;
         }
         continueLoop = false;
       }
     }
 
     const chatCost = meter.summary();
-
-    const assistantMsgId = uuidv4();
-    const usageEventId = uuidv4();
-    const usageDate = getUtcDate();
-    const usageMonth = getUtcMonth();
-
-    // Sync transaction on the shared connection: the *Queries calls below use the
-    // global `db`, so they run inside it without needing the `tx` handle.
-    db.transaction(() => {
-      // Store assistant message with accumulated token counts, cost, and reasoning.
-      messageQueries.create(
-        assistantMsgId,
-        sessionId,
-        "assistant",
-        persistedAssistantText,
-        allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
-        chatCost.inputTokens,
-        chatCost.outputTokens,
-        joinReasoning(reasoningBlocks) || null,
-        chatCost.costMicrousd
-      );
-
-      usageEventQueries.create({
-        id: usageEventId,
-        user_id: userId,
-        date: usageDate,
-        month: usageMonth,
-        operation: "chat",
-        provider: llmConfig.provider,
-        model: llmConfig.chatModel,
-        ...meter.ledgerFields(chatCost),
-        status: "ok",
-        session_id: sessionId,
-        message_id: assistantMsgId,
-        turn_id: turn.turnId,
-      });
-
-      chatTurnQueries.finish(turn.turnId, {
-        status: "ok",
-        iterations: loopIteration,
-        assistantMessageId: assistantMsgId,
-        lastPromptTokens: tracker.lastPromptTokens,
-      });
-
-      chatSessionQueries.touch(sessionId);
-      userQueries.incrementQueries(userId);
-      // Increment daily token totals (best-effort: done post-response; next request checks these)
-      dailyUsageQueries.incrementTokens(userId, chatCost.inputTokens, chatCost.outputTokens);
+    const assistantMsgId = recordOkTurn({
+      meter,
+      cost: chatCost,
+      userId,
+      sessionId,
+      turnId: turn.turnId,
+      provider: llmConfig.provider,
+      model: llmConfig.chatModel,
+      answer: persistedAssistantText,
+      reasoning: joinReasoning(reasoningBlocks) || null,
+      toolCalls: allToolCalls,
+      iterations: loopIteration,
+      lastPromptTokens: tracker.lastPromptTokens,
+      ...signals,
     });
     ledgerWritten = true;
+    trace.end({
+      status: "ok",
+      output: persistedAssistantText,
+      metadata: { iterations: loopIteration, cost_usd: chatCost.costMicrousd / 1e6 },
+    });
+    scoreTurn(turn.turnId, ctx, trace.scoreObservationId);
 
     logger.info("CHAT", "process_complete", {
       ctx,
@@ -432,8 +396,9 @@ export async function* processChat(
     yield { type: "usage", data: { inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens } };
   } catch (error) {
     if (turnSignal.aborted) {
-      // Client is gone: nothing to stream an error to.
-      failure = { code: "aborted", message: "Client disconnected", userMessage: "" };
+      // Client is gone (or the server is shutting down): nothing to stream an error to.
+      const message = turnAbort.signal.aborted ? "Server shutting down" : "Client disconnected";
+      failure = { code: "aborted", message, userMessage: "" };
       logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed(), data: { error_code: failure.code } });
       return;
     }
@@ -453,7 +418,7 @@ export async function* processChat(
     if (!ledgerWritten) {
       turnAbort.abort();
       const errorCode = failure?.code ?? "closed";
-      recordFailedTurn({
+      const cutOffCall = recordFailedTurn({
         meter,
         tracker,
         userId,
@@ -464,19 +429,33 @@ export async function* processChat(
         ctx,
         errorCode,
       });
+      // The cut-off estimate never passed the per-call charge.
+      budget.reconcile(meter.summary().costPicoUsd);
+      const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
       if (turnId) {
         finishFailedTurn(
           turnId,
           {
             status: errorCode === "aborted" || errorCode === "closed" ? "aborted" : "error",
             errorCode,
-            errorMessage: failure?.message ?? "Consumer stopped reading before the turn finished",
+            errorMessage,
             iterations: loopIteration,
+            ...signals,
           },
           ctx
         );
       }
+      trace.end({
+        status: errorCode === "aborted" || errorCode === "closed" ? errorCode : "error",
+        errorCode,
+        message: errorMessage,
+        metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
+        cutOffCall,
+        tags: errorCode === "budget_exceeded" ? ["budget_exceeded"] : undefined,
+      });
+      if (turnId) scoreTurn(turnId, ctx, trace.scoreObservationId);
     }
     releaseLock?.();
+    drained();
   }
 }

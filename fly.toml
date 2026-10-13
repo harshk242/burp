@@ -1,6 +1,10 @@
 # Fly.io configuration for BURP
 app = "super-bio-agent"
 primary_region = "iad"
+# Graceful shutdown (server/index.ts) drains turns and flushes Langfuse spans
+# within 4.5 s; pin the signal and the window it is budgeted against.
+kill_signal = "SIGTERM"
+kill_timeout = "5s"
 
 [build]
   dockerfile = "Dockerfile"

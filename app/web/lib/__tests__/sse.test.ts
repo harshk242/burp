@@ -44,7 +44,7 @@ describe("streamChat decoding", () => {
     await streamChat("s1", "hi", "token");
 
     expect(store().messages).toHaveLength(1);
-    expect(store().messages[0]).toMatchObject({ role: "assistant", content: "42", tokenUsage: { input: 1, output: 2 } });
+    expect(store().messages[0]).toMatchObject({ id: "m1", persisted: true, role: "assistant", content: "42", tokenUsage: { input: 1, output: 2 } });
   });
 
   it("keeps numeric-looking reasoning deltas", async () => {

@@ -107,6 +107,15 @@ const EmbeddingConfigSchema = z.object({
   sync_timeout_ms: z.number().int().positive().default(120_000),
 });
 
+/** Langfuse tracing. Also needs LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY; a no-op without them. */
+const LangfuseConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** Langfuse environment of traces and scores (dev | prod; eval runs set their own). */
+  environment: z.string().min(1).default("dev"),
+  /** Generations carry the full replayed context instead of the delta (debugging only). */
+  full_generation_input: z.boolean().default(false),
+});
+
 const AppConfigSchema = z.object({
   rate_limits: z.object({
     /** Default daily token budget for 'user' role. -1 = unlimited. Admin always unlimited. */
@@ -133,6 +142,13 @@ const AppConfigSchema = z.object({
           cache_read_usd_per_mtok: 0.1,
           cache_write_5m_usd_per_mtok: 1.25,
           cache_write_1h_usd_per_mtok: 2,
+        },
+        "claude-opus-5-5": {
+          input_usd_per_mtok: 4,
+          output_usd_per_mtok: 20,
+          cache_read_usd_per_mtok: 0.2,
+          cache_write_5m_usd_per_mtok: 5,
+          cache_write_1h_usd_per_mtok: 8,
         },
         "claude-haiku-5-5": {
           input_usd_per_mtok: 0.1,
@@ -193,6 +209,9 @@ const AppConfigSchema = z.object({
   embedding: EmbeddingConfigSchema.default({}),
   platforms: z.record(z.string(), PlatformSchema).default({}),
   artifact: ArtifactConfigSchema.default({}),
+  observability: z.object({
+    langfuse: LangfuseConfigSchema.default({}),
+  }).default({}),
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
@@ -259,6 +278,7 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   if (e.LLM_PROVIDER) cfg.llm.provider = e.LLM_PROVIDER as AppConfig["llm"]["provider"];
   if (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL) cfg.llm.chat_model = (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL)!;
   if (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL) cfg.llm.title_model = (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL)!;
+  if (e.LLM_EFFORT) cfg.llm.effort = AppConfigSchema.shape.llm.shape.effort.parse(e.LLM_EFFORT, { path: ["llm", "effort"] });
   if (e.LLM_MAX_RETRIES) cfg.llm.max_retries = parseInt(e.LLM_MAX_RETRIES, 10);
   if (e.LLM_MAX_OUTPUT_TOKENS) cfg.llm.max_output_tokens = parseInt(e.LLM_MAX_OUTPUT_TOKENS, 10);
   if (e.LLM_MAX_CONTEXT_TOKENS !== undefined) {
@@ -289,6 +309,14 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   if (e.TOOL_EMBEDDINGS_PATH) cfg.tool_search.embeddings_path = e.TOOL_EMBEDDINGS_PATH;
 
   applyEmbeddingEnv(cfg, e);
+
+  // Observability
+  const lf = cfg.observability.langfuse;
+  if (e.LANGFUSE_ENABLED !== undefined) lf.enabled = parseBooleanEnv("LANGFUSE_ENABLED", e.LANGFUSE_ENABLED);
+  if (e.LANGFUSE_TRACING_ENVIRONMENT) lf.environment = e.LANGFUSE_TRACING_ENVIRONMENT;
+  if (e.LANGFUSE_FULL_GENERATION_INPUT !== undefined) {
+    lf.full_generation_input = parseBooleanEnv("LANGFUSE_FULL_GENERATION_INPUT", e.LANGFUSE_FULL_GENERATION_INPUT);
+  }
 
   return cfg;
 }

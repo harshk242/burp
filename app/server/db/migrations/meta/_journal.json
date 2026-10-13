@@ -71,6 +71,41 @@
       "when": 1791667343918,
       "tag": "0009_chat_turns_last_prompt_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791770808158,
+      "tag": "0010_chat_turns_trace_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1791832947047,
+      "tag": "0011_chat_turns_turn_signals",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1791838581891,
+      "tag": "0012_message_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1791856457821,
+      "tag": "0013_message_feedback_delete_unconfirmed",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1791908835879,
+      "tag": "0014_message_feedback_categories",
+      "breakpoints": true
     }
   ]
 }

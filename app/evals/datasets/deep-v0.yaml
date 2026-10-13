@@ -1,0 +1,360 @@
+# deep-v0: target-selection validation pack (prompt version v1), cases 01–04 plus 05 as a
+# multi-turn item (parent case 03 + audit turn). Turn 1 = the pack's shared instructions
+# (experiments/target-selection-validation/instructions.md) + the case prompt, as the pack
+# specifies. Checkpoints come from evaluator-guide.md and live in expected_output/metadata only;
+# they are checkpoints, not the only acceptable answers. Case 06 (historical) waits until the
+# basic source and direction checks pass. Expensive: run with concurrency 1–2 and a cost cap.
+name: deep
+description: >-
+  Target-selection validation pack v1 (cases 01–05): retrieval, evidence synthesis,
+  intervention direction, disease specificity and counterevidence handling. Run before releases.
+run_defaults:
+  concurrency: 1
+  max_cost_usd: 20
+items:
+  - id: ts-01-cardiovascular
+    input:
+      turns:
+        - |-
+          You are supporting a drug-discovery team's target-selection review.
+
+          Use the connected databases to retrieve evidence. Distinguish retrieved facts from your interpretation and from anything you cannot verify.
+
+          Rules:
+          - Resolve the disease and gene/protein identifiers.
+          - Do not treat an association score, expression change, or pathway membership alone as proof that targeting a protein will help.
+          - State the proposed intervention direction: inhibit, activate, restore function, or unresolved. Support that direction with evidence.
+          - Trace evidence to original studies. The same study appearing through multiple databases counts once.
+          - Retrieve the primary publication's abstract or available full text before using it for a decisive claim. State which you accessed.
+          - Search for conflicting findings, failed interventions, and safety concerns. Distinguish missing evidence from negative evidence.
+          - Do not equate a failed compound or terminated trial with a disproven target without examining the evidence.
+          - Use relevant databases; there is no requirement to use all ten.
+          - Report tool failures, incomplete retrieval, and important evidence gaps.
+
+          For open candidate discovery, output:
+          1. A shortlist of up to five targets with a brief selection rationale.
+          2. A deeper comparison of the strongest three: target and identifier | intervention direction | strongest evidence | contradictory evidence or risk | tractability | unresolved question.
+          3. A recommendation of which two deserve further investigation under the stated objective, and why they outrank the alternatives. Recommend fewer if the evidence is insufficient.
+          4. For each recommended target, one next experiment tied to an unresolved question and what result would change your recommendation.
+          5. Sources linked to the claims they support, using PMIDs, DOIs, trial IDs, or database record links.
+
+          If the case supplies a fixed candidate set and its own output structure, evaluate that set and follow the case's structure instead of expanding to five targets.
+
+          Established targets are allowed. Do not claim novelty. Do not assign numerical probabilities of clinical success without a validated basis.
+
+          Disease setting: adults with elevated LDL cholesterol and atherosclerotic cardiovascular disease.
+
+          Identify targets for pharmacological intervention to reduce LDL cholesterol and ultimately cardiovascular events.
+
+          Consider multiple therapeutic modalities. Prioritize a coherent chain from human evidence to mechanism to intervention direction.
+
+          Distinguish evidence for lowering LDL from evidence for reducing cardiovascular events. Explain which uncertainty remains for each target even when one of those outcomes is established.
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of: [[PCSK9]]
+          min_hits: 1
+      expected_tools_any: ["open-targets__*", "pubmed__*"]
+      must_not:
+        - "equates LDL lowering with proven cardiovascular event reduction without distinguishing them"
+        - "equates lifelong genetic LoF effects with a pharmacological intervention"
+        - "claims full-text access when only an abstract was retrieved"
+      key_references: ["DOI:10.1056/NEJMoa054013", "PMID:28304224"]
+      reference_answer: null
+    metadata:
+      category: target-selection
+      turns: single
+      difficulty: hard
+      volatile: false
+      source: target-selection-pack
+      reviewed_by: null
+      notes: >-
+        PCSK9 should be a strong candidate, with evidence for inhibition (Cohen 2006; FOURIER). Distinguish LDL lowering from CV outcomes and lifelong genetic effects from pharmacological intervention.
+      prompt_version: v1
+      source_files:
+        - experiments/target-selection-validation/instructions.md
+        - experiments/target-selection-validation/prompts/01-cardiovascular.md
+
+  - id: ts-02-psoriasis
+    input:
+      turns:
+        - |-
+          You are supporting a drug-discovery team's target-selection review.
+
+          Use the connected databases to retrieve evidence. Distinguish retrieved facts from your interpretation and from anything you cannot verify.
+
+          Rules:
+          - Resolve the disease and gene/protein identifiers.
+          - Do not treat an association score, expression change, or pathway membership alone as proof that targeting a protein will help.
+          - State the proposed intervention direction: inhibit, activate, restore function, or unresolved. Support that direction with evidence.
+          - Trace evidence to original studies. The same study appearing through multiple databases counts once.
+          - Retrieve the primary publication's abstract or available full text before using it for a decisive claim. State which you accessed.
+          - Search for conflicting findings, failed interventions, and safety concerns. Distinguish missing evidence from negative evidence.
+          - Do not equate a failed compound or terminated trial with a disproven target without examining the evidence.
+          - Use relevant databases; there is no requirement to use all ten.
+          - Report tool failures, incomplete retrieval, and important evidence gaps.
+
+          For open candidate discovery, output:
+          1. A shortlist of up to five targets with a brief selection rationale.
+          2. A deeper comparison of the strongest three: target and identifier | intervention direction | strongest evidence | contradictory evidence or risk | tractability | unresolved question.
+          3. A recommendation of which two deserve further investigation under the stated objective, and why they outrank the alternatives. Recommend fewer if the evidence is insufficient.
+          4. For each recommended target, one next experiment tied to an unresolved question and what result would change your recommendation.
+          5. Sources linked to the claims they support, using PMIDs, DOIs, trial IDs, or database record links.
+
+          If the case supplies a fixed candidate set and its own output structure, evaluate that set and follow the case's structure instead of expanding to five targets.
+
+          Established targets are allowed. Do not claim novelty. Do not assign numerical probabilities of clinical success without a validated basis.
+
+          Disease setting: adults with moderate-to-severe plaque psoriasis.
+
+          Identify targets for systemic pharmacological intervention. Both biologics and small molecules are in scope.
+
+          Compare disease-specific human evidence, intervention direction, selectivity, tractability, and safety considerations.
+
+          Where targets participate in the same pathway, explain whether intervening at different points is supported by equivalent evidence. Do not assume that blocking a ligand, receptor, or downstream signaling protein produces interchangeable effects.
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of: [["IL17A", "IL-17A", secukinumab]]
+          min_hits: 1
+      expected_tools_any: ["open-targets__*", "pubmed__*"]
+      must_not:
+        - "treats ligand, receptor and downstream signaling targets in one pathway as interchangeable"
+        - "claims full-text access when only an abstract was retrieved"
+      key_references: ["PMID:25007392"]
+      reference_answer: null
+    metadata:
+      category: target-selection
+      turns: single
+      difficulty: hard
+      volatile: false
+      source: target-selection-pack
+      reviewed_by: null
+      notes: >-
+        A defensible case for IL-17A inhibition should be recoverable (secukinumab phase 3, 2014). Ligand, receptor and signaling targets must be distinguished.
+      prompt_version: v1
+      source_files:
+        - experiments/target-selection-validation/instructions.md
+        - experiments/target-selection-validation/prompts/02-psoriasis.md
+
+  - id: ts-03-crohns
+    input:
+      turns:
+        - |-
+          You are supporting a drug-discovery team's target-selection review.
+
+          Use the connected databases to retrieve evidence. Distinguish retrieved facts from your interpretation and from anything you cannot verify.
+
+          Rules:
+          - Resolve the disease and gene/protein identifiers.
+          - Do not treat an association score, expression change, or pathway membership alone as proof that targeting a protein will help.
+          - State the proposed intervention direction: inhibit, activate, restore function, or unresolved. Support that direction with evidence.
+          - Trace evidence to original studies. The same study appearing through multiple databases counts once.
+          - Retrieve the primary publication's abstract or available full text before using it for a decisive claim. State which you accessed.
+          - Search for conflicting findings, failed interventions, and safety concerns. Distinguish missing evidence from negative evidence.
+          - Do not equate a failed compound or terminated trial with a disproven target without examining the evidence.
+          - Use relevant databases; there is no requirement to use all ten.
+          - Report tool failures, incomplete retrieval, and important evidence gaps.
+
+          For open candidate discovery, output:
+          1. A shortlist of up to five targets with a brief selection rationale.
+          2. A deeper comparison of the strongest three: target and identifier | intervention direction | strongest evidence | contradictory evidence or risk | tractability | unresolved question.
+          3. A recommendation of which two deserve further investigation under the stated objective, and why they outrank the alternatives. Recommend fewer if the evidence is insufficient.
+          4. For each recommended target, one next experiment tied to an unresolved question and what result would change your recommendation.
+          5. Sources linked to the claims they support, using PMIDs, DOIs, trial IDs, or database record links.
+
+          If the case supplies a fixed candidate set and its own output structure, evaluate that set and follow the case's structure instead of expanding to five targets.
+
+          Established targets are allowed. Do not claim novelty. Do not assign numerical probabilities of clinical success without a validated basis.
+
+          Disease setting: adults with moderate-to-severe active Crohn's disease.
+
+          Identify targets for pharmacological intervention. Both biologics and small molecules are in scope.
+
+          Give particular attention to whether a mechanism supported in another inflammatory disease is supported in Crohn's disease itself.
+
+          In addition to your shortlist, identify one biologically plausible intervention that should be deprioritized because of disease-specific counterevidence. Retrieve that evidence and explain its limits.
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of: [["IL23", "IL-23", "IL23A", "IL-23p19", "p19", risankizumab, guselkumab, mirikizumab]]
+          min_hits: 1
+        - turn: 1
+          any_of: [["IL17A", "IL-17A", secukinumab]]
+          min_hits: 1
+      expected_tools_any: ["open-targets__*", "pubmed__*", "clinicaltrials__*"]
+      must_not:
+        - "transfers the psoriasis IL-17A rationale to Crohn's disease without disease-specific evidence"
+        - "omits the negative secukinumab Crohn's trial"
+      key_references: ["PMID:35644154", "PMID:22595313"]
+      reference_answer: null
+    metadata:
+      category: target-selection
+      turns: single
+      difficulty: hard
+      volatile: false
+      source: target-selection-pack
+      reviewed_by: null
+      notes: >-
+        IL-23 inhibition has supportive human intervention evidence (risankizumab ADVANCE/MOTIVATE). IL-17A blockade (secukinumab) was ineffective in Crohn's with more adverse events; the natural deprioritization pick.
+      prompt_version: v1
+      source_files:
+        - experiments/target-selection-validation/instructions.md
+        - experiments/target-selection-validation/prompts/03-crohns.md
+
+  - id: ts-04-il17a-vs-il23a
+    input:
+      turns:
+        - |-
+          You are supporting a drug-discovery team's target-selection review.
+
+          Use the connected databases to retrieve evidence. Distinguish retrieved facts from your interpretation and from anything you cannot verify.
+
+          Rules:
+          - Resolve the disease and gene/protein identifiers.
+          - Do not treat an association score, expression change, or pathway membership alone as proof that targeting a protein will help.
+          - State the proposed intervention direction: inhibit, activate, restore function, or unresolved. Support that direction with evidence.
+          - Trace evidence to original studies. The same study appearing through multiple databases counts once.
+          - Retrieve the primary publication's abstract or available full text before using it for a decisive claim. State which you accessed.
+          - Search for conflicting findings, failed interventions, and safety concerns. Distinguish missing evidence from negative evidence.
+          - Do not equate a failed compound or terminated trial with a disproven target without examining the evidence.
+          - Use relevant databases; there is no requirement to use all ten.
+          - Report tool failures, incomplete retrieval, and important evidence gaps.
+
+          For open candidate discovery, output:
+          1. A shortlist of up to five targets with a brief selection rationale.
+          2. A deeper comparison of the strongest three: target and identifier | intervention direction | strongest evidence | contradictory evidence or risk | tractability | unresolved question.
+          3. A recommendation of which two deserve further investigation under the stated objective, and why they outrank the alternatives. Recommend fewer if the evidence is insufficient.
+          4. For each recommended target, one next experiment tied to an unresolved question and what result would change your recommendation.
+          5. Sources linked to the claims they support, using PMIDs, DOIs, trial IDs, or database record links.
+
+          If the case supplies a fixed candidate set and its own output structure, evaluate that set and follow the case's structure instead of expanding to five targets.
+
+          Established targets are allowed. Do not claim novelty. Do not assign numerical probabilities of clinical success without a validated basis.
+
+          Evaluate the following proposed interventions in moderate-to-severe active Crohn's disease:
+
+          - Inhibition of IL17A.
+          - Inhibition of IL23A.
+
+          Assess both using the same criteria and comparable search effort.
+
+          For each, separate:
+          1. Biological rationale.
+          2. Disease-specific human intervention evidence.
+          3. Safety findings.
+          4. What remains uncertain.
+
+          Recommend pursue, deprioritize, or insufficient evidence for each. Explain the strongest evidence against your own recommendation.
+
+          Do not assume these interventions should receive the same decision because their targets participate in related immune biology.
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of: [["IL23", "IL-23", "IL23A", "IL-23p19", "p19", risankizumab, guselkumab, mirikizumab]]
+          min_hits: 1
+        - turn: 1
+          any_of: [[secukinumab, "22595313"]]
+          min_hits: 1
+      expected_tools_any: ["open-targets__*", "pubmed__*", "clinicaltrials__*"]
+      must_not:
+        - "gives IL17A and IL23A inhibition the same decision because their targets share immune biology"
+        - "omits the decisive unfavorable secukinumab Crohn's evidence"
+        - "infers that every IL-17 pathway molecule or patient subgroup has been tested"
+      key_references: ["PMID:35644154", "PMID:22595313"]
+      reference_answer: null
+    metadata:
+      category: target-selection
+      turns: single
+      difficulty: hard
+      volatile: false
+      source: target-selection-pack
+      reviewed_by: null
+      notes: >-
+        Fixed comparison: distinguish supportive IL23A inhibition evidence from unfavorable IL17A blockade evidence in Crohn's, with study context and limits. Omitting decisive unfavorable evidence undermines the task.
+      prompt_version: v1
+      source_files:
+        - experiments/target-selection-validation/instructions.md
+        - experiments/target-selection-validation/prompts/04-controlled-comparison.md
+
+  - id: ts-05-audit-crohns
+    input:
+      turns:
+        - |-
+          You are supporting a drug-discovery team's target-selection review.
+
+          Use the connected databases to retrieve evidence. Distinguish retrieved facts from your interpretation and from anything you cannot verify.
+
+          Rules:
+          - Resolve the disease and gene/protein identifiers.
+          - Do not treat an association score, expression change, or pathway membership alone as proof that targeting a protein will help.
+          - State the proposed intervention direction: inhibit, activate, restore function, or unresolved. Support that direction with evidence.
+          - Trace evidence to original studies. The same study appearing through multiple databases counts once.
+          - Retrieve the primary publication's abstract or available full text before using it for a decisive claim. State which you accessed.
+          - Search for conflicting findings, failed interventions, and safety concerns. Distinguish missing evidence from negative evidence.
+          - Do not equate a failed compound or terminated trial with a disproven target without examining the evidence.
+          - Use relevant databases; there is no requirement to use all ten.
+          - Report tool failures, incomplete retrieval, and important evidence gaps.
+
+          For open candidate discovery, output:
+          1. A shortlist of up to five targets with a brief selection rationale.
+          2. A deeper comparison of the strongest three: target and identifier | intervention direction | strongest evidence | contradictory evidence or risk | tractability | unresolved question.
+          3. A recommendation of which two deserve further investigation under the stated objective, and why they outrank the alternatives. Recommend fewer if the evidence is insufficient.
+          4. For each recommended target, one next experiment tied to an unresolved question and what result would change your recommendation.
+          5. Sources linked to the claims they support, using PMIDs, DOIs, trial IDs, or database record links.
+
+          If the case supplies a fixed candidate set and its own output structure, evaluate that set and follow the case's structure instead of expanding to five targets.
+
+          Established targets are allowed. Do not claim novelty. Do not assign numerical probabilities of clinical success without a validated basis.
+
+          Disease setting: adults with moderate-to-severe active Crohn's disease.
+
+          Identify targets for pharmacological intervention. Both biologics and small molecules are in scope.
+
+          Give particular attention to whether a mechanism supported in another inflammatory disease is supported in Crohn's disease itself.
+
+          In addition to your shortlist, identify one biologically plausible intervention that should be deprioritized because of disease-specific counterevidence. Retrieve that evidence and explain its limits.
+        - |-
+          Audit your previous target-selection recommendation.
+
+          Choose the five claims that most influenced your ranking. For each:
+          - Re-open the supporting source.
+          - State exactly what was observed and in which population or model.
+          - Explain whether it supports association, causal involvement, intervention direction, or therapeutic efficacy.
+          - Identify any inference you added beyond the reported observation.
+          - Check whether the same underlying study was counted more than once.
+
+          Then search for the strongest disease-specific evidence that could overturn the top recommendation.
+
+          Revise the ranking only if the evidence warrants it. State what changed, or explain why the ranking remains justified.
+
+          Do not treat this self-audit as independent validation.
+    expected_output:
+      checkpoints:
+        - turn: 1
+          any_of: [["IL23", "IL-23", "IL23A", "IL-23p19", "p19", risankizumab, guselkumab, mirikizumab]]
+          min_hits: 1
+        - turn: 2
+          any_of: [["IL23", "IL-23", "IL23A", "IL-23p19", "p19", risankizumab, guselkumab, mirikizumab]]
+          min_hits: 1
+      expected_tools_any: ["pubmed__*"]
+      must_not:
+        - "changes a supported ranking only because it was challenged"
+        - "treats the self-audit as independent validation"
+        - "counts the same underlying study more than once"
+      key_references: ["PMID:35644154", "PMID:22595313"]
+      reference_answer: null
+    metadata:
+      category: target-selection
+      turns: multi
+      difficulty: hard
+      volatile: false
+      source: target-selection-pack
+      reviewed_by: null
+      notes: >-
+        Audit (case 05) of a case 03 parent in the same conversation; no shared preamble on turn 2. Decisive claims re-checked against source observations, duplicates recognized; a supported conclusion need not change.
+      prompt_version: v1
+      source_files:
+        - experiments/target-selection-validation/instructions.md
+        - experiments/target-selection-validation/prompts/03-crohns.md
+        - experiments/target-selection-validation/prompts/05-evidence-audit.md

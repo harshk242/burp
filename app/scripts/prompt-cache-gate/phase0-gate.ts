@@ -31,6 +31,8 @@
 import { randomUUID } from "node:crypto";
 import { streamText, type ModelMessage, type SystemModelMessage, type Tool } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { initializeTools, type ToolsBoot } from "../../server/boot/tools";
+import { runMigrations, sqlite } from "../../server/db";
 import { mcpManager } from "../../server/mcp/manager";
 import { toolRegistry } from "../../server/mcp/registry";
 import { ALWAYS_LOADED_TOOLS } from "../../server/mcp/platforms.config";
@@ -429,9 +431,10 @@ async function main() {
   const pkg = async (p: string) => (await import(`${p}/package.json`, { with: { type: "json" } })).default.version;
   console.log("model:", MODEL_ID, "| ai", await pkg("ai"), "| @ai-sdk/anthropic", await pkg("@ai-sdk/anthropic"), "| run", RUN_ID);
 
-  mcpManager.registerAll();
-  await mcpManager.startAll();
-  await toolRegistry.discoverTools(mcpManager);
+  // The production tool boot (boot/tools.ts) also indexes tool search, which lives in the DB.
+  runMigrations(sqlite);
+  tools = initializeTools();
+  await tools.ready;
   const all = toolRegistry.getAll();
   const core = all.filter((t) => ALWAYS_LOADED_TOOLS.has(`${t.server}__${t.name}`));
   console.log(`registry: ${all.length} tools, ${core.length} core (+${SEARCH}, ${INSPECT})`);
@@ -458,6 +461,7 @@ async function main() {
   return failed.length ? 1 : 0;
 }
 
+let tools: ToolsBoot | null = null;
 let code = 0;
 try {
   code = await main();
@@ -465,6 +469,7 @@ try {
   console.error(e);
   code = 1;
 } finally {
+  tools?.embeddingSync?.stop();
   await mcpManager.stopAll();
   process.exit(code);
 }

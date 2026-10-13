@@ -8,6 +8,7 @@ import { useApi } from "@/hooks/useApi";
 import { streamChat } from "@/lib/sse";
 import { buildChatUrl, extractSessionIdFromLocation } from "@/lib/chatUrl";
 import { generateId } from "@/lib/id";
+import { dbMessageToMessage } from "@/lib/history";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ChatContainer } from "@/components/chat/ChatContainer";
@@ -131,23 +132,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
         );
 
         // Convert DB messages to frontend format
-        const convertedMessages: Message[] = data.messages.map((msg) => {
-          const tokenUsage =
-            msg.role === "assistant" &&
-            (msg.input_tokens ?? 0) + (msg.output_tokens ?? 0) > 0
-              ? { input: msg.input_tokens ?? 0, output: msg.output_tokens ?? 0 }
-              : undefined;
-          return {
-            id: msg.id,
-            role: msg.role,
-            content: msg.content || "",
-            toolCalls: msg.tool_calls as ToolCall[] | undefined,
-            createdAt: msg.created_at * 1000,
-            tokenUsage,
-            // Load reasoning from DB column (null/undefined → omit field)
-            reasoning: msg.reasoning || undefined,
-          };
-        });
+        const convertedMessages: Message[] = data.messages.map(dbMessageToMessage);
 
         setMessages(convertedMessages);
       } catch (err) {

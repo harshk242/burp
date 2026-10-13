@@ -68,6 +68,7 @@ jobs:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: >-
             --model claude-sonnet-5-5
@@ -99,3 +100,14 @@ jobs:
                with `gh pr create --base develop`.
                The PR body must include: the failed run link, root-cause
                analysis, the fix, and the verification commands you ran.
+            6. Always finish (fixed or not) by writing a short Markdown summary
+               to ${{ runner.temp }}/claude-summary.md with the Write tool:
+               which tests failed, root cause, what you decided (fixed / not
+               fixed) and why, and the PR link if you opened one.
+
+      - name: Publish Claude summary
+        if: always()
+        run: |
+          f="$RUNNER_TEMP/claude-summary.md"
+          if [ -s "$f" ]; then cat "$f" >> "$GITHUB_STEP_SUMMARY"
+          else echo "Claude did not write a summary." >> "$GITHUB_STEP_SUMMARY"; fi

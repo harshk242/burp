@@ -1,15 +1,17 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
-import { DB_PATH, MigrationFkError, runMigrations, sqlite } from "./db";
+import { DB_PATH, MigrationFkError, messageFeedbackQueries, runMigrations, sqlite } from "./db";
 import { api } from "./routes";
 import { mcpManager } from "./mcp/manager";
-import { toolRegistry } from "./mcp/registry";
-import { attachStoredEmbeddings, createSearchReindexer, hybridSearch } from "./search";
-import { createEmbedder, ToolEmbeddingSync } from "./embeddings";
+import { initializeTools } from "./boot/tools";
 import { logger, startTimer, generateRequestId } from "./logger";
 import { appConfig } from "./config";
 import { redirectWwwToCanonical } from "./middleware/canonical-host";
+import { abortActiveTurns } from "./orchestration/chat-turn";
+import { initTracing, shutdownTracing, tracingEnvironment } from "./observability/langfuse";
+import { startFeedbackSync, stopFeedbackSync } from "./observability/feedback-sync";
+import { scoreWriterFromEnv } from "./observability/score-writer";
 import type { AppEnv } from "./types";
 
 // Apply pending migrations (adopting a legacy DB if needed) before listening.
@@ -28,86 +30,52 @@ try {
   process.exit(1);
 }
 
-// Null when the embedding provider's key is missing: search stays keyword-only
-// and makes no embedding calls.
-const embedder = createEmbedder(appConfig.embedding, { queryTimeoutMs: appConfig.embedding.query_timeout_ms });
-
-// Keeps the embeddings index in step with the tool set in the background and
-// attaches its vectors (latest snapshot wins). Off without a key or when
-// embedding.sync_on_boot is false.
-const embeddingSync =
-  embedder && appConfig.embedding.sync_on_boot
-    ? new ToolEmbeddingSync({
-        embedder,
-        path: appConfig.tool_search.embeddings_path,
-        timeoutMs: appConfig.embedding.sync_timeout_ms,
-        onReady: (e, vectors) => hybridSearch.attachEmbeddings(e, vectors),
-      })
-    : null;
-
-// Rebuild tool search from the live registry and sync embeddings to it. Runs at
-// boot and after an MCP server recovers, so recovered tools are searchable
-// without a restart.
-const reindexSearch = createSearchReindexer(toolRegistry, hybridSearch, embeddingSync);
-mcpManager.onToolsChanged = reindexSearch;
-
-// Initialize MCP servers and tool discovery
-async function initializeMCP() {
-  const elapsed = startTimer();
-
-  logger.info("STARTUP", "mcp_init_start");
-  mcpManager.registerAll();
-
-  logger.info("STARTUP", "mcp_servers_starting");
-  const { succeeded, failed } = await mcpManager.startAll();
-
-  logger.info("STARTUP", "mcp_servers_started", {
-    data: { succeeded, failed, total: succeeded + failed },
-  });
-
-  logger.info("STARTUP", "tool_discovery_start");
-  await toolRegistry.discoverTools(mcpManager);
-
-  reindexSearch();
-
-  // Without sync, attach whatever the index file holds for this embedder
-  // (optional — BM25 works without it). With sync, the sync attaches.
-  if (embedder && !embeddingSync) await attachStoredEmbeddings(hybridSearch, embedder, appConfig.tool_search.embeddings_path);
-
-  logger.info("STARTUP", "mcp_init_complete", {
-    duration_ms: elapsed(),
-    data: {
-      tools_available: toolRegistry.availableCount,
-      tools_total: toolRegistry.count,
-      search_indexed: hybridSearch.indexed,
-      embeddings_loaded: hybridSearch.embeddingsLoaded,
-      embedder: embedder?.id,
-      embeddings_sync: embeddingSync ? "background" : "off",
-    },
-  });
-}
-
-// Start MCP initialization (don't block server startup)
-initializeMCP().catch((error) => {
+// MCP servers, tool discovery, tool search and embeddings (boot/tools.ts).
+// Runs in the background: the server listens while tools come up.
+const tools = initializeTools();
+tools.ready.catch((error) => {
   logger.error("STARTUP", "mcp_init_failed", { error: error instanceof Error ? error : String(error) });
 });
 
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-  logger.info("SHUTDOWN", "sigterm_received");
-  embeddingSync?.stop();
-  await mcpManager.stopAll();
-  logger.flush();
-  process.exit(0);
-});
+// Langfuse tracing (observability/langfuse.ts); a no-op without keys. While
+// it is on, 👍/👎 feedback syncs to Langfuse and pending rows are reconciled
+// now and every 5 min (observability/feedback-sync.ts).
+if (initTracing()) {
+  const writer = scoreWriterFromEnv();
+  if (writer) startFeedbackSync({ queries: messageFeedbackQueries, writer, environment: tracingEnvironment });
+}
 
-process.on("SIGINT", async () => {
-  logger.info("SHUTDOWN", "sigint_received");
-  embeddingSync?.stop();
-  await mcpManager.stopAll();
+// Graceful shutdown, shared by SIGTERM (Fly) and SIGINT. In-flight turns are
+// aborted and drained first (their cleanup ends the trace and writes the
+// failed-turn rows), then tracing is flushed alongside the MCP stop. The
+// bounds add up to 4.5 s, inside Fly's 5 s kill_timeout.
+const TURN_DRAIN_TIMEOUT_MS = 2000;
+const FLUSH_TIMEOUT_MS = 2500;
+let shuttingDown = false;
+
+async function shutdown(signal: "SIGTERM" | "SIGINT") {
+  logger.info("SHUTDOWN", `${signal.toLowerCase()}_received`);
+  if (shuttingDown) return; // a second signal changes nothing
+  shuttingDown = true;
+  tools.embeddingSync?.stop();
+  stopFeedbackSync(); // pending rows stay pending; the next boot reconciles them
+  const stillRunning = await abortActiveTurns(TURN_DRAIN_TIMEOUT_MS);
+  if (stillRunning > 0) logger.warn("SHUTDOWN", "turn_drain_timeout", { data: { turns: stillRunning } });
+  await Promise.all([
+    shutdownTracing({ timeoutMs: FLUSH_TIMEOUT_MS }),
+    Promise.race([
+      mcpManager.stopAll().catch((error) =>
+        logger.error("SHUTDOWN", "mcp_stop_failed", { error: error instanceof Error ? error : String(error) })
+      ),
+      Bun.sleep(FLUSH_TIMEOUT_MS),
+    ]),
+  ]);
   logger.flush();
   process.exit(0);
-});
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 const app = new Hono<AppEnv>();
 

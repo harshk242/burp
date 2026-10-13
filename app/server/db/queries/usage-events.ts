@@ -32,6 +32,11 @@ export function createUsageEventQueries(db: DrizzleDb) {
       db.insert(usageEvents).values(event).run();
     },
 
+    /** A turn's ledger rows (one per finished turn; the eval runner reads its cost). */
+    findByTurnId(turnId: string): DbUsageEvent[] {
+      return db.select().from(usageEvents).where(eq(usageEvents.turn_id, turnId)).all() as DbUsageEvent[];
+    },
+
     getTotalsForDate(userId: string, date = new Date().toISOString().slice(0, 10)): UsageTotals {
       return totals(and(eq(usageEvents.user_id, userId), eq(usageEvents.date, date)));
     },
