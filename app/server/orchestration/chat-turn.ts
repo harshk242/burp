@@ -7,7 +7,7 @@
 
 import { AISDKError, type ProviderMetadata } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { db, chatTurnQueries, messageQueries, type ChatTurnOutcome } from "../db";
+import { db, chatSessionQueries, chatTurnQueries, messageQueries, type ChatTurnOutcome } from "../db";
 import { logger, type LogContext } from "../logger";
 import { turnSignals, writeTurnScores } from "../observability/turn-signals";
 
@@ -147,13 +147,22 @@ export async function abortActiveTurns(timeoutMs: number): Promise<number> {
 
 // ── chat_turns row ────────────────────────────────────────────────────────
 
-/** Stores the user message and its turn (`running`) together; returns both ids. */
-export function startTurn(sessionId: string, userMessage: string): { turnId: string; userMessageId: string } {
+/**
+ * Stores the user message and its turn (`running`) together; returns both ids.
+ * `newSessionUserId`: the session doesn't exist yet and is created in the same
+ * transaction for that user, so a failed first turn leaves no empty session.
+ */
+export function startTurn(
+  sessionId: string,
+  userMessage: string,
+  newSessionUserId: string | null = null
+): { turnId: string; userMessageId: string } {
   const turnId = uuidv4();
   const userMessageId = uuidv4();
   // One transaction: a turn always has its user message, and vice versa. The
   // queries use the shared connection, so they run inside it without `tx`.
   db.transaction(() => {
+    if (newSessionUserId) chatSessionQueries.create(sessionId, newSessionUserId, null);
     messageQueries.create(userMessageId, sessionId, "user", userMessage, null);
     chatTurnQueries.start(turnId, sessionId, userMessageId);
   });

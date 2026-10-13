@@ -132,6 +132,28 @@ describe("chat_turns lifecycle", () => {
     });
     expect(turn!.finished_at).toBeNumber();
     expect(usageRows()).toEqual([expect.objectContaining({ status: "ok", turn_id: turn!.id, message_id: assistant!.id })]);
+    expect(q.chatSessionQueries.findById(sessionId)).toMatchObject({ user_id: USER_ID });
+  });
+
+  it("a new session whose first turn can't be stored is not left behind empty", async () => {
+    model = scriptedModel([[...text("answer"), finish("stop")]]);
+    t.sqlite.run("CREATE TEMP TRIGGER fail_turn BEFORE INSERT ON chat_turns BEGIN SELECT RAISE(ABORT, 'turn insert failed'); END");
+    const sessionId = crypto.randomUUID();
+    let events: StreamEvent[];
+    try {
+      events = await collect(processChat(sessionId, USER_ID, "hi"));
+    } finally {
+      t.sqlite.run("DROP TRIGGER fail_turn");
+    }
+
+    expect(events.at(-1)).toMatchObject({ type: "error" });
+    expect(q.chatSessionQueries.findById(sessionId)).toBeFalsy();
+    expect(roles(sessionId)).toEqual([]);
+
+    // The same session id works once storage does.
+    const retry = await collect(processChat(sessionId, USER_ID, "hi"));
+    expect(retry.some((e) => e.type === "done")).toBe(true);
+    expect(roles(sessionId)).toEqual(["user", "assistant"]);
   });
 
   it("a failed turn is recorded as error and its cost is linked to it", async () => {

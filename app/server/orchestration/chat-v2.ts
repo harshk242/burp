@@ -129,18 +129,13 @@ export async function* processChat(
       return;
     }
 
-    // One turn per session at a time. Taken synchronously with the session
-    // insert below, so two first requests to a new session can't both pass.
+    // One turn per session at a time. Taken before the new-session insert in
+    // startTurn, so two first requests to a new session can't both pass.
     releaseLock = acquireSessionLock(sessionId);
     if (!releaseLock) {
       logger.warn("CHAT", "turn_in_progress", { ctx });
       yield { type: "error", data: { error: TURN_IN_PROGRESS_MESSAGE, code: "turn_in_progress" } };
       return;
-    }
-
-    if (!session) {
-      chatSessionQueries.create(sessionId, userId, null);
-      logger.info("CHAT", "session_created", { ctx });
     }
 
     // History (read before this turn's user message is stored)
@@ -155,8 +150,10 @@ export async function* processChat(
     const messages = history.messages;
     const turnGapSeconds = history.previousFinishedAt === undefined ? null : Math.max(0, Date.now() / 1000 - history.previousFinishedAt);
 
-    // Store the user message with its turn (status running).
-    const turn = startTurn(sessionId, userMessage);
+    // Store the user message with its turn (status running); a new session is
+    // created with them, so a turn that fails before this point stores nothing.
+    const turn = startTurn(sessionId, userMessage, session ? null : userId);
+    if (!session) logger.info("CHAT", "session_created", { ctx });
     turnId = turn.turnId;
     ctx.turn_id = turnId;
     logger.info("CHAT", "turn_started", { ctx, data: { turn_id: turnId, turn_gap_seconds: turnGapSeconds } });
