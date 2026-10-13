@@ -1,0 +1,124 @@
+import { CanceledError } from 'axios';
+import { describe, expect, it } from 'vitest';
+import {
+  REASON_TO_KIND,
+  classifyError,
+  formatUpstreamMessage,
+  getHeader,
+  getRetryAfterMs,
+  isRetryableReason,
+  parseRateLimitReset,
+  parseRetryAfter,
+} from '../http-retry-classify.js';
+import { axiosFailure } from './retry-test-utils.js';
+
+describe('classifyError', () => {
+  it.each([
+    ['ECONNABORTED', 'attempt_timeout'],
+    ['ETIMEDOUT', 'attempt_timeout'],
+    ['ECONNRESET', 'network'],
+    ['ENOTFOUND', 'network'],
+    ['EAI_AGAIN', 'network'],
+    ['ERR_NETWORK', 'network'],
+    ['ERR_INVALID_URL', 'bad_request'],
+  ])('maps Axios code %s to %s', (code, reason) => {
+    expect(classifyError(axiosFailure({ code }))).toBe(reason);
+  });
+
+  it.each([
+    [408, 'attempt_timeout'],
+    [429, 'rate_limited'],
+    [404, 'not_found'],
+    [400, 'bad_request'],
+    [422, 'bad_request'],
+    [500, 'http_5xx'],
+    [503, 'http_5xx'],
+  ])('maps HTTP %i to %s', (status, reason) => {
+    expect(classifyError(axiosFailure({ status }))).toBe(reason);
+  });
+
+  it('treats a Network Error message without a response as network', () => {
+    expect(classifyError(axiosFailure({ message: 'Network Error' }))).toBe('network');
+  });
+
+  it('classifies Axios cancellation as cancelled', () => {
+    expect(classifyError(new CanceledError())).toBe('cancelled');
+    expect(classifyError(axiosFailure({ code: 'ERR_CANCELED' }))).toBe('cancelled');
+  });
+
+  it('classifies non-Axios errors (e.g. schema assertions) as unknown', () => {
+    expect(classifyError(new Error('schema changed'))).toBe('unknown');
+    expect(classifyError('boom')).toBe('unknown');
+  });
+
+  it('only retries network, attempt timeouts and 5xx by default', () => {
+    expect(['network', 'attempt_timeout', 'http_5xx'].every((r) => isRetryableReason(r as never))).toBe(true);
+    for (const reason of ['budget_timeout', 'rate_limited', 'not_found', 'bad_request', 'cancelled', 'unknown']) {
+      expect(isRetryableReason(reason as never)).toBe(false);
+    }
+  });
+});
+
+describe('REASON_TO_KIND', () => {
+  it('is the fixed tool-contract table', () => {
+    const table = Object.fromEntries(
+      Object.entries(REASON_TO_KIND).map(([reason, info]) => [reason, [info.kind, info.retryableLater]]),
+    );
+    expect(table).toEqual({
+      network: ['upstream_unavailable', true],
+      http_5xx: ['upstream_unavailable', true],
+      attempt_timeout: ['timeout', true],
+      budget_timeout: ['timeout', true],
+      rate_limited: ['rate_limited', true],
+      not_found: ['not_found', false],
+      bad_request: ['bad_request', false],
+      cancelled: ['cancelled', false],
+    });
+    expect(REASON_TO_KIND.cancelled.hint).toBeNull();
+    expect(Object.isFrozen(REASON_TO_KIND)).toBe(true);
+  });
+
+  it('builds the agent-facing message with the hint', () => {
+    expect(
+      formatUpstreamMessage({ reason: 'http_5xx', platform: 'ensembl', status: 500, attempts: 3, elapsedMs: 4_210 }),
+    ).toBe(
+      'Ensembl returned HTTP 500 on 3 attempts over 4.2s. The service looks temporarily unavailable: try again later or use another source.',
+    );
+  });
+});
+
+describe('Retry-After parsing', () => {
+  const now = Date.UTC(2026, 0, 1, 0, 0, 0);
+
+  it('parses delay-seconds and HTTP-date values', () => {
+    expect(parseRetryAfter('2', now)).toBe(2_000);
+    expect(parseRetryAfter(' 1.5 ', now)).toBe(1_500);
+    expect(parseRetryAfter(new Date(now + 3_000).toUTCString(), now)).toBe(3_000);
+    expect(parseRetryAfter(new Date(now - 3_000).toUTCString(), now)).toBe(0);
+  });
+
+  it('ignores missing or invalid values', () => {
+    expect(parseRetryAfter(undefined, now)).toBeUndefined();
+    expect(parseRetryAfter('soon', now)).toBeUndefined();
+  });
+
+  it('parses x-ratelimit-reset as seconds or epoch seconds', () => {
+    expect(parseRateLimitReset('7', now)).toBe(7_000);
+    expect(parseRateLimitReset(String(now / 1_000 + 4), now)).toBe(4_000);
+    expect(parseRateLimitReset('later', now)).toBeUndefined();
+  });
+
+  it('reads Retry-After first, then x-ratelimit-reset, from a 429', () => {
+    const both = axiosFailure({ status: 429, headers: { 'Retry-After': '2', 'x-ratelimit-reset': '9' } });
+    const resetOnly = axiosFailure({ status: 429, headers: { 'x-ratelimit-reset': '9' } });
+    expect(getRetryAfterMs(both, now)).toBe(2_000);
+    expect(getRetryAfterMs(resetOnly, now)).toBe(9_000);
+    expect(getRetryAfterMs(axiosFailure({ status: 429 }), now)).toBeUndefined();
+    expect(getRetryAfterMs(new Error('x'), now)).toBeUndefined();
+  });
+
+  it('reads headers case-insensitively from plain objects', () => {
+    expect(getHeader({ 'RETRY-AFTER': '3' }, 'retry-after')).toBe('3');
+    expect(getHeader(undefined, 'retry-after')).toBeUndefined();
+  });
+});

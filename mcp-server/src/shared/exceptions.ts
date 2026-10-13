@@ -80,3 +80,45 @@ export class CacheError extends MCPError {
     this.name = 'CacheError';
   }
 }
+
+export interface UpstreamErrorDetails {
+  kind: string;
+  reason: string;
+  platform: string;
+  status: number | null;
+  attempts: number;
+  elapsedMs: number;
+  retryAfterMs: number | null;
+  url: string | null;
+  cause?: unknown;
+}
+
+/**
+ * Final failure of a retried upstream HTTP request (shared/http-retry.ts).
+ * `cause` is the last AxiosError (or abort reason); `url` is the path only.
+ */
+export class UpstreamError extends MCPError {
+  public readonly kind: string;
+  public readonly reason: string;
+  public readonly platform: string;
+  public readonly status: number | null;
+  public readonly attempts: number;
+  public readonly elapsedMs: number;
+  public readonly retryAfterMs: number | null;
+  public readonly url: string | null;
+  public override readonly cause?: unknown;
+
+  constructor(message: string, details: UpstreamErrorDetails) {
+    super(message);
+    this.name = 'UpstreamError';
+    this.kind = details.kind;
+    this.reason = details.reason;
+    this.platform = details.platform;
+    this.status = details.status;
+    this.attempts = details.attempts;
+    this.elapsedMs = details.elapsedMs;
+    this.retryAfterMs = details.retryAfterMs;
+    this.url = details.url;
+    this.cause = details.cause;
+  }
+}
