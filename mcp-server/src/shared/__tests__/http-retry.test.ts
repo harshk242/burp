@@ -216,6 +216,16 @@ describe('429 handling', () => {
     expect(await rejection(client.get('/x'))).toMatchObject({ kind: 'rate_limited', retryAfterMs: 2_000 });
     expect(calls).toHaveLength(1);
   });
+
+  it('reports defaultRetryAfterMs only when the 429 carries no usable wait', async () => {
+    const policy = { on429: 'fail' as const, defaultRetryAfterMs: 5_000 };
+    const bare = stubClient([429], policy);
+    expect(await rejection(bare.client.get('/x'))).toMatchObject({ kind: 'rate_limited', retryAfterMs: 5_000 });
+    const directed = stubClient([rateLimited], policy);
+    expect(await rejection(directed.client.get('/x'))).toMatchObject({ retryAfterMs: 2_000 });
+    const notRateLimited = stubClient([400], policy);
+    expect(await rejection(notRateLimited.client.get('/x'))).toMatchObject({ retryAfterMs: null });
+  });
 });
 
 describe('beforeAttempt', () => {

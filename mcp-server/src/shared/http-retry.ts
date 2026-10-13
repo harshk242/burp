@@ -37,6 +37,8 @@ export interface RetryPolicy {
   on429?: 'wait' | 'retry' | 'fail';
   /** Largest server-directed wait accepted with `on429: 'wait'`. */
   maxRetryAfterMs?: number;
+  /** `retryAfterMs` reported on a final 429 that carries no usable Retry-After. Never waited on. */
+  defaultRetryAfterMs?: number;
   /** Methods that may be retried (case-insensitive). Default: all. */
   retryMethods?: readonly string[];
   /** Runs before every attempt (e.g. a rate-limiter token); its wait counts against the budget. */
@@ -254,7 +256,10 @@ export async function withRetry<T>(
       const delay = reason === 'cancelled' || reason === 'budget_timeout'
         ? null
         : nextDelay(reason, lastError, attempt, retryAfterMs);
-      if (delay === null) fail(reason, lastError, retryAfterMs ?? null);
+      if (delay === null) {
+        const reported = reason === 'rate_limited' ? (retryAfterMs ?? policy.defaultRetryAfterMs) : retryAfterMs;
+        fail(reason, lastError, reported ?? null);
+      }
 
       try {
         await sleep(delay as number, combined);

@@ -110,6 +110,33 @@ describe('TokenBucketRateLimiter', () => {
       await promise;
       expect(resolved).toBe(true);
     });
+
+    it('rejects at once with an already-aborted signal and takes no token', async () => {
+      const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 1, burstSize: 1 });
+      const controller = new AbortController();
+      controller.abort(new Error('stop'));
+      await expect(limiter.waitForToken(controller.signal)).rejects.toThrow('stop');
+      expect(limiter.tryAcquire()).toBe(true);
+    });
+
+    it('an abort during the wait rejects and removes the waiter from the queue', async () => {
+      vi.useFakeTimers();
+      const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 1, burstSize: 1 });
+      limiter.tryAcquire();
+
+      const controller = new AbortController();
+      const aborted = limiter.waitForToken(controller.signal);
+      const other = limiter.waitForToken();
+      expect(limiter.getPendingCount()).toBe(2);
+
+      controller.abort(new Error('stop'));
+      await expect(aborted).rejects.toThrow('stop');
+      expect(limiter.getPendingCount()).toBe(1);
+
+      await vi.runAllTimersAsync();
+      await expect(other).resolves.toBeUndefined();
+      expect(limiter.getPendingCount()).toBe(0);
+    });
   });
 
   describe('getConfig', () => {
