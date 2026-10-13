@@ -29,11 +29,14 @@ function makeSync(overrides: Partial<FeedbackSyncOptions> = {}) {
 }
 
 const row = () => q.messageFeedbackQueries.find(key)!;
+/** Calls on the main `user_feedback` score (category scores filtered out). */
+const mainLog = () => writer.log.filter((c) => c.id === scoreId);
 
 beforeEach(() => {
   q = createQueries(createTestDb().db);
   seedTracedTurn(q);
   writer = new FakeScoreWriter();
+  writer.hold = (_op, id) => id === scoreId; // category writes resolve at once unless a test holds them
   clock = 1_000_000;
 });
 
@@ -136,7 +139,7 @@ describe("feedback sync", () => {
     q.messageFeedbackQueries.clear(key);
     writer.existsAnswer = () => true; // a late-ingested create
     expect(await sync.sync(key)).toBe("failed");
-    const ops = writer.log.map((c) => c.op);
+    const ops = mainLog().map((c) => c.op);
     expect(ops[0]).toBe("upsert");
     expect(ops.at(1)).toBe("remove");
     expect(ops.filter((op) => op === "exists")).toHaveLength(5); // at 60, 75, 90, 105, 120 s
@@ -186,7 +189,7 @@ describe("feedback sync", () => {
     await first;
     (await writer.nextHeld()).resolve();
     expect(await second).toBe("synced");
-    expect(writer.log.map((c) => c.value)).toEqual([0, 0]);
+    expect(mainLog().map((c) => c.value)).toEqual([0, 0]);
     expect(row()).toMatchObject({ revision: 3, sync_pending: 0 });
   });
 
@@ -203,7 +206,7 @@ describe("feedback sync", () => {
       },
     });
     expect(await sync.sync(key)).toBe("pending");
-    expect(writer.log.map((c) => c.op)).toEqual(["upsert", "remove"]);
+    expect(mainLog().map((c) => c.op)).toEqual(["upsert", "remove"]);
     expect(await sync.sync(key)).toBe("synced");
     expect(writer.remote.get(scoreId)?.value).toBe(1);
   });
@@ -235,9 +238,9 @@ describe("feedback sync", () => {
     expect(writer.remote.get(scoreId)?.value).toBe(1);
 
     q.messageFeedbackQueries.upsert(key, 0, null);
-    const before = writer.log.length;
+    const before = mainLog().length;
     expect(await sync.sync(key)).toBe("synced");
-    expect(writer.log.slice(before).map((c) => c.op)).toEqual(["upsert"]); // no read-back without a pending delete
+    expect(mainLog().slice(before).map((c) => c.op)).toEqual(["upsert"]); // no read-back without a pending delete
   });
 
   it("marks rows synced without a remote write when the turn has no trace", async () => {
@@ -256,17 +259,17 @@ describe("feedback sync", () => {
     expect(await sync.sync(key)).toBe("failed");
 
     await sync.reconcile(); // not due yet
-    expect(writer.log).toHaveLength(1);
+    expect(mainLog()).toHaveLength(1);
 
     writer.failNext.push(new TypeError("fetch failed"));
     clock += 60_000;
     await sync.reconcile();
-    expect(writer.log).toHaveLength(2);
+    expect(mainLog()).toHaveLength(2);
     expect(row().sync_pending).toBe(1);
 
     clock += 60_000; // second failure doubled the wait to 2 min
     await sync.reconcile();
-    expect(writer.log).toHaveLength(2);
+    expect(mainLog()).toHaveLength(2);
     clock += 60_000;
     await sync.reconcile();
     expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 1 });

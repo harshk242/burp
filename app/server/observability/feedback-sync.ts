@@ -18,6 +18,10 @@
  *   and cleared only once a read-back confirms the latest state; while it is
  *   set, an upsert counts only if the score is still present through the
  *   confirm deadline, and is re-sent (row stays pending) if a read misses it.
+ * - Each push also upserts the 10 category scores (feedback-category-scores.ts;
+ *   never deleted, so outside the delete protocol). They are awaited before the
+ *   read-back, and all must succeed before the row is marked synced: otherwise
+ *   the push fails and the row stays pending for reconciliation.
  * - Rows whose turn has no trace (tracing was off) are marked synced without a
  *   remote write.
  * - Reconciliation retries pending rows on boot and every 5 min, with backoff
@@ -28,6 +32,7 @@ import { createHash } from "node:crypto";
 import type { DbMessageFeedback, FeedbackKey } from "../db/queries";
 import { logger } from "../logger";
 import type { ScoreUpsert, ScoreWriter } from "./score-writer";
+import { categoryScoreUpserts, writeCategoryScores } from "./feedback-category-scores";
 import { scoreConfigId } from "./score-configs";
 
 export const FEEDBACK_SCORE_NAME = "user_feedback";
@@ -110,6 +115,8 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
       queries.setDeleteUnconfirmed(key, false);
       return synced();
     };
+    const writeCategories = () =>
+      writeCategoryScores(writer, categoryScoreUpserts(key, traceId, row.value === null ? [] : row.categories, environment));
 
     if (row.value !== null) {
       const score: ScoreUpsert = {
@@ -121,9 +128,10 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
         environment,
         comment: row.comment,
         configId: scoreConfigId(FEEDBACK_SCORE_NAME),
-        metadata: { message_id: key.messageId },
+        metadata: { message_id: key.messageId, categories: row.categories },
       };
       await writer.upsert(score);
+      if (!(await writeCategories())) return "failed";
       if (row.delete_unconfirmed === 0) return synced();
       const outcome = await readBack(scoreId, superseded);
       if (outcome === "present") return confirmed();
@@ -136,6 +144,7 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
 
     queries.setDeleteUnconfirmed(key, true);
     await writer.remove(scoreId);
+    if (!(await writeCategories())) return "failed";
     const outcome = await readBack(scoreId, superseded);
     if (outcome === "absent") return confirmed();
     if (outcome === "superseded") return "pending";

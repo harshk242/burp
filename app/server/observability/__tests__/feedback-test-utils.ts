@@ -18,8 +18,9 @@ export interface HeldCall {
 
 /**
  * In `auto` mode calls apply to `remote` and resolve at once (`existsAnswer`
- * can override what `exists` returns). In `manual` mode each call waits in
- * `held` until the test resolves or rejects it; resolving applies it.
+ * can override what `exists` returns). In `manual` mode each call matching
+ * `hold` waits in `held` until the test resolves or rejects it; resolving
+ * applies it. `failWhen` rejects a matching call with the returned error.
  */
 export class FakeScoreWriter implements ScoreWriter {
   readonly remote = new Map<string, ScoreUpsert>();
@@ -28,6 +29,8 @@ export class FakeScoreWriter implements ScoreWriter {
   mode: "auto" | "manual" = "auto";
   failNext: unknown[] = [];
   existsAnswer: ((id: string) => boolean) | null = null;
+  hold: (op: WriterOp, id: string) => boolean = () => true;
+  failWhen: ((op: WriterOp, id: string) => unknown) | null = null;
   /** When set, acknowledged deletes are queued (as Langfuse does) and apply only on `landDeletes()`. */
   deferDeletes = false;
   private queuedDeletes: string[] = [];
@@ -66,7 +69,9 @@ export class FakeScoreWriter implements ScoreWriter {
   private call(op: WriterOp, id: string, body?: ScoreUpsert): Promise<void> {
     this.log.push({ op, id, ...(body ? { value: body.value } : {}) });
     if (this.failNext.length > 0) return Promise.reject(this.failNext.shift());
-    if (this.mode === "auto") {
+    const failure = this.failWhen?.(op, id);
+    if (failure) return Promise.reject(failure);
+    if (this.mode === "auto" || !this.hold(op, id)) {
       this.apply(op, id, body);
       return Promise.resolve();
     }

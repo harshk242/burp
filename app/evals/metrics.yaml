@@ -64,4 +64,86 @@
   max: 1
   scope: [online]
   rubric: null
-  status: draft
+  status: active
+
+# Feedback category pills (server/schemas/feedback-categories.ts), one BOOLEAN score per
+# category on every feedback push: 1 if the user picked it, else 0 (deselected, other polarity, cleared).
+- name: feedback_factually_incorrect
+  description: The user picked the "Factually incorrect" category on a 👎.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active
+
+- name: feedback_wrong_citation
+  description: The user picked the "Wrong or missing citation" category on a 👎.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active
+
+- name: feedback_incomplete
+  description: The user picked the "Incomplete" category on a 👎.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active
+
+- name: feedback_off_target
+  description: The user picked the "Didn't answer my question" category on a 👎.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active
+
+- name: feedback_outdated
+  description: The user picked the "Outdated information" category on a 👎.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active
+
+- name: feedback_accurate
+  description: The user picked the "Accurate" category on a 👍.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active
+
+- name: feedback_well_sourced
+  description: The user picked the "Well-sourced" category on a 👍.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active
+
+- name: feedback_comprehensive
+  description: The user picked the "Comprehensive" category on a 👍.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active
+
+- name: feedback_clear
+  description: The user picked the "Clear and well-organized" category on a 👍.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active
+
+- name: feedback_saved_time
+  description: The user picked the "Saved me time" category on a 👍.
+  method: human
+  data_type: BOOLEAN
+  scope: [online]
+  rubric: null
+  status: active

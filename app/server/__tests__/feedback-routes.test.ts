@@ -110,7 +110,8 @@ describe("feedback routes", () => {
     expect(await res.json()).toEqual({ feedback: null });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: null, categories: [], revision: 2, sync_pending: 0 });
-    expect(writer.remote.size).toBe(0);
+    expect(writer.remote.has(feedbackScoreId(key))).toBe(false);
+    expect([...writer.remote.values()].map((s) => s.value)).toEqual(Array(10).fill(0)); // category scores stay, as false
     // Clearing again (or without feedback) writes nothing.
     expect((await send("DELETE", ids.assistantMessage)).status).toBe(200);
     expect(q.messageFeedbackQueries.find(key)?.revision).toBe(2);
@@ -123,10 +124,10 @@ describe("feedback routes", () => {
     await send("PUT", ids.assistantMessage, ids.user, { value: 1 });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ id: first.id, value: 1, revision: 3, sync_pending: 0 });
-    const upserts = writer.log.filter((c) => c.op === "upsert");
-    expect(new Set(writer.log.map((c) => c.id))).toEqual(new Set([feedbackScoreId(key)]));
-    expect(upserts.map((c) => c.value)).toEqual([0, 1]);
-    expect([...writer.remote.values()].map((s) => s.value)).toEqual([1]);
+    const main = writer.log.filter((c) => c.id === feedbackScoreId(key));
+    expect(main.map((c) => c.op)).toEqual(["upsert", "remove", "exists", "upsert"]);
+    expect(main.filter((c) => c.op === "upsert").map((c) => c.value)).toEqual([0, 1]);
+    expect(writer.remote.get(feedbackScoreId(key))?.value).toBe(1);
   });
 
   it("succeeds when Langfuse is unreachable; the row stays pending", async () => {

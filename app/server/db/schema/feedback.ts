@@ -1,7 +1,7 @@
 /**
  * message_feedback (rules in ./users.ts): a user's 👍/👎 on an assistant
  * message. The row is the source of truth; observability/feedback-sync.ts
- * mirrors it to Langfuse as a `user_feedback` score.
+ * mirrors it to Langfuse as a `user_feedback` score plus `feedback_<category>` scores.
  */
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";

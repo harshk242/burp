@@ -71,14 +71,18 @@ async function sync(api: FakeLangfuse, home: EvalHome, gitInfo = git) {
 
 describe("eval sync", () => {
   it("first apply creates active configs, datasets and items; second apply is a no-op", async () => {
-    const home = loadEvalHome();
+    const loaded = loadEvalHome();
+    const draft = { ...loaded.metrics.find((m) => m.name === "user_feedback")!, name: "draft_metric", status: "draft" as const };
+    const home: EvalHome = { ...loaded, metrics: [...loaded.metrics, draft] };
     const api = new FakeLangfuse();
     const first = await sync(api, home);
 
     expect(first.conflicts).toEqual([]);
     const active = home.metrics.filter((m) => m.status === "active").map((m) => m.name);
     expect(api.configs.map((c) => c.name).sort()).toEqual(active.sort());
-    expect(api.configs.find((c) => c.name === "user_feedback")).toBeUndefined();
+    expect(api.configs.find((c) => c.name === "draft_metric")).toBeUndefined();
+    expect(api.configs.find((c) => c.name === "user_feedback")).toMatchObject({ dataType: "NUMERIC", minValue: 0, maxValue: 1 });
+    expect(api.configs.find((c) => c.name === "feedback_wrong_citation")).toMatchObject({ dataType: "BOOLEAN" });
     const outcome = api.configs.find((c) => c.name === "turn_outcome")!;
     expect(outcome.dataType).toBe("CATEGORICAL");
     expect(outcome.categories?.[0]).toEqual({ label: "ok", value: 0 });
