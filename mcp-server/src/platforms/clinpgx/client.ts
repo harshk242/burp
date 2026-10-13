@@ -1,17 +1,13 @@
 // PharmGKB API Client for ClinPGx platform module
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
-import {
-  NetworkError,
-  PharmGKBAPIError,
-  NotFoundError,
-} from './exceptions.js';
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { NotFoundError } from './exceptions.js';
+import { UpstreamError } from '../../shared/exceptions.js';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
+import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import {
   filterNoneValues,
   generateCacheKey,
-  sleep,
-  calculateBackoff,
-  isRetryableStatus,
   parseGuidelineSource,
   parseEvidenceLevel,
   normalizePhenotypeCategory,
@@ -30,7 +26,7 @@ import type {
   SearchResult,
 } from './types.js';
 
-const PHARMGKB_BASE_URL = 'https://api.clinpgx.org/v1';
+export const PHARMGKB_BASE_URL = 'https://api.clinpgx.org/v1';
 const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 1000;
@@ -38,12 +34,57 @@ const DEFAULT_RETRY_DELAY = 1000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObject = Record<string, any>;
 
+// ── Retry policy ────────────────────────────────────────────────────────────
+
+/** Waits of `2^n × baseMs` before retry n+1 (1s, 2s with the default base). */
+function exponentialBackoff(baseMs: number): (attempt: number) => number {
+  return (attempt) => 2 ** (attempt - 1) * baseMs;
+}
+
+/**
+ * Production retry policy (plans/shared-http-retry-plan.md, "Platform
+ * inventory"): 3 attempts, `2^n × retryDelay` backoff, retry on network/5xx
+ * and transport timeouts, 429 retried with the same backoff (Retry-After
+ * ignored), any other 4xx (404 and HTTP 408 included) fails at once, 40s
+ * request budget.
+ */
+export const CLINPGX_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: DEFAULT_MAX_RETRIES,
+  backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
+  retryOn: isRetryableTransportOr5xx,
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+  on429: 'retry',
+});
+
+export interface ClinPGxHttpOptions {
+  /** Retry policy (default CLINPGX_POLICY). */
+  policy?: RetryPolicy;
+  /** Transport override (tests). */
+  adapter?: AxiosAdapter;
+  /** Injectable sleep/clock/random for the retry loop (tests). */
+  retryDeps?: RetryDeps;
+}
+
+/** A ClinPGx (PharmGKB) Axios instance with the shared retry attached. */
+export function createClinPGxHttp(options: ClinPGxHttpOptions = {}): AxiosInstance {
+  const instance = axios.create({
+    baseURL: PHARMGKB_BASE_URL,
+    timeout: 30000,
+    headers: {
+      'Accept': 'application/json',
+    },
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(instance, options.policy ?? CLINPGX_POLICY, 'clinpgx', options.retryDeps);
+}
+
 export class PharmGKBClient {
   private readonly cacheTtl: number;
   private readonly maxRetries: number;
   private readonly retryDelay: number;
   private readonly cache: Map<string, CacheEntry>;
-  private axiosInstance: AxiosInstance;
+  private readonly axiosInstance: AxiosInstance;
 
   constructor(options: PharmGKBClientOptions = {}) {
     this.cacheTtl = options.cacheTtl || DEFAULT_CACHE_TTL;
@@ -51,17 +92,20 @@ export class PharmGKBClient {
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
 
-    this.axiosInstance = axios.create({
-      baseURL: PHARMGKB_BASE_URL,
-      timeout: 30000,
-      headers: {
-        'Accept': 'application/json',
+    this.axiosInstance = createClinPGxHttp({
+      policy: {
+        ...CLINPGX_POLICY,
+        maxAttempts: this.maxRetries,
+        backoffMs: exponentialBackoff(this.retryDelay),
       },
+      adapter: options.adapter,
+      retryDeps: options.retryDeps,
     });
   }
 
   /**
-   * Execute a request with caching and retries
+   * Execute a request with caching; retries run in the shared retry adapter.
+   * A 404 becomes `NotFoundError`, which callers turn into empty results.
    */
   private async request<T>(
     endpoint: string,
@@ -74,48 +118,26 @@ export class PharmGKBClient {
       return cachedEntry.data as T;
     }
 
-    let lastError: Error | undefined;
-
-    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      try {
-        const response = await this.axiosInstance.get(endpoint, {
-          params: filterNoneValues(params || {}),
-        });
-
-        const data = response.data;
-
-        this.cache.set(cacheKey, {
-          data,
-          timestamp: Date.now(),
-        });
-
-        return data as T;
-      } catch (error) {
-        lastError = error as Error;
-
-        if (axios.isAxiosError(error)) {
-          const axiosError = error as AxiosError;
-          const status = axiosError.response?.status;
-
-          if (status === 404) {
-            throw new NotFoundError(`Resource not found: ${endpoint}`);
-          }
-
-          if (status && !isRetryableStatus(status)) {
-            throw new NetworkError(`HTTP error ${status}: ${axiosError.message}`, status);
-          }
-
-          if (attempt < this.maxRetries - 1) {
-            const delay = calculateBackoff(attempt, this.retryDelay);
-            await sleep(delay);
-          }
-        } else {
-          throw error;
-        }
+    let response;
+    try {
+      response = await this.axiosInstance.get(endpoint, {
+        params: filterNoneValues(params || {}),
+      });
+    } catch (error) {
+      if (error instanceof UpstreamError && error.status === 404) {
+        throw new NotFoundError(`Resource not found: ${endpoint}`);
       }
+      throw error;
     }
 
-    throw lastError || new NetworkError('Request failed after all retries');
+    const data = response.data;
+
+    this.cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    });
+
+    return data as T;
   }
 
   // =============== Gene Methods ===============

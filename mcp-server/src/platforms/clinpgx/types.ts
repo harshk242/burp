@@ -1,5 +1,8 @@
 // TypeScript interfaces for ClinPGx/PharmGKB platform module
 
+import type { AxiosAdapter } from 'axios';
+import type { RetryDeps } from '../../shared/http-retry.js';
+
 // Cache entry type
 export interface CacheEntry {
   data: unknown;
@@ -175,6 +178,12 @@ export interface SearchResult<T> {
 // Client options
 export interface PharmGKBClientOptions {
   cacheTtl?: number;
+  /** Total attempts per request (default 3). */
   maxRetries?: number;
+  /** Backoff base: waits of `2^n × retryDelay` ms (default 1000). */
   retryDelay?: number;
+  /** Transport override (tests). */
+  adapter?: AxiosAdapter;
+  /** Injectable sleep/clock/random for the retry loop (tests). */
+  retryDeps?: RetryDeps;
 }
