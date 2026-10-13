@@ -7,10 +7,27 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import axios from 'axios';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
+import {
+  CLINICAL_TRIALS_BASE_URL,
+  CLINICAL_TRIALS_POLICY,
+  createClinicalTrialsClient,
+} from '../client.js';
 
-const BASE = 'https://clinicaltrials.gov/api/v2';
+const BASE = CLINICAL_TRIALS_BASE_URL;
+const CLINICAL_TRIALS_CONTRACT_TIMEOUT_MS = 150_000;
+
+/** Contract tests ride out longer bad patches than production (same overrides as Ensembl). */
+const CONTRACT_OVERRIDES = {
+  maxAttempts: 4,
+  backoffMs: [2_000, 5_000, 10_000],
+  totalBudgetMs: 120_000,
+  jitter: 0,
+};
+
+const http = createClinicalTrialsClient({
+  policy: { ...CLINICAL_TRIALS_POLICY, ...CONTRACT_OVERRIDES },
+});
 
 // The registry has many sparse, registry-managed modules. Request exactly the
 // fields each handler reads so the contract covers our dependency surface
@@ -52,23 +69,27 @@ const DETAIL_FIELDS = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Only the HTTP request is retried; schema assertions run once on the result.
 async function fetchJson(
   url: string,
   fields: string,
   params?: Record<string, string>,
 ): Promise<unknown> {
-  const res = await axios.get(url, {
-    params: { fields, ...params },
-    timeout: 20_000,
-  });
+  const res = await http.get(url, { params: { fields, ...params } });
   return res.data;
+}
+
+/** `requests`: sequential requests in the test, each with its own 120s budget. */
+function clinicalTrialsContractTest(name: string, test: () => Promise<void>, requests = 1): void {
+  const timeout = CLINICAL_TRIALS_CONTRACT_TIMEOUT_MS + (requests - 1) * CONTRACT_OVERRIDES.totalBudgetMs;
+  it(name, { timeout, retry: 0 }, test);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('ClinicalTrials.gov v2 API Contracts', () => {
   // 1. General search — used by handleSearchStudies
-  it('GET /studies schema is stable (query.term=aspirin)', async () => {
+  clinicalTrialsContractTest('GET /studies schema is stable (query.term=aspirin)', async () => {
     const data = await fetchJson(`${BASE}/studies`, SUMMARY_FIELDS, {
       'format': 'json',
       'query.term': 'aspirin',
@@ -78,7 +99,7 @@ describe('ClinicalTrials.gov v2 API Contracts', () => {
   });
 
   // 2. By condition — used by handleSearchByCondition
-  it('GET /studies schema is stable (query.cond=breast cancer)', async () => {
+  clinicalTrialsContractTest('GET /studies schema is stable (query.cond=breast cancer)', async () => {
     const data = await fetchJson(`${BASE}/studies`, CONDITION_FIELDS, {
       'format': 'json',
       'query.cond': 'breast cancer',
@@ -88,7 +109,7 @@ describe('ClinicalTrials.gov v2 API Contracts', () => {
   });
 
   // 3. By intervention — used by handleSearchByIntervention
-  it('GET /studies schema is stable (query.intr=aspirin)', async () => {
+  clinicalTrialsContractTest('GET /studies schema is stable (query.intr=aspirin)', async () => {
     const data = await fetchJson(`${BASE}/studies`, SUMMARY_FIELDS, {
       'format': 'json',
       'query.intr': 'aspirin',
@@ -98,7 +119,7 @@ describe('ClinicalTrials.gov v2 API Contracts', () => {
   });
 
   // 4. By NCT ID — used by handleGetStudyDetails
-  it('GET /studies schema is stable (filter.ids=NCT01141153)', async () => {
+  clinicalTrialsContractTest('GET /studies schema is stable (filter.ids=NCT01141153)', async () => {
     const data = await fetchJson(`${BASE}/studies`, DETAIL_FIELDS, {
       'format': 'json',
       'query.term': 'NCT01141153',
@@ -109,7 +130,7 @@ describe('ClinicalTrials.gov v2 API Contracts', () => {
   });
 
   // 5. Recruiting + condition — used by handleGetRecruitingStudies
-  it('GET /studies schema is stable (recruiting diabetes)', async () => {
+  clinicalTrialsContractTest('GET /studies schema is stable (recruiting diabetes)', async () => {
     const data = await fetchJson(`${BASE}/studies`, RECRUITING_FIELDS, {
       'format': 'json',
       'filter.overallStatus': 'RECRUITING',
@@ -120,7 +141,7 @@ describe('ClinicalTrials.gov v2 API Contracts', () => {
   });
 
   // 6. countTotal — every handler reports totalCount via fetchStudies
-  it('GET /studies returns totalCount only with countTotal=true', async () => {
+  clinicalTrialsContractTest('GET /studies returns totalCount only with countTotal=true', async () => {
     const params = { 'format': 'json', 'query.cond': 'melanoma', 'pageSize': '2' };
     const without = (await fetchJson(`${BASE}/studies`, 'NCTId', params)) as {
       totalCount?: number;
@@ -138,5 +159,5 @@ describe('ClinicalTrials.gov v2 API Contracts', () => {
     expect(without.totalCount).toBeUndefined();
     expect(counted.totalCount).toBeGreaterThan(counted.studies.length);
     expect(empty.totalCount).toBe(0);
-  });
+  }, 3);
 });

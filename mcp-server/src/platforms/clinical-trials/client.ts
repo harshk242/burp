@@ -2,7 +2,10 @@
  * HTTP client and shared types for the ClinicalTrials.gov API (v2).
  */
 
-import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
+import axios, { type AxiosAdapter, type AxiosInstance, type AxiosResponse } from 'axios';
+import { UpstreamError } from '../../shared/exceptions.js';
+import { getHeader } from '../../shared/http-retry-classify.js';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 
 // ---------------------------------------------------------------------------
 // API response interfaces
@@ -65,10 +68,49 @@ export interface Study {
 }
 
 // ---------------------------------------------------------------------------
-// Singleton axios client
+// Retry policy and client factory
 // ---------------------------------------------------------------------------
 
-const API_BASE_URL = 'https://clinicaltrials.gov/api/v2';
+/**
+ * Production retry policy (plans/shared-http-retry-plan.md, "Platform
+ * inventory"): one attempt as before, now with a 40s request budget and the
+ * tool-call deadline; failures surface as a structured `UpstreamError`.
+ */
+export const CLINICAL_TRIALS_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: 1,
+  backoffMs: [0],
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+});
+
+export const CLINICAL_TRIALS_BASE_URL = 'https://clinicaltrials.gov/api/v2';
+
+export interface ClinicalTrialsClientOptions {
+  /** Retry policy (default CLINICAL_TRIALS_POLICY). */
+  policy?: RetryPolicy;
+  /** Transport override (tests). */
+  adapter?: AxiosAdapter;
+  /** Injectable sleep/clock/random for the retry loop (tests). */
+  retryDeps?: RetryDeps;
+}
+
+/** A ClinicalTrials.gov v2 client with the shared retry attached. */
+export function createClinicalTrialsClient(options: ClinicalTrialsClientOptions = {}): AxiosInstance {
+  const instance = axios.create({
+    baseURL: CLINICAL_TRIALS_BASE_URL,
+    timeout: 30_000,
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'ClinicalTrials-MCP-Unified/1.0.0',
+    },
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(instance, options.policy ?? CLINICAL_TRIALS_POLICY, 'clinicaltrials', options.retryDeps);
+}
+
+// ---------------------------------------------------------------------------
+// Singleton axios client
+// ---------------------------------------------------------------------------
 
 let client: AxiosInstance | null = null;
 
@@ -79,15 +121,11 @@ export function getClient(): AxiosInstance {
   return client;
 }
 
-export function initClient(_env: Record<string, string | undefined>): void {
-  client = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 30_000,
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'ClinicalTrials-MCP-Unified/1.0.0',
-    },
-  });
+export function initClient(
+  _env: Record<string, string | undefined>,
+  options: ClinicalTrialsClientOptions = {},
+): void {
+  client = createClinicalTrialsClient(options);
 }
 
 export function cleanupClient(): void {
@@ -98,10 +136,30 @@ export function cleanupClient(): void {
 // Shared API helper
 // ---------------------------------------------------------------------------
 
+const MAX_API_MESSAGE_CHARS = 500;
+
+/**
+ * The API's own error text from the failed response: a plain-text body (what
+ * v2 sends for a bad parameter) or a JSON `message`. HTML error pages are skipped.
+ */
+function apiErrorMessage(cause: unknown): string | undefined {
+  if (!axios.isAxiosError(cause) || !cause.response) return undefined;
+  const { data, headers } = cause.response;
+  let text: unknown;
+  if (typeof data === 'string') {
+    if (getHeader(headers, 'content-type')?.toLowerCase().startsWith('text/plain')) text = data;
+  } else if (data && typeof data === 'object') {
+    text = (data as { message?: unknown }).message;
+  }
+  if (typeof text !== 'string' || !text.trim()) return undefined;
+  return text.trim().slice(0, MAX_API_MESSAGE_CHARS);
+}
+
 /**
  * Perform a GET to `/studies` with the given query params.
  * `countTotal` is opt-in on the v2 API; without it `totalCount` is omitted.
- * Throws on network / HTTP errors.
+ * Throws the structured `UpstreamError` on network / HTTP errors, with the
+ * API's own message in front when it sent one.
  */
 export async function fetchStudies(
   params: Record<string, unknown>,
@@ -113,12 +171,20 @@ export async function fetchStudies(
     );
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const msg =
-        (error.response?.data as { message?: string })?.message ?? error.message;
-      throw new Error(`ClinicalTrials API error: ${msg}`);
-    }
-    throw error;
+    const apiMessage = error instanceof UpstreamError ? apiErrorMessage(error.cause) : undefined;
+    if (!apiMessage) throw error;
+    const upstream = error as UpstreamError;
+    throw new UpstreamError(`ClinicalTrials API error: ${apiMessage}. ${upstream.message}`, {
+      kind: upstream.kind,
+      reason: upstream.reason,
+      platform: upstream.platform,
+      status: upstream.status,
+      attempts: upstream.attempts,
+      elapsedMs: upstream.elapsedMs,
+      retryAfterMs: upstream.retryAfterMs,
+      url: upstream.url,
+      cause: upstream.cause,
+    });
   }
 }
 

@@ -1,13 +1,5 @@
+import type { AxiosAdapter } from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const { mockGet } = vi.hoisted(() => ({ mockGet: vi.fn() }));
-
-vi.mock('axios', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('axios')>();
-  return {
-    default: { ...actual.default, create: () => ({ get: mockGet }) },
-  };
-});
 
 import { initClient, resultMeta } from '../client.js';
 import { handleGetTrialStatistics, handleSearchStudies } from '../tools/search-handlers.js';
@@ -25,9 +17,16 @@ function study(nctId: string, countries: string[] = []) {
   };
 }
 
+// Each request goes to mockGet(url, { params }); the `{ data }` it resolves to becomes a 200.
+const mockGet = vi.fn();
+const adapter: AxiosAdapter = async (config) => {
+  const { data } = await mockGet(config.url, { params: config.params });
+  return { data, status: 200, statusText: 'OK', headers: {}, config };
+};
+
 beforeEach(() => {
   mockGet.mockReset();
-  initClient({});
+  initClient({}, { adapter });
 });
 
 describe('resultMeta', () => {
