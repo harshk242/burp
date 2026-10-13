@@ -100,8 +100,19 @@ describe('fetchStudies API error messages', () => {
     expect(payload.message).toContain(`ClinicalTrials API error: ${apiText}.`);
   });
 
+  it('keeps a JSON `message` from a serialized body in the tool error', async () => {
+    // Transports hand over the raw body; only Axios's response transform parses it.
+    failWith(400, JSON.stringify({ message: 'Unknown field `Nope`' }), 'application/json');
+    const result = await callTool(handlers, 'search_studies', { condition: 'melanoma' });
+
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(toolText(result));
+    expect(payload).toMatchObject({ error: 'bad_request', status: 400, attempts: 1 });
+    expect(payload.message).toContain('ClinicalTrials API error: Unknown field `Nope`.');
+  });
+
   it('keeps a JSON `message` too, with the structured fields and cause intact', async () => {
-    failWith(400, { message: 'Unknown field `Nope`' }, 'application/json');
+    failWith(400, JSON.stringify({ message: 'Unknown field `Nope`' }), 'application/json');
     const error = await rejection(fetchStudies({ fields: 'Nope' }));
     expect(error).toBeInstanceOf(UpstreamError);
     expect(error.message).toMatch(/^ClinicalTrials API error: Unknown field `Nope`\. /);

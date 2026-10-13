@@ -6,7 +6,7 @@
 // combined abort signal. Deadline/budget firing → `budget_timeout`; the
 // caller's signal or the MCP request's signal firing → `cancelled`.
 
-import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosHeaders, type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { UpstreamError } from './exceptions.js';
 import {
   REASON_TO_KIND,
@@ -288,6 +288,27 @@ export function requestPath(config: InternalAxiosRequestConfig): string {
 }
 
 /**
+ * Runs the request's `transformResponse` over the failed response kept as an
+ * `UpstreamError` cause, as Axios does for an adapter rejection that carries a
+ * `response`: callers then read a parsed error body (e.g. a JSON `message`),
+ * not the raw string. A transform that throws leaves the raw body in place.
+ */
+function transformErrorResponse(config: InternalAxiosRequestConfig, error: unknown): void {
+  const cause = error instanceof UpstreamError ? error.cause : undefined;
+  if (!axios.isAxiosError(cause) || !cause.response) return;
+  const { response } = cause;
+  const headers = AxiosHeaders.from(response.headers as AxiosHeaders);
+  const transforms = config.transformResponse;
+  const fns = Array.isArray(transforms) ? transforms : transforms ? [transforms] : [];
+  try {
+    response.data = fns.reduce((data, fn) => fn.call(config, data, headers, response.status), response.data);
+    response.headers = headers;
+  } catch {
+    // Keep the raw body.
+  }
+}
+
+/**
  * Wraps the instance's adapter so the whole retry loop runs inside it: request
  * interceptors run once per logical request and retries can't nest.
  *
@@ -330,6 +351,10 @@ export function attachRetry(
       signal: callerSignal,
       timeoutMs: config.timeout,
       statusOf: (response) => response.status,
+    }).catch((error: unknown) => {
+      // Axios only transforms a rejection's own `response`, which an UpstreamError lacks.
+      transformErrorResponse(config, error);
+      throw error;
     });
   };
   instance.defaults.adapter = Object.assign(retrying, { [RETRY_ADAPTER]: true });

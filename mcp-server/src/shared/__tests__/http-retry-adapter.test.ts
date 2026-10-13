@@ -1,4 +1,4 @@
-import axios, { type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosHeaders, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UpstreamError } from '../exceptions.js';
 import { abortableSleep, attachRetry, withRetry } from '../http-retry.js';
@@ -254,5 +254,54 @@ describe('adapter wrapper', () => {
     const client = axios.create({ adapter });
     attachRetry(client, basePolicy, 'ensembl');
     expect(() => attachRetry(client, basePolicy, 'ensembl')).toThrow(/already attached/);
+  });
+});
+
+describe('error response bodies', () => {
+  /** A client whose transport fails once with `status` and a raw string `body`, as real adapters do. */
+  function failingClient(body: string, contentType: string) {
+    const adapter: AxiosAdapter = async (config) => {
+      const response = {
+        data: body,
+        status: 400,
+        statusText: 'Bad Request',
+        headers: new AxiosHeaders({ 'content-type': contentType }),
+        config,
+      };
+      throw new AxiosError('Request failed with status code 400', AxiosError.ERR_BAD_REQUEST, config, null, response);
+    };
+    return attachRetry(axios.create({ adapter }), basePolicy, 'p', { sleep: async () => {} });
+  }
+
+  it('runs transformResponse on the failed response kept as the UpstreamError cause', async () => {
+    const client = failingClient('{"message":"Unknown field Nope"}', 'application/json');
+    const error = await rejection(client.get('/x'));
+    expect(error).toBeInstanceOf(UpstreamError);
+    expect(error.cause.response.data).toEqual({ message: 'Unknown field Nope' });
+    expect(error.cause.response.headers).toBeInstanceOf(AxiosHeaders);
+  });
+
+  it('leaves a non-JSON body as the raw string', async () => {
+    const client = failingClient('Invalid value', 'text/plain');
+    const error = await rejection(client.get('/x'));
+    expect(error.cause.response.data).toBe('Invalid value');
+  });
+
+  it('keeps the raw body and the UpstreamError when the transform throws', async () => {
+    // responseType json + strict parsing makes Axios's transform throw on bad JSON.
+    const adapter: AxiosAdapter = async (config) => {
+      const response = { data: '{not json', status: 400, statusText: 'Bad Request', headers: {}, config };
+      throw new AxiosError('Request failed with status code 400', AxiosError.ERR_BAD_REQUEST, config, null, response);
+    };
+    const client = attachRetry(
+      axios.create({ adapter, responseType: 'json', transitional: { silentJSONParsing: false } }),
+      basePolicy,
+      'p',
+      { sleep: async () => {} },
+    );
+    const error = await rejection(client.get('/x'));
+    expect(error).toBeInstanceOf(UpstreamError);
+    expect(error).toMatchObject({ kind: 'bad_request', status: 400 });
+    expect(error.cause.response.data).toBe('{not json');
   });
 });
