@@ -6,6 +6,7 @@
  */
 
 import type { ToolHandler } from '../../../types.js';
+import { isRejectedLookup } from '../../../shared/exceptions.js';
 import { getClient } from '../client.js';
 
 // ---------------------------------------------------------------------------
@@ -409,7 +410,11 @@ const handleValidateAccession: ToolHandler = async (args) => {
       primaryAccession: data.primaryAccession,
       exists: true,
     };
-  } catch {
+  } catch (error) {
+    // Only a rejected accession (404, or 400 for a malformed one) is "not
+    // valid". Outages, timeouts and rate limits must reach the agent as
+    // structured upstream errors instead.
+    if (!isRejectedLookup(error)) throw error;
     return {
       accession,
       isValid: false,
