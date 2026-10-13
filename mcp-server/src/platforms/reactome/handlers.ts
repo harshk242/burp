@@ -1,4 +1,5 @@
 import type { ToolHandler } from '../../types.js';
+import { isRejectedLookup } from '../../shared/exceptions.js';
 import { getClient } from './client.js';
 
 // Validation helpers
@@ -50,8 +51,11 @@ async function resolvePathwayId(identifier: string): Promise<string | null> {
 
     const firstEntry = res.data?.results?.[0]?.entries?.[0];
     if (firstEntry?.stId) return firstEntry.stId as string;
-  } catch {
-    /* resolution failure is non-fatal */
+  } catch (error) {
+    // Reactome answers a search with no hits with a 404: that means "no
+    // pathway". Outages, timeouts and rate limits must reach the agent as
+    // structured upstream errors instead.
+    if (!isRejectedLookup(error)) throw error;
   }
 
   return null;
