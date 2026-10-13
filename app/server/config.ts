@@ -192,6 +192,8 @@ const AppConfigSchema = z.object({
     port: z.number().int().default(3000),
     database_url: z.string().default("./data/app.db"),
     mcp_servers_base: z.string().default("../mcp-server"),
+    /** Deadline for one MCP tool call; sent to the server as `_meta.deadline_ms`. */
+    mcp_tool_timeout_ms: z.number().int().positive().default(60000),
     cors_origins: z.array(z.string()).default(["http://localhost:3000", "http://localhost:3001"]),
     log_dir: z.string().default("../logs"),
     log_level: z.enum(["DEBUG", "INFO", "WARN", "ERROR"]).default("DEBUG"),
@@ -295,6 +297,7 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   if (e.PORT) cfg.server.port = parseInt(e.PORT, 10);
   if (e.DATABASE_URL) cfg.server.database_url = e.DATABASE_URL;
   if (e.MCP_SERVERS_BASE) cfg.server.mcp_servers_base = e.MCP_SERVERS_BASE;
+  if (e.MCP_TOOL_TIMEOUT_MS) cfg.server.mcp_tool_timeout_ms = parseInt(e.MCP_TOOL_TIMEOUT_MS, 10);
   if (e.CORS_ORIGINS) cfg.server.cors_origins = e.CORS_ORIGINS.split(",").map((o) => o.trim());
   if (e.LOG_DIR) cfg.server.log_dir = e.LOG_DIR;
   if (e.LOG_LEVEL) cfg.server.log_level = e.LOG_LEVEL as AppConfig["server"]["log_level"];

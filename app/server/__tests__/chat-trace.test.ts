@@ -4,10 +4,14 @@
  * levels / no-open-spans guarantee for refusal, stream failure, abort mid-stream
  * and mid-tool, the consumer calling return(), and a server shutdown. Also the
  * turn signals (final finish reason, tool error count) on the row and the
- * online scores computed from it.
+ * online scores computed from it. Upstream retry metadata (`_meta.retry` from
+ * a stub MCP client) on the tool span, on success and on error.
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { MockLanguageModelV4 } from "ai/test";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { appConfig } from "../config";
 import { createTestDb } from "../__test-utils__/db";
 import { createQueries } from "../db/queries";
 import { loadLLMConfig, sanitizeToolName, type ModelOptions } from "../llm";
@@ -120,6 +124,7 @@ beforeEach(() => {
 afterEach(() => {
   mock.restore();
   toolRegistry.clear();
+  (mcpManager as unknown as { servers: Map<string, unknown> }).servers.delete("unified");
   for (const table of ["usage_events", "model_transcript", "chat_turns", "messages", "chat_sessions", "users"]) {
     t.sqlite.run(`DELETE FROM ${table}`);
   }
@@ -299,6 +304,104 @@ describe("turn tracing", () => {
     await done;
     expect(turnRow(sessionId)).toMatchObject({ status: "aborted", error_message: "Server shutting down" });
     expect(one(mem.spans(), "chat-turn").attributes[LEVEL]).toBe("WARNING");
+    expectClosed();
+  });
+});
+
+/** Wires a stub MCP client into the manager's unified server; returns the CallTool params it saw. */
+function stubMcpClient(callTool: (params: Record<string, unknown>) => Promise<unknown>) {
+  const seen: Record<string, unknown>[] = [];
+  mcpManager.register({ name: "unified", command: "unused", args: [] });
+  const unified = mcpManager.getStatus("unified")!;
+  unified.client = {
+    callTool: (params: Record<string, unknown>) => {
+      seen.push(params);
+      return callTool(params);
+    },
+  } as unknown as Client;
+  unified.status = "running";
+  return seen;
+}
+
+/** A server `_meta.retry` summary for one Ensembl request. */
+function retryMeta(outcome: "recovered" | "failed", statuses: (number | null)[]) {
+  return {
+    platforms: ["ensembl"],
+    request_count: 1,
+    attempts: statuses.length,
+    retried_requests: 1,
+    failed_requests: outcome === "failed" ? 1 : 0,
+    total_ms: 4200,
+    outcome,
+    requests: [{
+      platform: "ensembl",
+      method: "GET",
+      path: "/lookup/symbol/homo_sapiens/BRCA1",
+      attempts: statuses.length,
+      ms: 4200,
+      statuses,
+      outcome: outcome === "failed" ? "failed" : "success",
+      reason: outcome === "failed" ? "http_5xx" : null,
+    }],
+    requests_truncated: false,
+  };
+}
+
+const metadata = (key: string) => `langfuse.observation.metadata.${key}`;
+
+describe("upstream retry metadata on the tool span", () => {
+  it("retried then succeeded: span carries the retry summary, the deadline is sent", async () => {
+    const retry = retryMeta("recovered", [503, 503, 200]);
+    const seen = stubMcpClient(async () => ({ content: [{ type: "text", text: '{"ok":true}' }], _meta: { retry } }));
+    model = scriptedModel([() => streamOf([toolCall("c1"), finish("tool-calls")])]);
+
+    await collect(processChat(crypto.randomUUID(), USER_ID, "hi"));
+
+    expect(seen[0]!._meta).toEqual({ deadline_ms: appConfig.server.mcp_tool_timeout_ms });
+    const tool = one(mem.spans(), TOOL_FULL_NAME);
+    expect(tool.attributes[LEVEL]).toBeUndefined();
+    expect(tool.attributes[metadata("upstream_attempts")]).toBe("3");
+    expect(tool.attributes[metadata("upstream_outcome")]).toBe("recovered");
+    expect(json(tool, metadata("upstream_retry"))).toEqual(retry);
+    expect(tool.attributes[metadata("raw_chars")]).toBe("11");
+    expectClosed();
+  });
+
+  it("retries exhausted: ERROR span with the metadata; the model gets the structured error", async () => {
+    const retry = retryMeta("failed", [503, 503, 503]);
+    const errorJson = JSON.stringify({ error: "upstream_unavailable", reason: "http_5xx", platform: "ensembl", status: 503, attempts: 3 });
+    stubMcpClient(async () => ({ content: [{ type: "text", text: errorJson }], isError: true, _meta: { retry } }));
+    model = scriptedModel([() => streamOf([toolCall("c1"), finish("tool-calls")])]);
+
+    const events = await collect(processChat(crypto.randomUUID(), USER_ID, "hi"));
+
+    const tool = one(mem.spans(), TOOL_FULL_NAME);
+    expect(tool.attributes[LEVEL]).toBe("ERROR");
+    expect(tool.attributes[STATUS_MESSAGE]).toBe(errorJson);
+    expect(String(tool.attributes["langfuse.observation.output"])).toMatch(/^\[fetched_at: .*\]\n/);
+    expect(String(tool.attributes["langfuse.observation.output"]).split("\n")[1]).toBe(errorJson);
+    expect(tool.attributes[metadata("upstream_attempts")]).toBe("3");
+    expect(tool.attributes[metadata("upstream_outcome")]).toBe("failed");
+    expect(json(tool, metadata("upstream_retry"))).toEqual(retry);
+    const end = events.find((e) => e.type === "tool_end");
+    expect((end?.data as { error?: string }).error).toBe(errorJson);
+    expectClosed();
+  });
+
+  it("a timeout at the app (no _meta) keeps today's error and adds no upstream metadata", async () => {
+    const timeoutMs = appConfig.server.mcp_tool_timeout_ms;
+    stubMcpClient(async () => {
+      throw new McpError(ErrorCode.RequestTimeout, "Request timed out", { timeout: timeoutMs });
+    });
+    model = scriptedModel([() => streamOf([toolCall("c1"), finish("tool-calls")])]);
+
+    await collect(processChat(crypto.randomUUID(), USER_ID, "hi"));
+
+    const tool = one(mem.spans(), TOOL_FULL_NAME);
+    expect(tool.attributes[LEVEL]).toBe("ERROR");
+    expect(tool.attributes[STATUS_MESSAGE]).toBe(`Tool call timed out after ${timeoutMs}ms`);
+    expect(tool.attributes[metadata("upstream_attempts")]).toBeUndefined();
+    expect(tool.attributes[metadata("upstream_retry")]).toBeUndefined();
     expectClosed();
   });
 });

@@ -74,6 +74,8 @@ export interface ToolDefinition {
 export interface ToolResult {
   content: unknown;
   isError: boolean;
+  /** The server's `result._meta` (e.g. `retry`, the upstream retry summary), when present. */
+  meta?: Record<string, unknown>;
 }
 
 // Retry configuration
@@ -371,7 +373,7 @@ export class MCPManager {
     serverName: string,
     toolName: string,
     args: Record<string, unknown>,
-    timeoutMs = 30000,
+    timeoutMs = appConfig.server.mcp_tool_timeout_ms,
     signal?: AbortSignal
   ): Promise<ToolResult> {
     // Route all calls through the unified server with prefixed tool name
@@ -395,11 +397,13 @@ export class MCPManager {
 
     // The MCP client owns the deadline: on timeout or abort it sends
     // notifications/cancelled, drops the request and rejects; on a response it
-    // clears its timer.
+    // clears its timer. The server is told the deadline (`_meta.deadline_ms`)
+    // and stops its own work a margin earlier, so its structured error and
+    // `_meta` arrive before this timer fires.
     let result: Awaited<ReturnType<Client["callTool"]>>;
     try {
       result = await server.client.callTool(
-        { name: prefixedToolName, arguments: args },
+        { name: prefixedToolName, arguments: args, _meta: { deadline_ms: timeoutMs } },
         undefined,
         { signal, timeout: timeoutMs }
       );
@@ -436,6 +440,7 @@ export class MCPManager {
       rawText = JSON.stringify(result.content);
     }
 
+    const meta = result._meta as Record<string, unknown> | undefined;
     const duration = elapsed();
     const outputTokens = estimateTokens(rawText);
     const outputBytes = Buffer.byteLength(rawText, "utf8");
@@ -466,6 +471,7 @@ export class MCPManager {
       return {
         content: `Error: Tool "${prefixedToolName}" returned ${actualMB}MB which exceeds the ${capMB}MB limit. The data was NOT truncated — nothing was lost. To fix: use more specific query parameters (e.g., smaller 'size', narrower filters) to reduce the result set.`,
         isError: true,
+        ...(meta && { meta }),
       };
     }
 
@@ -484,6 +490,7 @@ export class MCPManager {
     return {
       content,
       isError: (result.isError ?? false) as boolean,
+      ...(meta && { meta }),
     };
   }
 

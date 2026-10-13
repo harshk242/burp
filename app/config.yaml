@@ -69,6 +69,7 @@ server:
   port: 3000                    # env: PORT
   database_url: ./data/app.db    # env: DATABASE_URL
   mcp_servers_base: ../mcp-server # relative to app/; /app/mcp-server in Docker — env: MCP_SERVERS_BASE
+  mcp_tool_timeout_ms: 60000    # per MCP tool call; server deadline = this − 5s — env: MCP_TOOL_TIMEOUT_MS
   cors_origins:                 # env: CORS_ORIGINS (comma-separated)
     - http://localhost:3000
     - http://localhost:3001

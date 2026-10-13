@@ -11,7 +11,7 @@ import type { ToolResultPart } from "ai";
 import { desanitizeToolName, type LLMProviderName } from "../llm";
 import { toolRegistry } from "../mcp/registry";
 import { logger, type LogContext } from "../logger";
-import { createMcpToolExecutor } from "./tools/mcp-executor";
+import { createMcpToolExecutor, executeMcpTool, upstreamTraceMetadata, type McpExecution } from "./tools/mcp-executor";
 import { handleLargeOutput } from "./large-output";
 import { runToolSearch } from "./tools/search-tool";
 import { SEARCH_TOOL_NAME, type ToolSet } from "./context/tool-catalog";
@@ -43,7 +43,7 @@ export interface DispatchResult {
   /** Absent when a search call fails (it is not recorded in tool_calls). */
   record?: ToolCallRecord;
   part: ToolResultPart;
-  /** Extra metadata for the call's trace span (large-output handling). */
+  /** Extra metadata for the call's trace span (large-output handling, upstream retries). */
   traceMetadata?: Record<string, unknown>;
   /** Span output when it differs from the result part (search: the hit names). */
   traceOutput?: unknown;
@@ -308,8 +308,16 @@ async function* runMcpTool(
     toolName: call.name,
     input: call.input,
   };
+  let execution: McpExecution | undefined;
   try {
-    const rawOutput = await createMcpToolExecutor(call.originalName, dc.signal)(call.input);
+    execution = await executeMcpTool(call.originalName, call.input, dc.signal);
+    const upstream = upstreamTraceMetadata(execution.meta);
+    if (execution.isError) {
+      const errorMsg = execution.text;
+      yield errorEnd(call, errorMsg);
+      return { record: { ...record, error: errorMsg }, part: resultPart(call, errorMsg, true), traceMetadata: upstream };
+    }
+    const rawOutput = execution.text;
     const large = await handleLargeOutput(call.originalName, call.input, rawOutput, dc.sessionId, dc.ctx);
     const output = large.output;
 
@@ -331,6 +339,7 @@ async function* runMcpTool(
         output_handling: large.handling,
         stored_as_artifact: large.handling === "artifact",
         artifact_id: large.artifactId,
+        ...upstream,
       },
     };
   } catch (err) {
@@ -338,6 +347,10 @@ async function* runMcpTool(
     if (dc.signal?.aborted) throw err;
     const errorMsg = err instanceof Error ? err.message : String(err);
     yield errorEnd(call, errorMsg);
-    return { record: { ...record, error: errorMsg }, part: resultPart(call, errorMsg, true) };
+    return {
+      record: { ...record, error: errorMsg },
+      part: resultPart(call, errorMsg, true),
+      traceMetadata: upstreamTraceMetadata(execution?.meta),
+    };
   }
 }
