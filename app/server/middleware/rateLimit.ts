@@ -20,6 +20,7 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
   const todayFull = dailyUsageQueries.getTodayFull(userId);
 
   const limits = resolveEffectiveLimits(dbUser, role, rateLimitQueries.getForRole(role));
+  c.set("effectiveLimits", limits);
   const queryLimit = limits.daily_query_limit;
 
   if (queryLimit !== -1 && todayFull.query_count >= queryLimit) {

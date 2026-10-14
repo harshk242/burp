@@ -13,7 +13,8 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NCBI_API_KEY=${NCBI_API_KEY}
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-}
+      - AUTH_MODE=${AUTH_MODE:-clerk}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - MCP_SERVERS_BASE=/app/servers
     restart: unless-stopped

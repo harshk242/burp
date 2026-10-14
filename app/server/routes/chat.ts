@@ -8,6 +8,7 @@ import { processChat, generateSessionTitle } from "../orchestration/chat-v2";
 import { chatSessionQueries, messageQueries } from "../db";
 import { logger } from "../logger";
 import { appConfig } from "../config";
+import { userCostBudgets } from "../orchestration/user-cost-budget";
 import { encodeSSE } from "./sse-encode";
 
 import type { AppEnv } from "../types";
@@ -144,6 +145,7 @@ chat.openapi(chatRoute, async (c) => {
     const abortController = new AbortController();
     stream.onAbort(() => abortController.abort());
 
+    const costBudget = userCostBudgets.acquire(userId, c.get("effectiveLimits"));
     try {
       const titlePromise = shouldGenerateTitle
         ? generateSessionTitle(sessionId, firstUserMessage || message).catch(
@@ -154,7 +156,9 @@ chat.openapi(chatRoute, async (c) => {
           )
         : null;
 
-      for await (const event of processChat(sessionId, userId, message, abortController.signal)) {
+      for await (const event of processChat(sessionId, userId, message, abortController.signal, {
+        costBudget, onUsageRecorded: () => costBudget.release(),
+      })) {
         await stream.writeSSE(encodeSSE(event.type, event.data));
       }
 
@@ -168,6 +172,8 @@ chat.openapi(chatRoute, async (c) => {
       if (abortController.signal.aborted) return;
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       await stream.writeSSE(encodeSSE("error", { error: errorMsg }));
+    } finally {
+      costBudget.release();
     }
   });
 });

@@ -4,14 +4,17 @@ import { userQueries, accessRequestQueries } from "../db";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../logger";
 import type { AppEnv, DbUser, DbAccessRequest } from "../types";
+import { AUTH_CONFIGURATION_MESSAGE, resolveAuthConfig } from "../auth-config";
 import { isValidDevAgentToken } from "./devAgentAuth";
 
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
 
 function getClerkClient() {
-  if (!clerkClient && process.env.CLERK_SECRET_KEY) {
+  const { secretKey } = resolveAuthConfig();
+  if (!secretKey) return null;
+  if (!clerkClient) {
     clerkClient = createClerkClient({
-      secretKey: process.env.CLERK_SECRET_KEY,
+      secretKey,
     });
   }
   return clerkClient;
@@ -61,7 +64,10 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   const clerk = getClerkClient();
 
   if (!clerk) {
-    logger.warn("AUTH", "dev_mode_no_clerk_key");
+    if (!resolveAuthConfig().development) {
+      return c.json({ error: "auth_not_configured", message: AUTH_CONFIGURATION_MESSAGE }, 503);
+    }
+    logger.warn("AUTH", "explicit_development_auth");
     setDevelopmentUser(
       c,
       "dev-clerk-id",

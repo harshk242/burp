@@ -37,6 +37,7 @@ export { generateSessionTitle } from "./session-title";
 export interface ProcessChatOptions {
   traceParent?: TraceParent;
   costBudget?: CostBudget;
+  onUsageRecorded?: () => void;
   llm?: TurnLLMOverride;
 }
 
@@ -297,6 +298,7 @@ export async function* processChat(
       ...signals,
     });
     ledgerWritten = true;
+    options.onUsageRecorded?.();
     trace.end({
       status: "ok",
       output: persistedAssistantText,
@@ -375,6 +377,7 @@ export async function* processChat(
         tags: errorCode === "budget_exceeded" ? ["budget_exceeded"] : undefined,
       });
       if (turnId) scoreTurn(turnId, ctx, trace.scoreObservationId);
+      options.onUsageRecorded?.();
     }
     releaseLock?.();
     drained();
