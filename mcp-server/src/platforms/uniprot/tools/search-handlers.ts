@@ -74,7 +74,7 @@ const handleSearchByFunction: ToolHandler = async (args) => {
   const size = optNumber(args, 'size') ?? 25;
 
   let query = 'reviewed:true';
-  if (goTerm) query += ` AND go:"${goTerm}"`;
+  if (goTerm) query += ` AND go:${goTerm.replace(/^GO:/i, '')}`;
   if (func) query += ` AND (cc_function:"${func}" OR ft_act_site:"${func}")`;
   if (organism) query += ` AND organism_name:"${organism}"`;
 

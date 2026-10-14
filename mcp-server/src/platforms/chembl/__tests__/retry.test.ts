@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { callTool, stubAdapter, toolText, type Step } from '../../../shared/__tests__/retry-test-utils.js';
-import { CHEMBL_POLICY, cleanup, init } from '../client.js';
+import { CHEMBL_POLICY, resetClient, init } from '../client.js';
 import { handlers } from '../tools/index.js';
 
 function stubChembl(steps: Step[]) {
@@ -11,7 +11,7 @@ function stubChembl(steps: Step[]) {
 }
 
 afterEach(() => {
-  cleanup();
+  resetClient();
 });
 
 describe('CHEMBL_POLICY', () => {

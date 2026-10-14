@@ -4,7 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { createCallToolHandler } from '../../../call-tool.js';
 import { runWithToolCallContext, type RetryMeta } from '../../../shared/tool-call-context.js';
 import { fakeClock, stubAdapter, type FakeClock, type Step } from '../../../shared/__tests__/retry-test-utils.js';
-import { ENSEMBL_POLICY, cleanup, init } from '../client.js';
+import { ENSEMBL_POLICY, resetClient, init } from '../client.js';
 import { handlers } from '../tools/index.js';
 
 function stubEnsembl(steps: Step[], clock?: FakeClock) {
@@ -28,7 +28,7 @@ function text(result: CallToolResult): string {
 }
 
 afterEach(() => {
-  cleanup();
+  resetClient();
 });
 
 describe('ENSEMBL_POLICY', () => {

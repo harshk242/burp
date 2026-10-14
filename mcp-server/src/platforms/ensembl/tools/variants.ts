@@ -1,6 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
-import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
+import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidVariantArgs = (
   args: any,
@@ -78,7 +78,7 @@ async function handleGetVariants(args: Record<string, unknown>) {
   }
 
   const species = getDefaultSpecies(args.species);
-  const region = formatGenomicRegion(args.region);
+  const region = args.region;
   const params: Record<string, unknown> = { feature: 'variation' };
 
   if (args.consequence_type && args.consequence_type.length > 0) {

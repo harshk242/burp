@@ -91,7 +91,7 @@ describe('PubMedClient on the shared retry', () => {
   });
 
   it('keeps the HTTP 408 rule when the constructor overrides retries', async () => {
-    const { client, calls } = stubPubMed([408, 200], { maxRetries: 4, retryDelay: 10 });
+    const { client, calls } = stubPubMed([408, 200], { maxAttempts: 4, retryDelay: 10 });
     expect(await rejection(client.search('CRISPR'))).toMatchObject({ status: 408, attempts: 1 });
     expect(calls).toHaveLength(1);
     expect(PUBMED_POLICY.retryOn).toBeTypeOf('function');
@@ -111,13 +111,13 @@ describe('PubMedClient on the shared retry', () => {
     expect(bare.calls).toHaveLength(1);
   });
 
-  it('honours constructor maxRetries/retryDelay overrides', async () => {
-    const { client, calls, sleep } = stubPubMed([503], { maxRetries: 2, retryDelay: 50 });
+  it('honours constructor maxAttempts/retryDelay overrides', async () => {
+    const { client, calls, sleep } = stubPubMed([503], { maxAttempts: 2, retryDelay: 50 });
     expect(await rejection(client.search('CRISPR'))).toMatchObject({ kind: 'upstream_unavailable', attempts: 2 });
     expect(calls).toHaveLength(2);
     expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([50]);
 
-    const longer = stubPubMed([503], { maxRetries: 4, retryDelay: 10 });
+    const longer = stubPubMed([503], { maxAttempts: 4, retryDelay: 10 });
     await rejection(longer.client.search('CRISPR'));
     expect(longer.calls).toHaveLength(4);
     expect(longer.sleep.mock.calls.map(([ms]) => ms)).toEqual([10, 20, 40]);

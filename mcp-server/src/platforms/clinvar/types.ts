@@ -198,7 +198,7 @@ export interface PopulationFrequency {
 export interface ClinVarClientOptions {
   apiKey?: string;
   cacheTtl?: number;
-  maxRetries?: number;
+  maxAttempts?: number;
   retryDelay?: number;
   rateLimiter?: TokenBucketRateLimiter;
   adapter?: AxiosAdapter;

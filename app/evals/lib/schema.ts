@@ -145,6 +145,6 @@ export type DatasetItem = z.infer<typeof DatasetItemSchema>;
 export type DatasetFile = z.infer<typeof DatasetFileSchema>;
 export type Metric = z.infer<typeof MetricSchema>;
 
-export function countsTowardScores(item: DatasetItem): boolean {
+export function isEligibleForPassFail(item: DatasetItem): boolean {
   return item.metadata.reviewed_by !== null;
 }

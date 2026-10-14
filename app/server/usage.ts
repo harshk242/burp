@@ -128,7 +128,7 @@ export interface ChatCost {
   costMicrousd: number;
 }
 
-function safe(value: number, what: string): number {
+function assertSafeInteger(value: number, what: string): number {
   if (!Number.isSafeInteger(value)) {
     throw new RangeError(`Cost overflow: ${what} = ${value} is not a safe integer`);
   }
@@ -192,20 +192,20 @@ export function priceCall(
   const cacheWrite5mTokens = tokenCount(usage.cacheWrite5mTokens, "cacheWrite5mTokens");
   const cacheWrite1hTokens = tokenCount(usage.cacheWrite1hTokens, "cacheWrite1hTokens");
   const outputTokens = tokenCount(usage.outputTokens, "outputTokens");
-  const promptTokens = safe(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "promptTokens");
+  const promptTokens = assertSafeInteger(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "promptTokens");
 
   const lc = pricing.longContext;
   const tier: PricingTier = lc && promptTokens > lc.aboveInputTokens ? "long_context" : "base";
   const rates = tier === "long_context" && lc ? lc : pricing.base;
 
-  const inputCostPicoUsd = safe(noCacheTokens * rates.input, "input cost");
-  const cacheReadCostPicoUsd = safe(cacheReadTokens * rates.cacheRead, "cache read cost");
-  const cacheWriteCostPicoUsd = safe(
-    safe(cacheWrite5mTokens * rates.cacheWrite5m, "cache write 5m cost") +
-      safe(cacheWrite1hTokens * rates.cacheWrite1h, "cache write 1h cost"),
+  const inputCostPicoUsd = assertSafeInteger(noCacheTokens * rates.input, "input cost");
+  const cacheReadCostPicoUsd = assertSafeInteger(cacheReadTokens * rates.cacheRead, "cache read cost");
+  const cacheWriteCostPicoUsd = assertSafeInteger(
+    assertSafeInteger(cacheWrite5mTokens * rates.cacheWrite5m, "cache write 5m cost") +
+      assertSafeInteger(cacheWrite1hTokens * rates.cacheWrite1h, "cache write 1h cost"),
     "cache write cost"
   );
-  const outputCostPicoUsd = safe(outputTokens * rates.output, "output cost");
+  const outputCostPicoUsd = assertSafeInteger(outputTokens * rates.output, "output cost");
 
   return {
     noCacheTokens,
@@ -219,7 +219,7 @@ export function priceCall(
     cacheReadCostPicoUsd,
     cacheWriteCostPicoUsd,
     outputCostPicoUsd,
-    costPicoUsd: safe(inputCostPicoUsd + cacheReadCostPicoUsd + cacheWriteCostPicoUsd + outputCostPicoUsd, "call cost"),
+    costPicoUsd: assertSafeInteger(inputCostPicoUsd + cacheReadCostPicoUsd + cacheWriteCostPicoUsd + outputCostPicoUsd, "call cost"),
   };
 }
 
@@ -229,7 +229,7 @@ function picoToMicrousdFloor(pico: number): number {
 
 export function summarizeTurnCost(calls: readonly CallCost[]): ChatCost {
   const sum = (pick: (call: CallCost) => number, what: string) =>
-    calls.reduce((total, call) => safe(total + pick(call), what), 0);
+    calls.reduce((total, call) => assertSafeInteger(total + pick(call), what), 0);
 
   const noCacheTokens = sum((c) => c.noCacheTokens, "noCacheTokens");
   const cacheReadTokens = sum((c) => c.cacheReadTokens, "cacheReadTokens");
@@ -240,7 +240,7 @@ export function summarizeTurnCost(calls: readonly CallCost[]): ChatCost {
   return {
     llmCalls: calls.length,
     longContextCalls: calls.filter((c) => c.tier === "long_context").length,
-    inputTokens: safe(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "inputTokens"),
+    inputTokens: assertSafeInteger(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "inputTokens"),
     noCacheTokens,
     cacheReadTokens,
     cacheWrite5mTokens,

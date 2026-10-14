@@ -1,6 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
-import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
+import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidRegulatoryArgs = (
   args: any,
@@ -72,7 +72,7 @@ async function handleGetRegulatoryFeatures(args: Record<string, unknown>) {
   }
 
   const species = getDefaultSpecies(args.species);
-  const region = formatGenomicRegion(args.region);
+  const region = args.region;
   const params: Record<string, unknown> = { feature: 'regulatory' };
 
   if (args.feature_type) {

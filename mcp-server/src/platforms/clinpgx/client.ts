@@ -26,7 +26,7 @@ import type {
 
 export const PHARMGKB_BASE_URL = 'https://api.clinpgx.org/v1';
 const DEFAULT_CACHE_TTL = 3600 * 1000;
-const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY = 1000;
 
 type AnyObject = Record<string, any>;
@@ -36,7 +36,7 @@ function exponentialBackoff(baseMs: number): (attempt: number) => number {
 }
 
 export const CLINPGX_POLICY: RetryPolicy = Object.freeze({
-  maxAttempts: DEFAULT_MAX_RETRIES,
+  maxAttempts: DEFAULT_MAX_ATTEMPTS,
   backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
   retryOn: isRetryableTransportOr5xx,
   totalBudgetMs: 40_000,
@@ -64,21 +64,21 @@ export function createClinPGxHttp(options: ClinPGxHttpOptions = {}): AxiosInstan
 
 export class PharmGKBClient {
   private readonly cacheTtl: number;
-  private readonly maxRetries: number;
+  private readonly maxAttempts: number;
   private readonly retryDelay: number;
   private readonly cache: Map<string, CacheEntry>;
   private readonly axiosInstance: AxiosInstance;
 
   constructor(options: PharmGKBClientOptions = {}) {
     this.cacheTtl = options.cacheTtl || DEFAULT_CACHE_TTL;
-    this.maxRetries = options.maxRetries || DEFAULT_MAX_RETRIES;
+    this.maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
 
     this.axiosInstance = createClinPGxHttp({
       policy: {
         ...CLINPGX_POLICY,
-        maxAttempts: this.maxRetries,
+        maxAttempts: this.maxAttempts,
         backoffMs: exponentialBackoff(this.retryDelay),
       },
       adapter: options.adapter,

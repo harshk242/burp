@@ -231,7 +231,7 @@ export interface FormattedCitation {
 export interface PubMedClientOptions {
   apiKey?: string;
   cacheTtl?: number;
-  maxRetries?: number;
+  maxAttempts?: number;
   retryDelay?: number;
   rateLimiter?: TokenBucketRateLimiter;
   adapter?: AxiosAdapter;

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { callTool, stubAdapter, toolText, type Step } from '../../../shared/__tests__/retry-test-utils.js';
-import { PUBCHEM_POLICY, cleanupClient, initClient } from '../client.js';
+import { PUBCHEM_POLICY, resetClient, initClient } from '../client.js';
 import { handlers } from '../tools/index.js';
 
 function stubPubChem(steps: Step[]) {
@@ -11,7 +11,7 @@ function stubPubChem(steps: Step[]) {
 }
 
 afterEach(() => {
-  cleanupClient();
+  resetClient();
 });
 
 describe('PUBCHEM_POLICY', () => {

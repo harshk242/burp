@@ -42,6 +42,6 @@ export function getClient(): AxiosInstance {
   return client;
 }
 
-export function cleanupClient(): void {
+export function resetClient(): void {
   client = null;
 }

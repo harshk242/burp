@@ -1,7 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getToolCallContext } from '../../../shared/tool-call-context.js';
-import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
+import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidSequenceArgs = (
   args: any,
@@ -162,7 +162,7 @@ async function fetchSingleSequence(args: {
   multiple_sequences?: boolean;
 }) {
   const species = getDefaultSpecies(args.species);
-  const region = formatGenomicRegion(args.region);
+  const region = args.region;
 
   let endpoint: string;
   const params: Record<string, unknown> = {};
