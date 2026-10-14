@@ -65,10 +65,6 @@ function rotateIfNeeded(): void {
   } catch {}
 }
 
-/**
- * Estimate token count from a string.
- * ~4 chars/token for English, ~3.5 for JSON/code.
- */
 export function estimateTokens(text: string): number {
   if (!text) return 0;
   const ratio = text.startsWith("{") || text.startsWith("[") ? 3.5 : 4;

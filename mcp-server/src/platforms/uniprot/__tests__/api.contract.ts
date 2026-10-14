@@ -55,7 +55,6 @@ describe('UniProt REST API Contracts', () => {
 
   // UniProt GO queries use bare numeric IDs without "GO:" prefix or quotes.
   // go:"GO:0006915" returns zero results (false-positive empty fixture).
-  // go:0006915 (apoptotic process) returns hundreds of reviewed entries.
   uniprotContractTest('GET /uniprotkb/search schema is stable (reviewed apoptosis GO)', async () => {
     const data = await fetchJson(`${BASE}/uniprotkb/search`, {
       query: 'reviewed:true AND go:0006915',

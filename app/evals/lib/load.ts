@@ -14,7 +14,6 @@ export class EvalLoadError extends Error {
 }
 
 export interface LoadedDataset {
-  /** Path relative to app/evals/, e.g. "datasets/smoke-v0.yaml". */
   file: string;
   dataset: DatasetFile;
 }
@@ -66,7 +65,6 @@ export function validate<S extends z.ZodTypeAny>(
   return undefined;
 }
 
-/** Loads and validates every eval file under `rootDir`. Throws EvalLoadError listing all problems. */
 export function loadEvalHome(rootDir: string = EVALS_DIR): EvalHome {
   const problems: string[] = [];
   const datasets: LoadedDataset[] = [];

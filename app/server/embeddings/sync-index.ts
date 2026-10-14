@@ -20,22 +20,12 @@ export interface SyncOptions {
   embedder: Embedder;
   tools: readonly SyncTool[];
   path: string;
-  /** Deadline for the embedding call. */
   timeoutMs: number;
-  /**
-   * Receives the vectors for tools in the snapshot: first every stored vector
-   * for them (only when new embeddings are needed; stale-text ones included,
-   * since they come from the same model and beat no vector at all), then the
-   * fully refreshed set once the file is written. A failed embedding call
-   * leaves the first set attached. Not called when there is nothing to attach.
-   */
   onReady(vectors: Map<string, Float32Array>): void;
-  /** Called when an existing file is discarded for any reason but being missing. */
   onIndexRejected?(rejection: Extract<IndexReadResult, { ok: false }>): void;
 }
 
 export interface SyncStats {
-  /** Why the existing file was unusable; "valid" when it was used. */
   index: IndexRejectReason | "valid";
   kept: number;
   embedded: number;
@@ -44,7 +34,6 @@ export interface SyncStats {
   wrote: boolean;
 }
 
-/** Platform of an index entry: the part of the full name before "__". */
 export function platformOf(fullName: string): string {
   const i = fullName.indexOf("__");
   return i === -1 ? fullName : fullName.slice(0, i);

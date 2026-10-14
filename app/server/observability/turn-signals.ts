@@ -36,7 +36,6 @@ function outcomeOf(row: TurnSignalRow): TurnOutcome {
     : "internal_error";
 }
 
-/** Null for budget-stopped turns (never scored). */
 export function turnSignals(row: TurnSignalRow): TurnSignals | null {
   if (row.error_code === "budget_exceeded") return null;
   return {
@@ -48,17 +47,11 @@ export function turnSignals(row: TurnSignalRow): TurnSignals | null {
 
 type ScoreSink = Pick<LangfuseClient, "score">;
 
-/** Where a turn's scores go: its trace, or its root observation when the turn is nested in a larger trace. */
 export interface ScoreTarget {
   traceId: string;
   observationId?: string | null;
 }
 
-/**
- * Writes the signals as scores in the tracing environment, each referencing its
- * score config. Score ids are derived from the target, so writing a turn's
- * scores twice upserts them. No-op when tracing is off; never throws.
- */
 export function writeTurnScores(
   target: ScoreTarget,
   signals: TurnSignals,

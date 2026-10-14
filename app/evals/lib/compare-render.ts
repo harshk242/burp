@@ -22,7 +22,6 @@ function deltaNote(d: ScoreDelta, items: number): string {
 
 const scoreNames = (r: ComparisonReport) => [...new Set(r.arms.flatMap((a) => Object.keys(a.scores)))].sort();
 
-/** One row per arm: status, cost, latency, calls. */
 export function armRows(r: ComparisonReport): Record<string, string>[] {
   return r.arms.map((a) => ({
     arm: a.label,
@@ -40,7 +39,6 @@ export function armRows(r: ComparisonReport): Record<string, string>[] {
   }));
 }
 
-/** One row per arm, one column per score (vs baseline: Δ and verdict). */
 export function scoreRows(r: ComparisonReport): Record<string, string>[] {
   return r.arms.map((a) => {
     const row: Record<string, string> = { arm: a.label };

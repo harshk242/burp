@@ -198,14 +198,9 @@ export interface PopulationFrequency {
 export interface ClinVarClientOptions {
   apiKey?: string;
   cacheTtl?: number;
-  /** Total attempts per NCBI request (default 3); Clinical Tables always makes 1. */
   maxRetries?: number;
-  /** NCBI backoff base: waits of `2^n × retryDelay` ms (default 1000). */
   retryDelay?: number;
-  /** NCBI token bucket (default: from the API key). */
   rateLimiter?: TokenBucketRateLimiter;
-  /** Transport override for both instances (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }

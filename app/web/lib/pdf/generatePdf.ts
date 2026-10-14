@@ -31,8 +31,6 @@ export async function generatePdfFromMarkdown(
   const remarkGfm = (remarkGfmMod as any).default ?? remarkGfmMod;
 
   // vfs_fonts.js only self-registers when window.pdfMake exists (UMD side-effect).
-  // In Next.js's webpack module system pdfmake is never on window, so we must
-  // call addVirtualFileSystem() ourselves with the exported vfs object.
   const robotoVfs = (vfsFontsMod as any).default ?? vfsFontsMod;
   pdfMake.addVirtualFileSystem(robotoVfs);
 

@@ -11,7 +11,6 @@ export function createArtifactQueries(db: DrizzleDb) {
       return db.insert(artifacts).values(row).run();
     },
 
-    /** Session-scoped lookup: another session's artifact reads as missing. */
     findForSession(id: string, sessionId: string): DbArtifact | null {
       return (
         db
@@ -22,7 +21,6 @@ export function createArtifactQueries(db: DrizzleDb) {
       );
     },
 
-    /** Delete rows past expires_at (unix seconds); returns the number removed. */
     deleteExpired(nowSec: number): number {
       return db
         .delete(artifacts)
@@ -31,13 +29,6 @@ export function createArtifactQueries(db: DrizzleDb) {
         .all().length;
     },
 
-    /**
-     * Enforce a per-session size budget: delete the oldest rows (by created_at,
-     * then insertion order) until the session's total stored_size_chars is within
-     * maxChars. Keeps the newest rows whose running total, counted newest-first,
-     * fits; `keepId` is never deleted even if it alone exceeds the budget.
-     * Returns the deleted IDs.
-     */
     evictOverBudget(sessionId: string, maxChars: number, keepId: string): string[] {
       return db
         .delete(artifacts)

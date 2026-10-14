@@ -44,11 +44,6 @@ export function loadLLMConfig(): LLMConfig {
   };
 }
 
-/**
- * Per-turn LLM settings (eval arms): any field set replaces the app config's
- * value for one processChat turn. Provider, retries, context budget and tool
- * iterations always come from app config.
- */
 export interface TurnLLMOverride {
   model?: string;
   effort?: Effort;

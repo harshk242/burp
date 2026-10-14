@@ -10,11 +10,6 @@ import {
   resolveEffectiveLimits,
 } from "../usage";
 
-/**
- * Rate limiting middleware for the chat endpoint.
- * Sets X-RateLimit-* headers on every response.
- * Returns 429 when either the daily query limit or cost budget is exceeded.
- */
 export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
   const userId = c.get("userId") as string;
   const role = c.get("role") as string;

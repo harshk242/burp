@@ -1,13 +1,3 @@
-/**
- * id_grounding (rubrics/id-grounding.md): the share of database identifiers
- * cited in the answers that appear in evidence the model had before writing
- * that answer. Evidence for the answer to turn k:
- *   - user messages of turns 1..k
- *   - tool outputs of earlier `ok` turns (failed turns are never replayed)
- *   - tool outputs of turn k itself
- * Pooled over all answers (grounded / cited, distinct ids per turn). Not scored
- * when no answer cites an identifier.
- */
 import type { Evaluation, ItemEvaluator, TaskTurn } from "./types";
 
 interface IdKind {
@@ -46,7 +36,6 @@ export const ID_KINDS: IdKind[] = [
   literal("Ensembl", /\bENS[GTP]\d{11}\b/g),
   literal("Reactome", /\bR-HSA-\d+\b/g),
   literal("ClinVar", /\b[VR]CV\d{9}\b/g),
-  // UniProt accession format (uniprot.org/help/accession_numbers); an isoform suffix (-1) is left off.
   literal("UniProt", /\b(?:[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})\b/g),
 ];
 
@@ -63,7 +52,6 @@ export function extractIds(text: string): { id: string; kind: string }[] {
 
 const kindOf = new Map(ID_KINDS.map((k) => [k.kind, k]));
 
-/** Evidence text the model had when writing the answer to `turns[k]`. */
 export function evidenceFor(turns: TaskTurn[], k: number): string {
   const parts: string[] = [];
   for (let i = 0; i <= k; i++) {

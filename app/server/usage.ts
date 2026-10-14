@@ -34,11 +34,6 @@ type LimitOverrides = {
   monthly_cost_limit_microusd?: number | null;
 };
 
-/**
- * Resolve the limits actually applied to a user: per-user override, else the
- * role/config default. -1 = unlimited. `roleQueryLimit` comes from the
- * rate_limits table (rateLimitQueries.getForRole) so this stays DB-free.
- */
 export function resolveEffectiveLimits(
   user: LimitOverrides,
   role: string,
@@ -82,7 +77,6 @@ export function getNextUtcMonthStart(date = new Date()): number {
   return Math.floor(resetDate.getTime() / 1000);
 }
 
-/** One rate set in µUSD per MTok, cache fallbacks already applied. */
 export interface Rates {
   input: number;
   output: number;
@@ -94,7 +88,6 @@ export interface Rates {
 export interface ResolvedPricing {
   base: Rates;
   longContext: (Rates & { aboveInputTokens: number }) | null;
-  /** The config entry as written, for snapshotting with a usage row. */
   entry: ModelPricing;
 }
 
@@ -103,32 +96,24 @@ export interface CallUsage {
   cacheReadTokens: number;
   cacheWrite5mTokens: number;
   cacheWrite1hTokens: number;
-  /** Includes reasoning/thinking tokens. */
   outputTokens: number;
 }
 
 export type PricingTier = "base" | "long_context";
 
 export interface CallCost extends CallUsage {
-  /** noCache + cacheRead + cacheWrite5m + cacheWrite1h; picks the tier. */
   promptTokens: number;
   tier: PricingTier;
   inputCostPicoUsd: number;
   cacheReadCostPicoUsd: number;
-  /** 5m + 1h writes. */
   cacheWriteCostPicoUsd: number;
   outputCostPicoUsd: number;
   costPicoUsd: number;
 }
 
-/**
- * A whole turn. Category costs are floored and the total is rounded up once,
- * so the parts can add up to a few µUSD less than `costMicrousd`.
- */
 export interface ChatCost {
   llmCalls: number;
   longContextCalls: number;
-  /** All input tokens, every category. */
   inputTokens: number;
   noCacheTokens: number;
   cacheReadTokens: number;
@@ -184,7 +169,6 @@ export function resolvePricing(provider: string, model: string, config: AppConfi
   };
 }
 
-/** Fails with PricingConfigError when the model has no pricing entry. */
 export function assertPricingConfigured(provider: string, model: string, config: AppConfig = appConfig): void {
   resolvePricing(provider, model, config);
 }

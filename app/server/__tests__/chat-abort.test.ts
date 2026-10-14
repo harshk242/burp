@@ -212,9 +212,6 @@ describe("processChat abort", () => {
 
   it("records an estimate for an accepted call cut off before its first data part", async () => {
     const turn = new AbortController();
-    // The provider accepted the request (2xx response) but the abort lands
-    // before any content arrives. The SDK withholds its start-step part until
-    // then, so only the transport boundary sees this.
     model = scriptedModel([
       (signal) => new ReadableStream({
         start(controller) {
@@ -263,8 +260,6 @@ describe("processChat abort", () => {
 
     it("estimates a call accepted with a 200 whose body stalls before any SSE data", async () => {
       const turn = new AbortController();
-      // The adapter waits for the first SSE event before resolving doStream, so
-      // only the transport sees the 200.
       spyOn(globalThis, "fetch").mockImplementation((async (_input: unknown, init?: RequestInit) => {
         const body = new ReadableStream({
           start(controller) {

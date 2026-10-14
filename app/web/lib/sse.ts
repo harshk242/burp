@@ -103,12 +103,6 @@ export async function streamChat(
   }
 }
 
-/**
- * Every payload is JSON, text chunks included (server/routes/sse-encode.ts), so
- * a chunk like "42" arrives as the JSON string "\"42\"" and stays a string.
- * A payload that isn't JSON is dropped rather than guessed at. Returns
- * undefined when the payload can't be decoded.
- */
 export function decodeSSEData(eventType: string, payload: string): unknown {
   try {
     return JSON.parse(payload);

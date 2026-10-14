@@ -1,7 +1,6 @@
 export interface LifecycleDeps {
   shutdownTracing: () => Promise<void>;
   stopMcp: () => Promise<void>;
-  /** Stops background work (embedding sync) before the drain. */
   stopBackground?: () => void;
   log?: (line: string) => void;
   exit?: (code: number) => void;
@@ -22,7 +21,6 @@ async function bounded(promise: Promise<unknown>, ms: number): Promise<boolean> 
 }
 
 export class RunLifecycle {
-  /** Passed to every processChat; aborted on a signal. */
   readonly abort = new AbortController();
   private stoppingFlag = false;
   private signalName: string | null = null;
@@ -36,17 +34,14 @@ export class RunLifecycle {
     this.exit = deps.exit ?? ((code) => process.exit(code));
   }
 
-  /** True once a signal arrived: launch no new item or turn. */
   get stopping(): boolean {
     return this.stoppingFlag;
   }
 
-  /** The exit code a signal asks for, or null. */
   get signalExitCode(): number | null {
     return this.signalName ? (SIGNAL_EXIT[this.signalName] ?? 1) : null;
   }
 
-  /** Tracks a running task until it settles; `cleanup` waits for it. */
   track<T>(label: string, promise: Promise<T>): Promise<T> {
     this.active.set(promise, label);
     const forget = () => this.active.delete(promise);
@@ -54,7 +49,6 @@ export class RunLifecycle {
     return promise;
   }
 
-  /** Installs SIGINT/SIGTERM handlers; returns their removal. */
   installSignalHandlers(): () => void {
     const onInt = () => void this.onSignal("SIGINT");
     const onTerm = () => void this.onSignal("SIGTERM");

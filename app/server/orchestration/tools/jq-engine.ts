@@ -22,8 +22,6 @@ export async function executeJq(
   const timeoutMs = opts?.timeoutMs ?? cfg.jq_timeout_ms;
   const maxOutputChars = opts?.maxOutputChars ?? cfg.jq_max_output_chars;
 
-  // Write data to a temp file — node-jq works best with file input
-  // for large payloads (avoids shell argument size limits)
   let tempDir: string | null = null;
   let tempFile: string | null = null;
 
@@ -69,17 +67,8 @@ export async function executeJq(
 }
 
 /**
- * Parse compact jq output into a JSON value.
- *
  * With --compact-output, jq prints each emitted value on its own line, so
- * the output is a stream of JSON documents:
- *   - no values   -> []
- *   - one value   -> that value
- *   - many values -> array of values
- *
- * The size cap is applied at line boundaries so every kept value stays
- * valid JSON. If even the first value exceeds the cap, an error is returned
- * instead of a broken fragment.
+ * the output is a stream of JSON documents.
  */
 export function parseJqOutput(
   rawOutput: string,

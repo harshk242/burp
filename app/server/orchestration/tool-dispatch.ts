@@ -15,10 +15,8 @@ export interface DispatchContext {
   sessionId: string;
   provider: LLMProviderName;
   sanitize: (name: string) => string;
-  /** Mutated on Gemini: search activates found tools. On Anthropic every tool is already declared. */
   activeTools: ToolSet;
   ctx: LogContext;
-  /** Aborted when the client disconnects; cancels in-flight tool calls. */
   signal?: AbortSignal;
   trace?: TurnTrace;
 }
@@ -30,11 +28,9 @@ export interface ToolCallInput {
 }
 
 export interface DispatchResult {
-  /** Absent when a search call fails (it is not recorded in tool_calls). */
   record?: ToolCallRecord;
   part: ToolResultPart;
   traceMetadata?: Record<string, unknown>;
-  /** Span output when it differs from the result part (search: the hit names). */
   traceOutput?: unknown;
 }
 
@@ -46,7 +42,6 @@ interface ParsedCall {
   input: Record<string, unknown>;
 }
 
-/** Strip execute functions so the SDK never auto-executes tools (double calls). */
 export function toDeclarations(activeTools: ToolSet): ToolSet {
   const declarationTools: ToolSet = {};
   for (const [name, t] of Object.entries(activeTools)) {
@@ -86,10 +81,6 @@ function tryParseJson(str: string): unknown {
   return str;
 }
 
-/**
- * Run one tool call: yields tool_start/tool_end SSE events and returns the
- * record for the DB plus the tool-result part for the next model call.
- */
 export async function* dispatchToolCall(
   tc: ToolCallInput,
   dc: DispatchContext,
@@ -135,19 +126,10 @@ export async function* dispatchToolCall(
   return { record: result.record, part };
 }
 
-/** ISO timestamp (UTC, whole seconds) of when a tool result was produced. */
 export function fetchedAtLine(at: Date): string {
   return `[fetched_at: ${at.toISOString().replace(/\.\d{3}Z$/, "Z")}]`;
 }
 
-/**
- * Prefixes a text tool result with its `fetched_at` line, so the model can
- * judge how old the data is when it is replayed in later turns (the system
- * prompt asks it to re-fetch when freshness matters). Stamped once, here: the
- * same bytes are sent now and stored in the transcript, so caching holds.
- * Content results (Anthropic tool references) are left alone: a reference
- * result mixed with text is rejected (400), and it carries no data anyway.
- */
 export function withFetchedAt(part: ToolResultPart, at: Date = new Date()): ToolResultPart {
   const { output } = part;
   if (output.type !== "text" && output.type !== "error-text") return part;

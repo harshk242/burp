@@ -1,8 +1,3 @@
-/**
- * Settle with `promise`, or reject with `signal.reason` as soon as `signal`
- * aborts, whichever comes first. The caller is released even when the
- * underlying operation ignores the abort and keeps running.
- */
 export function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise;
   if (signal.aborted) {
@@ -16,14 +11,6 @@ export function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal): Prom
   });
 }
 
-/**
- * Run `fn` with a signal that aborts on the caller's signal, after `ms`, or as
- * soon as `fn` settles. Aborting on settle stops sibling requests (e.g. the
- * other batches of an embedMany) once one has failed, so nothing outlives the
- * attempt. The race also covers a transport that ignores aborts, so neither
- * the deadline nor the caller's abort waits on it: on timeout the result
- * rejects with `timeoutError()`, on abort with the caller's `signal.reason`.
- */
 export async function withDeadline<T>(
   ms: number,
   fn: (signal: AbortSignal) => Promise<T>,

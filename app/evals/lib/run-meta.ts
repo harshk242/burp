@@ -10,15 +10,12 @@ export interface NameParts {
   gitSha: string;
   model: string;
   effort: string;
-  /** The arm's own note (matrix files), tells apart arms with the same model and effort. */
   armNote?: string | null;
   note: string | null;
-  /** 1-based; only appended when the run is one of several repeats. */
   repeatIndex: number;
   repeatCount: number;
 }
 
-/** `<dataset>-<git short sha>-<model>-<effort>[-armNote][-note][-rN]`. */
 export function experimentName(p: NameParts): string {
   const parts = [p.dataset, p.gitSha, p.model, p.effort];
   if (p.armNote) parts.push(p.armNote);
@@ -32,7 +29,6 @@ function git(args: string[]): string | null {
   return res.exitCode === 0 ? res.stdout.toString().trim() : null;
 }
 
-/** Short sha (GIT_SHA env wins) and whether the working tree has changes. */
 export function gitState(): { sha: string; dirty: boolean } {
   const sha = process.env.GIT_SHA || git(["rev-parse", "--short", "HEAD"]) || "unknown";
   const status = git(["status", "--porcelain"]);
@@ -46,7 +42,6 @@ function filesUnder(path: string): string[] {
     .flatMap((name) => filesUnder(join(path, name)));
 }
 
-/** sha256 over the files' app-relative paths and contents (directories recurse; tests excluded). */
 export function hashFiles(paths: string[]): string {
   const files = paths
     .flatMap(filesUnder)
@@ -84,7 +79,6 @@ export interface RunMetadataInput {
   maxOutputTokens: number;
   maxOutputTokensSource: string;
   maxContextTokens: number;
-  /** Shared by every arm (experiment) of one invocation. */
   comparisonGroup: string;
   arm: string;
   armIndex: number;
@@ -94,7 +88,6 @@ export interface RunMetadataInput {
   datasetName: string;
   datasetVersion: string;
   datasetHash: string;
-  /** True when --dataset-version skipped the local YAML check. */
   datasetVersionPinned: boolean;
   scoring: ScoringHashes;
   search: SearchState;

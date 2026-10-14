@@ -61,7 +61,6 @@ export interface ToolDefinition {
 export interface ToolResult {
   content: unknown;
   isError: boolean;
-  /** The server's `result._meta` (e.g. `retry`, the upstream retry summary), when present. */
   meta?: Record<string, unknown>;
 }
 
@@ -73,11 +72,6 @@ export class MCPManager {
   private servers: Map<string, MCPServer> = new Map();
   private retryIntervalId: ReturnType<typeof setInterval> | null = null;
 
-  /**
-   * Called when the set of available tools changes: a server goes down (its
-   * tools become unavailable) or recovers (its tools are re-registered).
-   * Set by the server entry point so this module stays free of search code.
-   */
   onToolsChanged: (() => void) | null = null;
 
   register(config: MCPServerConfig): void {
@@ -216,9 +210,6 @@ export class MCPManager {
     }
   }
 
-  /**
-   * Start all registered servers (best-effort, continues on failures)
-   */
   async startAll(): Promise<{ succeeded: number; failed: number }> {
     const totalServers = this.servers.size;
     logger.info("MCP", "starting_all_servers", { data: { total: totalServers } });
@@ -263,10 +254,6 @@ export class MCPManager {
     this.retryIntervalId = setInterval(() => this.retryDueServers(), 5000);
   }
 
-  /**
-   * Restart failed servers whose retry time has passed, re-registering their
-   * tools and firing onToolsChanged after each successful recovery.
-   */
   async retryDueServers(now = new Date()): Promise<void> {
     for (const [name, server] of this.servers) {
       if (server.status !== "error" || !server.nextRetryAt || server.nextRetryAt > now) continue;
@@ -352,9 +339,7 @@ export class MCPManager {
 
     // The MCP client owns the deadline: on timeout or abort it sends
     // notifications/cancelled, drops the request and rejects; on a response it
-    // clears its timer. The server is told the deadline (`_meta.deadline_ms`)
-    // and stops its own work a margin earlier, so its structured error and
-    // `_meta` arrive before this timer fires.
+    // clears its timer.
     let result: Awaited<ReturnType<Client["callTool"]>>;
     try {
       result = await server.client.callTool(
@@ -363,7 +348,7 @@ export class MCPManager {
         { signal, timeout: timeoutMs }
       );
     } catch (error) {
-      // An abort is rethrown as-is (the client reports it as a timeout too).
+      // The client reports an abort as a timeout too.
       if (!signal?.aborted && isRequestTimeout(error, timeoutMs)) {
         throw new Error(`Tool call timed out after ${timeoutMs}ms`);
       }

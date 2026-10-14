@@ -4,7 +4,6 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 export const DEFAULT_TOOL_CALL_MS = 55_000;
 /** Margin between the client's MCP timeout and the server's tool-call deadline. */
 export const DEADLINE_MARGIN_MS = 5_000;
-/** Request records kept per tool call in `RetryMeta.requests`. */
 export const MAX_REQUEST_RECORDS = 20;
 
 export type RequestOutcome = 'success' | 'failed' | 'cancelled';
@@ -36,9 +35,7 @@ export interface RetryMeta {
 }
 
 export interface ToolCallContextOptions {
-  /** Time allowed for the whole tool call. */
   timeoutMs: number;
-  /** The MCP request's abort signal (`extra.signal`). */
   signal?: AbortSignal;
   now?: () => number;
 }
@@ -97,7 +94,6 @@ export class ToolCallContext {
     return this.count;
   }
 
-  /** Appends one logical request; only the first MAX_REQUEST_RECORDS are kept. */
   addRecord(record: RequestRecord, startedAt: number, endedAt: number): void {
     this.count += 1;
     this.attempts += record.attempts;
@@ -109,7 +105,6 @@ export class ToolCallContext {
     if (this.records.length < MAX_REQUEST_RECORDS) this.records.push(record);
   }
 
-  /** Aggregated `_meta.retry`, or undefined if the call made no upstream request. */
   buildRetryMeta({ isError }: { isError: boolean }): RetryMeta | undefined {
     if (this.count === 0) return undefined;
     let outcome: RetryMeta['outcome'];
@@ -138,12 +133,10 @@ export class ToolCallContext {
 
 const storage = new AsyncLocalStorage<ToolCallContext>();
 
-/** The current tool call's context, or undefined outside a tool call (e.g. contract tests). */
 export function getToolCallContext(): ToolCallContext | undefined {
   return storage.getStore();
 }
 
-/** Runs `fn` inside a fresh tool-call context and disposes it afterwards. */
 export async function runWithToolCallContext<T>(
   options: ToolCallContextOptions,
   fn: (context: ToolCallContext) => Promise<T> | T,

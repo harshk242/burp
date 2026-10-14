@@ -14,7 +14,6 @@ export interface TurnTraceStart {
   provider: string;
   model: string;
   metadata?: Record<string, unknown>;
-  /** Nest the turn under this span (same trace) instead of starting its own trace. */
   traceParent?: TraceParent;
 }
 
@@ -25,21 +24,17 @@ export interface TraceParent {
 
 export interface TurnTraceEnd {
   status: TurnTraceStatus;
-  /** Final answer (ok turns). */
   output?: string;
   errorCode?: string;
   message?: string;
   metadata?: Record<string, unknown>;
-  /** Estimated usage of a call cut off mid-stream; goes on the generation still open. */
   cutOffCall?: CallCost;
-  /** Added to the trace tags on the root (e.g. `budget_exceeded`). */
   tags?: string[];
 }
 
 export interface GenerationStart {
   iteration: number;
   model: string;
-  /** Messages added since the previous call (or the full context when configured). */
   input: unknown;
   modelParameters?: Record<string, string | number>;
   metadata?: Record<string, unknown>;
@@ -62,19 +57,16 @@ export interface ToolStart {
 }
 
 export interface ToolResult {
-  /** What the model saw. */
   output: unknown;
   metadata?: Record<string, unknown>;
 }
 
 const PICO_PER_USD = 1e12;
 
-/** The trace id of a turn: hex sha256 of the turn id, first 32 chars. */
 export function traceIdForTurn(turnId: string): string {
   return new Bun.CryptoHasher("sha256").update(turnId).digest("hex").slice(0, 32);
 }
 
-/** Our own usage and cost for one call; Langfuse never re-prices it. */
 export function generationUsage(call: CallCost): { usageDetails: Record<string, number>; costDetails: Record<string, number> } {
   return {
     usageDetails: {
@@ -133,14 +125,12 @@ abstract class Child {
 }
 
 export class GenerationObservation extends Child {
-  /** Marks the first streamed chunk (completionStartTime). */
   firstChunk(): void {
     if (!this.obs) return;
     const obs = this.obs;
     safely("generation_first_chunk_failed", () => obs.updateOtelSpanAttributes({ completionStartTime: new Date() }), undefined);
   }
 
-  /** Closed by the turn while streaming, with the ledger's estimate for the cut-off call. */
   closeEstimated(level: ObservationLevel, statusMessage: string, call: CallCost): void {
     this.endOnce("generation_close_failed", (obs) =>
       obs.updateOtelSpanAttributes({
@@ -156,7 +146,6 @@ export class GenerationObservation extends Child {
     this.endOnce("generation_finish_failed", (obs) => obs.updateOtelSpanAttributes(this.attributes(result)));
   }
 
-  /** The call finished but the turn fails on it (refusal): ERROR, usage and cost kept. */
   fail(result: GenerationResult, statusMessage: string): void {
     this.endOnce("generation_fail_failed", (obs) =>
       obs.updateOtelSpanAttributes({ ...this.attributes(result), level: "ERROR", statusMessage })
@@ -187,7 +176,6 @@ export class ToolObservation extends Child {
     );
   }
 
-  /** The tool's error went back to the model: ERROR. */
   fail(result: ToolResult, statusMessage: string): void {
     this.onError();
     this.endOnce("tool_fail_failed", (obs) =>
@@ -206,15 +194,12 @@ export class TurnTrace {
   private constructor(
     private readonly root: LangfuseAgent | null,
     private readonly traceAttributes: Attributes,
-    /** Null when tracing is off. */
     readonly traceId: string | null,
     private readonly nested = false
   ) {}
 
-  /** A trace that records nothing. */
   static readonly disabled = new TurnTrace(null, {}, null);
 
-  /** The turn's root observation id when it is nested in a larger trace (its scores go there); else null. */
   get scoreObservationId(): string | null {
     return this.nested && this.root ? this.root.id : null;
   }
@@ -289,7 +274,6 @@ export class TurnTrace {
     return this.track(tool, obs);
   }
 
-  /** Ends the turn: closes still-open children, then the root. Idempotent. */
   end(outcome: TurnTraceEnd): void {
     if (this.ended) return;
     this.ended = true;

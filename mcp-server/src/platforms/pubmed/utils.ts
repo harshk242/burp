@@ -35,9 +35,6 @@ export function formatPmids(ids: string[]): string[] {
   return ids.map(formatPmid);
 }
 
-/**
- * Formats a date for NCBI API (YYYY/MM/DD)
- */
 export function formatDate(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   const year = d.getFullYear();

@@ -51,7 +51,6 @@ async function applyOne(api: LangfuseApi, action: SyncAction): Promise<void> {
   }
 }
 
-/** Applies actions in dependency order; stops at the first failure. */
 export async function applyActions(
   api: LangfuseApi,
   actions: SyncAction[],

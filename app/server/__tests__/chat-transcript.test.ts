@@ -367,7 +367,6 @@ describe("model transcript on a real Anthropic stream", () => {
 
     const [, assistant, result, final] = stored(sessionId);
     expect(rows(sessionId).map((r) => r.role)).toEqual(["user", "assistant", "tool", "assistant"]);
-    // Parts in the order returned (the SDK also adds its own `custom` parts).
     const parts = (assistant!.content as { type: string }[]).filter((p) => p.type !== "custom");
     expect(parts).toMatchObject([
       { type: "reasoning", text: "Plan the lookup.", providerOptions: { anthropic: { signature: "sig-123" } } },

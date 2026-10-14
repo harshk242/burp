@@ -1,10 +1,4 @@
 /**
- * Migration executor: applies drizzle-kit migration files inside a transaction
- * owned by the caller.
- *
- * Bookkeeping mirrors drizzle-orm 0.45.4 `SQLiteSyncDialect.migrate`
- * (sqlite-core/dialect.ts) exactly, so a DB is interchangeable between this
- * executor and Drizzle's own `migrate()`:
  * - same `__drizzle_migrations` table DDL (`id SERIAL PRIMARY KEY` — not a rowid
  *   alias, so `id` stays NULL; that is Drizzle's behaviour, kept on purpose);
  * - "pending" = `folderMillis` greater than the `created_at` of the newest row,
@@ -13,10 +7,6 @@
  *   chunk prepared and run on its own — like Drizzle, only the first statement of
  *   a chunk executes, so custom migrations need one statement per breakpoint;
  * - one `(hash, created_at)` history row per migration.
- *
- * Unlike Drizzle we never BEGIN/COMMIT here: the caller wraps the work in its own
- * transaction so it can run `PRAGMA foreign_key_check` before committing (§7).
- * drizzle-orm is exact-pinned; the compatibility test guards upgrades.
  */
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "fs";
@@ -26,7 +16,6 @@ import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
 export const MIGRATIONS_TABLE = "__drizzle_migrations";
 
 export interface Migration extends MigrationMeta {
-  /** Journal tag, e.g. `0000_baseline` (for logs; bookkeeping only uses hash + folderMillis). */
   tag: string;
 }
 
@@ -62,7 +51,6 @@ export function ensureMigrationsTable(sqlite: Database): void {
   );
 }
 
-/** Newest history row, or undefined when nothing has been recorded. Read-only. */
 export function lastAppliedMigration(sqlite: Database): HistoryRow | undefined {
   if (!hasMigrationsTable(sqlite)) return undefined;
   const row = sqlite
@@ -87,7 +75,6 @@ export function recordMigration(sqlite: Database, migration: MigrationMeta): voi
     .run(migration.hash, migration.folderMillis);
 }
 
-/** Run one migration's statements and record it. Caller owns the transaction. */
 export function applyMigration(sqlite: Database, migration: MigrationMeta): void {
   for (const statement of migration.sql) {
     sqlite.prepare(statement).run();
@@ -95,10 +82,6 @@ export function applyMigration(sqlite: Database, migration: MigrationMeta): void
   recordMigration(sqlite, migration);
 }
 
-/**
- * Apply every pending migration in order and return what was applied.
- * Must run inside a transaction so the caller decides whether it commits.
- */
 export function applyPendingMigrations<M extends MigrationMeta>(sqlite: Database, migrations: M[]): M[] {
   if (!sqlite.inTransaction) {
     throw new Error("applyPendingMigrations() must run inside a caller-owned transaction");

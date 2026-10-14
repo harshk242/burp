@@ -160,12 +160,8 @@ export interface SearchResult<T> {
 
 export interface PharmGKBClientOptions {
   cacheTtl?: number;
-  /** Total attempts per request (default 3). */
   maxRetries?: number;
-  /** Backoff base: waits of `2^n × retryDelay` ms (default 1000). */
   retryDelay?: number;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }

@@ -1,12 +1,6 @@
 import { appConfig } from "../../config";
 import { validateJqFilter } from "./jq-engine";
 
-/**
- * Resolve the effective filter chain for a given tool.
- *
- * @param toolName - Fully qualified tool name (e.g. "uniprot__search_by_gene")
- * @returns Ordered array of jq filter expressions to apply sequentially
- */
 export function resolveFilterChain(toolName: string): string[] {
   const { policies } = appConfig.artifact;
   const filters: string[] = [];

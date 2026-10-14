@@ -21,12 +21,6 @@ export const SPECIES_MAP: Record<string, number> = {
 
 const DEFAULT_SPECIES = 'Homo sapiens';
 
-/**
- * Resolve a list of species identifiers (common names, scientific names,
- * or numeric taxon IDs) into UniProt `organism_name` query fragments.
- *
- * Returns the organism query string to append to the UniProt search query.
- */
 export function resolveSpeciesFilter(
   species?: string[],
 ): string | undefined {
@@ -347,12 +341,6 @@ export interface ExtractionResult {
   entries: ExtractedEntry[];
 }
 
-/**
- * Process a full UniProt search_by_gene response.
- *
- * When `species` is provided, entries are grouped per species and the best
- * reviewed entry per species is extracted. Otherwise defaults to human.
- */
 export function extractSearchByGeneResponse(
   rawResponse: any,
   geneQuery: string,

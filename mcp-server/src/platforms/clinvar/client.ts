@@ -32,13 +32,6 @@ function exponentialBackoff(baseMs: number): (attempt: number) => number {
   return (attempt) => 2 ** (attempt - 1) * baseMs;
 }
 
-/**
- * NCBI E-utilities policy (plans/shared-http-retry-plan.md, "Platform
- * inventory"): 3 attempts, `2^n × retryDelay` backoff, retry on network/5xx
- * and transport timeouts (any other 4xx, HTTP 408 included, fails at once),
- * 429 fails fast with Retry-After (default 5s), 40s request budget. The
- * client adds the NCBI token bucket as `beforeAttempt`.
- */
 export const CLINVAR_NCBI_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: DEFAULT_MAX_RETRIES,
   backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
@@ -49,7 +42,6 @@ export const CLINVAR_NCBI_POLICY: RetryPolicy = Object.freeze({
   defaultRetryAfterMs: 5_000,
 });
 
-/** Clinical Tables policy: one attempt, no rate limiter, 40s request budget. */
 export const CLINICAL_TABLES_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: 1,
   backoffMs: [0],
@@ -58,11 +50,8 @@ export const CLINICAL_TABLES_POLICY: RetryPolicy = Object.freeze({
 });
 
 export interface ClinVarHttpOptions {
-  /** Retry policy (default CLINVAR_NCBI_POLICY). */
   policy?: RetryPolicy;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }
 
@@ -79,7 +68,6 @@ export function createClinVarNcbiHttp(options: ClinVarHttpOptions = {}): AxiosIn
   return createHttp(NCBI_BASE_URL, CLINVAR_NCBI_POLICY, options);
 }
 
-/** A Clinical Tables Axios instance with the shared retry attached (one attempt). */
 export function createClinicalTablesHttp(options: ClinVarHttpOptions = {}): AxiosInstance {
   return createHttp(CLINICAL_TABLES_URL, CLINICAL_TABLES_POLICY, options);
 }

@@ -2,7 +2,6 @@ import type { Evaluation, TaskOutput } from "../evaluators/types";
 
 export interface ItemRun {
   itemId: string;
-  /** reviewed_by is set: the item counts toward pass/fail. */
   reviewed: boolean;
   output: TaskOutput;
   evaluations: Pick<Evaluation, "name" | "value">[];
@@ -16,15 +15,12 @@ export interface RunSummary {
   totalCostUsd: number;
   latencyP50Ms: number | null;
   latencyP95Ms: number | null;
-  /** Mean per numeric/boolean score over scored items that have it. */
   means: Record<string, number>;
-  /** Share of scored items whose turn_outcome is ok. */
   okRate: number | null;
   reviewedItems: number;
   reviewedPassed: number;
 }
 
-/** Nearest-rank percentile; null for no values. */
 export function percentile(values: number[], p: number): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -36,7 +32,6 @@ const itemCost = (o: TaskOutput) => o.turns.reduce((sum, t) => sum + t.cost_usd,
 const itemLatency = (o: TaskOutput) => o.turns.reduce((sum, t) => sum + t.duration_ms, 0);
 const scoreOf = (item: Pick<ItemRun, "evaluations">, name: string) => item.evaluations.find((e) => e.name === name)?.value;
 
-/** Pass bars (rubrics): outcome ok, and every present code score at its maximum. */
 export function itemPasses(item: Pick<ItemRun, "evaluations">): boolean {
   if (scoreOf(item, "turn_outcome") !== "ok") return false;
   for (const name of ["id_grounding", "checkpoint_recall", "expected_tool_coverage"]) {
@@ -109,7 +104,6 @@ export function spread(values: number[]): Spread {
   return { n, mean, min: Math.min(...values), max: Math.max(...values), stddev: Math.sqrt(variance) };
 }
 
-/** Per item, per numeric score (plus cost_usd and latency_ms): spread across repeats. */
 export function varianceReport(runs: ItemRun[][]): Record<string, Record<string, Spread>> {
   const collected = new Map<string, Map<string, number[]>>();
   const add = (item: string, name: string, value: number) => {

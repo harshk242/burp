@@ -19,9 +19,7 @@ export function createSearchTool() {
 }
 
 export interface ToolSearchHit {
-  /** Registry name (`server__tool`). */
   fullName: string;
-  /** Name as declared to the model (provider-sanitized). */
   name: string;
   description: string;
   score: number;
@@ -34,11 +32,8 @@ export interface ToolSearchSummary {
 }
 
 export interface ToolSearchRun {
-  /** The tools shown (top_k at most), in score order. */
   hits: ToolSearchHit[];
-  /** What the model sees as the search tool's result. */
   modelOutput: ToolResultPart["output"];
-  /** What the UI sees (SSE tool_end, stored tool call). */
   uiSummary: ToolSearchSummary;
 }
 
@@ -46,9 +41,8 @@ export interface ToolSearchOptions {
   provider: LLMProviderName;
   sanitize: (name: string) => string;
   /**
-   * Anthropic: the turn's declared tools. A reference to a tool the request
-   * doesn't declare is rejected (400), and the catalog is fixed at turn start
-   * while MCP recovery can register (and index) new tools mid-turn.
+   * Anthropic: A reference to a tool the request
+   * doesn't declare is rejected (400).
    */
   declared?: Readonly<Record<string, unknown>>;
   signal?: AbortSignal;

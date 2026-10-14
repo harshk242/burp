@@ -46,7 +46,6 @@ export interface LangfuseApi {
   listItems(datasetName: string): Promise<RemoteDatasetItem[]>;
   getItem(id: string): Promise<RemoteDatasetItem | null>;
   upsertItem(body: DatasetItemBody): Promise<RemoteDatasetItem>;
-  /** Hard delete; only the round-trip test uses it. Sync archives, never deletes. */
   deleteItem(id: string): Promise<void>;
 }
 
@@ -118,7 +117,6 @@ export function createLangfuseApi(opts: LangfuseApiOptions): LangfuseApi {
   };
 }
 
-/** Reads LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_BASE_URL (app/.env). */
 export function langfuseApiFromEnv(env: Record<string, string | undefined> = process.env): LangfuseApi {
   const publicKey = env.LANGFUSE_PUBLIC_KEY;
   const secretKey = env.LANGFUSE_SECRET_KEY;

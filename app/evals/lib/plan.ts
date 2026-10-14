@@ -30,10 +30,8 @@ export interface GitInfo {
 
 export interface SyncPlan {
   actions: SyncAction[];
-  /** Blocking: --apply refuses to run while any exist. */
   conflicts: string[];
   warnings: string[];
-  /** Human-readable summary lines, in print order. */
   report: string[];
 }
 
@@ -71,7 +69,6 @@ export function itemBody(datasetName: string, item: DatasetItem): DatasetItemBod
   };
 }
 
-/** Hash recomputed from a fetched item's payload; never trusts the stored content_hash. */
 export function remoteContentHash(item: { input?: unknown; expectedOutput?: unknown; metadata?: unknown }): string {
   return contentHash({ input: item.input, expected_output: item.expectedOutput, metadata: item.metadata as Record<string, unknown> | null });
 }
@@ -204,10 +201,6 @@ export function planSync(home: EvalHome, remote: RemoteState, git: GitInfo): Syn
   return plan;
 }
 
-/**
- * Apply order: configs, new datasets (items need their dataset), items, archives, and
- * dataset metadata updates last so dataset_hash only changes once the items are written.
- */
 export function orderActions(actions: SyncAction[]): SyncAction[] {
   const rank = (a: SyncAction): number => {
     if (a.kind === "create-config") return 0;

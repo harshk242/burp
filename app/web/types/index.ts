@@ -37,28 +37,21 @@ export interface ToolCall {
   status: "pending" | "running" | "complete" | "error";
 }
 
-/** 👍 = 1, 👎 = 0 on an assistant message (the current user's) */
 export interface Feedback {
   value: 0 | 1;
   comment: string | null;
-  /** Selected category ids of the rating's polarity (lib/feedback-categories), sorted; [] when none */
   categories: FeedbackCategoryId[];
 }
 
 export interface Message {
-  /** Server message id when `persisted`, else a client-only id */
   id: string;
   role: "user" | "assistant";
   content: string;
   toolCalls?: ToolCall[];
   createdAt: number;
-  /** Token counts — set from the usage SSE event or loaded from history */
   tokenUsage?: { input: number; output: number };
-  /** Pre-tool-call reasoning text (separate from final response) */
   reasoning?: string;
-  /** Saved on the server under `id` (loaded from history or confirmed by the done event); feedback needs it */
   persisted?: boolean;
-  /** The user's feedback (assistant messages) */
   feedback?: Feedback | null;
 }
 
@@ -69,13 +62,10 @@ export interface DbMessage {
   content: string | null;
   tool_calls: ToolCall[] | null;
   created_at: number;
-  /** Token counts stored with the assistant message (0 for user messages) */
   input_tokens?: number;
   output_tokens?: number;
-  /** Main chat model cost stored in microdollars */
   cost_microusd?: number;
   reasoning?: string | null;
-  /** The current user's feedback (assistant messages only) */
   feedback?: Feedback | null;
 }
 
@@ -111,7 +101,6 @@ export class RateLimitError extends Error {
     public limit: number,
     public used: number,
     public resetAt: number,
-    /** "query_limit_exceeded" | "token_limit_exceeded" | "cost_limit_exceeded" */
     public errorCode?: string
   ) {
     super(message);

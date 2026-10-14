@@ -28,9 +28,7 @@ import { checkDataset, datasetMatches, driftMessage } from "./verify-dataset";
 
 export interface RunEnv {
   runId: string;
-  /** Repo-relative DB path (DATABASE_URL). */
   dbPath: string;
-  /** Where the variance and comparison reports go. */
   outDir: string;
 }
 

@@ -69,15 +69,11 @@ export const CLINICAL_TRIALS_POLICY: RetryPolicy = Object.freeze({
 export const CLINICAL_TRIALS_BASE_URL = 'https://clinicaltrials.gov/api/v2';
 
 export interface ClinicalTrialsClientOptions {
-  /** Retry policy (default CLINICAL_TRIALS_POLICY). */
   policy?: RetryPolicy;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }
 
-/** A ClinicalTrials.gov v2 client with the shared retry attached. */
 export function createClinicalTrialsClient(options: ClinicalTrialsClientOptions = {}): AxiosInstance {
   const instance = axios.create({
     baseURL: CLINICAL_TRIALS_BASE_URL,
@@ -127,10 +123,7 @@ function apiErrorMessage(cause: unknown): string | undefined {
 }
 
 /**
- * Perform a GET to `/studies` with the given query params.
  * `countTotal` is opt-in on the v2 API; without it `totalCount` is omitted.
- * Throws the structured `UpstreamError` on network / HTTP errors, with the
- * API's own message in front when it sent one.
  */
 export async function fetchStudies(
   params: Record<string, unknown>,
@@ -159,10 +152,6 @@ export async function fetchStudies(
   }
 }
 
-/**
- * Count fields shared by every search result. `totalCount` is `null` when the
- * API did not report one, never a fabricated 0 or page size.
- */
 export function resultMeta(data: StudySearchResponse, shown: number) {
   return {
     totalCount: data.totalCount ?? null,
@@ -171,10 +160,6 @@ export function resultMeta(data: StudySearchResponse, shown: number) {
   };
 }
 
-/**
- * Count fields for handlers that filter the API page locally, so the API total
- * describes the query before filtering, not the returned list.
- */
 export function filteredResultMeta(
   data: StudySearchResponse,
   shown: number,

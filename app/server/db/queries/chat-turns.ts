@@ -11,11 +11,8 @@ export interface ChatTurnOutcome {
   errorMessage?: string | null;
   iterations: number;
   assistantMessageId?: string | null;
-  /** Measured prompt tokens of the turn's last LLM call. */
   lastPromptTokens?: number | null;
-  /** finish_reason of the turn's last completed LLM call. */
   finalFinishReason?: string | null;
-  /** Tool results returned to the model as errors (failed searches included). */
   toolErrorCount?: number;
 }
 
@@ -29,10 +26,6 @@ export function createChatTurnQueries(db: DrizzleDb) {
       db.update(chatTurns).set({ trace_id: traceId }).where(eq(chatTurns.id, id)).run();
     },
 
-    /**
-     * Finalizes a running turn. A turn is finalized once: returns false (and
-     * changes nothing) when it isn't `running` any more.
-     */
     finish(id: string, outcome: ChatTurnOutcome): boolean {
       const updated = db
         .update(chatTurns)

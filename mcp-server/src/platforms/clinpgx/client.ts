@@ -35,13 +35,6 @@ function exponentialBackoff(baseMs: number): (attempt: number) => number {
   return (attempt) => 2 ** (attempt - 1) * baseMs;
 }
 
-/**
- * Production retry policy (plans/shared-http-retry-plan.md, "Platform
- * inventory"): 3 attempts, `2^n × retryDelay` backoff, retry on network/5xx
- * and transport timeouts, 429 retried with the same backoff (Retry-After
- * ignored), any other 4xx (404 and HTTP 408 included) fails at once, 40s
- * request budget.
- */
 export const CLINPGX_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: DEFAULT_MAX_RETRIES,
   backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
@@ -52,11 +45,8 @@ export const CLINPGX_POLICY: RetryPolicy = Object.freeze({
 });
 
 export interface ClinPGxHttpOptions {
-  /** Retry policy (default CLINPGX_POLICY). */
   policy?: RetryPolicy;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }
 
@@ -129,11 +119,6 @@ export class PharmGKBClient {
     return data as T;
   }
 
-  /**
-   * Search for genes by symbol
-   * PharmGKB API uses 'symbol' parameter for gene search
-   * If no query is provided, returns CPIC pharmacogenes
-   */
   async searchGenes(query: string, maxResults: number = 20): Promise<SearchResult<GeneInfo>> {
     try {
       const params: Record<string, unknown> = query && query.trim()
@@ -162,10 +147,6 @@ export class PharmGKBClient {
     }
   }
 
-  /**
-   * Get gene info by ID (PAxxxx) or symbol
-   * For symbol lookups, use search and return first result
-   */
   async getGeneInfo(idOrSymbol: string): Promise<GeneInfo | null> {
     try {
       if (idOrSymbol.startsWith('PA')) {
@@ -245,9 +226,6 @@ export class PharmGKBClient {
     }
   }
 
-  /**
-   * Get drug info by ID (PAxxxx) or name
-   */
   async getDrugInfo(idOrName: string): Promise<DrugInfo | null> {
     try {
       if (idOrName.startsWith('PA')) {
@@ -294,10 +272,6 @@ export class PharmGKBClient {
     };
   }
 
-  /**
-   * Search for variants by rsID or symbol
-   * PharmGKB API uses 'symbol' parameter for variant search
-   */
   async searchVariants(query: string, maxResults: number = 20): Promise<SearchResult<VariantInfo>> {
     try {
       if (!query || !query.trim()) {
@@ -332,9 +306,6 @@ export class PharmGKBClient {
     }
   }
 
-  /**
-   * Get variant info by ID (PAxxxx) or rsID
-   */
   async getVariantInfo(idOrRsId: string): Promise<VariantInfo | null> {
     try {
       if (idOrRsId.startsWith('PA')) {

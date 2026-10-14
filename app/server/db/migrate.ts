@@ -1,13 +1,7 @@
 /**
- * runMigrations(): backup → PRAGMA foreign_keys=OFF → one transaction
- * { adopt legacy DB, apply pending, PRAGMA foreign_key_check } → commit →
- * foreign_keys=ON.
- *
  * FKs must be switched off *outside* the transaction (the pragma is a no-op
  * inside one), otherwise a drizzle-kit table recreation (`DROP TABLE x`) would
- * cascade-delete child rows. With FKs off nothing enforces integrity, so the
- * check runs before COMMIT: a violation rolls back the data *and* the history
- * rows, leaving the DB exactly as it was (plans/drizzle-orm-migration.md §5, §7).
+ * cascade-delete child rows.
  */
 import type { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
@@ -35,29 +29,22 @@ export class MigrationFkError extends Error {
 }
 
 export interface RunMigrationsOptions {
-  /** Defaults to server/db/migrations. Tests point this at fixture folders. */
   migrationsFolder?: string;
-  /** Defaults to `<db dir>/backups`. */
   backupDir?: string;
-  /** Pre-migrate backups to keep per DB file (oldest are pruned). Default 5. */
   keepBackups?: number;
-  /** Take the pre-migrate backup (file DBs only). Default true; `db:verify` disables it on its scratch copy. */
   backup?: boolean;
 }
 
 export interface RunMigrationsResult {
-  /** Migrations whose SQL ran (an adopted legacy DB records `0000` without running it). */
   applied: Migration[];
-  /** True when a legacy DB was adopted (rebuilt to `0000` and recorded). */
   adopted: boolean;
   backupPath: string | null;
-  /** Wall-clock time the write transaction (and so the DB lock) was held; null when nothing ran. */
   transactionMs: number | null;
 }
 
 export function runMigrations(sqlite: Database, options: RunMigrationsOptions = {}): RunMigrationsResult {
   if (sqlite.inTransaction) {
-    // PRAGMA foreign_keys can't change inside a transaction, so we must own it.
+    // PRAGMA foreign_keys can't change inside a transaction
     throw new Error("runMigrations() must not be called inside a transaction");
   }
 
@@ -100,8 +87,7 @@ function hasUserTables(sqlite: Database): boolean {
 }
 
 /**
- * `VACUUM INTO` a consistent copy (includes WAL content). Skipped for in-memory
- * DBs and for empty DBs, which have nothing to lose.
+ * `VACUUM INTO` a consistent copy (includes WAL content).
  */
 function backupBeforeMigrate(sqlite: Database, options: RunMigrationsOptions, label: string): string | null {
   const dbPath = sqlite.filename;

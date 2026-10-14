@@ -63,31 +63,23 @@ const ModelPricingSchema = RateSetSchema.extend({
 const EmbeddingConfigSchema = z.object({
   provider: z.enum(EMBEDDING_PROVIDERS).default("openai"),
   model: z.string().min(1).default("text-embedding-3-small"),
-  /** Output size; omit for the model's native size. Part of the embedder identity. */
   dimensions: z.number().int().positive().optional(),
-  /** The semantic half of search falls back to keyword results after this. */
   query_timeout_ms: z.number().int().positive().default(2000),
-  /** Keep the index in sync in the background at boot and when the tool set changes. */
   sync_on_boot: z.boolean().default(true),
-  /** Deadline for the embedding call of one sync attempt. */
   sync_timeout_ms: z.number().int().positive().default(120_000),
 });
 
 const LangfuseConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  /** Langfuse environment of traces and scores (dev | prod; eval runs set their own). */
   environment: z.string().min(1).default("dev"),
-  /** Generations carry the full replayed context instead of the delta (debugging only). */
   full_generation_input: z.boolean().default(false),
 });
 
 const AppConfigSchema = z.object({
   rate_limits: z.object({
-    /** Default daily token budget for 'user' role. -1 = unlimited. Admin always unlimited. */
     default_daily_tokens: z.number().int().default(200_000),
   }).default({}),
   usage: z.object({
-    /** Default dollar budgets for 'user' role. -1 = unlimited. Admin always unlimited. */
     default_daily_cost_limit_usd: z.number().default(0.25),
     default_monthly_cost_limit_usd: z.number().default(3),
     max_chat_input_chars: z.number().int().positive().default(20_000),
@@ -155,7 +147,6 @@ const AppConfigSchema = z.object({
     port: z.number().int().default(3000),
     database_url: z.string().default("./data/app.db"),
     mcp_servers_base: z.string().default("../mcp-server"),
-    /** Deadline for one MCP tool call; sent to the server as `_meta.deadline_ms`. */
     mcp_tool_timeout_ms: z.number().int().positive().default(60000),
     cors_origins: z.array(z.string()).default(["http://localhost:3000", "http://localhost:3001"]),
     log_dir: z.string().default("../logs"),
@@ -168,7 +159,6 @@ const AppConfigSchema = z.object({
     short_query_bm25_weight: z.number().default(2.0),
     top_k: z.number().int().default(5),
     candidate_k: z.number().int().default(30),
-    /** Tool embeddings index (v2). Relative paths resolve against app/. */
     embeddings_path: z.string().default("./data/tool-embeddings.json"),
   }),
   embedding: EmbeddingConfigSchema.default({}),
@@ -198,7 +188,6 @@ function loadYamlFile(): Record<string, unknown> {
 
 type Env = Record<string, string | undefined>;
 
-/** Strict boolean env parsing: a plain `!!` would read "false" as true. */
 export function parseBooleanEnv(name: string, value: string): boolean {
   const v = value.trim().toLowerCase();
   if (v === "true" || v === "1") return true;

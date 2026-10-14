@@ -11,12 +11,6 @@ export interface HeldCall {
   reject(error: unknown): void;
 }
 
-/**
- * In `auto` mode calls apply to `remote` and resolve at once (`existsAnswer`
- * can override what `exists` returns). In `manual` mode each call matching
- * `hold` waits in `held` until the test resolves or rejects it; resolving
- * applies it. `failWhen` rejects a matching call with the returned error.
- */
 export class FakeScoreWriter implements ScoreWriter {
   readonly remote = new Map<string, ScoreUpsert>();
   readonly log: { op: WriterOp; id: string; value?: number }[] = [];
@@ -26,7 +20,6 @@ export class FakeScoreWriter implements ScoreWriter {
   existsAnswer: ((id: string) => boolean) | null = null;
   hold: (op: WriterOp, id: string) => boolean = () => true;
   failWhen: ((op: WriterOp, id: string) => unknown) | null = null;
-  /** When set, acknowledged deletes are queued (as Langfuse does) and apply only on `landDeletes()`. */
   deferDeletes = false;
   private queuedDeletes: string[] = [];
   private waiters: (() => void)[] = [];
@@ -42,13 +35,11 @@ export class FakeScoreWriter implements ScoreWriter {
     return this.existsAnswer ? this.existsAnswer(id) : this.remote.has(id);
   }
 
-  /** Waits until a call is held (manual mode) and returns the oldest one. */
   async nextHeld(): Promise<HeldCall> {
     while (this.held.length === 0) await new Promise<void>((resolve) => this.waiters.push(resolve));
     return this.held.shift()!;
   }
 
-  /** Applies the acknowledged deletes queued while `deferDeletes` was set. */
   landDeletes(): void {
     for (const id of this.queuedDeletes.splice(0)) this.remote.delete(id);
   }
@@ -96,7 +87,6 @@ export const ids = {
   traceId: "0123456789abcdef0123456789abcdef",
 };
 
-/** Two users; a session of `ids.user` with one turn whose assistant message is traced (unless `traceId` is null). */
 export function seedTracedTurn(q: Queries, traceId: string | null = ids.traceId): void {
   q.userQueries.create(ids.user, "clerk-1", "one@example.com", "One", null, "user", null, null);
   q.userQueries.create(ids.otherUser, "clerk-2", "two@example.com", "Two", null, "user", null, null);

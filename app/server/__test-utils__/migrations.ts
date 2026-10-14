@@ -6,7 +6,6 @@ import { MIGRATIONS_FOLDER } from "../db/paths";
 
 export interface ExtraMigration {
   tag: string;
-  /** Statements, joined with `--> statement-breakpoint` like drizzle-kit output. */
   statements: string[];
 }
 
@@ -18,7 +17,6 @@ export function makeTempDir(prefix = "burp-migrations-"): string {
   return mkdtempSync(join(tmpdir(), prefix));
 }
 
-/** Copy the real migrations folder and append test-only migrations after the last one. */
 export function migrationsFolderWith(extra: ExtraMigration[]): string {
   const folder = join(makeTempDir(), "migrations");
   cpSync(MIGRATIONS_FOLDER, folder, { recursive: true });
@@ -35,7 +33,6 @@ export function migrationsFolderWith(extra: ExtraMigration[]): string {
   return folder;
 }
 
-/** Copy the real migrations folder, keeping only the migrations up to and including `lastTag`. */
 export function migrationsFolderUpTo(lastTag: string): string {
   const folder = join(makeTempDir(), "migrations");
   cpSync(MIGRATIONS_FOLDER, folder, { recursive: true });
@@ -49,7 +46,6 @@ export function migrationsFolderUpTo(lastTag: string): string {
   return folder;
 }
 
-/** sqlite_master rows (minus `skip` tables), whitespace-collapsed, sorted. */
 export function schemaSnapshot(sqlite: Database, skip: string[] = []): string[] {
   return sqlite
     .query<{ type: string; name: string; tbl_name: string; sql: string | null }, []>(
@@ -73,7 +69,6 @@ export function foreignKeysEnabled(sqlite: Database): boolean {
   return sqlite.query<{ foreign_keys: number }, []>("PRAGMA foreign_keys").get()!.foreign_keys === 1;
 }
 
-/** Minimal parent/child rows spanning every FK in the baseline. */
 export function seedRelatedRows(sqlite: Database): void {
   sqlite.run("INSERT INTO users (id, clerk_id, email, role) VALUES ('u1', 'clerk_1', 'a@example.com', 'user')");
   sqlite.run(

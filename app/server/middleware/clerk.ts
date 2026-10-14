@@ -46,10 +46,6 @@ function setDevelopmentUser(
   c.set("clerkImageUrl", dbUser.image_url);
 }
 
-/**
- * Clerk JWT verification middleware
- * Sets userId, email, role, and dbUser on context
- */
 export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   const authHeader = c.req.header("Authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -149,9 +145,6 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   }
 }
 
-/**
- * Middleware to require user to exist in database
- */
 export async function requireDbUser(c: Context<AppEnv>, next: Next) {
   const dbUser = c.get("dbUser");
 
@@ -185,9 +178,6 @@ export function requireRole(...roles: string[]) {
 
 export const requireAdmin = requireRole("admin");
 
-/**
- * User or admin middleware (excludes waitlist)
- */
 export const requireUser = requireRole("user", "admin");
 
 export function syncUserToDatabase(

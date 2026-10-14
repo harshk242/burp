@@ -19,11 +19,8 @@ type Env = Record<string, string | undefined>;
 type ProviderOptions = Parameters<typeof embed>[0]["providerOptions"];
 
 export interface EmbedderOptions {
-  /** Deadline for one query embedding. */
   queryTimeoutMs?: number;
-  /** Where API keys are read from. Defaults to process.env. */
   env?: Env;
-  /** HTTP override, used by tests to stub provider calls. */
   fetch?: typeof globalThis.fetch;
 }
 
@@ -47,10 +44,6 @@ const ADAPTERS: Record<EmbeddingProviderName, ProviderAdapter> = {
   },
 };
 
-/**
- * Create the configured embedder, or null (logged once) when the provider's
- * API key is missing, so search never makes calls that are bound to fail.
- */
 export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {}): Embedder | null {
   const adapter = ADAPTERS[spec.provider];
   const env = options.env ?? process.env;

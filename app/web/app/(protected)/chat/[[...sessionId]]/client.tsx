@@ -28,7 +28,6 @@ interface ChatPageClientProps {
 export function ChatPageClient({ sessionId: _initialSessionId }: ChatPageClientProps) {
   const [mounted, setMounted] = useState(false);
 
-  // Always resolve session ID from the URL client-side (needed for static export)
   const initialSessionId = typeof window !== "undefined"
     ? extractSessionIdFromLocation(window.location)
     : _initialSessionId;

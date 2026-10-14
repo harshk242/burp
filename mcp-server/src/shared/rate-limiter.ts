@@ -40,11 +40,6 @@ export class TokenBucketRateLimiter {
     }
   }
 
-  /**
-   * Takes a token, waiting for one if the bucket is empty or others are
-   * already waiting. An abort rejects with the signal's reason and removes
-   * the waiter from the queue.
-   */
   async waitForToken(signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) throw signal.reason;
     this.refill();

@@ -28,12 +28,10 @@ export interface FeedbackCategoryOption {
   hint: string | null;
 }
 
-/** The pills for a rating: 👍 (1) → positive, 👎 (0) → negative. */
 export function feedbackCategoriesFor(value: 0 | 1): readonly FeedbackCategoryOption[] {
   return value === 1 ? POSITIVE_FEEDBACK_CATEGORIES : NEGATIVE_FEEDBACK_CATEGORIES;
 }
 
-/** Adds or removes a category, keeping the list deduped and sorted (as the server stores it). */
 export function toggleFeedbackCategory(selected: readonly FeedbackCategoryId[], id: FeedbackCategoryId): FeedbackCategoryId[] {
   const next = selected.includes(id) ? selected.filter((c) => c !== id) : [...selected, id];
   return [...new Set(next)].sort();

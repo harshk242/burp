@@ -1,8 +1,3 @@
-/**
- * expected_tool_coverage: the item called at least one tool (any turn) whose
- * name matches one of `expected_output.expected_tools_any` (globs, `*` = any
- * run of characters). Not scored when the item lists no expected tools.
- */
 import type { ItemEvaluator } from "./types";
 
 export function globMatches(glob: string, name: string): boolean {

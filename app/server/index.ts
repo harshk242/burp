@@ -37,7 +37,6 @@ if (initTracing()) {
   if (writer) startFeedbackSync({ queries: messageFeedbackQueries, writer, environment: tracingEnvironment });
 }
 
-// Graceful shutdown, shared by SIGTERM (Fly) and SIGINT. In-flight turns are
 const TURN_DRAIN_TIMEOUT_MS = 2000;
 const FLUSH_TIMEOUT_MS = 2500;
 let shuttingDown = false;
@@ -136,5 +135,5 @@ export default {
   port,
   hostname: "0.0.0.0",
   fetch: app.fetch,
-  idleTimeout: 255, // seconds (Bun max) — SSE streams idle during tool summarization
+  idleTimeout: 255, // seconds (Bun max)
 };

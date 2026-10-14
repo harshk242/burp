@@ -11,13 +11,11 @@ export function feedbackCategoryScoreName(category: FeedbackCategory): string {
   return `${FEEDBACK_CATEGORY_SCORE_PREFIX}${category}`;
 }
 
-/** Stable score id for one category of a user's feedback on a message. */
 export function feedbackCategoryScoreId({ messageId, userId }: FeedbackKey, category: FeedbackCategory): string {
   const hash = createHash("sha256").update(`${messageId}:${userId}:${category}`).digest("hex");
   return `fbc-${hash.slice(0, 32)}`;
 }
 
-/** The full category state: every category, 1 if selected, else 0. */
 export function categoryScoreUpserts(
   key: FeedbackKey,
   traceId: string,

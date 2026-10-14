@@ -16,7 +16,6 @@ function parsePinnedItem(item: FetchedItem): DatasetItem | string {
   return `${item.id}: ${parsed.error.issues.map((i) => `${i.path.join(".") || "(item)"} ${i.message}`).join("; ")}`;
 }
 
-/** Eval items by id for the fetched items; throws when any payload is invalid (no YAML fallback). */
 export function pinnedEvalItems(items: FetchedItem[]): Map<string, DatasetItem> {
   const parsed = new Map<string, DatasetItem>();
   const problems: string[] = [];

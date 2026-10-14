@@ -3,7 +3,6 @@ import type { SearchState } from "./run-meta";
 
 export const PROBE_QUERY = "clinvar variant";
 
-/** A precondition failed before any item ran. */
 export class RunAbort extends Error {}
 
 export async function assertSearchReady(
