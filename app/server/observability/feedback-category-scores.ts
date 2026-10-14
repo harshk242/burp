@@ -11,21 +11,23 @@ export function feedbackCategoryScoreName(category: FeedbackCategory): string {
   return `${FEEDBACK_CATEGORY_SCORE_PREFIX}${category}`;
 }
 
-export function feedbackCategoryScoreId({ messageId, userId }: FeedbackKey, category: FeedbackCategory): string {
+export function feedbackCategoryScoreId({ messageId, userId }: FeedbackKey, category: FeedbackCategory, revision = 0): string {
   const hash = createHash("sha256").update(`${messageId}:${userId}:${category}`).digest("hex");
-  return `fbc-${hash.slice(0, 32)}`;
+  const base = `fbc-${hash.slice(0, 32)}`;
+  return revision === 0 ? base : `${base}-r${revision}`;
 }
 
 export function categoryScoreUpserts(
   key: FeedbackKey,
   traceId: string,
   selected: readonly FeedbackCategory[],
-  environment: string
+  environment: string,
+  revision = 0
 ): ScoreUpsert[] {
   return ALL_CATEGORY_IDS.map((category) => {
     const name = feedbackCategoryScoreName(category);
     return {
-      id: feedbackCategoryScoreId(key, category),
+      id: feedbackCategoryScoreId(key, category, revision),
       traceId,
       name,
       value: selected.includes(category) ? 1 : 0,

@@ -39,7 +39,7 @@ function send(method: "PUT" | "DELETE", messageId: string, user = ids.user, body
 beforeEach(() => {
   t.sqlite.run("DELETE FROM message_feedback");
   writer = new FakeScoreWriter();
-  sync = createFeedbackSync({ queries: q.messageFeedbackQueries, writer, environment: "test", sleep: async () => {} });
+  sync = createFeedbackSync({ queries: q.messageFeedbackQueries, writer, environment: "test" });
   setFeedbackSyncForTests(sync);
 });
 
@@ -61,13 +61,13 @@ describe("feedback routes", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ feedback: { value: 0, comment: "wrong variant", categories: [] } });
     await sync.idle();
-    expect(writer.remote.get(feedbackScoreId(key))).toMatchObject({ traceId: ids.traceId, value: 0, comment: "wrong variant" });
+    expect(writer.remote.get(feedbackScoreId(key, q.messageFeedbackQueries.find(key)!.revision))).toMatchObject({ traceId: ids.traceId, value: 0, comment: "wrong variant" });
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: 0, revision: 1, sync_pending: 0 });
 
     await send("PUT", ids.assistantMessage, ids.user, { value: 1 });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: 1, comment: null, revision: 2, sync_pending: 0 });
-    expect(writer.remote.get(feedbackScoreId(key))?.value).toBe(1);
+    expect(writer.remote.get(feedbackScoreId(key, q.messageFeedbackQueries.find(key)!.revision))?.value).toBe(1);
   });
 
   it("persists categories deduped and sorted, and returns them", async () => {
@@ -103,23 +103,24 @@ describe("feedback routes", () => {
     expect(await res.json()).toEqual({ feedback: null });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: null, categories: [], revision: 2, sync_pending: 0 });
-    expect(writer.remote.has(feedbackScoreId(key))).toBe(false);
+    expect(writer.remote.has(feedbackScoreId(key, 1))).toBe(false);
     expect([...writer.remote.values()].map((s) => s.value)).toEqual(Array(10).fill(0));
     expect((await send("DELETE", ids.assistantMessage)).status).toBe(200);
     expect(q.messageFeedbackQueries.find(key)?.revision).toBe(2);
   });
 
-  it("clear → re-create keeps the row and the score id", async () => {
+  it("clear → re-create keeps the row and advances the remote generation", async () => {
     await send("PUT", ids.assistantMessage, ids.user, { value: 0 });
     const first = q.messageFeedbackQueries.find(key)!;
     await send("DELETE", ids.assistantMessage);
     await send("PUT", ids.assistantMessage, ids.user, { value: 1 });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ id: first.id, value: 1, revision: 3, sync_pending: 0 });
-    const main = writer.log.filter((c) => c.id === feedbackScoreId(key));
-    expect(main.map((c) => c.op)).toEqual(["upsert", "remove", "exists", "upsert"]);
+    const main = writer.log.filter((c) => c.id.startsWith("fb-"));
+    expect(main.some((c) => c.op === "exists")).toBe(false);
+    expect(main.filter((c) => c.op === "upsert").map((c) => c.id)).toEqual([feedbackScoreId(key, 1), feedbackScoreId(key, 3)]);
     expect(main.filter((c) => c.op === "upsert").map((c) => c.value)).toEqual([0, 1]);
-    expect(writer.remote.get(feedbackScoreId(key))?.value).toBe(1);
+    expect(writer.remote.get(feedbackScoreId(key, q.messageFeedbackQueries.find(key)!.revision))?.value).toBe(1);
   });
 
   it("succeeds when Langfuse is unreachable; the row stays pending", async () => {

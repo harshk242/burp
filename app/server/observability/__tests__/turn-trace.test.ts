@@ -211,7 +211,7 @@ describe("shutdownTracing", () => {
     warn.mockRestore();
   });
 
-  it("never throws when the processor rejects, and flushes the score client", async () => {
+  it("reports every rejected shutdown component without throwing", async () => {
     const env = { pub: process.env.LANGFUSE_PUBLIC_KEY, sec: process.env.LANGFUSE_SECRET_KEY };
     process.env.LANGFUSE_PUBLIC_KEY = "pk-lf-test";
     process.env.LANGFUSE_SECRET_KEY = "sk-lf-test";
@@ -219,15 +219,33 @@ describe("shutdownTracing", () => {
       initTracing({ spanProcessors: [{ ...hanging, shutdown: () => Promise.reject(new Error("export failed")) }] });
       const client = getScoreClient();
       expect(client).not.toBeNull();
-      const clientShutdown = spyOn(client!, "shutdown").mockResolvedValue(undefined);
-      await expect(shutdownTracing({ timeoutMs: 200 })).resolves.toBeUndefined();
-      expect(clientShutdown).toHaveBeenCalledTimes(1);
+      const clientShutdown = spyOn(client!, "shutdown").mockRejectedValue(new Error("score flush failed"));
+      const warn = spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        await expect(shutdownTracing({ timeoutMs: 200 })).resolves.toBeUndefined();
+        expect(clientShutdown).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls.filter(([, event]) => event === "shutdown_failed").map(([, , opts]) => opts?.data?.component).sort())
+          .toEqual(["score_client", "tracer_provider"]);
+      } finally { warn.mockRestore(); clientShutdown.mockRestore(); }
     } finally {
       process.env.LANGFUSE_PUBLIC_KEY = env.pub;
       process.env.LANGFUSE_SECRET_KEY = env.sec;
       if (env.pub === undefined) delete process.env.LANGFUSE_PUBLIC_KEY;
       if (env.sec === undefined) delete process.env.LANGFUSE_SECRET_KEY;
     }
+  });
+
+  it("reports a rejection that arrives after the shutdown timeout", async () => {
+    let reject!: (error: Error) => void;
+    initTracing({ spanProcessors: [{ ...hanging, shutdown: () => new Promise((_, fail) => { reject = fail; }) }] });
+    const warn = spyOn(logger, "warn").mockImplementation(() => {});
+    try {
+      await shutdownTracing({ timeoutMs: 5 });
+      reject(new Error("late export failure"));
+      await Bun.sleep(1);
+      expect(warn.mock.calls.some(([, event]) => event === "shutdown_timeout")).toBe(true);
+      expect(warn.mock.calls.some(([, event, opts]) => event === "shutdown_failed" && opts?.data?.component === "tracer_provider")).toBe(true);
+    } finally { warn.mockRestore(); }
   });
 
   it("does nothing when tracing never started", async () => {

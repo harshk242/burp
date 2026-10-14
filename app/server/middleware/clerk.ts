@@ -48,6 +48,14 @@ function setDevelopmentUser(
   c.set("clerkImageUrl", dbUser.image_url);
 }
 
+export function trackActivityBestEffort(userId: string, write: (id: string) => unknown): void {
+  try { write(userId); } catch (error) {
+    logger.warn("AUTH", "activity_write_failed", {
+      ctx: { user_id: userId }, error: error instanceof Error ? error : String(error),
+    });
+  }
+}
+
 export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   const authHeader = c.req.header("Authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -127,9 +135,7 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
       c.set("role", dbUser.role);
       c.set("dbUser", dbUser);
 
-      try {
-        userQueries.updateLastActive(dbUser.id);
-      } catch {}
+      trackActivityBestEffort(dbUser.id, userQueries.updateLastActive);
     } else {
       c.set("userId", null);
       c.set("role", "unknown");

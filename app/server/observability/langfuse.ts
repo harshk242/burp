@@ -94,16 +94,22 @@ export function shutdownTracing({ timeoutMs = 5000 }: { timeoutMs?: number } = {
 }
 
 async function runShutdown(timeoutMs: number): Promise<void> {
-  const tasks: Promise<unknown>[] = [];
-  if (provider) tasks.push(provider.shutdown());
-  if (scoreClient) tasks.push(scoreClient.shutdown());
+  const tasks: { component: string; run: () => Promise<unknown> }[] = [];
+  if (provider) tasks.push({ component: "tracer_provider", run: () => provider!.shutdown() });
+  if (scoreClient) tasks.push({ component: "score_client", run: () => scoreClient!.shutdown() });
   if (tasks.length === 0) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<"timeout">((resolve) => {
     timer = setTimeout(() => resolve("timeout"), timeoutMs);
   });
   try {
-    const result = await Promise.race([Promise.allSettled(tasks), timedOut]);
+    const settled = Promise.all(tasks.map(async ({ component, run }) => {
+      const [result] = await Promise.allSettled([Promise.resolve().then(run)]);
+      if (result!.status === "rejected") logger.warn("TRACE", "shutdown_failed", {
+        data: { component }, error: result!.reason instanceof Error ? result!.reason : String(result!.reason),
+      });
+    }));
+    const result = await Promise.race([settled, timedOut]);
     if (result === "timeout") logger.warn("TRACE", "shutdown_timeout", { data: { timeout_ms: timeoutMs } });
   } catch (error) {
     logger.warn("TRACE", "shutdown_failed", { error: error instanceof Error ? error : String(error) });
