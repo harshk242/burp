@@ -1,6 +1,8 @@
 import childProcess from "node:child_process";
+import { mkdtempSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { appConfig } from "../../config";
 
 export interface JqResult {
@@ -11,10 +13,11 @@ export interface JqResult {
 
 const require = createRequire(import.meta.url);
 // Match node-jq's binary resolution, including its environment overrides.
-const jqPath = process.env.JQ_PATH ?? process.env.npm_config_jq_path ??
-  join(dirname(require.resolve("node-jq")), "..", "bin", "jq");
+const jqPath = resolve(process.env.JQ_PATH ?? process.env.npm_config_jq_path ??
+  join(dirname(require.resolve("node-jq")), "..", "bin", "jq"));
 const hardOutputBytes = 64 * 1024 * 1024;
 const stderrBytes = 64 * 1024;
+let isolatedCwd: string | undefined;
 
 async function runJq(
   filter: string,
@@ -25,11 +28,14 @@ async function runJq(
   compileOnly = false,
 ): Promise<{ output: string; exceeded: boolean }> {
   signal?.throwIfAborted();
+  const cwd = isolatedCwd ??= mkdtempSync(join(tmpdir(), "bio-agent-jq-"));
   return new Promise((resolve, reject) => {
     // node-jq's output: "string" uses --compact-output without --raw-output.
     const child = childProcess.spawn(jqPath, [
+      // -L replaces jq's default module search paths, including ~/.jq and $ORIGIN.
+      "-L", cwd,
       "--compact-output", ...(compileOnly ? ["--null-input"] : []), "--", filter,
-    ], { stdio: ["pipe", "pipe", "pipe"] });
+    ], { stdio: ["pipe", "pipe", "pipe"], env: {}, cwd });
     const chunks: Buffer[] = [];
     const errors: Buffer[] = [];
     let outputSize = 0;

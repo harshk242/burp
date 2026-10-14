@@ -1,5 +1,8 @@
 import { describe, expect, it, spyOn } from "bun:test";
 import childProcess, { type ChildProcess } from "node:child_process";
+import { mkdtempSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { executeJq, parseJqOutput, validateJqFilter } from "../orchestration/tools/jq-engine";
 
 const data = {
@@ -11,6 +14,37 @@ const data = {
 };
 
 describe("executeJq", () => {
+  it("does not expose the server environment through $ENV or env", async () => {
+    const previous = process.env.JQ_SECRET_PROBE;
+    process.env.JQ_SECRET_PROBE = "server-secret-probe";
+    try {
+      expect(await executeJq({}, "$ENV.JQ_SECRET_PROBE")).toEqual({
+        result: null, truncated: false,
+      });
+      expect(await executeJq({}, "env")).toEqual({ result: {}, truncated: false });
+      expect(await executeJq({}, "$ENV")).toEqual({ result: {}, truncated: false });
+    } finally {
+      if (previous === undefined) delete process.env.JQ_SECRET_PROBE;
+      else process.env.JQ_SECRET_PROBE = previous;
+    }
+  });
+
+  it("cannot import JSON from the server working directory", async () => {
+    const previousCwd = process.cwd();
+    const fixture = mkdtempSync(join(tmpdir(), "jq-import-test-"));
+    writeFileSync(join(fixture, "secret.json"), JSON.stringify({ secret: "cwd-secret" }));
+    try {
+      process.chdir(fixture);
+      const result = await executeJq({}, 'import "secret" as $secret; $secret');
+      expect(result.result).toBeNull();
+      expect(result.error).toContain("module not found: secret");
+      expect((await validateJqFilter('import "secret" as $secret; $secret')).valid).toBe(false);
+    } finally {
+      process.chdir(previousCwd);
+      childProcess.execFileSync("gio", ["trash", fixture]);
+    }
+  });
+
   it("returns a single value as-is", async () => {
     const r = await executeJq(data, ".studies[0]");
     expect(r).toEqual({ result: data.studies[0], truncated: false });
@@ -144,6 +178,27 @@ describe("executeJq", () => {
 });
 
 describe("validateJqFilter", () => {
+  it("uses the same empty environment and private module directory as execution", async () => {
+    const spawn = spyOn(childProcess, "spawn");
+    try {
+      expect(await executeJq({}, ".")).toEqual({ result: {}, truncated: false });
+      expect(await validateJqFilter("$ENV")).toEqual({ valid: true });
+      const calls = spawn.mock.calls;
+      expect(calls).toHaveLength(2);
+      const cwd = calls[0][2]?.cwd as string;
+      expect(cwd).not.toBe(process.cwd());
+      expect(readdirSync(cwd)).toEqual([]);
+      expect(statSync(cwd).mode & 0o777).toBe(0o700);
+      for (const [, args, options] of calls) {
+        expect(options?.env).toEqual({});
+        expect(options?.cwd).toBe(cwd);
+        expect(args?.slice(0, 2)).toEqual(["-L", cwd]);
+      }
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+
   it("rejects syntax errors", async () => {
     expect((await validateJqFilter(".foo | (")).valid).toBe(false);
   });

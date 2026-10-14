@@ -9,8 +9,7 @@ import { isValidDevAgentToken } from "./devAgentAuth";
 
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
 
-function getClerkClient() {
-  const { secretKey } = resolveAuthConfig();
+function getClerkClient(secretKey: string | null) {
   if (!secretKey) return null;
   if (!clerkClient) {
     clerkClient = createClerkClient({
@@ -61,10 +60,11 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
     return next();
   }
 
-  const clerk = getClerkClient();
+  const { secretKey, development } = resolveAuthConfig();
+  const clerk = getClerkClient(secretKey);
 
-  if (!clerk) {
-    if (!resolveAuthConfig().development) {
+  if (!clerk || !secretKey) {
+    if (!development) {
       return c.json({ error: "auth_not_configured", message: AUTH_CONFIGURATION_MESSAGE }, 503);
     }
     logger.warn("AUTH", "explicit_development_auth");
@@ -86,7 +86,7 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   }
 
   try {
-    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+    const payload = await verifyToken(token, { secretKey });
     const clerkUserId = payload.sub;
 
     if (!clerkUserId) {
