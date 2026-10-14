@@ -1,9 +1,3 @@
-/**
- * Tool search queries (FTS5 for hybrid BM25 search).
- *
- * tool_search_fts is an FTS5 virtual table (migration 0001), which Drizzle
- * can't model, so these stay raw `sql` — still on the shared Drizzle connection.
- */
 import { sql } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 

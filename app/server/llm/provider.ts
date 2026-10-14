@@ -12,9 +12,7 @@ const anthropic = createAnthropic({ apiKey: anthropicApiKey });
 const google = createGoogle({ apiKey: googleApiKey });
 
 export interface ModelOptions {
-  /** Transport for this model only; builds a dedicated provider instance. */
   fetch?: typeof fetch;
-  /** Chat model id for this call (a turn's LLM override); defaults to the configured one. */
   model?: string;
 }
 

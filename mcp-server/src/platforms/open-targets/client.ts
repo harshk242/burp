@@ -14,14 +14,6 @@ function exponentialBackoff(baseMs: number): (attempt: number) => number {
   return (attempt) => 2 ** (attempt - 1) * baseMs;
 }
 
-/**
- * Production retry policy (plans/shared-http-retry-plan.md, "Platform
- * inventory"): 3 attempts, `2^n × retryDelay` backoff, retry on network/5xx
- * and transport timeouts, 429 retried with the same backoff (Retry-After
- * ignored), any other 4xx (HTTP 408 included) fails at once, 40s request
- * budget. GraphQL errors arrive in a 200 body and are handled outside the
- * retry, so they are never retried.
- */
 export const OPEN_TARGETS_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: DEFAULT_MAX_RETRIES,
   backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
@@ -32,17 +24,12 @@ export const OPEN_TARGETS_POLICY: RetryPolicy = Object.freeze({
 });
 
 export interface OpenTargetsHttpOptions {
-  /** GraphQL endpoint (default OPEN_TARGETS_GRAPHQL_URL). */
   baseUrl?: string;
-  /** Retry policy (default OPEN_TARGETS_POLICY). */
   policy?: RetryPolicy;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }
 
-/** An Open Targets GraphQL Axios instance with the shared retry attached. */
 export function createOpenTargetsHttp(options: OpenTargetsHttpOptions = {}): AxiosInstance {
   const instance = axios.create({
     baseURL: options.baseUrl ?? OPEN_TARGETS_GRAPHQL_URL,
@@ -59,13 +46,9 @@ export function createOpenTargetsHttp(options: OpenTargetsHttpOptions = {}): Axi
 export interface OpenTargetsClientOptions {
   baseUrl?: string;
   cacheTtl?: number;
-  /** Total attempts per request (default 3). */
   maxRetries?: number;
-  /** Backoff base: waits of `2^n × retryDelay` ms (default 1000). */
   retryDelay?: number;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }
 
@@ -96,10 +79,6 @@ export class OpenTargetsClient {
     });
   }
 
-  /**
-   * Execute a GraphQL query with caching. Only the HTTP request is retried
-   * (in the shared retry adapter); GraphQL errors and empty `data` are not.
-   */
   async query<T = unknown>(
     query: string,
     variables?: Record<string, unknown>

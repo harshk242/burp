@@ -13,7 +13,6 @@ interface MessageListProps {
   streamingContent: string;
   pendingToolCalls: ToolCall[];
   isStreaming: boolean;
-  /** Completed reasoning segments accumulated during streaming */
   reasoningSegments: string[];
   sessionTitle?: string;
 }

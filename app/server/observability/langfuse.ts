@@ -13,12 +13,10 @@ type Env = Record<string, string | undefined>;
 
 export const langfuseConfig = appConfig.observability.langfuse;
 
-/** Config allows it and both keys are present. */
 export function tracingConfigured(env: Env = process.env): boolean {
   return langfuseConfig.enabled && Boolean(env.LANGFUSE_PUBLIC_KEY) && Boolean(env.LANGFUSE_SECRET_KEY);
 }
 
-/** `GIT_SHA` env, else the checkout's short sha, else "unknown". */
 export function resolveRelease(env: Env = process.env, gitShortSha: () => string | undefined = readGitShortSha): string {
   return env.GIT_SHA?.trim() || gitShortSha() || "unknown";
 }
@@ -44,24 +42,10 @@ let provider: NodeTracerProvider | null = null;
 let scoreClient: LangfuseClient | null = null;
 let shutdownPromise: Promise<void> | null = null;
 
-/** True once a provider is installed (by `initTracing`). */
 export function tracingActive(): boolean {
   return provider !== null && shutdownPromise === null;
 }
 
-/**
- * Installs the Langfuse tracer provider. Returns whether tracing is on.
- * `spanProcessors` replaces the Langfuse exporter (tests use an in-memory one;
- * they turn tracing on regardless of keys). Safe to call more than once.
- *
- * `registerGlobal` (eval runner only) also registers the provider globally
- * with an AsyncLocalStorage context manager, so code inside a Langfuse
- * experiment task can read the task's active span (getActiveSpanId). The
- * server never relies on async context (turn-trace.ts design rules).
- *
- * With the real exporter, score config ids are loaded in the background
- * (`scoreConfigsReady`).
- */
 export function initTracing(options: { spanProcessors?: SpanProcessor[]; registerGlobal?: boolean } = {}): boolean {
   if (provider) return true;
   const custom = options.spanProcessors;
@@ -94,23 +78,16 @@ export function initTracing(options: { spanProcessors?: SpanProcessor[]; registe
 
 let scoreConfigsLoad: Promise<void> = Promise.resolve();
 
-/** Resolves once the score config ids are loaded (or the load failed). Never rejects. */
 export function scoreConfigsReady(): Promise<void> {
   return scoreConfigsLoad;
 }
 
-/** Shared client for scores (batched separately from spans); null when tracing is off. */
 export function getScoreClient(): LangfuseClient | null {
   if (!tracingActive() || !tracingConfigured()) return null;
   scoreClient ??= new LangfuseClient();
   return scoreClient;
 }
 
-/**
- * Flushes and shuts down the span processor and the score client, bounded by
- * `timeoutMs`. Idempotent (a second call returns the first call's promise) and
- * never throws.
- */
 export function shutdownTracing({ timeoutMs = 5000 }: { timeoutMs?: number } = {}): Promise<void> {
   shutdownPromise ??= runShutdown(timeoutMs);
   return shutdownPromise;
@@ -135,7 +112,6 @@ async function runShutdown(timeoutMs: number): Promise<void> {
   }
 }
 
-/** Tests only: drop the installed provider so another test can install its own. */
 export function resetTracingForTests(): void {
   provider = null;
   scoreClient = null;

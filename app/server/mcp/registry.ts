@@ -19,11 +19,6 @@ class ToolRegistry {
     this.tools.set(key, { ...tool, server, available });
   }
 
-  /**
-   * Register the tools one MCP server listed. The unified server returns
-   * prefixed names (e.g. "ensembl__search_genes"); they're parsed back into
-   * platform + bare name for registry keying.
-   */
   registerServerTools(serverName: string, tools: ToolDefinition[]): void {
     for (const tool of tools) {
       const sep = tool.name.indexOf("__");
@@ -80,10 +75,6 @@ class ToolRegistry {
     logger.info("REGISTRY", "server_availability_changed", { data: { server, available } });
   }
 
-  /**
-   * Update availability for ALL tools (used when the unified server goes down/up).
-   * Returns whether any tool's availability actually changed.
-   */
   setAllAvailability(available: boolean): boolean {
     let changed = false;
     for (const [key, tool] of this.tools) {
@@ -95,11 +86,6 @@ class ToolRegistry {
     return changed;
   }
 
-  /**
-   * The one place a registry tool becomes a model declaration: the
-   * `[server] description` format. Does NOT include execute — callers attach
-   * their own executors.
-   */
   toVercelTools(
     tools: Iterable<MCPTool>,
     sanitize?: (name: string) => string
@@ -116,9 +102,6 @@ class ToolRegistry {
     return result;
   }
 
-  /**
-   * Get available core (always-loaded) tools in Vercel AI SDK format.
-   */
   toVercelCoreTools(
     sanitize?: (name: string) => string
   ): Record<string, Tool> {

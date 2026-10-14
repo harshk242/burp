@@ -50,7 +50,6 @@ export function replaceTable(schemaSql: string, table: string, ddl: string): str
   return schemaSql.replace(tableBlock(schemaSql, table), ddl);
 }
 
-/** Replace `from` with `to` inside one table's CREATE block only (for negative fixtures). */
 export function mutateTable(schemaSql: string, table: string, from: string, to: string): string {
   const block = tableBlock(schemaSql, table);
   if (!block.includes(from)) throw new Error(`"${from}" not found in ${table}`);
@@ -58,13 +57,10 @@ export function mutateTable(schemaSql: string, table: string, from: string, to: 
 }
 
 export interface BuildLegacyOptions {
-  /** Schema script to run instead of the fixture's own (negative cases). */
   schemaSql?: string;
-  /** Seed the fixture rows (default true). Off for schemas that would reject them. */
   seed?: boolean;
 }
 
-/** Build a legacy fixture into an empty connection (FK enforcement as the old app had it). */
 export function buildLegacyDb(sqlite: Database, fixture: LegacyFixture, options: BuildLegacyOptions = {}): void {
   const { schemaSql, seed = true } = options;
   if (fixture === "old-prod") {
@@ -119,7 +115,6 @@ function seedLaterRows(sqlite: Database): void {
     VALUES ('e-1', 'u-user', '2026-01-01', '2026-01', 'anthropic', 'claude', 120, 45, 3000000, 15000000, 900, 'c-1', 'm-2', 1700000250)`);
 }
 
-/** Every row of the 7 tables keyed by rowid, column order-independent. */
 export function dumpRows(sqlite: Database): Record<string, Array<Record<string, unknown>>> {
   const tables = ["access_requests", "chat_sessions", "daily_usage", "messages", "rate_limits", "usage_events", "users"];
   return Object.fromEntries(

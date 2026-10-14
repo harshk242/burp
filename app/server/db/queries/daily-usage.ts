@@ -8,7 +8,6 @@ export function createDailyUsageQueries(db: DrizzleDb) {
   const todayRow = (userId: string) => and(eq(dailyUsage.user_id, userId), eq(dailyUsage.date, utcToday()));
 
   return {
-    /** Increment today's usage and return new count (single upsert). */
     incrementAndGet(userId: string): number {
       const row = db
         .insert(dailyUsage)
@@ -22,13 +21,11 @@ export function createDailyUsageQueries(db: DrizzleDb) {
       return row.query_count;
     },
 
-    /** Get today's query count without incrementing */
     getToday(userId: string): number {
       const row = db.select({ query_count: dailyUsage.query_count }).from(dailyUsage).where(todayRow(userId)).get();
       return row?.query_count ?? 0;
     },
 
-    /** Get today's full usage row: query count + token totals */
     getTodayFull(userId: string): { query_count: number; input_tokens: number; output_tokens: number } {
       const row = db
         .select({

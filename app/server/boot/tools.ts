@@ -10,16 +10,12 @@ export interface ToolsReport {
   toolsTotal: number;
   searchIndexed: boolean;
   embeddingsLoaded: boolean;
-  /** Embedder id, null without an embedding key. */
   embedder: string | null;
 }
 
 export interface ToolsBoot {
-  /** Null when the embedding provider's key is missing: search stays keyword-only. */
   embedder: Embedder | null;
-  /** Background embeddings sync; null without an embedder or when embedding.sync_on_boot is false. */
   embeddingSync: ToolEmbeddingSync | null;
-  /** Resolves once servers started, tools are discovered and search is indexed. */
   ready: Promise<ToolsReport>;
 }
 
@@ -33,7 +29,6 @@ export function toolsReport(embedder: Embedder | null): ToolsReport {
   };
 }
 
-/** Starts the tool boot; `ready` never resolves before search is indexed. Call once per process. */
 export function initializeTools(): ToolsBoot {
   const embedder = createEmbedder(appConfig.embedding, { queryTimeoutMs: appConfig.embedding.query_timeout_ms });
 

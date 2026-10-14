@@ -38,9 +38,7 @@ export function installMemoryTracing() {
   initTracing({ spanProcessors: [new SimpleSpanProcessor(exporter), tracker] });
   return {
     spans: () => exporter.getFinishedSpans(),
-    /** Names of spans started and not ended. */
     openSpans: () => [...tracker.open.values()],
-    /** True when every finished span ended exactly once. */
     endedOnce: () => [...tracker.endCounts.values()].every((n) => n === 1),
     reset: () => {
       exporter.reset();

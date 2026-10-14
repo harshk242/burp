@@ -2,37 +2,27 @@ import type { Database } from "bun:sqlite";
 import { balancedParens, isKeyword, normalizeExpression, tokenize } from "./sql-tokens";
 
 export interface ColumnFingerprint {
-  /** Declared type, upper-cased. */
   type: string;
   /** INTEGER rowid-alias PKs count as NOT NULL (they can never hold NULL). */
   notnull: boolean;
-  /** Normalized DEFAULT expression, or null. */
   default: string | null;
 }
 
 export interface TableFingerprint {
-  /** Keyed by column name (lower-case), so column order is irrelevant. */
   columns: Record<string, ColumnFingerprint>;
-  /** PK columns in key order. */
   primaryKey: string[];
   autoincrement: boolean;
-  /** `(from) -> parent(to) on delete X on update Y`, sorted. */
   foreignKeys: string[];
-  /** Column sets with a full (non-partial) UNIQUE index of any origin, sorted. */
   uniques: string[];
-  /** Normalized CHECK bodies, sorted (a multiset: duplicates are kept). */
   checks: string[];
-  /** Every other index: name, ordered key columns, unique flag, partial WHERE. */
   indexes: string[];
 }
 
 export interface SchemaFingerprint {
   tables: Record<string, TableFingerprint>;
-  /** Views and triggers (`type name`); the baseline has none. */
   others: string[];
 }
 
-/** Bookkeeping and FTS5 objects are managed by migrations 0001+, not part of the fingerprint. */
 export function isFingerprintedTable(name: string): boolean {
   const n = name.toLowerCase();
   return (
@@ -176,10 +166,6 @@ export function quoteIdent(name: string): string {
   return `"${name.replaceAll('"', '""')}"`;
 }
 
-/**
- * Human-readable differences, `actual` (DB under test) vs `expected` (baseline).
- * Empty array = semantically identical.
- */
 export function diffFingerprints(actual: SchemaFingerprint, expected: SchemaFingerprint): string[] {
   const diffs: string[] = [];
   const tableNames = [...new Set([...Object.keys(actual.tables), ...Object.keys(expected.tables)])].sort();

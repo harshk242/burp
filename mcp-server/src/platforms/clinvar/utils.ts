@@ -1,8 +1,5 @@
 import { createHash } from 'crypto';
 
-/**
- * Removes null and undefined values from an object
- */
 export function filterNoneValues<T extends Record<string, unknown>>(
   obj: T
 ): Partial<T> {
@@ -15,9 +12,6 @@ export function filterNoneValues<T extends Record<string, unknown>>(
   return result;
 }
 
-/**
- * Generates a deterministic cache key from endpoint and params
- */
 export function generateCacheKey(
   endpoint: string,
   params?: Record<string, unknown>
@@ -71,9 +65,6 @@ export function formatVariationId(id: string): string {
   return cleaned;
 }
 
-/**
- * Validates and formats a ClinVar accession (VCV or RCV)
- */
 export function formatAccession(accession: string): string {
   const upper = accession.toUpperCase().trim();
   if (!upper.match(/^(VCV|RCV)\d+(\.\d+)?$/)) {
@@ -82,10 +73,6 @@ export function formatAccession(accession: string): string {
   return upper;
 }
 
-/**
- * Parses genomic coordinates from string format
- * Supports formats like: chr1:12345, chr1:12345-12350, NC_000001.11:g.12345A>G
- */
 export function parseCoordinates(coordStr: string): {
   chromosome?: string;
   start?: number;
@@ -116,9 +103,6 @@ export function parseCoordinates(coordStr: string): {
   return {};
 }
 
-/**
- * Formats rsID (adds 'rs' prefix if missing)
- */
 export function formatRsId(id: string): string {
   const cleaned = id.replace(/^rs/i, '').replace(/[^0-9]/g, '');
   if (!cleaned) {
@@ -127,10 +111,6 @@ export function formatRsId(id: string): string {
   return `rs${cleaned}`;
 }
 
-/**
- * Numeric ClinVar variation ID from a variation ID or VCV accession
- * ("VCV000017661.150" -> "17661"), as efetch with is_variationid expects.
- */
 export function toVariationId(id: string): string {
   return id.trim().replace(/^VCV0*/i, '').replace(/\.\d+$/, '');
 }

@@ -4,15 +4,10 @@ export interface MatrixShared<B extends { readonly exhausted: boolean }> {
 }
 
 export type ArmStatus =
-  /** Every repeat ran every item. */
   | "complete"
-  /** The budget ran out inside the arm: items of a repeat were skipped, or later repeats never started. */
   | "partial_budget"
-  /** Never started: the budget was spent before it. */
   | "skipped_budget"
-  /** The run was stopped (signal) before or during this arm. */
   | "stopped"
-  /** Every repeat ran, but some items produced no result (their task threw). */
   | "incomplete";
 
 export interface ArmRunResult<A, O> {
@@ -27,10 +22,6 @@ export interface RunArmsInput<A, O, B extends { readonly exhausted: boolean }> {
   shared: MatrixShared<B>;
   isStopping: () => boolean;
   runOne: (arm: A, repeatIndex: number, shared: MatrixShared<B>) => Promise<O>;
-  /**
-   * What cut a finished repeat short, if anything: budget-skipped items, items
-   * the stop signal left unrun, or items that failed for another reason.
-   */
   interruption: (outcome: O) => "budget" | "stopped" | "failed" | null;
   log?: (line: string) => void;
 }

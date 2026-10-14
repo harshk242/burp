@@ -8,7 +8,6 @@ import { RunAbort } from "./search-check";
 
 export interface PreparedArms {
   arms: ResolvedArm[];
-  /** True when arms came from --matrix / --arm (a comparison report is written). */
   comparing: boolean;
 }
 

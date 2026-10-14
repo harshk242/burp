@@ -1,6 +1,5 @@
 import type { Database } from "bun:sqlite";
 
-/** One row per tightened table with every backfillable column NULL. */
 export function seedNullableRows(sqlite: Database): void {
   sqlite.run(`INSERT INTO users (id, clerk_id, email, role, total_queries, created_at)
     VALUES ('u-null', 'clerk_null', 'null@example.com', NULL, NULL, NULL)`);
@@ -17,7 +16,6 @@ export function seedNullableRows(sqlite: Database): void {
   sqlite.run("INSERT OR REPLACE INTO rate_limits (role, daily_limit, updated_at) VALUES ('user', 50, NULL)");
 }
 
-/** A row with a NULL primary key, per table (needs `u-user` and `c-1`). */
 export const NULL_PK_INSERTS: Record<string, string> = {
   users: "INSERT INTO users (id, clerk_id, email, role) VALUES (NULL, 'clerk_nopk', 'nopk@example.com', 'user')",
   access_requests: "INSERT INTO access_requests (id, email, name) VALUES (NULL, 'nopk-req@example.com', 'NoPk')",
@@ -38,7 +36,6 @@ export function autoindexes(sqlite: Database): string[] {
 
 type ColumnInfo = { name: string; notnull: number };
 
-/** `table.column` for every NOT NULL column (a text PK without NOT NULL is still nullable). */
 export function notNullColumns(sqlite: Database, tables: string[]): string[] {
   return tables
     .flatMap((t) =>

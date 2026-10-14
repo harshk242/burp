@@ -15,7 +15,6 @@ export type TurnErrorCode =
   | "aborted"
   | "closed";
 
-/** A failure with a known cause; `userMessage` is what the client is shown. */
 export class TurnError extends Error {
   constructor(
     readonly code: TurnErrorCode,
@@ -30,9 +29,7 @@ export class TurnError extends Error {
 
 export interface TurnFailure {
   code: TurnErrorCode;
-  /** Stored in chat_turns.error_message and logged. */
   message: string;
-  /** Sent to the client. */
   userMessage: string;
 }
 
@@ -78,7 +75,6 @@ const activeSessions = new Set<string>();
 export const TURN_IN_PROGRESS_MESSAGE =
   "A reply is already in progress in this chat. Wait for it to finish, then send your message again.";
 
-/** Takes the session's lock; returns its release function, or null when it is held. */
 export function acquireSessionLock(sessionId: string): (() => void) | null {
   if (activeSessions.has(sessionId)) return null;
   activeSessions.add(sessionId);
@@ -92,7 +88,6 @@ export function acquireSessionLock(sessionId: string): (() => void) | null {
 
 const activeTurns = new Map<AbortController, Promise<void>>();
 
-/** Registers a running turn; call the returned function once the turn's cleanup finished. */
 export function registerActiveTurn(abort: AbortController): () => void {
   let drained!: () => void;
   activeTurns.set(abort, new Promise<void>((resolve) => (drained = resolve)));
@@ -102,11 +97,6 @@ export function registerActiveTurn(abort: AbortController): () => void {
   };
 }
 
-/**
- * Aborts every running turn and waits for their drains (failed-turn rows,
- * trace end), bounded by `timeoutMs`. Returns how many were still running
- * when the bound hit.
- */
 export async function abortActiveTurns(timeoutMs: number): Promise<number> {
   if (activeTurns.size === 0) return 0;
   const drains = [...activeTurns.values()];
@@ -118,11 +108,6 @@ export async function abortActiveTurns(timeoutMs: number): Promise<number> {
   return activeTurns.size;
 }
 
-/**
- * Stores the user message and its turn (`running`) together; returns both ids.
- * `newSessionUserId`: the session doesn't exist yet and is created in the same
- * transaction for that user, so a failed first turn leaves no empty session.
- */
 export function startTurn(
   sessionId: string,
   userMessage: string,
@@ -138,7 +123,6 @@ export function startTurn(
   return { turnId, userMessageId };
 }
 
-/** Stores the turn's trace id. Never throws: tracing must not break a turn. */
 export function recordTraceId(turnId: string, traceId: string | null, ctx: LogContext): void {
   if (!traceId) return;
   try {
@@ -148,10 +132,6 @@ export function recordTraceId(turnId: string, traceId: string | null, ctx: LogCo
   }
 }
 
-/**
- * Finalizes a failed or aborted turn. Never throws: a failure here must not
- * mask the turn's own error. A turn already finalized is left as is.
- */
 export function finishFailedTurn(turnId: string, outcome: ChatTurnOutcome, ctx: LogContext): void {
   try {
     chatTurnQueries.finish(turnId, outcome);
@@ -168,13 +148,6 @@ export function finishFailedTurn(turnId: string, outcome: ChatTurnOutcome, ctx: 
   }
 }
 
-/**
- * Writes the finished turn's online scores to its trace, computed from the
- * persisted row (observability/turn-signals.ts). Call after the turn's ledger
- * write. `observationId`: the turn's root observation when the turn is nested
- * in a larger trace (eval runner), so turns sharing a trace keep their own
- * scores. Budget-stopped turns get none. Never throws.
- */
 export function scoreTurn(turnId: string, ctx: LogContext, observationId: string | null = null): void {
   try {
     const row = chatTurnQueries.findById(turnId);

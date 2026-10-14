@@ -11,7 +11,6 @@ export type RetryReason =
   | 'cancelled'
   | 'unknown';
 
-/** Reasons that become an `UpstreamError`. `unknown` (non-Axios) errors are rethrown as-is. */
 export type UpstreamReason = Exclude<RetryReason, 'unknown'>;
 
 export type UpstreamErrorKind =
@@ -30,7 +29,6 @@ export interface UpstreamKindInfo {
 
 /**
  * Fixed reason → public kind mapping. This table is part of the tool contract:
- * changing a kind is a breaking change for prompts and evals.
  */
 export const REASON_TO_KIND: Readonly<Record<UpstreamReason, Readonly<UpstreamKindInfo>>> = Object.freeze({
   network: {
@@ -95,11 +93,6 @@ const CONFIG_CODES = new Set([
   'ERR_FR_TOO_MANY_REDIRECTS',
 ]);
 
-/**
- * Classifies one attempt's failure. Non-Axios errors, and Axios failures that
- * are neither a known transport error nor a local request error, are `unknown`
- * (never retried, rethrown as-is).
- */
 export function classifyError(error: unknown): RetryReason {
   if (axios.isCancel(error)) return 'cancelled';
   if (!axios.isAxiosError(error)) return 'unknown';
@@ -122,27 +115,19 @@ export function classifyError(error: unknown): RetryReason {
   return 'unknown';
 }
 
-/** Default retry decision for a reason (429 is decided separately by `on429`). */
 export function isRetryableReason(reason: RetryReason): boolean {
   return reason === 'network' || reason === 'attempt_timeout' || reason === 'http_5xx';
 }
 
-/**
- * `retryOn` for upstreams that fail every non-429 4xx at once (NCBI): the
- * default rule minus HTTP 408, while transport timeouts with no response are
- * still retried.
- */
 export function isRetryableTransportOr5xx(reason: RetryReason, error: unknown): boolean {
   if (reason === 'attempt_timeout' && getErrorStatus(error) !== null) return false;
   return isRetryableReason(reason);
 }
 
-/** HTTP status of an Axios error, or null when there was no response. */
 export function getErrorStatus(error: unknown): number | null {
   return axios.isAxiosError(error) ? (error.response?.status ?? null) : null;
 }
 
-/** Reads a header from plain or AxiosHeaders objects, case-insensitively. */
 export function getHeader(headers: unknown, name: string): string | undefined {
   if (!headers || typeof headers !== 'object') return undefined;
   const lower = name.toLowerCase();
@@ -171,7 +156,6 @@ function finiteDelay(ms: number): number | undefined {
   return Number.isFinite(ms) ? Math.max(0, ms) : undefined;
 }
 
-/** Parses a Retry-After value (delay-seconds or HTTP-date) into milliseconds. */
 export function parseRetryAfter(value: unknown, now = Date.now()): number | undefined {
   if (typeof value !== 'string') return undefined;
   if (NON_NEGATIVE_NUMBER.test(value)) return finiteDelay(Number(value) * 1_000);
@@ -184,7 +168,6 @@ export function parseRetryAfter(value: unknown, now = Date.now()): number | unde
 
 /**
  * Parses `x-ratelimit-reset`. Ensembl sends seconds until the window resets;
- * values that look like Unix epoch seconds are treated as an absolute time.
  */
 export function parseRateLimitReset(value: unknown, now = Date.now()): number | undefined {
   if (typeof value !== 'string' || !NON_NEGATIVE_NUMBER.test(value)) return undefined;
@@ -193,7 +176,6 @@ export function parseRateLimitReset(value: unknown, now = Date.now()): number | 
   return finiteDelay(seconds * 1_000);
 }
 
-/** Server-directed wait for a 429, from `Retry-After` then `x-ratelimit-reset`. */
 export function getRetryAfterMs(error: unknown, now = Date.now()): number | undefined {
   if (!axios.isAxiosError(error) || !error.response) return undefined;
   const headers = error.response.headers;

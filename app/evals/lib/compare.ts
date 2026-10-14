@@ -5,7 +5,6 @@ import type { ArmStatus } from "./matrix";
 export interface SavedItemRun {
   item_id: string;
   reviewed: boolean;
-  /** Stopped by the shared budget: listed, never scored. */
   skipped: boolean;
   scores: Record<string, number | string>;
   cost_usd: number;
@@ -21,7 +20,6 @@ export interface SavedExperiment {
   url: string | null;
   repeat_index: number;
   items: SavedItemRun[];
-  /** Items with no result (their task threw or the run was stopped); absent in older saved runs. */
   missing?: string[];
 }
 
@@ -59,9 +57,7 @@ export interface ArmReport {
   item_runs: number;
   scored_item_runs: number;
   skipped_budget_item_runs: number;
-  /** Items scored in every repeat this arm ran, out of the run's items: the coverage behind `scores`. */
   coverage: { items: number; scored_every_repeat: number };
-  /** Per score: spread of the per-repeat means over the items each repeat scored (ok_rate included). */
   scores: Record<string, Spread>;
   turn_outcome: Record<string, number>;
   answer_truncated_rate: number | null;
@@ -78,15 +74,11 @@ export type DeltaVerdict = "within_noise" | "differs" | "no_repeat_spread" | "no
 export interface ScoreDelta {
   arm: string;
   score: string;
-  /** Items both arms scored (in every compared repeat); the means and delta are over these only. */
   shared_items: number;
-  /** Repeats each side contributed (those that ran every item, else all). */
   repeats_compared: { baseline: number; arm: number };
-  /** Null when withheld (`no_shared_items`). */
   baseline_mean: number | null;
   arm_mean: number | null;
   delta: number | null;
-  /** The wider min–max range of the two arms' per-repeat means on the shared items; null without repeats. */
   noise: number | null;
   verdict: DeltaVerdict;
 }
@@ -94,7 +86,6 @@ export interface ScoreDelta {
 export interface Disagreement {
   item: string;
   field: string;
-  /** By arm label; "skipped" where the arm has no scored run of the item. */
   values: Record<string, number | string>;
 }
 
@@ -108,7 +99,6 @@ export interface ComparisonReport {
   max_cost_usd: number;
   spent_usd: number;
   baseline: string | null;
-  /** Items in the run (scored, budget-skipped or missing, across all arms). */
   items: number;
   arms: ArmReport[];
   deltas: ScoreDelta[];

@@ -6,7 +6,6 @@ type RateLimitRole = typeof rateLimits.$inferSelect["role"];
 
 export function createRateLimitQueries(db: DrizzleDb) {
   return {
-    /** Daily query limit for a role; falls back to -1 (unlimited) for admin, 50 otherwise. */
     getForRole(role: string): number {
       const row = db
         .select({ daily_limit: rateLimits.daily_limit })

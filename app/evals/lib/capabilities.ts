@@ -13,7 +13,6 @@ export interface ModelInfo {
 
 export interface ModelsApiOptions {
   apiKey: string | undefined;
-  /** Same convention as the chat provider's ANTHROPIC_BASE_URL: includes `/v1`. */
   baseUrl?: string;
   fetch?: typeof fetch;
 }
@@ -27,7 +26,6 @@ export class CapabilityError extends Error {
   }
 }
 
-/** One model's info, or a problem line. */
 export async function fetchModelInfo(id: string, opts: ModelsApiOptions): Promise<ModelInfo | string> {
   const base = (opts.baseUrl || DEFAULT_ANTHROPIC_BASE_URL).replace(/\/+$/, "");
   let res: Response;
@@ -44,7 +42,6 @@ export async function fetchModelInfo(id: string, opts: ModelsApiOptions): Promis
   return (await res.json()) as ModelInfo;
 }
 
-/** Problems of one arm against its model's info (empty = ok). */
 export function armProblems(arm: ArmSpec, info: ModelInfo, maxContextTokens: number): string[] {
   const where = `${arm.model}:${arm.effort}`;
   const caps = info.capabilities ?? {};
@@ -62,7 +59,6 @@ export function armProblems(arm: ArmSpec, info: ModelInfo, maxContextTokens: num
   return problems;
 }
 
-/** Checks every arm (one request per distinct model). Returns model infos by id; throws CapabilityError listing all problems. */
 export async function checkCapabilities(arms: ArmSpec[], maxContextTokens: number, opts: ModelsApiOptions): Promise<Map<string, ModelInfo>> {
   if (!opts.apiKey) throw new CapabilityError(["ANTHROPIC_API_KEY is not set (needed for the Models API check and the run)"]);
   const models = [...new Set(arms.map((a) => a.model))];

@@ -13,12 +13,7 @@ export interface ExperimentSpec {
   name: string;
   description: string;
   metadata: Record<string, unknown>;
-  /** Verified active items to run (already filtered by --items). */
   items: FetchedItem[];
-  /**
-   * The same items parsed from their pinned payload (pinned-items.ts): what the
-   * evaluators score against and what decides pass/fail eligibility.
-   */
   evalItems: Map<string, DatasetItem>;
   datasetVersion: string;
   concurrency: number;
@@ -53,9 +48,6 @@ function toItemRun(result: ExperimentItemResult, evalItems: Map<string, DatasetI
 
 export async function runExperiment(client: LangfuseClient, spec: ExperimentSpec): Promise<ExperimentOutcome> {
   let summary: RunSummary | null = null;
-  // `experiment.run` with the fetched items rather than `dataset.runExperiment`, which
-  // would run every fetched item, archived ones included, and can't take a subset.
-  // Items keep their datasetId/id, so each run item links to its dataset item.
   const result = await client.experiment.run({
     name: spec.name,
     description: spec.description,

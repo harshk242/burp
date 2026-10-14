@@ -13,7 +13,6 @@ const ids = new Map<string, string>();
 const warned = new Set<string>();
 let loading: Promise<void> | null = null;
 
-/** Loads the ids once; later calls return the first load. Never rejects. */
 export function loadScoreConfigIds(client: ScoreConfigSource | null): Promise<void> {
   if (!client) return Promise.resolve();
   loading ??= fetchAll(client);
@@ -33,7 +32,6 @@ async function fetchAll(client: ScoreConfigSource): Promise<void> {
   }
 }
 
-/** The config id for a score name, or undefined (warned once per name). */
 export function scoreConfigId(name: string): string | undefined {
   const id = ids.get(name);
   if (!id && !warned.has(name)) {

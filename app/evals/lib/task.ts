@@ -12,7 +12,6 @@ import { buildTaskOutput } from "./task-output";
 export interface TaskContext {
   userId: string;
   provider: LLMProviderName;
-  /** The arm's model/effort/max_output_tokens; unset = app config. */
   llm?: TurnLLMOverride;
   budget: SharedCostBudget;
   lifecycle: RunLifecycle;
@@ -26,7 +25,6 @@ export class RunStoppedError extends Error {
   }
 }
 
-/** The experiment task span, read from async context (the task callback is a plain async function). */
 export function activeTraceParent(): TraceParent | undefined {
   const traceId = getActiveTraceId();
   const spanId = getActiveSpanId();

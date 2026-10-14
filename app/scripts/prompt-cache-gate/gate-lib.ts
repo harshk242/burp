@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 
-/** required + expected-negative (an asserted failure, e.g. a 400) fail the gate; warn is reported only. */
 export type Kind = "required" | "expected-negative" | "warn";
 export interface Verdict { check: string; kind: Kind; pass: boolean; detail: string }
 export const verdicts: Verdict[] = [];

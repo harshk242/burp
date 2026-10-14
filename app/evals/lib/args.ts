@@ -4,16 +4,11 @@ export interface RunArgs {
   dataset: string;
   items: string[] | null;
   repeat: number;
-  /** Null = the dataset's run_defaults, else 2. */
   concurrency: number | null;
-  /** Null = the dataset's run_defaults, else 5. */
   maxCostUsd: number | null;
   note: string | null;
-  /** Reproduce a past run: fetch the dataset as of this ISO timestamp, skip the local-hash check. */
   datasetVersion: string | null;
-  /** `--matrix <name>`: arms from app/evals/matrices/<name>.yaml. */
   matrix: string | null;
-  /** `--arm` arms, in flag order (after the matrix arms). None and no matrix = production config. */
   arms: ArmSpec[];
 }
 
@@ -66,7 +61,6 @@ function positiveInt(flag: string, value: string): number {
   return n;
 }
 
-/** Parses argv (without the script path). Returns null for --help. Throws ArgsError. */
 export function parseRunArgs(argv: string[]): RunArgs | null {
   const args: RunArgs = {
     dataset: "",

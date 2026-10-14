@@ -14,11 +14,6 @@ export class McpToolError extends Error {
   }
 }
 
-/**
- * Runs an MCP tool. An `isError` result is returned, not thrown; this throws
- * only for transport errors, timeouts and aborts. `signal` cancels the
- * in-flight call; a result that lands after an abort is dropped.
- */
 export async function executeMcpTool(
   fullName: string,
   args: Record<string, unknown>,
@@ -33,7 +28,6 @@ export async function executeMcpTool(
   return { text, isError: result.isError, ...(result.meta && { meta: result.meta }) };
 }
 
-/** String-in/string-out executor for SDK tool registrations; an `isError` result throws `McpToolError`. */
 export function createMcpToolExecutor(fullName: string, signal?: AbortSignal) {
   return async (args: Record<string, unknown>): Promise<string> => {
     const { text, isError, meta } = await executeMcpTool(fullName, args, signal);
@@ -42,11 +36,6 @@ export function createMcpToolExecutor(fullName: string, signal?: AbortSignal) {
   };
 }
 
-/**
- * Trace span metadata from the server's `_meta.retry` (upstream retry summary):
- * the whole summary plus its attempts and outcome as top-level keys for
- * filtering. Undefined when the call made no upstream request.
- */
 export function upstreamTraceMetadata(meta?: Record<string, unknown>): Record<string, unknown> | undefined {
   const retry = meta?.retry;
   if (!retry || typeof retry !== "object") return undefined;

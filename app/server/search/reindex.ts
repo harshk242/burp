@@ -13,7 +13,6 @@ export function toToolInfo(tool: MCPTool): ToolInfo {
   };
 }
 
-/** Rebuild the search index from the registry's available tools; returns the indexed snapshot. */
 export function reindexToolSearch(
   registry: Pick<typeof ToolRegistryType, "getAll">,
   search: Pick<HybridToolSearch, "indexTools">
@@ -34,12 +33,6 @@ export function createSearchReindexer(
   };
 }
 
-/**
- * Attach vectors from the index file if it was made by `embedder` (and has its
- * configured size, when `spec` gives one). Returns
- * whether anything was attached; otherwise search stays keyword-only and the
- * reader has logged why.
- */
 export async function attachStoredEmbeddings(
   search: Pick<HybridToolSearch, "attachEmbeddings">,
   embedder: QueryEmbedder & Partial<Pick<Embedder, "spec">>,

@@ -53,14 +53,12 @@ export class LegacyAdoptionError extends Error {
 
 const LEGACY_PREFIX = "__legacy_";
 
-/** Fresh in-memory DB with only the baseline applied — the adoption target. Caller closes it. */
 export function baselineDatabase(baseline: MigrationMeta): Database {
   const reference = new Database(":memory:");
   for (const statement of baseline.sql) reference.prepare(statement).run();
   return reference;
 }
 
-/** Fingerprint differences between `sqlite` and the baseline (read-only). */
 export function baselineDiffs(sqlite: Database, baseline: MigrationMeta): string[] {
   const reference = baselineDatabase(baseline);
   try {
@@ -70,11 +68,6 @@ export function baselineDiffs(sqlite: Database, baseline: MigrationMeta): string
   }
 }
 
-/**
- * Adopt a legacy DB: catch-up ALTERs → semantic verify → canonical rebuild →
- * exact verify → record `baseline`. Must run inside the caller's transaction
- * with foreign keys already OFF (so dropping the old tables doesn't cascade).
- */
 export function adoptLegacyDatabase(sqlite: Database, baseline: MigrationMeta): void {
   if (!sqlite.inTransaction) throw new Error("adoptLegacyDatabase() must run inside a caller-owned transaction");
 
@@ -96,7 +89,6 @@ export function adoptLegacyDatabase(sqlite: Database, baseline: MigrationMeta): 
   recordMigration(sqlite, baseline);
 }
 
-/** Frozen ALTER catch-up; caller owns the transaction. */
 export function runCatchUp(sqlite: Database): void {
   for (const statement of LEGACY_CATCH_UP) {
     try {
@@ -110,16 +102,9 @@ export function runCatchUp(sqlite: Database): void {
 }
 
 /**
- * SQLite's table-rebuild procedure for every baseline table, done so the
- * result's sqlite_master text equals a fresh `0000` DB's exactly:
- *
- * the old tables are renamed away (with `legacy_alter_table` ON, so FK
- * references in other tables keep pointing at the canonical names) and the
- * canonical tables are created under their real names with the verbatim `0000`
- * DDL. The textbook order — create `__new_x`, then rename it to `x` — would make
+ * The textbook order — create `__new_x`, then rename it to `x` — would make
  * SQLite rewrite the header to `CREATE TABLE "x"`, which differs from a fresh
- * DB. Views/triggers that would be affected by the legacy rename mode are
- * already rejected by the fingerprint.
+ * DB.
  */
 function rebuildTables(sqlite: Database, baseline: MigrationMeta, reference: Database): void {
   const createTables: string[] = [];
@@ -144,7 +129,7 @@ function rebuildTables(sqlite: Database, baseline: MigrationMeta, reference: Dat
   for (const idx of named) sqlite.run(`DROP INDEX ${quoteIdent(idx.name)}`);
 
   const legacyAlter = sqlite.query<{ legacy_alter_table: number }, []>("PRAGMA legacy_alter_table").get()!.legacy_alter_table;
-  sqlite.run("PRAGMA legacy_alter_table = ON"); // connection flag, not rolled back → restored below
+  sqlite.run("PRAGMA legacy_alter_table = ON"); // connection flag, not rolled back
   try {
     for (const t of tables) sqlite.run(`ALTER TABLE ${quoteIdent(t)} RENAME TO ${quoteIdent(LEGACY_PREFIX + t)}`);
   } finally {
@@ -186,7 +171,6 @@ function restoreSequences(sqlite: Database, sequences: Array<{ name: string; seq
   }
 }
 
-/** sqlite_master rows outside bookkeeping/FTS, verbatim (`type|name|tbl_name|sql`). */
 export function schemaRows(sqlite: Database): string[] {
   return sqlite
     .query<{ type: string; name: string; tbl_name: string; sql: string | null }, []>(

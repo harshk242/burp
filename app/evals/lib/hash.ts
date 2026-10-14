@@ -43,13 +43,11 @@ export interface HashableItem {
   metadata: Record<string, unknown> | null | undefined;
 }
 
-/** sha256 of `{ input, expected_output, metadata minus content_hash }`. */
 export function contentHash(item: HashableItem): string {
   const { content_hash: _ignored, ...metadata } = item.metadata ?? {};
   return sha256Hex(canonicalJson({ input: item.input, expected_output: item.expected_output, metadata }));
 }
 
-/** sha256 of the `(id, content_hash)` pairs sorted by id. */
 export function datasetHash(pairs: ReadonlyArray<{ id: string; contentHash: string }>): string {
   const sorted = [...pairs].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return sha256Hex(canonicalJson(sorted.map((p) => [p.id, p.contentHash])));

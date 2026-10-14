@@ -20,16 +20,13 @@ export interface ModelCallRequest {
   providerOptions: ChatProviderOptions | undefined;
   instructions: string | SystemModelMessage;
   messages: ModelMessage[];
-  /** Declarations only (no execute): the loop dispatches tool calls itself. */
   tools: ToolSet;
   tracker: CallTracker;
   signal: AbortSignal;
-  /** Called once, on the first streamed output (text, thinking or a tool call). */
   onFirstChunk?: () => void;
 }
 
 export interface ModelCallResult {
-  /** This call's response text (all text deltas). */
   text: string;
   segments: CallSegment[];
   finishReason: Awaited<StreamResult["finishReason"]>;
@@ -38,10 +35,6 @@ export interface ModelCallResult {
   finalStep: Awaited<StreamResult["finalStep"]>;
 }
 
-/**
- * Runs one call. Thinking (summarized on Anthropic) is sent as `reasoning`
- * events; the first delta of each thinking block carries `newBlock`.
- */
 export async function* streamModelCall(req: ModelCallRequest): AsyncGenerator<StreamEvent, ModelCallResult> {
   const { llmConfig, tracker, signal } = req;
   // A provider error part does not make the stream throw: the SDK emits an

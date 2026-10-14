@@ -1,12 +1,3 @@
-/**
- * The online turn signals (server/observability/turn-signals.ts) as item-level
- * offline scores, computed from the same persisted chat_turns columns:
- *   - turn_outcome: the first non-ok turn's outcome, else `ok`
- *   - answer_truncated: any turn's final call ended with `length`
- *   - tool_error_count: summed over the turns
- * The server module is the single source of the per-turn values; this only
- * pools them. Budget-skipped items are not scored.
- */
 import { turnSignals, type TurnSignals } from "../../server/observability/turn-signals";
 import type { Evaluation, ItemEvaluator } from "./types";
 

@@ -91,10 +91,6 @@ export interface UpstreamErrorDetails {
   cause?: unknown;
 }
 
-/**
- * Final failure of a retried upstream HTTP request (shared/http-retry.ts).
- * `cause` is the last AxiosError (or abort reason); `url` is the path only.
- */
 export class UpstreamError extends MCPError {
   public readonly kind: string;
   public readonly reason: string;
@@ -121,11 +117,6 @@ export class UpstreamError extends MCPError {
   }
 }
 
-/**
- * True when the upstream rejected the lookup itself (404 or another 4xx), so
- * "not found" is an honest answer. Outages, timeouts, rate limits and
- * non-upstream errors are not, and must be rethrown.
- */
 export function isRejectedLookup(error: unknown): error is UpstreamError {
   return error instanceof UpstreamError && (error.kind === 'not_found' || error.kind === 'bad_request');
 }

@@ -15,7 +15,6 @@ export interface ScoreUpsert {
 export interface ScoreWriter {
   upsert(body: ScoreUpsert): Promise<void>;
   remove(id: string): Promise<void>;
-  /** Whether Langfuse currently returns the score (reads lag acknowledged writes). */
   exists(id: string): Promise<boolean>;
 }
 
@@ -74,7 +73,6 @@ export function createScoreWriter(options: ScoreWriterOptions): ScoreWriter {
   };
 }
 
-/** The writer for the configured Langfuse project; null without keys. */
 export function scoreWriterFromEnv(env: Env = process.env): ScoreWriter | null {
   const { LANGFUSE_PUBLIC_KEY: publicKey, LANGFUSE_SECRET_KEY: secretKey } = env;
   if (!publicKey || !secretKey) return null;

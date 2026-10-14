@@ -23,22 +23,14 @@ import {
 import { cn } from "@/lib/utils";
 
 interface FeedbackDialogProps {
-  /** Polarity of the rating that opened the dialog. */
   value: 0 | 1;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Saves the categories and comment; resolves false on failure so the dialog stays open. */
   onSubmit: (categories: FeedbackCategoryId[], comment: string) => Promise<boolean>;
   saving: boolean;
-  /** Thumb that opened the dialog. It opens programmatically (no Radix trigger), so focus is restored explicitly. */
   returnFocusRef: RefObject<HTMLButtonElement | null>;
 }
 
-/**
- * Follow-up pop-up after a 👍/👎 is saved. The rating is already stored, so
- * Skip / Esc / overlay / ✕ just close it (except while a Send is in flight); Send adds the picked categories
- * (pills for the rating's polarity) and an optional comment.
- */
 export function FeedbackDialog({ value, open, onOpenChange, onSubmit, saving, returnFocusRef }: FeedbackDialogProps) {
   const [categories, setCategories] = useState<FeedbackCategoryId[]>([]);
   const [comment, setComment] = useState("");

@@ -1,9 +1,5 @@
 import { createHash } from 'crypto';
 
-/**
- * Removes null and undefined values from an object
- * Used to clean up variables before sending to GraphQL API
- */
 export function filterNoneValues<T extends Record<string, unknown>>(
   variables: T
 ): Partial<T> {
@@ -16,9 +12,6 @@ export function filterNoneValues<T extends Record<string, unknown>>(
   return result;
 }
 
-/**
- * Generates a deterministic cache key from query and variables
- */
 export function generateCacheKey(
   query: string,
   variables?: Record<string, unknown>

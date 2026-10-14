@@ -8,11 +8,6 @@ export const MATRICES_DIR = join(EVALS_DIR, "matrices");
 
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const satisfies readonly Effort[];
 
-/**
- * Default max_output_tokens for an arm that doesn't set one. Thinking counts
- * toward it, so the production 16k cap would cut xhigh/max answers; capped at
- * the model's own output limit (Models API `max_tokens`).
- */
 export const DEFAULT_ARM_MAX_OUTPUT_TOKENS = 64_000;
 
 const MODEL_ID = /^[a-z0-9][a-z0-9.-]*$/;
@@ -23,7 +18,6 @@ export const ArmSpecSchema = z
     model: z.string().regex(MODEL_ID, "model must be an Anthropic model id like claude-sonnet-5-5"),
     effort: z.enum(EFFORT_LEVELS),
     max_output_tokens: z.number().int().positive().optional(),
-    /** Appended to the experiment name; tells apart arms with the same model and effort. */
     note: z.string().regex(NOTE, 'note may only use letters, digits, ".", "_" and "-"').optional(),
   })
   .strict();
@@ -39,7 +33,6 @@ export const MatrixFileSchema = z
 
 export class ArmsError extends Error {}
 
-/** `<model>:<effort>[:<max_output_tokens>]`. Throws ArmsError. */
 export function parseArmFlag(value: string): ArmSpec {
   const parts = value.split(":");
   if (parts.length < 2 || parts.length > 3) {
@@ -63,7 +56,6 @@ export function matrixNames(dir: string = MATRICES_DIR): string[] {
   return existsSync(dir) ? readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)).map((f) => f.replace(/\.ya?ml$/, "")).sort() : [];
 }
 
-/** Loads `matrices/<name>.yaml`. Throws ArmsError with file:line problems. */
 export function loadMatrix(name: string, dir: string = MATRICES_DIR): ArmSpec[] {
   const file = ["yaml", "yml"].map((ext) => join(dir, `${name}.${ext}`)).find((f) => existsSync(f));
   if (!/^[A-Za-z0-9._-]+$/.test(name) || !file) {
@@ -75,12 +67,10 @@ export function loadMatrix(name: string, dir: string = MATRICES_DIR): ArmSpec[] 
   return matrix.arms;
 }
 
-/** The arm's part of the experiment name: `<model>-<effort>[-<note>]`. */
 export function armLabel(arm: Pick<ArmSpec, "model" | "effort" | "note">): string {
   return [arm.model, arm.effort, ...(arm.note ? [arm.note] : [])].join("-");
 }
 
-/** Matrix arms then `--arm` arms; fails when two would share an experiment name. */
 export function combineArms(matrix: ArmSpec[], flags: ArmSpec[]): ArmSpec[] {
   const arms = [...matrix, ...flags];
   const seen = new Set<string>();
@@ -92,7 +82,6 @@ export function combineArms(matrix: ArmSpec[], flags: ArmSpec[]): ArmSpec[] {
   return arms;
 }
 
-/** An arm with everything the run needs; `override` is what processChat gets (none for the config arm). */
 export interface ResolvedArm {
   label: string;
   provider: LLMConfig["provider"];
@@ -102,12 +91,10 @@ export interface ResolvedArm {
   maxOutputTokens: number;
   maxOutputTokensSource: "arm" | "default" | "config";
   thinkingDisplay: LLMConfig["thinkingDisplay"];
-  /** Same for every arm: the history budget must not confound the comparison. */
   maxContextTokens: number;
   override?: { model: string; effort: Effort; max_output_tokens: number };
 }
 
-/** The production config as the single arm (no --arm / --matrix): processChat gets no override. */
 export function configArm(config: LLMConfig): ResolvedArm {
   return {
     label: armLabel({ model: config.chatModel, effort: config.effort }),
@@ -122,7 +109,6 @@ export function configArm(config: LLMConfig): ResolvedArm {
   };
 }
 
-/** Applies the default max_output_tokens (capped at the model's output limit, when known). */
 export function resolveArm(arm: ArmSpec, config: LLMConfig, modelMaxTokens?: number): ResolvedArm {
   const fallback = Math.min(DEFAULT_ARM_MAX_OUTPUT_TOKENS, modelMaxTokens ?? Infinity);
   const maxOutputTokens = arm.max_output_tokens ?? fallback;

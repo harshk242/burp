@@ -48,13 +48,9 @@ function count(value: unknown): number {
 }
 
 /**
- * Splits one call's usage into categories. `inputTokenDetails` gives the
- * Anthropic and Google split; the 5m/1h write split exists only in Anthropic's
- * raw usage (`providerMetadata.anthropic.usage.cache_creation`). Without it,
- * every write counts as 5m, the TTL we send. Google never reports writes.
- *
- * `gap` = reported input minus the categories; a positive gap is charged as
- * uncached input so a provider change can't silently undercharge.
+ * `inputTokenDetails` gives the Anthropic and Google split; the 5m/1h write
+ * split exists only in Anthropic's raw usage
+ * (`providerMetadata.anthropic.usage.cache_creation`). Google never reports writes.
  */
 export function splitCallUsage(
   usage: LanguageModelUsage | undefined,
@@ -157,10 +153,6 @@ export class UsageMeter {
     return call;
   }
 
-  /**
-   * Prices and keeps an already-split call. `estimated`: the usage is an
-   * estimate for a call cut off mid-stream; the ledger row gets flagged.
-   */
   add(usage: CallUsage, { estimated = false }: { estimated?: boolean } = {}): CallCost {
     const call = priceCall(this.provider, this.model, usage, this.config);
     this.calls.push(call);

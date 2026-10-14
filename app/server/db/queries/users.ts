@@ -62,7 +62,6 @@ export function createUserQueries(db: DrizzleDb) {
         .run();
     },
 
-    /** Set per-user limits. Pass null to clear override (revert to defaults). */
     updateLimits(
       id: string,
       dailyQueryLimit: number | null,

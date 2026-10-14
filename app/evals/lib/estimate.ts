@@ -4,7 +4,6 @@ import { priceCall } from "../../server/usage";
 export const ESTIMATE_PROFILE = {
   callsPerTurn: 4,
   promptTokensPerCall: 30_000,
-  /** Share of the prompt read from cache / written to the 5m cache; the rest is uncached. */
   cacheReadShare: 0.85,
   cacheWriteShare: 0.1,
   outputTokensPerCall: { low: 800, medium: 1_500, high: 3_000, xhigh: 5_000, max: 8_000 } satisfies Record<Effort, number>,
@@ -15,7 +14,6 @@ export interface ArmEstimateInput {
   model: string;
   effort: Effort;
   maxOutputTokens: number;
-  /** Turns per run (sum of the items' turns). */
   turns: number;
   items: number;
   repeat: number;

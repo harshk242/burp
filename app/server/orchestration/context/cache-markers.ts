@@ -11,7 +11,6 @@ function withCacheControl(providerOptions: ProviderOptions | undefined): Provide
   };
 }
 
-/** The system prompt as a cached system message (breakpoint over tools + system). */
 export function cachedInstructions(systemPrompt: string): SystemModelMessage {
   return {
     role: "system",
@@ -20,12 +19,6 @@ export function cachedInstructions(systemPrompt: string): SystemModelMessage {
   };
 }
 
-/**
- * A copy of `messages` with cache markers on the last message and on
- * `previousLastIndex` (the previous call's last message, including across
- * turns). Only the marked messages are cloned
- * (shallowly); the input array and its messages are left untouched.
- */
 export function applyCacheMarkers(messages: readonly ModelMessage[], previousLastIndex?: number): ModelMessage[] {
   const copy = [...messages];
   const lastIndex = copy.length - 1;

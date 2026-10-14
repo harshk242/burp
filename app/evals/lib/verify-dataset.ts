@@ -11,15 +11,11 @@ export interface FetchedItem {
 }
 
 export interface DatasetCheck {
-  /** Recomputed from the fetched active items. */
   datasetHash: string;
   localDatasetHash: string;
   activeIds: string[];
-  /** Local items missing remotely (or archived there). */
   missing: string[];
-  /** Active remote items not in the local YAML. */
   extra: string[];
-  /** Items whose fetched content differs from the local YAML. */
   changed: string[];
 }
 

@@ -118,8 +118,7 @@ describe("Anthropic request body", () => {
     const markedBlocks = body!.messages.flatMap((message, m) =>
       message.content.flatMap((block, b) => (block.cache_control ? [[m, b, block.cache_control]] : []))
     );
-    // Anthropic merges consecutive same-role messages; the request has
-    // user, assistant, user(question), assistant(tool_use), user(tool_result).
+    // Anthropic merges consecutive same-role messages.
     expect(markedBlocks).toEqual([
       [2, 0, cacheControl],
       [4, 0, cacheControl],

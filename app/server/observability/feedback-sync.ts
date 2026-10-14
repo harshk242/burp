@@ -21,15 +21,12 @@ export interface FeedbackSyncOptions {
   environment: string;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
-  /** Confirm reads: first read `settleMs` after the write, then every `pollMs` until `deadlineMs`. */
   confirm?: { settleMs: number; pollMs: number; deadlineMs: number };
-  /** Reconciliation backoff per score id after a failed push. */
   backoff?: { baseMs: number; maxMs: number };
 }
 
 export type PushResult = "synced" | "pending" | "failed";
 
-/** Stable score id for a user's feedback on a message. */
 export function feedbackScoreId({ messageId, userId }: FeedbackKey): string {
   return `fb-${createHash("sha256").update(`${messageId}:${userId}`).digest("hex").slice(0, 32)}`;
 }
@@ -137,11 +134,6 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     return result;
   }
 
-  /**
-   * Queues a push for the key behind any push already running for its score
-   * id. A push already waiting to start covers this request (it reads the
-   * latest row when it starts). Never rejects.
-   */
   function sync(key: FeedbackKey): Promise<PushResult> {
     const scoreId = feedbackScoreId(key);
     const tail = tails.get(scoreId);
@@ -158,7 +150,6 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     return next;
   }
 
-  /** Retries every pending row that is due (backoff). A pass already running is joined. */
   function reconcile(): Promise<void> {
     reconciling ??= runReconcile().finally(() => {
       reconciling = null;
@@ -186,7 +177,6 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     await Promise.all(Array.from({ length: Math.min(RECONCILE_CONCURRENCY, due.length) }, worker));
   }
 
-  /** Resolves once every push queued so far has finished (tests, shutdown). */
   async function idle(): Promise<void> {
     while (tails.size > 0) await Promise.all([...tails.values()]);
   }
@@ -201,7 +191,6 @@ export const RECONCILE_INTERVAL_MS = 5 * 60_000;
 let active: FeedbackSync | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 
-/** Starts the app's feedback sync: a reconcile pass now and every 5 min. Call only while tracing is on. */
 export function startFeedbackSync(options: FeedbackSyncOptions): FeedbackSync {
   stopFeedbackSync();
   const sync = createFeedbackSync(options);
@@ -218,12 +207,10 @@ export function stopFeedbackSync(): void {
   active = null;
 }
 
-/** Hands a written row to the sync (no-op when tracing is off: reconciliation picks it up later). */
 export function requestFeedbackSync(key: FeedbackKey): void {
   void active?.sync(key);
 }
 
-/** Tests only: install a sync without the reconcile timer. */
 export function setFeedbackSyncForTests(sync: FeedbackSync | null): void {
   stopFeedbackSync();
   active = sync;

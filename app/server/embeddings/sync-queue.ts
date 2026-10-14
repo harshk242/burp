@@ -7,7 +7,6 @@ import { EmbeddingResponseError, EmbeddingTimeoutError, type Embedder } from "./
 export const RETRY_DELAYS_MS = [60_000, 300_000, 900_000] as const;
 const RETRY_JITTER = 0.2;
 
-/** Schedules `fn` after `ms`; returns a cancel function. */
 export type Scheduler = (fn: () => void, ms: number) => () => void;
 
 const defaultScheduler: Scheduler = (fn, ms) => {
@@ -19,14 +18,10 @@ const defaultScheduler: Scheduler = (fn, ms) => {
 export interface EmbeddingSyncOptions {
   embedder: Embedder;
   path: string;
-  /** Deadline for the embedding call of one attempt. */
   timeoutMs: number;
-  /** Receives the vectors to attach for the synced snapshot. */
   onReady(embedder: Embedder, vectors: Map<string, Float32Array>): void;
-  /** Delays before attempts 2, 3, 4. */
   retryDelaysMs?: readonly number[];
   scheduler?: Scheduler;
-  /** Jitter source in [0, 1); tests pin it. */
   random?: () => number;
 }
 
@@ -35,11 +30,6 @@ interface Job {
   attempt: number;
 }
 
-/**
- * True for failures worth another attempt later: timeouts and API calls the
- * SDK marks retryable (network errors, 408/409/429/5xx). Everything else —
- * 4xx auth/config errors, invalid responses, missing keys, bugs — is not.
- */
 export function isRetryableSyncError(error: unknown): boolean {
   if (RetryError.isInstance(error)) {
     return isRetryableSyncError(error.lastError);
@@ -66,14 +56,12 @@ export class ToolEmbeddingSync {
     this.random = options.random ?? Math.random;
   }
 
-  /** Sync the index to `tools` in the background. Never throws. */
   request(tools: readonly SyncTool[]): void {
     if (this.stopped) return;
     this.clearRetry();
     this.enqueue({ tools, attempt: 1 });
   }
 
-  /** Resolves once no sync is running (a scheduled retry may still be pending). */
   async idle(): Promise<void> {
     while (this.running) await this.running;
   }
@@ -82,7 +70,6 @@ export class ToolEmbeddingSync {
     return this.cancelRetry !== null;
   }
 
-  /** Cancel any scheduled retry and ignore later requests. A running sync finishes. */
   stop(): void {
     this.stopped = true;
     this.pending = null;

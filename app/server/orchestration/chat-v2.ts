@@ -34,30 +34,6 @@ import { resolveTurnLLM } from "./turn-llm";
 export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
 
-/**
- * `signal` is aborted when the client disconnects: the in-flight LLM call and
- * tool calls are cancelled, no further iterations run, and no assistant message
- * is persisted. The same happens when the consumer stops iterating before the
- * turn completed (e.g. an SSE write threw). A failed or aborted turn still
- * records the cost of its LLM calls (status "error", see turn-usage.ts).
- *
- * Every turn has a chat_turns row (`turnId`), created `running` with the user
- * message and finalized as ok / error / aborted; its usage_events row links to
- * it. Only one turn per session runs at a time (chat-turn.ts).
- *
- * Every message the model is sent from this turn on (the user message, each
- * assistant response including the final one, each tool-result message) is
- * appended to model_transcript as the iteration finishes (context/transcript.ts).
- * Failed turns keep the messages they got to, refused responses included;
- * replay will read `ok` turns only.
- *
- * Options (eval runner): `traceParent` nests the turn's trace under that span;
- * `costBudget` is checked before each model call and charged with every priced
- * call (cost-budget.ts); running out fails the turn with `budget_exceeded`.
- * `llm` overrides model, effort and max_output_tokens for this turn
- * (turn-llm.ts); pricing, trace generations, chat_turns and usage_events all
- * use the effective settings. Without it the turn uses app config.
- */
 export interface ProcessChatOptions {
   traceParent?: TraceParent;
   costBudget?: CostBudget;
@@ -249,9 +225,7 @@ export async function* processChat(
       }
       // The SDK's response messages as returned: they keep provider metadata
       // (thinking signatures, redacted thinking, Gemini thought signatures)
-      // the model requires on later calls. Tool results come from our own
-      // dispatch below, so the SDK's tool messages are skipped. The final
-      // call's message is kept too: the next turn's cache prefix ends with it.
+      // the model requires on later calls.
       send(...finalStep.response.messages.filter((msg) => msg.role !== "tool"));
       const traced = {
         call,

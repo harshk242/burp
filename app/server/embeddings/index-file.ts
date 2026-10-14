@@ -8,7 +8,6 @@ export const INDEX_FILE_VERSION = 2;
 
 export interface ToolEmbeddingEntry {
   fullName: string;
-  /** The text that was embedded; compare with toolEmbeddingText() to detect stale entries. */
   text: string;
   vector: Float32Array;
 }
@@ -32,7 +31,6 @@ export type IndexReadResult =
   | { ok: true; index: ToolEmbeddingsIndex }
   | { ok: false; reason: IndexRejectReason; detail?: Record<string, unknown> };
 
-/** The text embedded for a tool. Every writer must use this so stored texts stay comparable. */
 export function toolEmbeddingText(fullName: string, description: string): string {
   return `${fullName}: ${description}`;
 }
@@ -41,10 +39,6 @@ export function toVectorMap(entries: readonly ToolEmbeddingEntry[]): Map<string,
   return new Map(entries.map((e) => [e.fullName, e.vector]));
 }
 
-/**
- * Read and validate the index without logging. Never throws.
- * `expectedDimension` is the embedder's configured size, when it has one.
- */
 export async function inspectToolEmbeddings(
   path: string,
   expectedEmbedder: string,
@@ -109,10 +103,6 @@ export function logIndexRejected(path: string, result: Extract<IndexReadResult, 
   });
 }
 
-/**
- * Read the index for `expectedEmbedder`, or null (with one warning naming the
- * reason) when the file can't be used. Nothing from a rejected file is returned.
- */
 export async function readToolEmbeddings(
   path: string,
   expectedEmbedder: string,
@@ -133,11 +123,6 @@ export async function readToolEmbeddings(
   return result.index;
 }
 
-/**
- * Write the index atomically: a unique temp file in the same directory, then
- * rename over the target. Concurrent writers each produce a complete file and
- * the last rename wins. Invalid vectors are refused before anything is written.
- */
 export async function writeToolEmbeddings(
   path: string,
   header: { embedder: string; dimension: number },

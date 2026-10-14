@@ -20,11 +20,6 @@ import {
   type SelectionSetNode,
 } from 'graphql';
 
-/**
- * Fetch and build a client schema from a live GraphQL endpoint. Pass the
- * platform's contract instance (shared retry attached); `url` is resolved
- * against its baseURL.
- */
 export async function fetchGraphQLSchema(http: AxiosInstance, url = ''): Promise<GraphQLSchema> {
   const res = await http.post(url, { query: getIntrospectionQuery() });
   if (res.data.errors?.length) {
@@ -33,15 +28,6 @@ export async function fetchGraphQLSchema(http: AxiosInstance, url = ''): Promise
   return buildClientSchema(res.data.data as IntrospectionQuery);
 }
 
-/**
- * Return every response path in `operation` whose value the schema allows to
- * be null. Fields selected through several inline fragments (e.g. `id` under
- * `... on Target` and `... on Disease`) share one path, matching the
- * validator's flattened schema; GraphQL validation guarantees such fields
- * agree on nullability.
- *
- * Throws if the operation does not validate against the schema.
- */
 export function collectNullablePaths(schema: GraphQLSchema, operation: string): Set<string> {
   const document = parse(operation);
   const errors = validate(schema, document);

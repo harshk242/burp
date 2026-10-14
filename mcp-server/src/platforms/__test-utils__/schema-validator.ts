@@ -20,11 +20,6 @@ export interface SchemaDiff {
 
 const MAX_SAMPLE_ITEMS = 5;
 
-/**
- * Recursively walk a JSON value and produce a structural SchemaNode.
- * For arrays, up to MAX_SAMPLE_ITEMS elements are sampled and their schemas
- * are merged so that keys present in any element are captured.
- */
 export function extractSchema(value: unknown, path = '$'): SchemaNode {
   if (value === null) return { type: 'null', path };
 
@@ -119,12 +114,6 @@ function getVariants(node: SchemaNode): SchemaNode[] {
 }
 
 export interface CompareOptions {
-  /**
-   * Paths whose values the API contract allows to be `null` (e.g. derived
-   * from a GraphQL schema). On these paths a change to or from `null` is not
-   * reported: a sampled baseline cannot distinguish "nullable" from "happened
-   * to be populated", so only the upstream contract can settle it.
-   */
   nullablePaths?: ReadonlySet<string>;
 }
 
@@ -135,13 +124,6 @@ interface CompareContext {
   nullablePaths: ReadonlySet<string>;
 }
 
-/**
- * Compare a baseline schema against a current schema.
- * Returns lists of removed keys, type changes, and newly added keys.
- *
- * A key that is marked `optional` in the baseline is allowed to be absent in
- * the current snapshot without triggering a "removed key" error.
- */
 export function compareSchemas(
   baseline: SchemaNode,
   current: SchemaNode,
@@ -272,19 +254,6 @@ export function saveFixture(fixturePath: string, schema: SchemaNode): void {
   fs.writeFileSync(fullPath, JSON.stringify(schema, null, 2) + '\n');
 }
 
-/**
- * Assert that a live API response matches a committed schema fixture.
- *
- * Behaviour:
- *   UPDATE_SNAPSHOTS=true  → overwrite fixture with current schema and pass.
- *   fixture missing        → FAIL with a clear message (not auto-create).
- *                            Run UPDATE_SNAPSHOTS=true once to seed the fixture.
- *   fixture present        → compare; fail on removed keys or type changes.
- *                            `options.nullablePaths` tolerates null drift.
- *
- * The "fail on missing" rule is intentional: a renamed, deleted, or
- * never-committed fixture must not silently become a no-op test.
- */
 export async function assertSchemaStable(
   fixtureName: string,
   data: unknown,

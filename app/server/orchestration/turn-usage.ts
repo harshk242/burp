@@ -59,13 +59,6 @@ export class CallTracker {
 
   constructor(private readonly maxContextTokens = Infinity) {}
 
-  /**
-   * Seeds the turn's first estimate with the preceding turn's measured last
-   * prompt, so it is that number plus what was added since (its final answer
-   * and the new user message) instead of a character count of the whole
-   * history. Only valid when the replayed prefix is byte-identical to that
-   * call's input (a lossless, compatible turn).
-   */
   carryOver(promptTokens: number, messageCount: number): void {
     this.carried = { promptTokens, messageCount };
   }
@@ -78,11 +71,6 @@ export class CallTracker {
     this.current = { iteration, sent: false, streamedChars: 0 };
   }
 
-  /**
-   * The provider's `fetch` (`getChatModel({ fetch })`): marks the in-flight call
-   * sent once the provider answered with a 2xx response. Per tracker, so it must
-   * go on a per-turn provider instance, never a shared one.
-   */
   readonly fetch: typeof fetch = Object.assign(
     async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
       const res = await globalThis.fetch(input, init);
@@ -96,7 +84,7 @@ export class CallTracker {
     if (this.current) this.current.request = event;
   };
 
-  /** SDK notification callbacks swallow errors; enforce at the model boundary. */
+  /** SDK notification callbacks swallow errors. */
   assertContextBudget(): void {
     const request = this.current?.request;
     if (request && this.estimateInputTokens(request) > this.maxContextTokens) {
@@ -125,12 +113,6 @@ export class CallTracker {
     }
   };
 
-  /**
-   * The in-flight call finished and its final usage was recorded by the meter.
-   * Only call it then: it drops the in-flight call, so a call that failed
-   * (e.g. finished with an error part) and was finished anyway would get no
-   * cut-off estimate.
-   */
   finish(call: CallCost): void {
     const request = this.current?.request;
     this.previous = {
@@ -142,18 +124,6 @@ export class CallTracker {
     this.current = null;
   }
 
-  /**
-   * Estimate for a call that was sent but never finished, or null. Input is the
-   * previous call's prompt plus what was added since: new messages, tool
-   * definitions not in context before (Gemini search activates tools mid-turn;
-   * on Anthropic a tool reference loads a deferred one) and the instructions if
-   * they changed. Nothing is subtracted for removed parts, so the estimate never
-   * falls below the growth. On a turn's first call it is the whole request
-   * (instructions, messages, loaded tools). All of it is priced at the worst
-   * case: a 5-minute cache write when the provider caches (`cacheWrites`,
-   * 1.25× input on Anthropic), uncached input otherwise. Output is streamed
-   * characters / 4.
-   */
   estimateCutOffCall(cacheWrites = false): { iteration: number; usage: CallUsage } | null {
     const call = this.current;
     if (!call?.sent || !call.request) return null;
@@ -200,7 +170,6 @@ export interface FailedTurn {
   tracker: CallTracker;
   userId: string;
   sessionId: string;
-  /** chat_turns row the cost belongs to; null when the turn never started. */
   turnId: string | null;
   provider: string;
   model: string;
@@ -208,17 +177,6 @@ export interface FailedTurn {
   errorCode: TurnErrorCode;
 }
 
-/**
- * Writes one `status: "error"` usage_events row for the calls a failed turn
- * already paid for (plus the estimate for a cut-off call); nothing when no call
- * was billed. There is no assistant message, so `message_id` is null. Daily
- * token totals are incremented like a successful turn; the query counters are
- * not (the daily count was taken by the rate limiter when the turn started).
- *
- * Returns the estimate added for a cut-off call, if any (the turn's trace puts
- * it on the cut-off generation). Never throws: a failure here must not mask
- * the turn's own error.
- */
 export function recordFailedTurn(turn: FailedTurn): CallCost | undefined {
   const { meter, ctx, errorCode } = turn;
   let estimate: CallCost | undefined;
@@ -298,12 +256,6 @@ export interface OkTurn {
   toolErrorCount: number;
 }
 
-/**
- * The success path's ledger write, in one transaction: the assistant message
- * (tokens, cost, reasoning), its `status: "ok"` usage_events row, the finished
- * chat_turns row, and the session/user/daily counters. Returns the assistant
- * message id.
- */
 export function recordOkTurn(turn: OkTurn): string {
   const { cost } = turn;
   const assistantMsgId = uuidv4();

@@ -155,12 +155,6 @@ export class ArtifactStore {
     }
   }
 
-  /**
-   * Get an artifact by ID, scoped to the given session.
-   * Checks memory first; on a miss loads the row from SQLite and re-warms memory.
-   * "missing" if not found or it belongs to a different session; "expired" once
-   * past expiresAt, wherever it was found. Refreshes lastAccessedAt on every hit.
-   */
   get(id: string, sessionId: string): ArtifactLookup {
     const now = Date.now();
     const cached = this.artifacts.get(id);
@@ -201,10 +195,6 @@ export class ArtifactStore {
     return { status: "ok", artifact };
   }
 
-  /**
-   * Execute a jq filter against a stored artifact.
-   * Session-scoped: only works if the artifact belongs to the requesting session.
-   */
   async query(
     id: string,
     sessionId: string,
@@ -228,10 +218,6 @@ export class ArtifactStore {
     return this.artifacts.has(id);
   }
 
-  /**
-   * Evict expired artifacts from memory based on lastAccessedAt TTL
-   * (or past their database expiry). Rows stay in SQLite.
-   */
   cleanup(): void {
     const ttlMs = appConfig.artifact.ttl_minutes * 60_000;
     const now = Date.now();
@@ -248,9 +234,6 @@ export class ArtifactStore {
     }
   }
 
-  /**
-   * Delete rows past their database expiry. Runs hourly; returns rows removed.
-   */
   sweepExpired(now = Date.now()): number {
     try {
       const removed = this.rows.deleteExpired(Math.floor(now / 1000));

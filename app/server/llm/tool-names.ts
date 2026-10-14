@@ -7,11 +7,6 @@ const HYPHENATED_PLATFORMS = new Set(
     .map((p) => p.name)
 );
 
-/**
- * Sanitize a tool name for a specific provider.
- * Gemini: "open-targets__search_entities" → "open_targets__search_entities"
- * Anthropic: pass-through
- */
 export function sanitizeToolName(name: string, provider: LLMProviderName): string {
   if (provider !== "google") return name;
   return name.replace(/-/g, "_");

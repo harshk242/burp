@@ -35,7 +35,6 @@ export interface HybridSearchConfig {
   shortQueryTokenThreshold: number;
   shortQueryBm25Weight: number;
   topK: number;
-  /** Candidates taken from each ranker before fusion; independent of topK. */
   candidateK: number;
   rrfK: number;
 }
@@ -62,10 +61,6 @@ export class HybridToolSearch {
     this.config = loadConfig();
   }
 
-  /**
-   * Replace the embedder and tool vectors together. The vectors must all come
-   * from `embedder` and share one length (the index file reader guarantees both).
-   */
   attachEmbeddings(embedder: QueryEmbedder, vectors: ReadonlyMap<string, Float32Array>): void {
     const dimension = vectors.values().next().value?.length ?? 0;
     for (const [name, vector] of vectors) {
@@ -94,7 +89,6 @@ export class HybridToolSearch {
     });
   }
 
-  /** Rejects with `signal.reason` once `signal` aborts, even if the embedder ignores it. */
   async search(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
     const elapsed = startTimer();
     const snapshot = this.embeddings;

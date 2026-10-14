@@ -10,15 +10,11 @@ export const PUBCHEM_POLICY: RetryPolicy = Object.freeze({
 });
 
 export interface PubChemClientOptions {
-  /** Retry policy (default PUBCHEM_POLICY). */
   policy?: RetryPolicy;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }
 
-/** A PubChem PUG REST client with the shared retry attached. */
 export function createPubChemClient(options: PubChemClientOptions = {}): AxiosInstance {
   const instance = axios.create({
     baseURL: PUBCHEM_PUG_REST_BASE_URL,
@@ -38,7 +34,6 @@ export function initClient(_env: Record<string, string | undefined>, options: Pu
   client = createPubChemClient(options);
 }
 
-/** Return the shared Axios instance. Throws if called before `initClient`. */
 export function getClient(): AxiosInstance {
   if (!client) {
     throw new Error('PubChem API client not initialised – call initClient() first');

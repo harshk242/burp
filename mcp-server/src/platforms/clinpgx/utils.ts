@@ -1,8 +1,5 @@
 import { createHash } from 'crypto';
 
-/**
- * Removes null and undefined values from an object
- */
 export function filterNoneValues<T extends Record<string, unknown>>(
   obj: T
 ): Partial<T> {
@@ -15,9 +12,6 @@ export function filterNoneValues<T extends Record<string, unknown>>(
   return result;
 }
 
-/**
- * Generates a deterministic cache key from endpoint and params
- */
 export function generateCacheKey(
   endpoint: string,
   params?: Record<string, unknown>
@@ -36,16 +30,10 @@ export function truncateArray<T>(arr: T[], size: number): T[] {
   return arr.slice(0, size);
 }
 
-/**
- * Validates a PharmGKB accession ID (PA format)
- */
 export function validatePharmGKBId(id: string): boolean {
   return /^PA\d+$/.test(id);
 }
 
-/**
- * Formats a gene symbol to uppercase
- */
 export function formatGeneSymbol(symbol: string): string {
   return symbol.toUpperCase().trim();
 }
@@ -54,9 +42,6 @@ export function formatDrugName(name: string): string {
   return name.trim();
 }
 
-/**
- * Formats rsID (adds 'rs' prefix if missing)
- */
 export function formatRsId(id: string): string {
   const cleaned = id.replace(/^rs/i, '').replace(/[^0-9]/g, '');
   if (!cleaned) {
@@ -72,10 +57,6 @@ export function parseGuidelineSource(name: string): 'CPIC' | 'DPWG' | 'Other' {
   return 'Other';
 }
 
-/**
- * Parse evidence level
- * Handles both string values and object values with 'term' property
- */
 export function parseEvidenceLevel(level: unknown): string {
   if (!level) return 'Unknown';
 
@@ -138,10 +119,6 @@ export function buildSearchQuery(
   return query;
 }
 
-/**
- * Normalize phenotype category
- * Handles string, array, or undefined inputs
- */
 export function normalizePhenotypeCategory(category: unknown): string {
   if (!category) return 'Unknown';
 

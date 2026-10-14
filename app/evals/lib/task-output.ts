@@ -27,15 +27,11 @@ export interface UsageRow {
 export interface SessionRows {
   itemId: string;
   sessionId: string;
-  /** In turn order. */
   turns: TurnRow[];
   messages: Map<string, string | null>;
-  /** In seq order. */
   transcript: TranscriptRow[];
   usage: UsageRow[];
-  /** Wall-clock drain time per turn, in turn order. */
   durationsMs: number[];
-  /** Transcript tool names → registered names (Gemini sanitizes `-`). */
   toolName?: (name: string) => string;
 }
 
@@ -48,7 +44,6 @@ interface Part {
   text?: string;
 }
 
-/** A tool result as the text the model saw. */
 export function outputText(output: Part["output"]): string {
   if (!output) return "";
   const { type, value } = output;

@@ -19,23 +19,9 @@ interface ChatState {
   appendStreamingContent: (chunk: string) => void;
   addToolCall: (toolCall: ToolCall) => void;
   updateToolCall: (id: string, updates: Partial<ToolCall>) => void;
-  /**
-   * Moves current streamingContent into reasoningSegments and resets it.
-   * Called when text_block_end { isReasoning: true } is received — the streamed
-   * text is reclassified as reasoning and collapses into the ReasoningBlock.
-   */
   moveStreamingToReasoning: () => void;
-  /**
-   * Appends a thinking delta (`reasoning` SSE event). `newBlock` (first delta
-   * of a thinking block) starts a new segment; otherwise it extends the last one.
-   */
   appendReasoning: (chunk: string, newBlock: boolean) => void;
-  /**
-   * Commits the streamed turn as an assistant message. `messageId` (from the
-   * done event) is the server's id; without it the message can't take feedback.
-   */
   finalizeAssistantMessage: (messageId?: string) => void;
-  /** Sets (or clears, with null) the user's feedback on a message. */
   setFeedback: (messageId: string, feedback: Feedback | null) => void;
   setLastMessageTokens: (input: number, output: number) => void;
   setError: (error: string | null) => void;

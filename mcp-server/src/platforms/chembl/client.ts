@@ -71,15 +71,11 @@ export const CHEMBL_POLICY: RetryPolicy = Object.freeze({
 export const CHEMBL_BASE_URL = 'https://www.ebi.ac.uk/chembl/api/data';
 
 export interface ChemblClientOptions {
-  /** Retry policy (default CHEMBL_POLICY). */
   policy?: RetryPolicy;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }
 
-/** A ChEMBL REST client with the shared retry attached. */
 export function createChemblClient(options: ChemblClientOptions = {}): AxiosInstance {
   const client = axios.create({
     baseURL: CHEMBL_BASE_URL,

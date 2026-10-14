@@ -1,20 +1,15 @@
 import type { DatasetItem } from "../lib/schema";
 
 export interface TaskToolCall {
-  /** Tool name as registered (`server__tool`). */
   name: string;
   input: unknown;
-  /** The result as the model saw it (after large-output handling), as text. */
   model_output: string;
-  /** The result went back to the model as an error. */
   error: boolean;
 }
 
 export interface TaskTurn {
-  /** 1-based. */
   turn: number;
   user_message: string;
-  /** Persisted final answer; null when the turn failed. */
   answer: string | null;
   status: string;
   error_code: string | null;
@@ -23,9 +18,7 @@ export interface TaskTurn {
   tool_calls: TaskToolCall[];
   cost_usd: number;
   llm_calls: number;
-  /** LLM calls billed at the model's long-context rates (pricing tier hit). */
   long_context_calls?: number;
-  /** Wall-clock time around the turn's drain (chat_turns timestamps are whole seconds). */
   duration_ms: number;
   trace_id: string | null;
 }
@@ -34,7 +27,6 @@ export interface TaskOutput {
   item_id: string;
   session_id: string;
   turns: TaskTurn[];
-  /** Set when the shared cost budget stopped the item: no evaluator scores it. */
   skipped?: "budget";
 }
 
@@ -43,7 +35,6 @@ export type EvalItem = Pick<DatasetItem, "input" | "expected_output" | "metadata
 export type ScoreDataType = "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
 
 export interface Evaluation {
-  /** Score name (a metric in metrics.yaml). */
   name: string;
   value: number | string;
   dataType: ScoreDataType;
@@ -51,5 +42,4 @@ export interface Evaluation {
   metadata?: Record<string, unknown>;
 }
 
-/** Null = not scored (nothing to measure, or a budget-skipped item). */
 export type ItemEvaluator = (output: TaskOutput, item: EvalItem) => Evaluation | Evaluation[] | null;

@@ -231,14 +231,9 @@ export interface FormattedCitation {
 export interface PubMedClientOptions {
   apiKey?: string;
   cacheTtl?: number;
-  /** Total attempts per request (default 3). */
   maxRetries?: number;
-  /** Backoff base: waits of `2^n × retryDelay` ms (default 1000). */
   retryDelay?: number;
-  /** NCBI token bucket (default: from the API key). */
   rateLimiter?: TokenBucketRateLimiter;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }

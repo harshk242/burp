@@ -17,7 +17,6 @@ import { MEMORY_DB_PATH, MIGRATIONS_FOLDER } from "./paths";
 
 export interface VerifyOptions {
   migrationsFolder?: string;
-  /** Keep the scratch copy (its path is in the report). Default false. */
   keepCopy?: boolean;
 }
 
@@ -25,27 +24,16 @@ export interface VerifyReport {
   input: string;
   copy: string;
   legacy: boolean;
-  /** Migration tags pending before the run (all of them for a legacy DB). */
   pending: string[];
-  /** Legacy only: fingerprint vs the `0000` baseline after the frozen ALTER catch-up. */
   baselineDiffs: string[];
-  /**
-   * What `0003_tighten_not_null` will backfill / reject, measured before the run
-   * (legacy: after the ALTER catch-up). Empty when 0003 isn't pending.
-   */
   tightening: TighteningPreview;
-  /** Orphans already present in the input. */
   existingFkViolations: ForeignKeyViolation[];
   ok: boolean;
   adopted: boolean;
   applied: string[];
-  /** Failure message, if the transaction rolled back. */
   error: string | null;
-  /** FK violations that made the transaction roll back. */
   fkViolations: ForeignKeyViolation[];
-  /** After a successful run: fingerprint vs a fresh DB with every migration applied. */
   finalDiffs: string[];
-  /** Wall-clock time of the migration transaction = how long first boot holds the write lock. */
   transactionMs: number;
 }
 
@@ -177,7 +165,6 @@ function formatTightening(r: VerifyReport): string[] {
   ];
 }
 
-/** Healthy = migrates cleanly and ends up identical to a fresh DB, with no orphans. */
 export function verifyPassed(r: VerifyReport): boolean {
   return r.ok && r.finalDiffs.length === 0 && r.existingFkViolations.length === 0;
 }

@@ -151,15 +151,11 @@ export const ENSEMBL_POLICY: RetryPolicy = Object.freeze({
 export const ENSEMBL_BASE_URL = 'https://rest.ensembl.org';
 
 export interface EnsemblClientOptions {
-  /** Retry policy (default ENSEMBL_POLICY). */
   policy?: RetryPolicy;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
-  /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }
 
-/** An Ensembl REST client with the shared retry attached. */
 export function createEnsemblClient(options: EnsemblClientOptions = {}): AxiosInstance {
   const client = axios.create({
     baseURL: ENSEMBL_BASE_URL,

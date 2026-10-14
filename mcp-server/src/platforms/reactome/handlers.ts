@@ -49,9 +49,6 @@ async function resolvePathwayId(identifier: string): Promise<string | null> {
     const firstEntry = res.data?.results?.[0]?.entries?.[0];
     if (firstEntry?.stId) return firstEntry.stId as string;
   } catch (error) {
-    // Reactome answers a search with no hits with a 404: that means "no
-    // pathway". Outages, timeouts and rate limits must reach the agent as
-    // structured upstream errors instead.
     if (!isRejectedLookup(error)) throw error;
   }
 

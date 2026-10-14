@@ -11,9 +11,7 @@ declare module 'pdfmake/build/pdfmake' {
       readFileSync(filename: string): any;
     };
     fonts: Record<string, Record<string, string>>;
-    /** Register font file data into the virtual filesystem. */
     addVirtualFileSystem(vfs: Record<string, any>): void;
-    /** Register both vfs entries and font descriptors from a font container. */
     addFontContainer(container: { vfs: Record<string, any>; fonts: Record<string, any> }): void;
     addFonts(fonts: Record<string, any>): void;
   }

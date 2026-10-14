@@ -13,27 +13,16 @@ import {
 import { createTimeoutSignal, getToolCallContext, type RequestRecord } from './tool-call-context.js';
 
 export interface RetryPolicy {
-  /** Total attempts, including the first. */
   maxAttempts: number;
-  /** Wait before retry n: list indexed by failed attempt (last entry repeats) or a function of it. */
   backoffMs: readonly number[] | ((attempt: number) => number);
-  /** Relative jitter, e.g. 0.25 = ±25%. Default 0. */
   jitter?: number;
-  /** Cap on one logical request, all attempts and waits included. */
   totalBudgetMs: number;
-  /** Cap on one attempt; further cut down to the caller timeout and the remaining budget. */
   perAttemptTimeoutMs: number;
-  /** Overrides the default retry decision for non-429 reasons. */
   retryOn?: (reason: RetryReason, error: unknown) => boolean;
-  /** 429 handling: honour Retry-After (`wait`), back off as usual (`retry`) or give up (`fail`). Default `wait`. */
   on429?: 'wait' | 'retry' | 'fail';
-  /** Largest server-directed wait accepted with `on429: 'wait'`. */
   maxRetryAfterMs?: number;
-  /** `retryAfterMs` reported on a final 429 that carries no usable Retry-After. Never waited on. */
   defaultRetryAfterMs?: number;
-  /** Methods that may be retried (case-insensitive). Default: all. */
   retryMethods?: readonly string[];
-  /** Runs before every attempt (e.g. a rate-limiter token); its wait counts against the budget. */
   beforeAttempt?: (signal: AbortSignal, remainingMs: number) => Promise<void>;
 }
 
@@ -47,25 +36,19 @@ export interface RetryDeps {
 
 export interface AttemptContext {
   attempt: number;
-  /** Combined caller/deadline/budget signal: pass it to the request. */
   signal: AbortSignal;
-  /** Per-attempt timeout to apply to the request (always > 0). */
   timeoutMs: number;
 }
 
 export interface WithRetryOptions<T> extends RetryDeps {
   platform: string;
   method?: string;
-  /** Path only, recorded in `_meta` and errors. */
   path?: string;
   signal?: AbortSignal;
-  /** The caller's/instance timeout; 0 or undefined means none. */
   timeoutMs?: number;
-  /** HTTP status of a successful result, for the request record. */
   statusOf?: (result: T) => number | null;
 }
 
-/** Abortable sleep: rejects with the signal's reason as soon as it fires. */
 export function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) return reject(signal.reason);
@@ -102,7 +85,6 @@ function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
-/** Backoff before the retry that follows failed attempt `attempt` (1-based), with jitter. */
 export function computeBackoffMs(policy: RetryPolicy, attempt: number, random: () => number = Math.random): number {
   const { backoffMs } = policy;
   const base =
@@ -113,10 +95,6 @@ export function computeBackoffMs(policy: RetryPolicy, attempt: number, random: (
   return Math.max(0, Math.round(base * (1 + jitter * (2 * random() - 1))));
 }
 
-/**
- * Runs `fn` with the policy's retry loop. Non-Axios errors are rethrown as-is
- * and never retried; every other final failure becomes an `UpstreamError`.
- */
 export async function withRetry<T>(
   fn: (attempt: AttemptContext) => Promise<T>,
   policy: RetryPolicy,
@@ -260,7 +238,6 @@ const CALLER_SIGNAL = Symbol('httpRetryCallerSignal');
 
 type RetryRequestConfig = InternalAxiosRequestConfig & { [CALLER_SIGNAL]?: AbortSignal };
 
-/** Path of an Axios request without host or query string. */
 export function requestPath(config: InternalAxiosRequestConfig): string {
   try {
     return new URL(axios.getUri(config), 'http://placeholder.invalid').pathname;
@@ -269,12 +246,6 @@ export function requestPath(config: InternalAxiosRequestConfig): string {
   }
 }
 
-/**
- * Runs the request's `transformResponse` over the failed response kept as an
- * `UpstreamError` cause, as Axios does for an adapter rejection that carries a
- * `response`: callers then read a parsed error body (e.g. a JSON `message`),
- * not the raw string. A transform that throws leaves the raw body in place.
- */
 function transformErrorResponse(config: InternalAxiosRequestConfig, error: unknown): void {
   const cause = error instanceof UpstreamError ? error.cause : undefined;
   if (!axios.isAxiosError(cause) || !cause.response) return;
@@ -289,13 +260,6 @@ function transformErrorResponse(config: InternalAxiosRequestConfig, error: unkno
   }
 }
 
-/**
- * Wraps the instance's adapter so the whole retry loop runs inside it: request
- * interceptors run once per logical request and retries can't nest.
- *
- * Call it right after `axios.create`: its request interceptor must be the
- * first one registered so it runs last, just before dispatch.
- */
 export function attachRetry(
   instance: AxiosInstance,
   policy: RetryPolicy,
@@ -308,11 +272,7 @@ export function attachRetry(
   }
   const adapter = axios.getAdapter(instance.defaults.adapter);
   // Axios rejects with a bare CanceledError, before and after the adapter, when
-  // config.signal is aborted, and replaces any adapter rejection with one. The
-  // loop owns the caller signal instead, so every cancellation (already aborted,
-  // aborted while interceptors ran, or mid-retry) surfaces as
-  // UpstreamError(cancelled). The interceptor is async (the default), which
-  // also keeps Axios on its promise chain.
+  // config.signal is aborted, and replaces any adapter rejection with one.
   instance.interceptors.request.use((config: RetryRequestConfig) => {
     if (config.signal instanceof AbortSignal) {
       config[CALLER_SIGNAL] = config.signal;
@@ -333,7 +293,7 @@ export function attachRetry(
       timeoutMs: config.timeout,
       statusOf: (response) => response.status,
     }).catch((error: unknown) => {
-      // Axios only transforms a rejection's own `response`, which an UpstreamError lacks.
+      // Axios only transforms a rejection's own `response`.
       transformErrorResponse(config, error);
       throw error;
     });

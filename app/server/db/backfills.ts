@@ -9,7 +9,6 @@ export interface ColumnRef {
 }
 
 export interface Backfill extends ColumnRef {
-  /** SQL expression written into NULL cells. */
   value: string;
 }
 
@@ -32,7 +31,6 @@ export const TIGHTEN_BACKFILLS: readonly Backfill[] = [
   { table: "rate_limits", column: "updated_at", value: "unixepoch()" },
 ];
 
-/** Text PKs that become NOT NULL. Deliberately not backfilled: a NULL makes 0003 fail and roll back. */
 export const TIGHTENED_PRIMARY_KEYS: readonly ColumnRef[] = [
   { table: "users", column: "id" },
   { table: "access_requests", column: "id" },
@@ -61,11 +59,8 @@ export interface NullPrimaryKeyRow extends ColumnRef {
 }
 
 export interface TighteningPreview {
-  /** Every backfill with the number of NULL cells it will fill. */
   backfills: BackfillCount[];
-  /** Users whose NULL role becomes `'user'` — review in case one was meant to stay blocked. */
   nullRoleUsers: NullRoleUser[];
-  /** Rows that make 0003 fail (must be fixed by hand before deploy). */
   nullPrimaryKeys: NullPrimaryKeyRow[];
 }
 
@@ -73,10 +68,6 @@ export function emptyTighteningPreview(): TighteningPreview {
   return { backfills: [], nullRoleUsers: [], nullPrimaryKeys: [] };
 }
 
-/**
- * What 0003 would do to `sqlite` as it is now. Read-only. Tables/columns that
- * don't exist (yet) count as zero, so this is safe on any pre-0003 DB.
- */
 export function previewTightening(sqlite: Database): TighteningPreview {
   const has = (ref: ColumnRef) =>
     sqlite

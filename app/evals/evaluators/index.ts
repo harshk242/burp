@@ -11,7 +11,6 @@ export const ITEM_EVALUATORS: Record<string, ItemEvaluator> = {
   turn_signals: turnSignalScores,
 };
 
-/** Every evaluation for one item; evaluators that return null contribute nothing. */
 export function evaluateItem(output: TaskOutput, item: EvalItem): Evaluation[] {
   return Object.values(ITEM_EVALUATORS).flatMap((evaluate) => {
     const result = evaluate(output, item);

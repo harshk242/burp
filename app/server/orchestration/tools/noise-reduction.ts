@@ -9,13 +9,6 @@ export interface NoiseReductionResult {
   error?: string;
 }
 
-/**
- * Apply noise reduction filters for a given tool's output.
- *
- * @param toolName - Fully qualified tool name (e.g. "uniprot__search_proteins")
- * @param data - Parsed JSON data from the tool output
- * @returns Reduced data + filter application stats
- */
 export async function applyNoiseReduction(
   toolName: string,
   data: unknown,
