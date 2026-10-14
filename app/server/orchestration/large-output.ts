@@ -16,7 +16,7 @@ validatePolicies().then(({ valid, errors }) => {
 export interface LargeOutputResult {
   output: string;
   rawChars: number;
-  handling: "inline" | "truncated" | "noise_reduced" | "artifact";
+  handling: "inline" | "noise_reduced" | "artifact";
   artifactId?: string;
 }
 
@@ -36,10 +36,18 @@ export async function handleLargeOutput(
   try {
     data = JSON.parse(rawOutput);
   } catch {
-    const output =
-      `[Output truncated from ${(rawOutput.length / 1024).toFixed(0)}KB — not valid JSON]\n` +
-      rawOutput.slice(0, cfg.inline_max_chars);
-    return { output, rawChars, handling: "truncated" };
+    const artifactId = artifactStore.store(sessionId, toolName, toolInput, rawOutput, rawChars, "text");
+    const output = JSON.stringify({
+      _meta: {
+        artifact_id: artifactId,
+        artifact_type: "text",
+        total_chars: rawChars,
+        tool: toolName,
+        hint: "Use system__inspect_artifact with text_range: {start, length} in UTF-16 code units to read the full text in bounded ranges.",
+      },
+      preview: rawOutput.slice(0, cfg.preview_max_chars_per_value),
+    });
+    return { output, rawChars, handling: "artifact", artifactId };
   }
 
   const elapsed = startTimer();

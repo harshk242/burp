@@ -113,6 +113,13 @@
       "when": 1791993296973,
       "tag": "0015_feedback_sync_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1791994398008,
+      "tag": "0016_artifact_utf8_bytes",
+      "breakpoints": true
     }
   ]
 }

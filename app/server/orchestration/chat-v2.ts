@@ -2,7 +2,6 @@ import type { ModelMessage, ToolResultPart } from "ai";
 import { sanitizeToolName, type TurnLLMOverride } from "../llm";
 import { chatSessionQueries } from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
-import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
 import { appendTranscript, loadTranscript } from "./context/transcript";
 import { toolRegistry } from "../mcp/registry";
@@ -50,7 +49,7 @@ export async function* processChat(
 ): AsyncGenerator<StreamEvent> {
   const chatElapsed = startTimer();
   const ctx: LogContext = { session_id: sessionId, user_id: userId };
-  const { llmConfig, providerOptions, transcriptTag, generationParameters } = resolveTurnLLM(options.llm);
+  const { llmConfig, providerOptions, transcriptTag, generationParameters, systemPrompt } = resolveTurnLLM(options.llm);
   const sanitize = (name: string) => sanitizeToolName(name, llmConfig.provider);
 
   logger.info("CHAT", "process_start", {
@@ -158,7 +157,7 @@ export async function* processChat(
     const reasoningBlocks: string[] = [];
     const allToolCalls: ToolCallRecord[] = [];
     const caching = llmConfig.provider === "anthropic";
-    const instructions = caching ? cachedInstructions(SYSTEM_PROMPT) : SYSTEM_PROMPT;
+    const instructions = caching ? cachedInstructions(systemPrompt) : systemPrompt;
     let previousLastIndex = history.previousLastIndex;
     if (previousLastIndex !== undefined && history.previousPromptTokens !== undefined) {
       tracker.carryOver(history.previousPromptTokens, previousLastIndex + 1);
@@ -212,7 +211,7 @@ export async function* processChat(
         finishReason,
         toolCalls: toolCalls?.length ?? 0,
         toolNames: Object.keys(declarationTools),
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: systemPrompt,
       });
       tracker.finish(call);
       budget.chargeCall(call.costPicoUsd);

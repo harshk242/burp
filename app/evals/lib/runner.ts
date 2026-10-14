@@ -7,7 +7,7 @@ import { chatProviderOptions, effectiveLLMConfig, type LLMConfig } from "../../s
 import { mcpManager } from "../../server/mcp/manager";
 import { getScoreClient, initTracing, scoreConfigsReady, shutdownTracing } from "../../server/observability/langfuse";
 import { contextVersion } from "../../server/orchestration/context/transcript";
-import { SYSTEM_PROMPT } from "../../server/orchestration/context/system-prompt";
+import { buildSystemPrompt } from "../../server/orchestration/context/system-prompt";
 import { SharedCostBudget } from "../../server/orchestration/cost-budget";
 import { hybridSearch } from "../../server/search";
 import { DEFAULT_CONCURRENCY, DEFAULT_MAX_COST_USD, type RunArgs } from "./args";
@@ -72,7 +72,7 @@ async function bootTools(boot: ToolsBoot): Promise<SearchState> {
 }
 
 function armContextVersion(arm: ResolvedArm, config: LLMConfig): string {
-  return contextVersion(SYSTEM_PROMPT, chatProviderOptions(effectiveLLMConfig(config, arm.override)));
+  return contextVersion(buildSystemPrompt(), chatProviderOptions(effectiveLLMConfig(config, arm.override)));
 }
 
 async function writeVariance(outDir: string, runId: string, arm: ResolvedArm, repeatGroup: string, outcomes: ExperimentOutcome[]): Promise<void> {

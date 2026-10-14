@@ -140,6 +140,10 @@ async function* runSearchTool(
   call: ParsedCall,
   dc: DispatchContext,
 ): AsyncGenerator<StreamEvent, DispatchResult> {
+  const record: ToolCallRecord = {
+    id: call.tc.toolCallId, name: call.originalName, server: "system",
+    toolName: call.name, input: call.input,
+  };
   const { activeTools, sanitize, provider } = dc;
   try {
     const query = (call.input as { query: string }).query;
@@ -173,14 +177,7 @@ async function* runSearchTool(
     });
 
     return {
-      record: {
-        id: call.tc.toolCallId,
-        name: call.originalName,
-        server: "system",
-        toolName: call.name,
-        input: call.input,
-        output: search.uiSummary,
-      },
+      record: { ...record, output: search.uiSummary },
       part: {
         type: "tool-result" as const,
         toolCallId: call.tc.toolCallId,
@@ -193,7 +190,7 @@ async function* runSearchTool(
     if (dc.signal?.aborted) throw err;
     const errorMsg = err instanceof Error ? err.message : String(err);
     yield errorEnd(call, errorMsg);
-    return { part: resultPart(call, errorMsg, true) };
+    return { record: { ...record, error: errorMsg }, part: resultPart(call, errorMsg, true) };
   }
 }
 

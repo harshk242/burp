@@ -33,7 +33,7 @@ mock.module("../llm/provider", () => ({
 }));
 
 const { processChat } = await import("../orchestration/chat-v2");
-const { SYSTEM_PROMPT } = await import("../orchestration/context/system-prompt");
+const { buildSystemPrompt } = await import("../orchestration/context/system-prompt");
 const { contextVersion, loadTranscript, toTranscriptRow } = await import("../orchestration/context/transcript");
 
 const usage = {
@@ -112,7 +112,7 @@ describe("model transcript", () => {
       q.chatTurnQueries.start("old-turn", sessionId, "old-user");
       q.messageQueries.create("old-answer", sessionId, "assistant", "old UI answer", null);
       q.chatTurnQueries.finish("old-turn", { status: "ok", iterations: 1, assistantMessageId: "old-answer" });
-      const tag = { provider: llmConfig.provider, model: llmConfig.chatModel, contextVersion: contextVersion(SYSTEM_PROMPT, chatProviderOptions(llmConfig)) };
+      const tag = { provider: llmConfig.provider, model: llmConfig.chatModel, contextVersion: contextVersion(buildSystemPrompt(), chatProviderOptions(llmConfig)) };
       const first = toTranscriptRow("old-turn", { role: "user", content: "lossless question" }, tag);
       const last = toTranscriptRow("old-turn", {
         role: "assistant", content: [
@@ -141,18 +141,20 @@ describe("model transcript", () => {
     });
   }
 
-  it("production replay retains lossless history after tools are added or described differently", async () => {
+  it("production replay degrades when the enabled catalog changes the capability prompt", async () => {
     const sessionId = crypto.randomUUID();
     model = scriptedModel([[toolCall("kept-call"), finish("tool-calls")], [...text("answer"), finish("stop")]]);
     await collect(processChat(sessionId, USER_ID, "first"));
     const { server, name } = toolRegistry.parseToolName(TOOL_FULL_NAME);
-    toolRegistry.register(server, { name, description: "changed description", inputSchema: { type: "object", properties: {} } });
-    toolRegistry.register("new", { name: "added_tool", description: "added", inputSchema: { type: "object" } });
+    toolRegistry.register(server, { name: `${name}_added`, description: "added", inputSchema: { type: "object" } });
     const logs = spyOn(logger, "info");
     model = scriptedModel([[...text("followup"), finish("stop")]]);
     await collect(processChat(sessionId, USER_ID, "second"));
-    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain("kept-call");
-    expect(logs.mock.calls.filter(([, event]) => event === "transcript_degraded")).toHaveLength(0);
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).not.toContain("kept-call");
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain("answer");
+    const degraded = logs.mock.calls.filter(([, event]) => event === "transcript_degraded");
+    expect(degraded).toHaveLength(1);
+    expect(degraded[0]![2]?.data).toMatchObject({ reason: "context_version" });
   });
 
   it("replays complete successful messages as-is and carries the final input endpoint", async () => {
@@ -262,7 +264,7 @@ describe("model transcript", () => {
       expect(row).toMatchObject({
         provider: llmConfig.provider,
         model: llmConfig.chatModel,
-        context_version: contextVersion(SYSTEM_PROMPT, chatProviderOptions(llmConfig)),
+        context_version: contextVersion(buildSystemPrompt(), chatProviderOptions(llmConfig)),
       });
     }
     expect(saved.map((r) => JSON.parse(r.tool_names_json))).toEqual([[], [TOOL_KEY], [], []]);

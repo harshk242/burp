@@ -7,7 +7,7 @@ import { mcpManager } from "../../server/mcp/manager";
 import { toolRegistry } from "../../server/mcp/registry";
 import { ALWAYS_LOADED_TOOLS } from "../../server/mcp/platforms.config";
 import { loadLLMConfig } from "../../server/llm";
-import { SYSTEM_PROMPT } from "../../server/orchestration/context/system-prompt";
+import { buildSystemPrompt } from "../../server/orchestration/context/system-prompt";
 import { createSearchTool } from "../../server/orchestration/tools/search-tool";
 import { createInspectArtifactTool } from "../../server/orchestration/tools/artifact-inspector";
 import { toDeclarations } from "../../server/orchestration/tool-dispatch";
@@ -97,8 +97,8 @@ async function runCall(
   opts: { tools: Record<string, Tool>; messages: ModelMessage[]; cacheSystem?: boolean; maxOutput?: number },
 ): Promise<CallResult & { responseMessages: ModelMessage[]; body?: any }> {
   const instructions: SystemModelMessage | string = opts.cacheSystem
-    ? { role: "system", content: SYSTEM_PROMPT, providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } } }
-    : SYSTEM_PROMPT;
+    ? { role: "system", content: buildSystemPrompt(), providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } } }
+    : buildSystemPrompt();
   last = null;
   let text = "";
   let r: CallResult & { responseMessages: ModelMessage[] };

@@ -1,8 +1,9 @@
 import { chatProviderOptions, effectiveLLMConfig, loadLLMConfig, type ChatProviderOptions, type LLMConfig, type TurnLLMOverride } from "../llm";
-import { SYSTEM_PROMPT } from "./context/system-prompt";
+import { buildSystemPrompt } from "./context/system-prompt";
 import { contextVersion, type TranscriptTag } from "./context/transcript";
 
 export interface TurnLLM {
+  systemPrompt: string;
   llmConfig: LLMConfig;
   providerOptions: ChatProviderOptions | undefined;
   transcriptTag: TranscriptTag;
@@ -12,13 +13,15 @@ export interface TurnLLM {
 export function resolveTurnLLM(override?: TurnLLMOverride): TurnLLM {
   const llmConfig = effectiveLLMConfig(loadLLMConfig(), override);
   const providerOptions = chatProviderOptions(llmConfig);
+  const systemPrompt = buildSystemPrompt();
   return {
+    systemPrompt,
     llmConfig,
     providerOptions,
     transcriptTag: {
       provider: llmConfig.provider,
       model: llmConfig.chatModel,
-      contextVersion: contextVersion(SYSTEM_PROMPT, providerOptions),
+      contextVersion: contextVersion(systemPrompt, providerOptions),
     },
     generationParameters: {
       effort: llmConfig.effort,

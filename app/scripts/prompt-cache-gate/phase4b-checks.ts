@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { streamText, type ModelMessage, type TextStreamPart, type Tool, type ToolSet } from "ai";
 import { chatProviderOptions, getChatModel, loadLLMConfig, sanitizeToolName } from "../../server/llm";
-import { SYSTEM_PROMPT } from "../../server/orchestration/context/system-prompt";
+import { buildSystemPrompt } from "../../server/orchestration/context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "../../server/orchestration/context/cache-markers";
 import { buildToolCatalog, SEARCH_TOOL_NAME } from "../../server/orchestration/context/tool-catalog";
 import { toDeclarations } from "../../server/orchestration/tool-dispatch";
@@ -49,7 +49,7 @@ async function call(label: string, tools: Record<string, Tool>, messages: ModelM
   let streamError: unknown;
   const result = streamText({
     model,
-    instructions: cachedInstructions(SYSTEM_PROMPT),
+    instructions: cachedInstructions(buildSystemPrompt()),
     messages: applyCacheMarkers(messages, prevLast),
     tools,
     maxRetries: 0,
