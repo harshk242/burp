@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { useChatStore } from "@/stores/chatStore";
+import { RateLimitError } from "@/types";
+import { RATE_LIMIT_ERROR_CODES } from "../../../shared/rate-limit";
 import { streamChat } from "../sse";
 import { ChatSessionController } from "../chat-session-controller";
 
@@ -123,5 +125,38 @@ describe("streamChat terminal lifecycle", () => {
     expect(store().isStreaming).toBe(false);
     expect(store().error).toBe("Turn failed");
     expect(store().streamingContent).toBe("");
+  });
+});
+
+
+describe("streamChat rate-limit responses", () => {
+  it.each([
+    [RATE_LIMIT_ERROR_CODES.query, { limit: 50, used: 50 }, 50, "Daily query limit reached. Resets at midnight UTC."],
+    [RATE_LIMIT_ERROR_CODES.cost, { cost_limit_microusd: 250000, cost_used_microusd: 250000 }, 250000, "Dollar usage budget reached. Resets when the active budget window resets."],
+  ] as const)("classifies %s using the shared contract", async (code, usage, limit, message) => {
+    globalThis.fetch = (async () => Response.json({ error: code, ...usage, resetAt: 1711497600 }, { status: 429 })) as unknown as typeof fetch;
+    const error = await run().catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect(error).toMatchObject({ errorCode: code, limit, used: limit, resetAt: 1711497600, message });
+  });
+
+  it.each(["future_limit_exceeded", undefined, 42])("classifies unknown code %j without assuming a query limit", async (code) => {
+    globalThis.fetch = (async () => Response.json({ error: code }, { status: 429 })) as unknown as typeof fetch;
+    const error = await run().catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect(error).toMatchObject({ errorCode: undefined, message: "Request rate limit reached. Please try again later." });
+  });
+
+  it("preserves a server message for an unknown code", async () => {
+    globalThis.fetch = (async () => Response.json({ error: "future_limit_exceeded", message: "Try again shortly." }, { status: 429 })) as unknown as typeof fetch;
+    await expect(run()).rejects.toThrow("Try again shortly.");
+  });
+
+  it("keeps pricing configuration failures as server errors", async () => {
+    globalThis.fetch = (async () => Response.json({ error: RATE_LIMIT_ERROR_CODES.pricing }, { status: 500 })) as unknown as typeof fetch;
+    const error = await run().catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(RateLimitError);
+    expect(error).toMatchObject({ message: RATE_LIMIT_ERROR_CODES.pricing });
   });
 });

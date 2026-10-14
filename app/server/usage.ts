@@ -1,3 +1,4 @@
+import type { EpochSeconds } from "../shared/usage";
 import { UNLIMITED } from "../shared/limits";
 import { appConfig, type AppConfig, type ModelPricing } from "./config";
 
@@ -66,14 +67,14 @@ export function getUtcMonth(date = new Date()): string {
   return date.toISOString().slice(0, 7);
 }
 
-export function getNextUtcMidnight(date = new Date()): number {
+export function getNextUtcMidnight(date = new Date()): EpochSeconds {
   const resetDate = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1)
   );
   return Math.floor(resetDate.getTime() / 1000);
 }
 
-export function getNextUtcMonthStart(date = new Date()): number {
+export function getNextUtcMonthStart(date = new Date()): EpochSeconds {
   const resetDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
   return Math.floor(resetDate.getTime() / 1000);
 }

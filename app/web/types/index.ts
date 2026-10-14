@@ -1,3 +1,4 @@
+import type { RateLimitErrorCode } from "../../shared/rate-limit";
 import type { FeedbackCategoryId } from "@/lib/feedback-categories";
 
 export interface User {
@@ -101,7 +102,7 @@ export class RateLimitError extends Error {
     public limit: number,
     public used: number,
     public resetAt: number,
-    public errorCode?: string
+    public errorCode?: RateLimitErrorCode
   ) {
     super(message);
     this.name = "RateLimitError";

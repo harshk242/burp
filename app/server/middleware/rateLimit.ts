@@ -1,3 +1,4 @@
+import { RATE_LIMIT_ERROR_CODES } from "../../shared/rate-limit";
 import type { Context, Next } from "hono";
 import { dailyUsageQueries, rateLimitQueries, usageEventQueries } from "../db";
 import { appConfig } from "../config";
@@ -35,7 +36,7 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
 
     return c.json(
       {
-        error: "query_limit_exceeded",
+        error: RATE_LIMIT_ERROR_CODES.query,
         message: `You have used all ${queryLimit} queries for today. Limits reset at midnight UTC.`,
         limit: queryLimit,
         used: todayFull.query_count,
@@ -55,7 +56,7 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
 
     return c.json(
       {
-        error: "pricing_not_configured",
+        error: RATE_LIMIT_ERROR_CODES.pricing,
         message: "Usage pricing is not configured for the active chat model.",
       },
       500
@@ -80,7 +81,7 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
 
     return c.json(
       {
-        error: "cost_limit_exceeded",
+        error: RATE_LIMIT_ERROR_CODES.cost,
         scope: "daily",
         message: "You have used your daily dollar budget. Limits reset at midnight UTC.",
         cost_limit_microusd: dailyCostLimit,
@@ -104,7 +105,7 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
 
     return c.json(
       {
-        error: "cost_limit_exceeded",
+        error: RATE_LIMIT_ERROR_CODES.cost,
         scope: "monthly",
         message: "You have used your monthly dollar budget. Limits reset next month.",
         cost_limit_microusd: monthlyCostLimit,

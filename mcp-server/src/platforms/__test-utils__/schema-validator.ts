@@ -63,8 +63,8 @@ function compareNodes(baseline: SchemaNode, current: SchemaNode, ctx: CompareCon
   }
 
   if (baseline.type === 'object' && current.type === 'object') {
-    const baseProps = baseline.properties ?? {};
-    const currProps = current.properties ?? {};
+    const baseProps = baseline.properties;
+    const currProps = current.properties;
 
     for (const key of Object.keys(baseProps)) {
       if (!(key in currProps)) {
@@ -90,7 +90,7 @@ function compareNodes(baseline: SchemaNode, current: SchemaNode, ctx: CompareCon
   }
 }
 
-function compareUnionBaseline(baseline: SchemaNode, current: SchemaNode, ctx: CompareContext): void {
+function compareUnionBaseline(baseline: Extract<SchemaNode, { type: 'union' }>, current: SchemaNode, ctx: CompareContext): void {
   for (const currentVariant of getVariants(current)) {
     const baselineVariant = getVariants(baseline)
       .find((variant) => variant.type === currentVariant.type);
@@ -107,7 +107,7 @@ function compareUnionBaseline(baseline: SchemaNode, current: SchemaNode, ctx: Co
   }
 }
 
-function compareUnionCurrent(baseline: SchemaNode, current: SchemaNode, ctx: CompareContext): void {
+function compareUnionCurrent(baseline: SchemaNode, current: Extract<SchemaNode, { type: 'union' }>, ctx: CompareContext): void {
   for (const currentVariant of getVariants(current)) {
     if (currentVariant.type !== baseline.type) {
       if (!isToleratedNull(baseline.path, baseline.type, currentVariant.type, ctx)) {

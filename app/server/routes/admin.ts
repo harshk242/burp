@@ -44,7 +44,7 @@ const PatchLimitsSchema = z.object({
   daily_query_limit: limitValue().optional()
     .openapi({ example: 100, description: "null = role default, -1 = unlimited, >=0 = hard cap" }),
   daily_token_limit: limitValue().optional()
-    .openapi({ example: 500000, description: "null = config default, -1 = unlimited, >=0 = reporting threshold" }),
+    .openapi({ example: 500000, description: "null = config default, -1 = unlimited, >=0 = reporting threshold (not enforced)" }),
   daily_cost_limit_microusd: limitValue().optional()
     .openapi({ example: 250000, description: "null = config default, -1 = unlimited, >=0 = hard cap in microdollars" }),
   monthly_cost_limit_microusd: limitValue().optional()

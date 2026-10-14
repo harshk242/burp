@@ -17,6 +17,7 @@ import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { RATE_LIMIT_ERROR_CODES } from "../../../../../shared/rate-limit";
 import { RateLimitError } from "@/types";
 
 interface ChatPageClientProps {
@@ -183,11 +184,11 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
           });
           const formatUsd = (microusd: number) => `$${(microusd / 1_000_000).toFixed(2)}`;
           const message =
-            err.errorCode === "cost_limit_exceeded"
+            err.errorCode === RATE_LIMIT_ERROR_CODES.cost
               ? `You've used your dollar budget of ${formatUsd(err.limit)}. Resets at ${resetTime}.`
-              : err.errorCode === "token_limit_exceeded"
-              ? `You've used your daily token budget of ${err.limit.toLocaleString()} tokens. Resets at ${resetTime}.`
-              : `You've used all ${err.limit} queries for today. Resets at ${resetTime}.`;
+              : err.errorCode === RATE_LIMIT_ERROR_CODES.query
+              ? `You've used all ${err.limit} queries for today. Resets at ${resetTime}.`
+              : err.message;
           setRateLimitInfo({
             message,
             resetAt: err.resetAt,

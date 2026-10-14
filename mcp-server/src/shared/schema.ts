@@ -1,11 +1,14 @@
-export interface SchemaNode {
-  type: 'string' | 'number' | 'boolean' | 'null' | 'object' | 'array' | 'union' | 'unknown';
+interface SchemaNodeBase {
   path: string;
-  properties?: Record<string, SchemaNode>;
-  items?: SchemaNode | null;
-  variants?: SchemaNode[];
   optional?: boolean;
 }
+
+export type SchemaNode = SchemaNodeBase & (
+  | { type: 'object'; properties: Record<string, SchemaNode>; items?: never; variants?: never }
+  | { type: 'array'; items: SchemaNode | null; properties?: never; variants?: never }
+  | { type: 'union'; variants: SchemaNode[]; properties?: never; items?: never }
+  | { type: 'string' | 'number' | 'boolean' | 'null' | 'unknown'; properties?: never; items?: never; variants?: never }
+);
 
 const MAX_SAMPLE_ITEMS = 5;
 
@@ -16,14 +19,14 @@ export function extractSchema(value: unknown, path = '$'): SchemaNode {
     return {
       type: 'array',
       path,
-      items: value.length > 0 ? mergeItemSchemas(value, path) : null,
+      items: mergeItemSchemas(value, path),
     };
   }
 
   if (typeof value === 'object') {
     const node: SchemaNode = { type: 'object', path, properties: {} };
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      node.properties![k] = extractSchema(v, `${path}.${k}`);
+      node.properties[k] = extractSchema(v, `${path}.${k}`);
     }
     return node;
   }
@@ -34,7 +37,8 @@ export function extractSchema(value: unknown, path = '$'): SchemaNode {
   return { type: 'unknown', path };
 }
 
-function mergeItemSchemas(items: unknown[], arrayPath: string): SchemaNode {
+function mergeItemSchemas(items: unknown[], arrayPath: string): SchemaNode | null {
+  if (items.length === 0) return null;
   const sample = items.slice(0, MAX_SAMPLE_ITEMS);
   const schemas = sample.map((item) => extractSchema(item, `${arrayPath}[]`));
   return schemas.reduce((merged, next) => mergeNodes(merged, next));
@@ -50,8 +54,8 @@ function mergeNodes(a: SchemaNode, b: SchemaNode): SchemaNode {
   }
 
   if (a.type === 'object' && b.type === 'object') {
-    const aProps = a.properties ?? {};
-    const bProps = b.properties ?? {};
+    const aProps = a.properties;
+    const bProps = b.properties;
     const merged: Record<string, SchemaNode> = {};
     const allKeys = new Set([...Object.keys(aProps), ...Object.keys(bProps)]);
 
@@ -99,6 +103,6 @@ function mergeUnionNodes(a: SchemaNode, b: SchemaNode): SchemaNode {
 }
 
 export function getVariants(node: SchemaNode): SchemaNode[] {
-  return node.type === 'union' ? (node.variants ?? []) : [node];
+  return node.type === 'union' ? node.variants : [node];
 }
 

@@ -1,3 +1,4 @@
+import type { UsageResponse } from "../../shared/usage";
 import { UNLIMITED } from "../../shared/limits";
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { UsageSchema, ErrorSchema } from "../schemas";
@@ -91,7 +92,7 @@ usage.openapi(getUsageRoute, async (c) => {
         monthly_remaining_microusd: getRemainingMicrousd(monthlyCostLimit, monthCost),
         monthly_reset_at: monthlyResetAt,
       },
-    },
+    } satisfies UsageResponse,
     200
   );
 });

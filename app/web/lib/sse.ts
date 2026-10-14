@@ -1,5 +1,6 @@
 import type { ChatState } from "@/stores/chatStore";
 import { RateLimitError } from "@/types";
+import { isRateLimitErrorCode, RATE_LIMIT_ERROR_CODES } from "../../shared/rate-limit";
 import type { ChatCompletion } from "../../shared/chat";
 
 export interface StreamOwner {
@@ -49,19 +50,19 @@ async function consumeChat(
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: "Request failed" }));
     if (response.status === 429) {
-      const errorCode: string = error.error ?? "";
+      const errorCode = isRateLimitErrorCode(error.error) ? error.error : undefined;
       let message: string;
-      if (errorCode === "cost_limit_exceeded") {
+      if (errorCode === RATE_LIMIT_ERROR_CODES.cost) {
         message = error.message || "Dollar usage budget reached. Resets when the active budget window resets.";
-      } else if (errorCode === "token_limit_exceeded") {
-        message = error.message || `Daily token budget of ${(error.token_limit ?? 0).toLocaleString()} tokens reached. Resets at midnight UTC.`;
-      } else {
+      } else if (errorCode === RATE_LIMIT_ERROR_CODES.query) {
         message = error.message || "Daily query limit reached. Resets at midnight UTC.";
+      } else {
+        message = error.message || "Request rate limit reached. Please try again later.";
       }
       throw new RateLimitError(
         message,
-        error.limit ?? error.token_limit ?? error.cost_limit_microusd ?? 0,
-        error.used ?? error.tokens_used ?? error.cost_used_microusd ?? 0,
+        error.limit ?? error.cost_limit_microusd ?? 0,
+        error.used ?? error.cost_used_microusd ?? 0,
         error.resetAt ?? 0,
         errorCode
       );
