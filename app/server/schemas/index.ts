@@ -1,3 +1,4 @@
+import { IntegerLimitSchema } from "./limits";
 import { z } from "@hono/zod-openapi";
 import { ALL_CATEGORY_IDS, MAX_FEEDBACK_CATEGORIES } from "./feedback-categories";
 
@@ -21,10 +22,10 @@ export const UserSchema = z.object({
   total_queries: z.number().int().openapi({ example: 42 }),
   created_at: z.number().int().openapi({ example: 1706371200 }),
   last_active_at: z.number().int().nullable().openapi({ example: 1706371200 }),
-  daily_query_limit: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use role default" }),
-  daily_token_limit: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default" }),
-  daily_cost_limit_microusd: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default, -1 = unlimited" }),
-  monthly_cost_limit_microusd: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default, -1 = unlimited" }),
+  daily_query_limit: IntegerLimitSchema.nullable().optional().openapi({ example: null, description: "NULL = use role default" }),
+  daily_token_limit: IntegerLimitSchema.nullable().optional().openapi({ example: null, description: "NULL = use config default" }),
+  daily_cost_limit_microusd: IntegerLimitSchema.nullable().optional().openapi({ example: null, description: "NULL = use config default, -1 = unlimited" }),
+  monthly_cost_limit_microusd: IntegerLimitSchema.nullable().optional().openapi({ example: null, description: "NULL = use config default, -1 = unlimited" }),
 });
 
 export const AccessRequestSchema = z.object({
@@ -188,26 +189,26 @@ export const ToolSearchQuerySchema = z.object({
 
 export const UsageSchema = z.object({
   used: z.number().int().openapi({ example: 12 }),
-  limit: z.number().int().openapi({ example: 50, description: "-1 means unlimited" }),
-  remaining: z.number().int().openapi({ example: 38 }),
+  limit: IntegerLimitSchema.openapi({ example: 50, description: "-1 means unlimited" }),
+  remaining: IntegerLimitSchema.openapi({ example: 38 }),
   resetAt: z.number().int().openapi({ example: 1711497600, description: "Unix timestamp of next midnight UTC" }),
   total_queries: z.number().int().openapi({ example: 142 }),
   role: z.enum(["waitlist", "user", "admin"]).openapi({ example: "user" }),
   tokens: z.object({
     used_today: z.number().int().openapi({ example: 12400 }),
-    limit: z.number().int().openapi({ example: 200000, description: "-1 means unlimited" }),
-    remaining: z.number().int().openapi({ example: 187600, description: "-1 means unlimited" }),
+    limit: IntegerLimitSchema.openapi({ example: 200000, description: "-1 means unlimited" }),
+    remaining: IntegerLimitSchema.openapi({ example: 187600, description: "-1 means unlimited" }),
     input_today: z.number().int().openapi({ example: 8200 }),
     output_today: z.number().int().openapi({ example: 4200 }),
   }).openapi({ description: "Daily token budget" }),
   cost: z.object({
     daily_used_microusd: z.number().int().openapi({ example: 12000 }),
-    daily_limit_microusd: z.number().int().openapi({ example: 250000, description: "-1 means unlimited" }),
-    daily_remaining_microusd: z.number().int().openapi({ example: 238000, description: "-1 means unlimited" }),
+    daily_limit_microusd: IntegerLimitSchema.openapi({ example: 250000, description: "-1 means unlimited" }),
+    daily_remaining_microusd: IntegerLimitSchema.openapi({ example: 238000, description: "-1 means unlimited" }),
     daily_reset_at: z.number().int().openapi({ example: 1711497600 }),
     monthly_used_microusd: z.number().int().openapi({ example: 45000 }),
-    monthly_limit_microusd: z.number().int().openapi({ example: 3000000, description: "-1 means unlimited" }),
-    monthly_remaining_microusd: z.number().int().openapi({ example: 2955000, description: "-1 means unlimited" }),
+    monthly_limit_microusd: IntegerLimitSchema.openapi({ example: 3000000, description: "-1 means unlimited" }),
+    monthly_remaining_microusd: IntegerLimitSchema.openapi({ example: 2955000, description: "-1 means unlimited" }),
     monthly_reset_at: z.number().int().openapi({ example: 1711929600 }),
   }).openapi({ description: "Daily and monthly dollar budgets in microdollars" }),
 });

@@ -47,6 +47,7 @@ export async function syncToolEmbeddings(options: SyncOptions): Promise<SyncStat
 
   const existing = await inspectToolEmbeddings(path, embedder.id, embedder.spec.dimensions);
   if (!existing.ok && existing.reason !== "file_missing") options.onIndexRejected?.(existing);
+  if (!existing.ok && existing.reason === "read_failed") throw existing.cause;
   const stored = existing.ok ? existing.index.entries : [];
 
   const kept: ToolEmbeddingEntry[] = [];

@@ -24,6 +24,9 @@ Starting the app without Clerk requires an empty `CLERK_SECRET_KEY` and explicit
 `AUTH_MODE=development` in `app/.env` or the shell environment. This enables a local
 admin identity only outside production. Production requires `CLERK_SECRET_KEY`;
 without a key or explicit development mode, protected requests return HTTP 503.
+The web app follows the same rule: set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, or
+`AUTH_MODE=development` in `app/web/.env.local` for a provider-free local UI.
+Production web builds fail without a valid publishable key.
 
 ## Prompt Cache / Lossless Transcript Gate
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useRef } from "react";
-import { useAuth } from "@clerk/clerk-react";
+import { developmentAuth, useAuth } from "@/lib/auth";
 import { useChatStore } from "@/stores/chatStore";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useApi } from "@/hooks/useApi";
@@ -167,7 +167,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
       try {
         const token = await getToken();
         if (!work.isCurrent()) return;
-        if (!token) throw new Error("Not authenticated");
+        if (!token && !developmentAuth) throw new Error("Not authenticated");
 
         setRateLimitInfo(null);
         await controller.stream(work, content, token, (title) => {

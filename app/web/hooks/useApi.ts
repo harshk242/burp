@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@/lib/auth";
 import { useCallback } from "react";
 import { buildApiUrl } from "@/lib/api-url";
 
@@ -17,7 +17,7 @@ export function useApi() {
         ...options,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options?.headers,
         },
       });

@@ -18,12 +18,14 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 COPY app/web/package.json app/web/bun.lock ./web/
 RUN cd web && bun install
+COPY app/shared ./shared
 COPY app/web ./web
 RUN cd web && bun run build
 
 FROM base AS server-build
 COPY app/package.json app/bun.lock ./
 RUN bun install
+COPY app/shared ./shared
 COPY app/server ./server
 
 FROM base AS runner
@@ -32,6 +34,7 @@ COPY --from=mcp-build /app/mcp-server ./mcp-server
 
 COPY --from=web-build /app/web/out ./public
 
+COPY --from=server-build /app/shared ./shared
 COPY --from=server-build /app/server ./server
 COPY --from=server-build /app/node_modules ./node_modules
 

@@ -70,7 +70,7 @@ export class ChatSessionController {
     }
   }
 
-  async stream(work: SessionWork, content: string, token: string, onTitle: (title: string) => void) {
+  async stream(work: SessionWork, content: string, token: string | null, onTitle: (title: string) => void) {
     if (!work.owner.sessionId || !work.isCurrent()) return;
     await streamChat(work.owner.sessionId, content, token, work, onTitle);
   }

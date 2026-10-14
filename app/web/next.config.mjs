@@ -1,3 +1,5 @@
+import { resolveWebAuthConfig } from "./lib/auth-config.mjs";
+
 const rawOrigins =
   process.env.CORS_ORIGINS ||
   "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001";
@@ -16,4 +18,14 @@ const config = {
   eslint: { ignoreDuringBuilds: true },
 };
 
-export default config;
+export default (phase) => {
+  const auth = resolveWebAuthConfig(process.env, phase === "phase-production-build" || process.env.NODE_ENV === "production");
+  return {
+    ...config,
+    experimental: { externalDir: true },
+    env: {
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: auth.publishableKey,
+      NEXT_PUBLIC_AUTH_MODE: auth.development ? "development" : "clerk",
+    },
+  };
+};

@@ -1,3 +1,4 @@
+import { UNLIMITED } from "../../shared/limits";
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { UsageSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
@@ -55,11 +56,11 @@ usage.openapi(getUsageRoute, async (c) => {
   const resetAt = getNextUtcMidnight();
   const monthlyResetAt = getNextUtcMonthStart();
 
-  const remaining = dailyLimit === -1 ? -1 : Math.max(0, dailyLimit - todayFull.query_count);
+  const remaining = dailyLimit === UNLIMITED ? UNLIMITED : Math.max(0, dailyLimit - todayFull.query_count);
 
   const tokenLimit = limits.daily_token_limit;
   const tokensUsedToday = todayFull.input_tokens + todayFull.output_tokens;
-  const tokensRemaining = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - tokensUsedToday);
+  const tokensRemaining = tokenLimit === UNLIMITED ? UNLIMITED : Math.max(0, tokenLimit - tokensUsedToday);
   const dailyCostLimit = limits.daily_cost_limit_microusd;
   const monthlyCostLimit = limits.monthly_cost_limit_microusd;
   const todayCost = usageEventQueries.getTotalsForDate(userId).cost_microusd;

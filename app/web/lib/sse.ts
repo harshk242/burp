@@ -1,6 +1,6 @@
 import type { ChatState } from "@/stores/chatStore";
 import { RateLimitError } from "@/types";
-import type { ChatCompletion } from "../../server/orchestration/types";
+import type { ChatCompletion } from "../../shared/chat";
 
 export interface StreamOwner {
   signal: AbortSignal;
@@ -12,7 +12,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 export async function streamChat(
   sessionId: string,
   message: string,
-  token: string,
+  token: string | null,
   owner: StreamOwner,
   onTitle?: (title: string) => void
 ): Promise<void> {
@@ -26,7 +26,7 @@ export async function streamChat(
 }
 
 async function consumeChat(
-  sessionId: string, message: string, token: string, owner: StreamOwner,
+  sessionId: string, message: string, token: string | null, owner: StreamOwner,
   onTitle?: (title: string) => void
 ): Promise<void> {
   if (!owner.isCurrent()) return;
@@ -36,7 +36,7 @@ async function consumeChat(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ sessionId, message }),
   });
