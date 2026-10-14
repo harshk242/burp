@@ -321,8 +321,10 @@ export async function* processChat(
       },
     });
 
-    yield { type: "done", data: { messageId: assistantMsgId } };
-    yield { type: "usage", data: { inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens } };
+    yield {
+      type: "done",
+      data: { messageId: assistantMsgId, inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens },
+    };
   } catch (error) {
     if (turnSignal.aborted) {
       const message = turnAbort.signal.aborted ? "Server shutting down" : "Client disconnected";

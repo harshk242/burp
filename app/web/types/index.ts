@@ -117,7 +117,6 @@ export type SSEEventType =
   | "reasoning"
   | "title"
   | "done"
-  | "usage"
   | "error";
 
 export interface SSEEvent {

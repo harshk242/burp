@@ -33,13 +33,13 @@ export function useApi() {
   );
 
   const get = useCallback(
-    <T>(path: string) => request<T>(path),
+    <T>(path: string, options?: RequestInit) => request<T>(path, options),
     [request]
   );
 
   const post = useCallback(
-    <T>(path: string, body?: unknown) =>
-      request<T>(path, { method: "POST", body: JSON.stringify(body) }),
+    <T>(path: string, body?: unknown, options?: RequestInit) =>
+      request<T>(path, { ...options, method: "POST", body: JSON.stringify(body) }),
     [request]
   );
 

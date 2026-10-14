@@ -5,10 +5,9 @@ import { useAuth } from "@clerk/clerk-react";
 import { useChatStore } from "@/stores/chatStore";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useApi } from "@/hooks/useApi";
-import { streamChat } from "@/lib/sse";
+import { ChatSessionController } from "@/lib/chat-session-controller";
 import { buildChatUrl, extractSessionIdFromLocation } from "@/lib/chatUrl";
 import { generateId } from "@/lib/id";
-import { dbMessageToMessage } from "@/lib/history";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ChatContainer } from "@/components/chat/ChatContainer";
@@ -19,7 +18,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { RateLimitError } from "@/types";
-import type { SessionWithMessagesResponse, Message, ToolCall } from "@/types";
 
 interface ChatPageClientProps {
   sessionId: string | null;
@@ -68,6 +66,8 @@ export function ChatPageClient({ sessionId: _initialSessionId }: ChatPageClientP
 function ChatPageContent({ initialSessionId }: { initialSessionId: string | null }) {
   const { getToken } = useAuth();
   const { get, post } = useApi();
+  const [controller] = useState(() => new ChatSessionController());
+  useEffect(() => () => controller.dispose(), [controller]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId);
   const [rateLimitInfo, setRateLimitInfo] = useState<{
     message: string;
@@ -76,14 +76,11 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
   const {
     messages,
     isStreaming,
+    isLoadingHistory,
     streamingContent,
     pendingToolCalls,
     reasoningSegments,
     error,
-    setMessages,
-    addMessage,
-    reset,
-    setError,
   } = useChatStore();
   const { sessions, activeSessionId, addSession, setActiveSession, updateSession } = useSessionStore();
 
@@ -91,57 +88,56 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     sessions.find((s) => s.id === currentSessionId)?.title ?? "Chat";
 
   const prevActiveRef = useRef(activeSessionId);
+  useEffect(() => useSessionStore.subscribe((state) => {
+    if (state.activeSessionId !== prevActiveRef.current) controller.dispose();
+  }), [controller]);
+
   useEffect(() => {
     if (prevActiveRef.current !== activeSessionId) {
+      controller.dispose();
+      setRateLimitInfo(null);
       prevActiveRef.current = activeSessionId;
       setCurrentSessionId(activeSessionId);
     }
-  }, [activeSessionId]);
+  }, [activeSessionId, controller]);
 
   useEffect(() => {
     const handlePopState = () => {
       const sessionId = extractSessionIdFromLocation(window.location);
+      controller.dispose();
+      setRateLimitInfo(null);
       setCurrentSessionId(sessionId);
+      prevActiveRef.current = sessionId;
       setActiveSession(sessionId);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [setActiveSession]);
+  }, [setActiveSession, controller]);
 
   useEffect(() => {
-    if (!currentSessionId) {
-      reset();
-      return;
+    if (currentSessionId) {
+      prevActiveRef.current = currentSessionId;
+      setActiveSession(currentSessionId);
     }
-
-    setActiveSession(currentSessionId);
-    reset();
-
-    async function loadMessages() {
-      try {
-        const data = await get<SessionWithMessagesResponse>(
-          `/sessions/${currentSessionId}`
-        );
-
-        const convertedMessages: Message[] = data.messages.map(dbMessageToMessage);
-
-        setMessages(convertedMessages);
-      } catch (err) {
-        console.error("Failed to load messages:", err);
-        setError("Failed to load conversation history");
-      }
-    }
-
-    loadMessages();
-  }, [currentSessionId, get, setActiveSession, reset, setMessages, setError]);
+    if (controller.selected(currentSessionId)) return;
+    const work = controller.select(currentSessionId);
+    setRateLimitInfo(null);
+    void controller.loadHistory(work, get);
+  }, [currentSessionId, get, setActiveSession, controller]);
 
   const handleSend = useCallback(
     async (content: string) => {
+      const state = useChatStore.getState();
+      if (!controller.selected(currentSessionId) || state.isStreaming || state.isLoadingHistory) return;
       let sessionId = currentSessionId;
+      let work = controller.beginTurn(sessionId);
 
       if (!sessionId) {
         try {
-          const data = await post<{ id: string; title: string }>("/sessions", {});
+          const data = await post<{ id: string; title: string }>("/sessions", {}, { signal: work.signal });
+          const adopted = controller.adoptSession(work, data.id);
+          if (!adopted) return;
+          work = adopted;
           const newSession = {
             id: data.id,
             user_id: "",
@@ -151,31 +147,34 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
           };
           addSession(newSession);
           setCurrentSessionId(data.id);
+          prevActiveRef.current = data.id;
           setActiveSession(data.id);
           window.history.replaceState(null, "", buildChatUrl(data.id));
           sessionId = data.id;
         } catch (err) {
-          setError("Failed to create session");
+          work.commit((store) => store.setError("Failed to create session"));
           return;
         }
       }
 
-      addMessage({
+      work.commit((store) => store.addMessage({
         id: generateId(),
         role: "user",
         content,
         createdAt: Date.now(),
-      });
+      }));
 
       try {
         const token = await getToken();
+        if (!work.isCurrent()) return;
         if (!token) throw new Error("Not authenticated");
 
         setRateLimitInfo(null);
-        await streamChat(sessionId, content, token, (title) => {
+        await controller.stream(work, content, token, (title) => {
           updateSession(sessionId!, { title });
         });
       } catch (err) {
+        if (!work.isCurrent()) return;
         if (err instanceof RateLimitError) {
           const resetTime = new Date(err.resetAt * 1000).toLocaleTimeString([], {
             hour: "2-digit",
@@ -195,11 +194,11 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
           });
         } else {
           const errorMsg = err instanceof Error ? err.message : "An error occurred";
-          setError(errorMsg);
+          work.commit((store) => store.setError(errorMsg));
         }
       }
     },
-    [currentSessionId, getToken, addMessage, updateSession, setError, post, addSession, setActiveSession]
+    [currentSessionId, getToken, updateSession, post, addSession, setActiveSession, controller]
   );
 
   return (
@@ -236,7 +235,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
               </div>
             </div>
           )}
-          <MessageInput onSend={handleSend} disabled={isStreaming} />
+          <MessageInput onSend={handleSend} disabled={isStreaming || isLoadingHistory} />
         </ChatContainer>
       </div>
     </div>

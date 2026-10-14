@@ -3,8 +3,18 @@ import type { Feedback, Message, ToolCall } from "@/types";
 import { generateId } from "@/lib/id";
 import { joinReasoning } from "@/lib/reasoning";
 
-interface ChatState {
+export interface ChatOwner {
+  readonly sessionId: string | null;
+  readonly turnId: string | null;
+}
+
+export interface ChatState {
+  owner: ChatOwner | null;
+  claim: (owner: ChatOwner) => void;
+  commitOwned: (owner: ChatOwner, commit: (state: ChatState) => void) => boolean;
   messages: Message[];
+  isLoadingHistory: boolean;
+  setLoadingHistory: (loading: boolean) => void;
   isStreaming: boolean;
   streamingContent: string;
   pendingToolCalls: ToolCall[];
@@ -21,9 +31,8 @@ interface ChatState {
   updateToolCall: (id: string, updates: Partial<ToolCall>) => void;
   moveStreamingToReasoning: () => void;
   appendReasoning: (chunk: string, newBlock: boolean) => void;
-  finalizeAssistantMessage: (messageId?: string) => void;
+  finalizeAssistantMessage: (messageId?: string, tokenUsage?: Message["tokenUsage"]) => void;
   setFeedback: (messageId: string, feedback: Feedback | null) => void;
-  setLastMessageTokens: (input: number, output: number) => void;
   setError: (error: string | null) => void;
   setStreaming: (isStreaming: boolean) => void;
   resetStreamingState: () => void;
@@ -31,7 +40,16 @@ interface ChatState {
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
+  owner: null,
+  claim: (owner) => set({ owner }),
+  commitOwned: (owner, commit) => {
+    if (get().owner !== owner) return false;
+    commit(get());
+    return true;
+  },
   messages: [],
+  isLoadingHistory: false,
+  setLoadingHistory: (isLoadingHistory) => set({ isLoadingHistory }),
   isStreaming: false,
   streamingContent: "",
   pendingToolCalls: [],
@@ -102,9 +120,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { reasoningSegments: [...segments, chunk], textRunOpen: false };
     }),
 
-  finalizeAssistantMessage: (messageId) => {
+  finalizeAssistantMessage: (messageId, tokenUsage) => {
     const { streamingContent, pendingToolCalls, reasoningSegments } = get();
-    if (streamingContent || pendingToolCalls.length > 0 || reasoningSegments.length > 0) {
+    if (messageId || streamingContent || pendingToolCalls.length > 0 || reasoningSegments.length > 0) {
       const reasoning = joinReasoning(reasoningSegments) || undefined;
       set((state) => ({
         messages: [
@@ -117,6 +135,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             toolCalls: pendingToolCalls.length > 0 ? pendingToolCalls : undefined,
             createdAt: Date.now(),
             reasoning,
+            tokenUsage,
           },
         ],
         streamingContent: "",
@@ -126,6 +145,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         textRunOpen: false,
         isStreaming: false,
       }));
+    } else {
+      get().resetStreamingState();
     }
   },
 
@@ -133,17 +154,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       messages: state.messages.map((m) => (m.id === messageId ? { ...m, feedback } : m)),
     })),
-
-  setLastMessageTokens: (input, output) =>
-    set((state) => {
-      const idx = [...state.messages].reverse().findIndex((m) => m.role === "assistant");
-      if (idx === -1) return state;
-      const realIdx = state.messages.length - 1 - idx;
-      const updated = state.messages.map((m, i) =>
-        i === realIdx ? { ...m, tokenUsage: { input, output } } : m
-      );
-      return { messages: updated };
-    }),
 
   setError: (error) => set({ error, isStreaming: false }),
 
@@ -162,6 +172,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   reset: () =>
     set({
+      owner: null,
+      isLoadingHistory: false,
       messages: [],
       streamingContent: "",
       pendingToolCalls: [],

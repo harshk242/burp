@@ -108,7 +108,7 @@ describe("processChat usage ledger", () => {
     const sessionId = crypto.randomUUID();
     const events = await collect(processChat(sessionId, USER_ID, "hi"));
 
-    expect(events.find((e) => e.type === "usage")?.data).toEqual({ inputTokens: 6300, outputTokens: 100 });
+    expect(events.find((e) => e.type === "done")?.data).toEqual({ messageId: q.messageQueries.findByChatId(sessionId).find((m) => m.role === "assistant")!.id, inputTokens: 6300, outputTokens: 100 });
 
     const rows = t.sqlite.query<Record<string, unknown>, []>("SELECT * FROM usage_events").all();
     expect(rows).toHaveLength(1);
@@ -145,7 +145,7 @@ describe("processChat usage ledger", () => {
 
     expect(model.doStreamCalls).toHaveLength(3);
     expect(events.some((e) => e.type === "error")).toBe(true);
-    expect(events.some((e) => e.type === "done" || e.type === "usage")).toBe(false);
+    expect(events.some((e) => e.type === "done")).toBe(false);
 
     const { provider, chatModel } = loadLLMConfig();
     const expected = summarizeTurnCost([
