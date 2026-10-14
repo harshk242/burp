@@ -3,7 +3,7 @@ import { openDatabase, createDrizzle } from "../../db/connection";
 import { applyPendingMigrations, loadMigrations } from "../../db/executor";
 import { MIGRATIONS_FOLDER } from "../../db/paths";
 import { createQueries } from "../../db/queries";
-import { seedTracedTurn, ids, FakeScoreWriter } from "./feedback-test-utils";
+import { ids, FakeScoreWriter } from "./feedback-test-utils";
 import { createFeedbackSync, feedbackScoreId } from "../feedback-sync";
 
 it("migrates legacy deletion uncertainty into durable cleanup and republishes desired feedback", async () => {
@@ -13,7 +13,12 @@ it("migrates legacy deletion uncertainty into durable cleanup and republishes de
     const last = migrations.findIndex((m) => m.tag === "0015_feedback_sync_outbox");
     sqlite.transaction(() => applyPendingMigrations(sqlite, migrations.slice(0, last)))();
     const q = createQueries(createDrizzle(sqlite));
-    seedTracedTurn(q);
+    q.userQueries.create(ids.user, "clerk-1", "one@example.com", "One", null, "user", null, null);
+    q.chatSessionQueries.create(ids.session, ids.user, "Chat");
+    q.messageQueries.create(ids.userMessage, ids.session, "user", "question", null);
+    q.messageQueries.create(ids.assistantMessage, ids.session, "assistant", "answer", null);
+    sqlite.run("INSERT INTO chat_turns (id, session_id, user_message_id, assistant_message_id, status, trace_id) VALUES (?, ?, ?, ?, 'ok', ?)",
+      [ids.turn, ids.session, ids.userMessage, ids.assistantMessage, ids.traceId]);
     sqlite.run(`INSERT INTO message_feedback (id, message_id, user_id, value, revision, sync_pending, synced_revision, delete_unconfirmed)
       VALUES (?, ?, ?, 1, 7, 0, 7, 1)`, ["legacy", ids.assistantMessage, ids.user]);
     sqlite.transaction(() => applyPendingMigrations(sqlite, migrations))();

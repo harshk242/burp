@@ -14,7 +14,7 @@ it("0016 backfills UTF-8 payload bytes from existing gzip rows without changing 
       insert.run(String(i), Buffer.from(Bun.gzipSync(json)), json.length, json.length);
     });
     const migration = runMigrations(sqlite);
-    expect(migration.applied.map((m) => m.tag)).toEqual(["0016_artifact_utf8_bytes"]);
+    expect(migration.applied.map((m) => m.tag)).toEqual(["0016_artifact_utf8_bytes", "0017_turn_usage_identity"]);
     const rows = sqlite.query<{ artifact_type: string; stored_size_bytes: number; data: Buffer }, []>("SELECT artifact_type, stored_size_bytes, data FROM artifacts ORDER BY id").all();
     rows.forEach((row, i) => {
       const json = JSON.stringify(values[i]);

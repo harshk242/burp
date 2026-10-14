@@ -157,6 +157,18 @@ describe("model transcript", () => {
     expect(degraded[0]![2]?.data).toMatchObject({ reason: "context_version" });
   });
 
+  it("reuses the measured prompt baseline when the next turn replays the same input prefix", async () => {
+    const { CallTracker } = await import("../orchestration/turn-usage");
+    const sessionId = crypto.randomUUID();
+    model = scriptedModel([[toolCall("c1"), finish("tool-calls")], [...text("answer"), finish("stop")]]);
+    await collect(processChat(sessionId, USER_ID, "first"));
+    const carried = spyOn(CallTracker.prototype as unknown as { carriedCall: (r: unknown) => unknown }, "carriedCall");
+    model = scriptedModel([[...text("followup"), finish("stop")]]);
+    await collect(processChat(sessionId, USER_ID, "second"));
+    expect(carried.mock.results[0]?.value).toMatchObject({ promptTokens: 10, messageCount: 3 });
+    carried.mockRestore();
+  });
+
   it("replays complete successful messages as-is and carries the final input endpoint", async () => {
     const sessionId = crypto.randomUUID();
     model = scriptedModel([[toolCall("c1"), finish("tool-calls")], [...text("answer"), finish("stop")]]);

@@ -154,6 +154,7 @@ export const UsageEventSchema = z.object({
   long_context_calls: z.number().int(),
   status: z.enum(["ok", "error"]),
   usage_estimated: z.number().int(),
+  reconciliation_state: z.enum(["none", "estimated", "uncertain"]),
   session_id: z.string().uuid().nullable(),
   message_id: z.string().uuid().nullable(),
   turn_id: z.string().uuid().nullable(),

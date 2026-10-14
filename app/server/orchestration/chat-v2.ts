@@ -16,7 +16,6 @@ import {
   TurnError,
   acquireSessionLock,
   classifyTurnError,
-  finishFailedTurn,
   recordTraceId,
   registerActiveTurn,
   refusalError,
@@ -160,7 +159,7 @@ export async function* processChat(
     const instructions = caching ? cachedInstructions(systemPrompt) : systemPrompt;
     let previousLastIndex = history.previousLastIndex;
     if (previousLastIndex !== undefined && history.previousPromptTokens !== undefined) {
-      tracker.carryOver(history.previousPromptTokens, previousLastIndex + 1);
+      tracker.carryOver(history.previousPromptTokens, previousLastIndex + 1, history.previousInputIdentity);
     }
 
     while (continueLoop) {
@@ -294,6 +293,8 @@ export async function* processChat(
       toolCalls: allToolCalls,
       iterations: loopIteration,
       lastPromptTokens: tracker.lastPromptTokens,
+      lastInputMessageCount: tracker.lastInputMessageCount,
+      lastInputIdentity: tracker.lastInputIdentity,
       ...signals,
     });
     ledgerWritten = true;
@@ -343,6 +344,7 @@ export async function* processChat(
     if (!ledgerWritten) {
       turnAbort.abort();
       const errorCode = failure?.code ?? "closed";
+      const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
       const cutOffCall = recordFailedTurn({
         meter,
         tracker,
@@ -353,22 +355,12 @@ export async function* processChat(
         model: llmConfig.chatModel,
         ctx,
         errorCode,
+        outcome: {
+          status: errorCode === "aborted" || errorCode === "closed" ? "aborted" : "error",
+          errorCode, errorMessage, iterations: loopIteration, ...signals,
+        },
       });
       budget.reconcile(meter.summary().costPicoUsd);
-      const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
-      if (turnId) {
-        finishFailedTurn(
-          turnId,
-          {
-            status: errorCode === "aborted" || errorCode === "closed" ? "aborted" : "error",
-            errorCode,
-            errorMessage,
-            iterations: loopIteration,
-            ...signals,
-          },
-          ctx
-        );
-      }
       trace.end({
         status: errorCode === "aborted" || errorCode === "closed" ? errorCode : "error",
         errorCode,

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import type { LanguageModelCallStartEvent } from "ai";
 import { estimateTokens } from "../logger";
-import { CallTracker } from "../orchestration/turn-usage";
+import { CallTracker, inputIdentity } from "../orchestration/turn-usage";
 import { UsageMeter } from "../orchestration/usage-meter";
 
 const ctx = { session_id: "s", user_id: "u" };
@@ -157,14 +157,14 @@ describe("CallTracker carry-over across turns", () => {
     const toolX = tool("x", 400);
     const req = request({ messages: 5, tools: [tool("core"), deferred(toolX)], extra: [references(["x"]), { role: "user", content: "new" }] });
     const carried = new CallTracker();
-    carried.carryOver(50_000, 6);
+    carried.carryOver(50_000, 6, inputIdentity(req, 6));
     expect(carried.estimateInputTokens(req)).toBe(50_000 + estimateTokens(JSON.stringify(req.messages.slice(6))));
     expect(new CallTracker().estimateInputTokens(req)).toBeLessThan(50_000);
   });
 
   it("refuses at the budget using the carried prompt", () => {
     const tracker = new CallTracker(50_000);
-    tracker.carryOver(50_000, 1);
+    tracker.carryOver(50_000, 1, inputIdentity(request({ messages: 2, tools: [] }), 1));
     tracker.begin(1);
     tracker.onRequest(request({ messages: 2, tools: [] }));
     expect(() => tracker.assertContextBudget()).toThrow("this chat is too long");
@@ -175,5 +175,49 @@ describe("CallTracker carry-over across turns", () => {
     tracker.carryOver(50_000, 10);
     const req = request({ messages: 2, tools: [] });
     expect(tracker.estimateInputTokens(req)).toBeLessThan(50_000);
+  });
+});
+
+describe("measured input identity", () => {
+  it("invalidates carry-over for changes anywhere in the prefix, instructions, or catalog", () => {
+    const baseline = request({ messages: 2, tools: [tool("core")] });
+    const tracker = new CallTracker();
+    tracker.carryOver(50_000, 2, inputIdentity(baseline));
+    for (const changed of [
+      request({ messages: 3, tools: baseline.tools as Tool[], instructions: "different" }),
+      request({ messages: 3, tools: [tool("core", 500)] }),
+      { ...request({ messages: 3, tools: baseline.tools as Tool[] }), messages: [{ role: "user", content: "degraded" }, ...baseline.messages.slice(1)] } as LanguageModelCallStartEvent,
+    ]) expect(tracker.estimateInputTokens(changed)).toBe(new CallTracker().estimateInputTokens(changed));
+  });
+
+  it("persists the measured input endpoint instead of inferring it from response roles", () => {
+    const tracker = new CallTracker();
+    const req = request({ messages: 2, tools: [] });
+    tracker.begin(1);
+    tracker.onRequest(req);
+    tracker.finish(new UsageMeter("anthropic", "claude-sonnet-5-5", ctx).add({ noCacheTokens: 100, cacheReadTokens: 0, cacheWrite5mTokens: 0, cacheWrite1hTokens: 0, outputTokens: 1 }));
+    expect(tracker.lastInputMessageCount).toBe(2);
+    expect(tracker.lastInputIdentity).toBe(inputIdentity(req));
+  });
+});
+
+describe("transport accounting states", () => {
+  afterEach(() => mock.restore());
+  it("reserves uncertain usage when the connection fails before headers", async () => {
+    spyOn(globalThis, "fetch").mockRejectedValue(new Error("connection reset"));
+    const tracker = new CallTracker();
+    await expect(sendCall(tracker, 1, request({ messages: 1, tools: [] }))).rejects.toThrow("connection reset");
+    expect(tracker.reconciliationState).toBe("uncertain");
+    expect(tracker.estimateCutOffCall()!.usage.noCacheTokens).toBeGreaterThan(0);
+  });
+  it("excludes rejected HTTP requests and unsent prepared requests", async () => {
+    spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 400 }));
+    const tracker = new CallTracker();
+    tracker.begin(1);
+    tracker.onRequest(request({ messages: 1, tools: [] }));
+    expect(tracker.estimateCutOffCall()).toBeNull();
+    await tracker.fetch("https://model.test");
+    expect(tracker.reconciliationState).toBe("none");
+    expect(tracker.estimateCutOffCall()).toBeNull();
   });
 });

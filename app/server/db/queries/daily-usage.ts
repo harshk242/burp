@@ -39,11 +39,11 @@ export function createDailyUsageQueries(db: DrizzleDb) {
       return row ?? { query_count: 0, input_tokens: 0, output_tokens: 0 };
     },
 
-    incrementTokens(userId: string, inputTokens: number, outputTokens: number): void {
+    incrementTokens(userId: string, inputTokens: number, outputTokens: number, date = utcToday()): void {
       db.insert(dailyUsage)
         .values({
           user_id: userId,
-          date: utcToday(),
+          date,
           query_count: 0,
           input_tokens: inputTokens,
           output_tokens: outputTokens,

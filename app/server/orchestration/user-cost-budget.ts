@@ -1,5 +1,6 @@
+import { usageRecovery } from "./usage-reconciliation";
 import { usageEventQueries } from "../db";
-import type { EffectiveLimits } from "../usage";
+import { getUtcDate, getUtcMonth, type EffectiveLimits } from "../usage";
 import { TurnError } from "./chat-turn";
 import type { CostBudget } from "./cost-budget";
 
@@ -10,7 +11,8 @@ type Ledger = Pick<typeof usageEventQueries, "getTotalsForDate" | "getTotalsForM
 export class UserCostBudgetRegistry {
   private readonly inFlight = new Map<string, Set<UserCostBudget>>();
 
-  constructor(private readonly ledger: Ledger = usageEventQueries) {}
+  constructor(private readonly ledger: Ledger = usageEventQueries,
+    private readonly pendingCost = (userId: string, period: string) => usageRecovery.pendingCost(userId, period)) {}
 
   acquire(userId: string, limits: CostLimits): UserCostBudget {
     const budget = new UserCostBudget(this, userId, limits);
@@ -23,9 +25,9 @@ export class UserCostBudgetRegistry {
   check(userId: string, limits: CostLimits): void {
     const pending = [...(this.inFlight.get(userId) ?? [])].reduce((sum, budget) => sum + budget.spentPicoUsd, 0);
     const periods = [
-      { limit: limits.daily_cost_limit_microusd, used: () => this.ledger.getTotalsForDate(userId).cost_microusd,
+      { limit: limits.daily_cost_limit_microusd, used: () => this.ledger.getTotalsForDate(userId).cost_microusd + this.pendingCost(userId, getUtcDate()),
         message: "You have used your daily dollar budget. Limits reset at midnight UTC." },
-      { limit: limits.monthly_cost_limit_microusd, used: () => this.ledger.getTotalsForMonth(userId).cost_microusd,
+      { limit: limits.monthly_cost_limit_microusd, used: () => this.ledger.getTotalsForMonth(userId).cost_microusd + this.pendingCost(userId, getUtcMonth()),
         message: "You have used your monthly dollar budget. Limits reset next month." },
     ];
     for (const period of periods) {

@@ -77,7 +77,7 @@ describe("legacy adoption — happy path", () => {
 
         const result = runMigrations(sqlite);
         expect(result.adopted).toBe(true);
-        expect(result.applied.map((m) => m.tag)).toEqual(["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns", "0005_usage_status_estimated", "0006_artifacts", "0007_chat_turns", "0008_model_transcript", "0009_chat_turns_last_prompt_tokens", "0010_chat_turns_trace_id", "0011_chat_turns_turn_signals", "0012_message_feedback", "0013_message_feedback_delete_unconfirmed", "0014_message_feedback_categories", "0015_feedback_sync_outbox", "0016_artifact_utf8_bytes"]);
+        expect(result.applied.map((m) => m.tag)).toEqual(["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns", "0005_usage_status_estimated", "0006_artifacts", "0007_chat_turns", "0008_model_transcript", "0009_chat_turns_last_prompt_tokens", "0010_chat_turns_trace_id", "0011_chat_turns_turn_signals", "0012_message_feedback", "0013_message_feedback_delete_unconfirmed", "0014_message_feedback_categories", "0015_feedback_sync_outbox", "0016_artifact_utf8_bytes", "0017_turn_usage_identity"]);
         expect(result.transactionMs).toBeGreaterThan(0);
 
         expect(schemaSnapshot(sqlite)).toEqual(schemaSnapshot(fresh));
@@ -129,7 +129,7 @@ describe("legacy adoption — happy path", () => {
 
         const expected = structuredClone(before);
         for (const u of expected.users!) if (u.role === "waitlist") u.role = "user";
-        for (const e of expected.usage_events!) Object.assign(e, LEGACY_USAGE_DEFAULTS);
+        for (const e of expected.usage_events!) Object.assign(e, LEGACY_USAGE_DEFAULTS, { reconciliation_state: "none" });
         expect(dumpRows(sqlite)).toEqual(expected);
         expect(expected.users!.some((u) => u.id === "u-wait")).toBe(true);
         expect(sequenceOf(sqlite, "daily_usage")).toBe(3);
