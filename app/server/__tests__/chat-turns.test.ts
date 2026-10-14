@@ -1,13 +1,3 @@
-/**
- * Turn records: every processChat turn gets a chat_turns row, created `running`
- * with the user message and finalized as ok / error / aborted, with its
- * usage_events row linked by turn_id. A second request to a session with a
- * turn in progress is rejected. A safety refusal is recorded as
- * `error_code = refusal` and shown as an error, not saved as an empty answer.
- *
- * processChat runs against an in-memory DB and a mock language model (same
- * harness as chat-abort.test.ts).
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
@@ -67,7 +57,6 @@ function streamOf(parts: LanguageModelV4StreamPart[]): ReadableStream<LanguageMo
   });
 }
 
-/** Call N streams calls[N]; a call past the end fails before any response. */
 type Call = LanguageModelV4StreamPart[] | (() => ReadableStream<LanguageModelV4StreamPart>);
 function scriptedModel(calls: Call[]) {
   let n = 0;
@@ -150,7 +139,6 @@ describe("chat_turns lifecycle", () => {
     expect(q.chatSessionQueries.findById(sessionId)).toBeFalsy();
     expect(roles(sessionId)).toEqual([]);
 
-    // The same session id works once storage does.
     const retry = await collect(processChat(sessionId, USER_ID, "hi"));
     expect(retry.some((e) => e.type === "done")).toBe(true);
     expect(roles(sessionId)).toEqual(["user", "assistant"]);
@@ -158,7 +146,6 @@ describe("chat_turns lifecycle", () => {
 
   it("a failed turn is recorded as error and its cost is linked to it", async () => {
     spyOn(mcpManager, "callTool").mockResolvedValue(okResult);
-    // Call 1 finishes (billed), call 2 fails before any response.
     model = scriptedModel([[toolCall("c1"), finish("tool-calls")]]);
 
     const sessionId = crypto.randomUUID();
@@ -218,7 +205,6 @@ describe("chat_turns lifecycle", () => {
 });
 
 describe("per-session lock", () => {
-  /** Starts a turn whose first LLM call streams some text and then waits for `release()`. */
   async function startBlockedTurn(sessionId: string) {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => (release = resolve));
@@ -233,7 +219,6 @@ describe("per-session lock", () => {
       }),
     ]);
     const running = processChat(sessionId, USER_ID, "first question");
-    // Read until the turn is mid-call (holding the lock).
     for (let r = await running.next(); !r.done && r.value.type !== "text"; r = await running.next());
     return { running, release };
   }
@@ -244,7 +229,6 @@ describe("per-session lock", () => {
 
     const rejected = await collect(processChat(sessionId, USER_ID, "second question"));
     expect(rejected).toEqual([{ type: "error", data: { error: TURN_IN_PROGRESS_MESSAGE, code: "turn_in_progress" } }]);
-    // Nothing stored for the rejected request: no user message, no turn.
     expect(q.messageQueries.findByChatId(sessionId).map((m) => m.content)).toEqual(["first question"]);
     expect(turns(sessionId)).toHaveLength(1);
 
@@ -253,7 +237,6 @@ describe("per-session lock", () => {
     expect(rest.some((e) => e.type === "done")).toBe(true);
     expect(turns(sessionId)).toEqual([expect.objectContaining({ status: "ok" })]);
 
-    // The lock is released once the turn ends.
     model = scriptedModel([[...text("third answer"), finish("stop")]]);
     const third = await collect(processChat(sessionId, USER_ID, "third question"));
     expect(third.some((e) => e.type === "done")).toBe(true);
@@ -264,12 +247,10 @@ describe("per-session lock", () => {
     const sessionId = crypto.randomUUID();
     const first = await startBlockedTurn(sessionId);
 
-    // Another session runs (and fails: the scripted model has no call left).
     const other = crypto.randomUUID();
     const otherEvents = await collect(processChat(other, USER_ID, "elsewhere"));
     expect(otherEvents.at(-1)).toMatchObject({ type: "error", data: { code: "provider_error" } });
 
-    // ...and can be retried at once.
     model = scriptedModel([[...text("ok"), finish("stop")]]);
     expect((await collect(processChat(other, USER_ID, "retry"))).some((e) => e.type === "done")).toBe(true);
 
@@ -302,7 +283,6 @@ describe("refusals", () => {
     const [turn] = turns(sessionId);
     expect(turn).toMatchObject({ status: "error", error_code: "refusal", iterations: 1, assistant_message_id: null });
     expect(turn!.error_message).toBe("stop_reason=refusal; category=bio; explanation=classifier");
-    // The refused call was billed: a finished call, not an estimate.
     expect(usageRows()).toEqual([expect.objectContaining({ status: "error", turn_id: turn!.id, llm_calls: 1, usage_estimated: 0 })]);
   });
 

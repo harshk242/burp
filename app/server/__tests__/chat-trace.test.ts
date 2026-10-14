@@ -1,12 +1,3 @@
-/**
- * Turn tracing through processChat: the trace tree of a real turn (mock model,
- * spied MCP call and tool search), the trace id on the chat_turns row, and the
- * levels / no-open-spans guarantee for refusal, stream failure, abort mid-stream
- * and mid-tool, the consumer calling return(), and a server shutdown. Also the
- * turn signals (final finish reason, tool error count) on the row and the
- * online scores computed from it. Upstream retry metadata (`_meta.retry` from
- * a stub MCP client) on the tool span, on success and on error.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { MockLanguageModelV4 } from "ai/test";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -92,7 +83,6 @@ function scriptedModel(calls: StreamFactory[]) {
   });
 }
 
-/** A call that streams some text, then hangs until aborted. */
 function hangingStream(onStarted: () => void): StreamFactory {
   return (signal) => new ReadableStream({
     start(controller) {
@@ -135,7 +125,6 @@ afterAll(() => {
   t.sqlite.close();
 });
 
-/** Every span ended exactly once and nothing is left open. */
 function expectClosed() {
   expect(mem.openSpans()).toEqual([]);
   expect(mem.endedOnce()).toBe(true);
@@ -170,14 +159,12 @@ describe("turn tracing", () => {
       if (span !== root) expect(span.parentSpanContext?.spanId).toBe(root.spanContext().spanId);
     }
 
-    // Root: question in, answer out, turn metadata.
     expect(root.attributes["langfuse.observation.input"]).toBe("What is BRCA1?");
     expect(root.attributes["langfuse.observation.output"]).toBe("final answer");
     expect(root.attributes["langfuse.observation.metadata.turn_id"]).toBe(row.id);
     expect(root.attributes["langfuse.observation.metadata.iterations"]).toBe("2");
     expect(root.attributes[LEVEL]).toBe("DEFAULT");
 
-    // Generations: delta inputs, tool calls out, our usage and cost.
     const [g1, g2] = [...gens].sort((a, b) => Number(a.attributes["langfuse.observation.metadata.iteration"]) - Number(b.attributes["langfuse.observation.metadata.iteration"]));
     expect(json(g1!, "langfuse.observation.input")).toEqual([{ role: "user", content: "What is BRCA1?" }]);
     const g2Input = json(g2!, "langfuse.observation.input") as { role: string }[];
@@ -187,12 +174,10 @@ describe("turn tracing", () => {
     expect(g2!.attributes["langfuse.observation.metadata.finish_reason"]).toBe("stop");
     expect(g1!.attributes["langfuse.observation.completion_start_time"]).toBeDefined();
 
-    // Generation costs add up to the ledger's turn cost (µUSD rounded up once).
     const costUsd = gens.reduce((sum, g) => sum + (json(g, "langfuse.observation.cost_details") as { total: number }).total, 0);
     const ledger = t.sqlite.query<{ cost_microusd: number }, []>("SELECT cost_microusd FROM usage_events").get()!;
     expect(Math.ceil(costUsd * 1e6 - 1e-6)).toBe(ledger.cost_microusd);
 
-    // Tool span: what the model saw (with fetched_at) plus server and size.
     const tool = one(spans, TOOL_FULL_NAME);
     expect(String(tool.attributes["langfuse.observation.output"])).toMatch(/^\[fetched_at: .*\]\n\{"ok":true\}$/);
     expect(tool.attributes["langfuse.observation.metadata.raw_chars"]).toBe("11");
@@ -251,7 +236,6 @@ describe("turn tracing", () => {
     const gen = one(mem.spans(), "llm-call");
     expect(gen.attributes[LEVEL]).toBe("WARNING");
     expect(one(mem.spans(), "chat-turn").attributes[LEVEL]).toBe("WARNING");
-    // The cut-off call carries the ledger's estimate, so the trace adds up to usage_events.
     expect(gen.attributes["langfuse.observation.metadata.usage_estimated"]).toBe("true");
     const total = (json(gen, "langfuse.observation.cost_details") as { total: number }).total;
     const ledger = t.sqlite.query<{ cost_microusd: number; usage_estimated: number }, []>("SELECT cost_microusd, usage_estimated FROM usage_events").get()!;
@@ -271,7 +255,6 @@ describe("turn tracing", () => {
     await collect(processChat(crypto.randomUUID(), USER_ID, "hi", turn.signal));
 
     const spans = mem.spans();
-    // The call itself finished: no level set (DEFAULT).
     expect(one(spans, "llm-call").attributes[LEVEL]).toBeUndefined();
     expect(one(spans, TOOL_FULL_NAME).attributes[LEVEL]).toBe("WARNING");
     expect(one(spans, "chat-turn").attributes[LEVEL]).toBe("WARNING");
@@ -282,7 +265,7 @@ describe("turn tracing", () => {
     model = scriptedModel([hangingStream(() => {})]);
     const gen = processChat(crypto.randomUUID(), USER_ID, "hi");
     for await (const event of gen) {
-      if (event.type === "text") break; // calls gen.return()
+      if (event.type === "text") break;
     }
 
     expect(one(mem.spans(), "llm-call").attributes[LEVEL]).toBe("WARNING");
@@ -308,7 +291,6 @@ describe("turn tracing", () => {
   });
 });
 
-/** Wires a stub MCP client into the manager's unified server; returns the CallTool params it saw. */
 function stubMcpClient(callTool: (params: Record<string, unknown>) => Promise<unknown>) {
   const seen: Record<string, unknown>[] = [];
   mcpManager.register({ name: "unified", command: "unused", args: [] });
@@ -323,7 +305,6 @@ function stubMcpClient(callTool: (params: Record<string, unknown>) => Promise<un
   return seen;
 }
 
-/** A server `_meta.retry` summary for one Ensembl request. */
 function retryMeta(outcome: "recovered" | "failed", statuses: (number | null)[]) {
   return {
     platforms: ["ensembl"],
@@ -407,7 +388,6 @@ describe("upstream retry metadata on the tool span", () => {
 });
 
 describe("turn signals", () => {
-  /** Score bodies sent through the shared score client. */
   function captureScores() {
     const scores: Record<string, unknown>[] = [];
     const client = { score: { create: (body: Record<string, unknown>) => scores.push(body) } };

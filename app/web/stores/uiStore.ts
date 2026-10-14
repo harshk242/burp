@@ -4,7 +4,6 @@ interface UIState {
   sidebarOpen: boolean;
   mobileMenuOpen: boolean;
 
-  // Actions
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setMobileMenuOpen: (open: boolean) => void;

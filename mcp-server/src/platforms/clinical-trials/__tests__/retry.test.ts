@@ -1,7 +1,3 @@
-// ClinicalTrials.gov on the shared HTTP retry: one attempt, 40s budget,
-// tool-call deadline, structured errors and the API's own error message kept
-// in the tool error. Stub adapter only, no network.
-
 import { AxiosError, AxiosHeaders, type AxiosAdapter } from 'axios';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -16,7 +12,6 @@ function stubClinicalTrials(steps: Step[]) {
   return calls;
 }
 
-/** Initialises the client on a transport that always fails with `status` and `body`. */
 function failWith(status: number, body: unknown, contentType: string) {
   const calls: unknown[] = [];
   const adapter: AxiosAdapter = async (config) => {
@@ -72,7 +67,6 @@ describe('ClinicalTrials tools on the shared retry', () => {
 
   it('clamps the attempt timeout to the tool-call deadline', async () => {
     const calls = stubClinicalTrials([200]);
-    // deadline_ms 8s minus the 5s margin leaves a 3s tool call.
     const result = await callTool(handlers, 'search_studies', { condition: 'melanoma' }, { deadline_ms: 8_000 });
     expect(result.isError).toBeUndefined();
     expect(calls[0].timeout).toBeGreaterThan(0);
@@ -101,7 +95,6 @@ describe('fetchStudies API error messages', () => {
   });
 
   it('keeps a JSON `message` from a serialized body in the tool error', async () => {
-    // Transports hand over the raw body; only Axios's response transform parses it.
     failWith(400, JSON.stringify({ message: 'Unknown field `Nope`' }), 'application/json');
     const result = await callTool(handlers, 'search_studies', { condition: 'melanoma' });
 

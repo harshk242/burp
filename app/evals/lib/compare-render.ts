@@ -1,4 +1,3 @@
-/** The comparison report as markdown (`<comparison_group>.md`) and as console tables. */
 import type { ArmReport, ComparisonReport, ScoreDelta } from "./compare";
 
 const num = (v: number | null | undefined, digits = 3) => (v === null || v === undefined ? "-" : Number.isInteger(v) ? String(v) : v.toFixed(digits));
@@ -7,7 +6,6 @@ const usd = (v: number | null) => (v === null ? "-" : `$${v.toFixed(4)}`);
 const f3 = (v: number) => v.toFixed(3);
 const coverage = (a: ArmReport) => `${a.coverage.scored_every_repeat}/${a.coverage.items}`;
 
-/** `mean ± stddev [min–max]` with repeats, else the mean; labelled with the coverage when the arm missed items. */
 function scoreCell(arm: ArmReport, score: string): string {
   const s = arm.scores[score];
   if (!s) return "-";
@@ -15,7 +13,6 @@ function scoreCell(arm: ArmReport, score: string): string {
   return arm.coverage.scored_every_repeat < arm.coverage.items ? `${cell} {${coverage(arm)} items}` : cell;
 }
 
-/** The delta against the baseline: on the shared items, or withheld without any. */
 function deltaNote(d: ScoreDelta, items: number): string {
   if (d.delta === null) return " (Δ withheld: no shared items)";
   const verdict = d.verdict === "within_noise" ? ", within noise" : d.verdict === "no_repeat_spread" ? `, no repeat spread (repeats ${d.repeats_compared.baseline} vs ${d.repeats_compared.arm})` : "";

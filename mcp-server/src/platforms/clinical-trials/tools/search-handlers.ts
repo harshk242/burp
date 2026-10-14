@@ -1,10 +1,3 @@
-/**
- * Core search handler functions for ClinicalTrials.gov tools.
- *
- * Each handler receives a plain args object, calls the API via the shared
- * client helpers, and returns a raw result object (no MCP wrapping).
- */
-
 import type { ToolHandler } from '../../../types.js';
 import {
   fetchStudies,
@@ -13,10 +6,6 @@ import {
   calculateStatistics,
   resultMeta,
 } from '../client.js';
-
-// ---------------------------------------------------------------------------
-// search_studies
-// ---------------------------------------------------------------------------
 
 export const handleSearchStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
@@ -42,10 +31,6 @@ export const handleSearchStudies: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// get_study_details
-// ---------------------------------------------------------------------------
-
 export const handleGetStudyDetails: ToolHandler = async (args) => {
   const nctId = args.nctId as string;
   if (!nctId || !/^NCT\d{8}$/.test(nctId)) {
@@ -65,10 +50,6 @@ export const handleGetStudyDetails: ToolHandler = async (args) => {
 
   return formatDetailedStudy(data.studies[0]);
 };
-
-// ---------------------------------------------------------------------------
-// search_by_location
-// ---------------------------------------------------------------------------
 
 export const handleSearchByLocation: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
@@ -100,10 +81,6 @@ export const handleSearchByLocation: ToolHandler = async (args) => {
     })),
   };
 };
-
-// ---------------------------------------------------------------------------
-// search_by_condition
-// ---------------------------------------------------------------------------
 
 export const handleSearchByCondition: ToolHandler = async (args) => {
   if (!args.condition) {
@@ -146,10 +123,6 @@ export const handleSearchByCondition: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// get_trial_statistics
-// ---------------------------------------------------------------------------
-
 export const handleGetTrialStatistics: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
@@ -175,10 +148,6 @@ export const handleGetTrialStatistics: ToolHandler = async (args) => {
     statistics: calculateStatistics(studies, args.groupBy as string | undefined),
   };
 };
-
-// ---------------------------------------------------------------------------
-// search_by_sponsor
-// ---------------------------------------------------------------------------
 
 export const handleSearchBySponsor: ToolHandler = async (args) => {
   if (!args.sponsor) {
@@ -206,10 +175,6 @@ export const handleSearchBySponsor: ToolHandler = async (args) => {
     })),
   };
 };
-
-// ---------------------------------------------------------------------------
-// search_by_intervention
-// ---------------------------------------------------------------------------
 
 export const handleSearchByIntervention: ToolHandler = async (args) => {
   if (!args.intervention) {
@@ -239,10 +204,6 @@ export const handleSearchByIntervention: ToolHandler = async (args) => {
     studies: studies.map(formatStudySummary),
   };
 };
-
-// ---------------------------------------------------------------------------
-// get_recruiting_studies
-// ---------------------------------------------------------------------------
 
 export const handleGetRecruitingStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
@@ -283,10 +244,6 @@ export const handleGetRecruitingStudies: ToolHandler = async (args) => {
     })),
   };
 };
-
-// ---------------------------------------------------------------------------
-// search_by_date_range
-// ---------------------------------------------------------------------------
 
 export const handleSearchByDateRange: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {

@@ -1,11 +1,3 @@
-/**
- * Thinking in the chat stream (plan Phase 4a.3): reasoning deltas become
- * `reasoning` SSE events and are stored in the assistant message's reasoning,
- * alongside the pre-tool text that `text_block_end { isReasoning: true }` marks.
- *
- * processChat runs against an in-memory DB and a mock language model (same
- * harness as chat-usage-ledger.test.ts).
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { MockLanguageModelV4 } from "ai/test";
 import { createTestDb } from "../__test-utils__/db";
@@ -82,7 +74,6 @@ async function run(calls: LanguageModelV4StreamPart[][]) {
   return { events, assistant };
 }
 
-/** The stream as a compact trace: "r:<text>" ("r+:" starts a thinking block), "t:<text>", "pre-tool-end", "tool". */
 function trace(events: StreamEvent[]): string[] {
   return events.flatMap((e) => {
     if (e.type === "reasoning") {
@@ -120,7 +111,6 @@ describe("processChat reasoning", () => {
       [...thinking("r1", "Let me ", "", "think."), ...text("t1", "Answer"), finish("stop")],
     ]);
 
-    // Empty deltas (as with display "omitted") are not sent.
     expect(trace(events)).toEqual(["r+:Let me ", "r:think.", "t:Answer"]);
     expect(assistant).toMatchObject({ content: "Answer", reasoning: "Let me think." });
   });
@@ -154,7 +144,6 @@ describe("processChat reasoning", () => {
   });
 
   it("doesn't stack blank lines when summaries already end in one", async () => {
-    // Anthropic summaries end in "\n\n"; whitespace-only pre-tool text adds nothing.
     const { assistant } = await run([
       [...thinking("r1", "Plan A.\n\n"), ...text("t1", "\n"), toolCall("c1"), finish("tool-calls")],
       [...thinking("r2", "\nPlan B.\n\n"), ...text("t2", "Looking.\n\n"), toolCall("c2"), finish("tool-calls")],
@@ -184,8 +173,6 @@ describe("processChat reasoning", () => {
   });
 
   it("stores no reasoning and sends no reasoning events when the model doesn't think", async () => {
-    // Adaptive thinking at effort medium often skips thinking; an empty
-    // (omitted) thinking block must not produce an empty reasoning entry.
     const { events, assistant } = await run([[...thinking("r1", ""), ...text("t1", "Plain"), finish("stop")]]);
 
     expect(events.some((e) => e.type === "reasoning")).toBe(false);

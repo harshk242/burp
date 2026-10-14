@@ -10,8 +10,6 @@ import {
   isValidSmilesArgs,
 } from '../types.js';
 
-// ── Chemical Search & Retrieval ──────────────────────────────────────────────
-
 const handleSearchCompounds: ToolHandler = async (args) => {
   if (!isValidCompoundSearchArgs(args)) {
     throw new Error('Invalid compound search arguments');
@@ -103,8 +101,6 @@ const handleGetCompoundSynonyms: ToolHandler = async (args) => {
   return response.data;
 };
 
-// ── Structure Analysis & Similarity ──────────────────────────────────────────
-
 const handleSearchSimilarCompounds: ToolHandler = async (args) => {
   if (!isValidSmilesArgs(args)) {
     throw new Error('Invalid similarity search arguments');
@@ -161,8 +157,6 @@ const handleAnalyzeStereochemistry: ToolHandler = async (args) => {
   return { cid: args.cid, stereochemistry: response.data };
 };
 
-// ── Chemical Properties & Descriptors ────────────────────────────────────────
-
 const handleGetCompoundProperties: ToolHandler = async (args) => {
   if (!isValidPropertiesArgs(args)) {
     throw new Error('Invalid compound properties arguments');
@@ -201,8 +195,6 @@ const handleGetPharmacophoreFeatures: ToolHandler = async (args) => {
   return { message: 'Pharmacophore features not yet implemented', args };
 };
 
-// ── Bioassay & Activity Data ─────────────────────────────────────────────────
-
 const handleSearchBioassays: ToolHandler = async (args) => {
   return { message: 'Bioassay search not yet implemented', args };
 };
@@ -226,8 +218,6 @@ const handleCompareActivityProfiles: ToolHandler = async (args) => {
   return { message: 'Activity profile comparison not yet implemented', args };
 };
 
-// ── Safety & Toxicity ────────────────────────────────────────────────────────
-
 const handleGetSafetyData: ToolHandler = async (args) => {
   if (!isValidCidArgs(args)) {
     throw new Error('Invalid CID arguments');
@@ -249,8 +239,6 @@ const handleAssessEnvironmentalFate: ToolHandler = async (args) => {
 const handleGetRegulatoryInfo: ToolHandler = async (args) => {
   return { message: 'Regulatory info not yet implemented', args };
 };
-
-// ── Cross-References & Integration ───────────────────────────────────────────
 
 const handleGetExternalReferences: ToolHandler = async (args) => {
   return { message: 'External references not yet implemented', args };
@@ -290,41 +278,33 @@ const handleBatchCompoundLookup: ToolHandler = async (args) => {
   return { batch_results: results };
 };
 
-// ── Aggregated handler map ───────────────────────────────────────────────────
-
 export const handlers: Record<string, ToolHandler> = {
-  // Chemical Search & Retrieval
   search_compounds: handleSearchCompounds,
   get_compound_info: handleGetCompoundInfo,
   search_by_smiles: handleSearchBySmiles,
   search_by_inchi: handleSearchByInchi,
   search_by_cas_number: handleSearchByCasNumber,
   get_compound_synonyms: handleGetCompoundSynonyms,
-  // Structure Analysis & Similarity
   search_similar_compounds: handleSearchSimilarCompounds,
   substructure_search: handleSubstructureSearch,
   superstructure_search: handleSuperstructureSearch,
   get_3d_conformers: handleGet3dConformers,
   analyze_stereochemistry: handleAnalyzeStereochemistry,
-  // Chemical Properties & Descriptors
   get_compound_properties: handleGetCompoundProperties,
   calculate_descriptors: handleCalculateDescriptors,
   predict_admet_properties: handlePredictAdmetProperties,
   assess_drug_likeness: handleAssessDrugLikeness,
   analyze_molecular_complexity: handleAnalyzeMolecularComplexity,
   get_pharmacophore_features: handleGetPharmacophoreFeatures,
-  // Bioassay & Activity Data
   search_bioassays: handleSearchBioassays,
   get_assay_info: handleGetAssayInfo,
   get_compound_bioactivities: handleGetCompoundBioactivities,
   search_by_target: handleSearchByTarget,
   compare_activity_profiles: handleCompareActivityProfiles,
-  // Safety & Toxicity
   get_safety_data: handleGetSafetyData,
   get_toxicity_info: handleGetToxicityInfo,
   assess_environmental_fate: handleAssessEnvironmentalFate,
   get_regulatory_info: handleGetRegulatoryInfo,
-  // Cross-References & Integration
   get_external_references: handleGetExternalReferences,
   search_patents: handleSearchPatents,
   get_literature_references: handleGetLiteratureReferences,

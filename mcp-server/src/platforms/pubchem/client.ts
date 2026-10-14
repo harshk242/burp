@@ -2,11 +2,6 @@ import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 import { PUBCHEM_PUG_REST_BASE_URL } from './endpoints.js';
 
-/**
- * Production retry policy (plans/shared-http-retry-plan.md, "Platform
- * inventory"): one attempt as before, now with a 40s request budget and the
- * tool-call deadline; failures surface as a structured `UpstreamError`.
- */
 export const PUBCHEM_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: 1,
   backoffMs: [0],
@@ -39,10 +34,6 @@ export function createPubChemClient(options: PubChemClientOptions = {}): AxiosIn
 
 let client: AxiosInstance | null = null;
 
-/**
- * Initialise (or re-initialise) the PubChem PUG REST API client.
- * Called once from the platform module's `init()`.
- */
 export function initClient(_env: Record<string, string | undefined>, options: PubChemClientOptions = {}): void {
   client = createPubChemClient(options);
 }
@@ -55,7 +46,6 @@ export function getClient(): AxiosInstance {
   return client;
 }
 
-/** Tear down the client (cancel pending requests, release references). */
 export function cleanupClient(): void {
   client = null;
 }

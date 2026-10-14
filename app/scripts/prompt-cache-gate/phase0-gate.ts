@@ -1,33 +1,3 @@
-/**
- * Phase 0 gate (plans/context-assembly-prompt-caching-plan.md), live against the Anthropic API.
- *
- *   LOG_LEVEL=ERROR bun run gate:prompt-cache [all|1|2|3|4|5|4b]
- *
- * The package command runs from app/ so app/.env (ANTHROPIC_API_KEY) loads.
- * Dependencies resolve through app/node_modules; no experiments symlink is needed.
- * Exits 1 if any blocking verdict fails (verdict table at the end).
- *
- * `all` order: 5 → 1 → 2/3 (call 1 → call 2 refs-only → call 3, then call-2 shape probes A, B) → 4 → 4b.
- * 4b = Phase 4b.6 (lossless transcript round-trip, degraded replay, abort), in phase4b-checks.ts.
- *
- * Cold cache: every sequence gets its own nonce, appended to the description of
- * system__search_available_tools (a loaded tool, so never deferred). Tools render before system, so the
- * nonce changes the whole tools + system prefix and the first cached call of a sequence is a genuine
- * cold write, even right after another run. Within a sequence the nonce is constant, so later calls can
- * read the cache. It adds a few tokens to every prompt.
- *
- * Check 5: call 1 (real system prompt + catalog, cacheControl on system), cold → cache_write > 0.
- * Check 1: non-core tools deferred → 200; inputTokens deferred-present vs absent (+ all-loaded control).
- * Checks 2+3 (one sequence, run as "2" or "3"): call 1 asks for something only a deferred tool can
- *   answer → live search tool_use (or a constructed one, flagged WARN) → call 2 replays a references-only
- *   search result → model calls a referenced deferred tool → call 3 replays a stub result.
- *   Calls carry 1d markers (system + previous call's last message + last message, on a copy);
- *   cache_read and sha256 of the request body's tools/system are compared across calls.
- *   Then shape probes on the same history (after call 3, so they can't warm it): A = text + references
- *   in one tool_result (expected 400 "cannot be mixed"), B = references + a separate user text block.
- * Check 4: a search result that references an already-loaded (core) tool → 200; parallel results → 200.
- */
-
 import { randomUUID } from "node:crypto";
 import { streamText, type ModelMessage, type SystemModelMessage, type Tool } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -45,14 +15,12 @@ import { MOA_HITS, sha, verdict, verdicts } from "./gate-lib";
 import { check4b } from "./phase4b-checks";
 import { checkRedactedOffline } from "./phase4b-redacted";
 
-const MODEL_ID = loadLLMConfig().chatModel; // claude-sonnet-5-5 per app/config.yaml
+const MODEL_ID = loadLLMConfig().chatModel;
 const MAX_OUTPUT = 256;
 const SEARCH = "system__search_available_tools";
 const INSPECT = "system__inspect_artifact";
-const MIN_CACHEABLE = 512; // claude-sonnet-5-5, prompt-caching docs "Cache limitations"
+const MIN_CACHEABLE = 512;
 const RUN_ID = randomUUID().slice(0, 8);
-
-// ── HTTP capture ────────────────────────────────────────────────────────────
 
 interface Capture { status: number; beta: string | null; body: any; errorText?: string }
 let last: Capture | null = null;
@@ -69,18 +37,14 @@ const anthropic = createAnthropic({
   },
 });
 
-// ── Tool catalog (Phase 1a shape: every registered tool, sorted by name) ────
-
 type Mode = "core-only" | "deferred" | "all-loaded";
 
-/** Same `[server] description` format as toolRegistry.toVercelCoreTools. */
 function mcpDecl(fullName: string): Tool {
   const t = toolRegistry.getVercelTool(fullName);
   if (!t) throw new Error(`unknown tool ${fullName}`);
   return t.tool;
 }
 
-/** `nonce` goes into the search tool's description: a new nonce = a cold tools + system prefix. */
 function buildCatalog(mode: Mode, nonce: string): Record<string, Tool> {
   const system: Record<string, Tool> = toDeclarations({
     [SEARCH]: createSearchTool(),
@@ -101,8 +65,6 @@ function buildCatalog(mode: Mode, nonce: string): Record<string, Tool> {
   entries.sort(([a], [b]) => a.localeCompare(b));
   return Object.fromEntries(entries);
 }
-
-// ── One streamText call ─────────────────────────────────────────────────────
 
 type Cache = "cold" | "warm" | "none";
 
@@ -129,10 +91,6 @@ interface CallResult {
 
 const results: CallResult[] = [];
 
-/**
- * `cache` labels what the call is expected to see: "cold" = first cached call on a fresh nonce,
- * "warm" = a later call in the same sequence, "none" = no cache markers sent.
- */
 async function runCall(
   label: string,
   cache: Cache,
@@ -151,7 +109,7 @@ async function runCall(
       messages: opts.messages,
       tools: opts.tools,
       maxRetries: 0,
-      onError: () => {}, // the fetch wrapper keeps the API error text; skip the SDK's console dump
+      onError: () => {},
       maxOutputTokens: opts.maxOutput ?? MAX_OUTPUT,
     });
     for await (const t of result.textStream) text += t;
@@ -177,7 +135,6 @@ async function runCall(
       responseMessages: step.response.messages,
     };
   } catch (e) {
-    // Recorded, not rethrown: the caller's verdicts decide whether a failed call fails the gate.
     const error = e instanceof Error ? e.message : String(e);
     r = {
       label,
@@ -201,17 +158,12 @@ async function runCall(
 const ok = (c: CallResult) => c.status === 200 && !c.error;
 const tok = (c: CallResult) => `in ${c.inputTokens} = noCache ${c.noCache} + read ${c.cacheRead} + write ${c.cacheWrite}`;
 
-/** Phase 1d on a copy: cacheControl on the current last message and on the previous call's last message. */
 function withCacheMarkers(messages: ModelMessage[], prevLastIndex?: number): ModelMessage[] {
   const mark = (m: ModelMessage): ModelMessage =>
     ({ ...m, providerOptions: { ...m.providerOptions, anthropic: { ...m.providerOptions?.anthropic, cacheControl: { type: "ephemeral" } } } }) as ModelMessage;
   return messages.map((m, i) => (i === messages.length - 1 || i === prevLastIndex ? mark(m) : m));
 }
 
-/**
- * Search tool output. "refs" = tool-reference parts only (Phase 1b, the shape in the tool-search docs).
- * "mixed" = a name + score text part, then one tool-reference part per tool (the original 1b; 400s).
- */
 type SearchShape = "mixed" | "refs";
 const HIT_TEXT = (tools: { name: string; score: number }[]) =>
   `Found ${tools.length} tools. Call one by its exact name:\n` + tools.map((t) => `- ${t.name} (score ${t.score.toFixed(2)})`).join("\n");
@@ -234,7 +186,6 @@ function searchTurn(id: string, query: string, tools: { name: string; score: num
   ];
 }
 
-/** Serialized blocks the API saw: tool_reference names and which blocks carry cache_control. */
 function inspectBody(body: any) {
   const refs: string[] = [];
   const marked: string[] = [];
@@ -251,13 +202,9 @@ function inspectBody(body: any) {
 }
 
 const ask = (content: string): ModelMessage[] => [{ role: "user", content }];
-// Same user message for every check-1 variant so only the tools differ.
 const PROBE = "Reply with exactly the word OK. Do not call any tools.";
 
-// ── Checks ──────────────────────────────────────────────────────────────────
-
 async function check5() {
-  // "Call 1" of a turn: real system prompt + catalog, breakpoint on the system message, fresh nonce.
   const c = await runCall("5 call1 deferred + system cacheControl", "cold", {
     tools: buildCatalog("deferred", `${RUN_ID}-c5`),
     messages: ask(PROBE),
@@ -271,7 +218,6 @@ async function check5() {
 }
 
 async function check1() {
-  // No cache markers here, so inputTokens is plain uncached input.
   const nonce = `${RUN_ID}-c1`;
   const a = await runCall("1a core-only (deferred absent)", "none", { tools: buildCatalog("core-only", nonce), messages: ask(PROBE) });
   const b = await runCall("1b deferred present", "none", { tools: buildCatalog("deferred", nonce), messages: ask(PROBE) });
@@ -282,7 +228,6 @@ async function check1() {
   console.log("\n── check 1 verdicts ──");
   verdict("1 all three → 200", "required", [a, b, c].every(ok), [a, b, c].map((x) => `${x.label}: ${x.status}${x.error ? ` — ${x.error}` : ""}`).join("; "));
   verdict("1 deferred flags sent", "required", b.deferredSent === nonCore && b.deferredSent > 0, `${b.deferredSent} of ${b.toolsSent} tools deferred (${nonCore} non-core)`);
-  // Deferred definitions must not be billed: a small fixed overhead, far below loading them.
   verdict("1 deferred delta small", "required", deferredDelta >= 0 && deferredDelta <= 500 && loadedDelta >= 20 * Math.max(deferredDelta, 1),
     `deferred +${deferredDelta} tokens (limit 500) vs all-loaded +${loadedDelta} (${a.inputTokens} / ${b.inputTokens} / ${c.inputTokens})`);
 }
@@ -300,7 +245,6 @@ async function check23() {
   const run = (label: string, cache: Cache, messages: ModelMessage[], prevLast?: number, maxOutput = 1024) =>
     runCall(label, cache, { tools, messages: withCacheMarkers(messages, prevLast), cacheSystem: true, maxOutput });
 
-  // Call 1: live. If the model calls the search tool, keep its tool_use; otherwise construct one (WARN).
   const c1 = await run("2/3 call1 (user question)", "cold", ask(MOA_QUESTION));
   const searchCall = toolCallsOf(c1.responseMessages).find((p) => p.toolName === SEARCH);
   const query = searchCall?.input?.query ?? "mechanism of action of a drug in ChEMBL";
@@ -309,9 +253,8 @@ async function check23() {
   const base: ModelMessage[] = searchCall
     ? [...ask(MOA_QUESTION), ...c1.responseMessages]
     : [...ask(MOA_QUESTION), searchTurn(id, query, MOA_HITS)[0]];
-  const prevLast1 = 0; // call 1's last message (the user question)
+  const prevLast1 = 0;
 
-  // Call 2: references-only result (Phase 1b shape).
   const history: ModelMessage[] = [...base, searchResult(id, MOA_HITS, "refs")];
   const c2 = await run("2/3 call2 (tool_reference only)", "warm", history, prevLast1);
   const b2 = inspectBody(c2.body);
@@ -320,7 +263,6 @@ async function check23() {
   const refCall = called.find((p) => MOA_HITS.some((h) => h.name === p.toolName));
   console.log(`call2: tool calls ${JSON.stringify(called.map((p) => ({ name: p.toolName, input: p.input })))}`);
 
-  // Call 3: replay call 2's assistant message + a stub result for every tool_use it made.
   const prevLast2 = history.length - 1;
   history.push(...c2.responseMessages);
   if (called.length) {
@@ -337,7 +279,6 @@ async function check23() {
   const c3 = await run("2/3 call3 (tool result replay)", "warm", history, prevLast2, 512);
   console.log("call3 body:", JSON.stringify(inspectBody(c3.body)));
 
-  // Shape probes after the clean sequence (same history and nonce, so they're warm and can't warm it).
   const pA = await run("2 probe A: text + tool_reference in one tool_result", "warm", [...base, searchResult(id, MOA_HITS, "mixed")], prevLast1);
   const pB = await run("2 probe B: tool_reference only + text as a separate user block", "warm",
     [...base, searchResult(id, MOA_HITS), { role: "user", content: HIT_TEXT(MOA_HITS) }], prevLast1);
@@ -365,9 +306,6 @@ async function check23() {
 }
 
 async function check4() {
-  // 4a: a refs-only search result that references a core (already loaded) tool next to a deferred one,
-  // as an unfiltered search would. 4b: parallel tool_use (search + core tool) → the user message holds
-  // a refs-only tool_result next to a plain text tool_result (is that "mixed content" too?).
   const core = "chembl__search_compounds";
   if (!ALWAYS_LOADED_TOOLS.has(core)) throw new Error(`${core} is not core anymore; pick another`);
   const tools = buildCatalog("deferred", `${RUN_ID}-c4`);
@@ -401,13 +339,9 @@ async function check4() {
   verdict("4b parallel refs + text results → 200", "required", ok(c4b), `HTTP ${c4b.status}${c4b.error ? ` — ${c4b.error}` : ""}; tool calls ${JSON.stringify(c4b.toolCalls)}`);
 }
 
-// Insertion order is the `all` order: check 5 first, so its cold write isn't preceded by anything.
-// 4b (Phase 4b.6) runs last on its own nonce and the app's chat code path; see phase4b-checks.ts.
 const CHECKS: [string, () => Promise<void>][] = [
   ["5", check5], ["1", check1], ["2", check23], ["4", check4], ["4b", () => check4b(`${RUN_ID}-c4b`)],
 ];
-
-// ── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
   const which = process.argv[2] ?? "all";
@@ -419,7 +353,7 @@ async function main() {
     return 0;
   }
   if (loadLLMConfig().provider !== "anthropic") throw new Error("This gate requires LLM_PROVIDER=anthropic");
-  const target = which === "3" ? "2" : which; // checks 2 and 3 share one call sequence
+  const target = which === "3" ? "2" : which;
   if (target !== "all" && target !== "--offline" && !CHECKS.some(([id]) => id === target)) throw new Error(`unknown check ${which}`);
   if (which === "--offline") {
     const result = await checkRedactedOffline();
@@ -431,7 +365,6 @@ async function main() {
   const pkg = async (p: string) => (await import(`${p}/package.json`, { with: { type: "json" } })).default.version;
   console.log("model:", MODEL_ID, "| ai", await pkg("ai"), "| @ai-sdk/anthropic", await pkg("@ai-sdk/anthropic"), "| run", RUN_ID);
 
-  // The production tool boot (boot/tools.ts) also indexes tool search, which lives in the DB.
   runMigrations(sqlite);
   tools = initializeTools();
   await tools.ready;

@@ -1,9 +1,3 @@
-/**
- * CallTracker.estimateCutOffCall for a cut-off call after the first: the input
- * estimate is the previous call's prompt plus everything added since, including
- * tool declarations activated mid-turn (search_available_tools) and changed
- * instructions, so the estimate is never priced below the tier it reached.
- */
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import type { LanguageModelCallStartEvent } from "ai";
 import { estimateTokens } from "../logger";
@@ -22,7 +16,6 @@ const tool = (name: string, descriptionChars = 10): Tool => ({
 
 const deferred = (t: Tool): Tool => ({ ...t, providerOptions: { anthropic: { deferLoading: true } } });
 
-/** A search_available_tools result referencing `names` (Anthropic). */
 const references = (names: string[]) => ({
   role: "tool",
   content: [{
@@ -49,14 +42,12 @@ const request = (opts: { messages: number; tools: Tool[]; instructions?: string;
     tools: opts.tools,
   }) as unknown as LanguageModelCallStartEvent;
 
-/** Runs one call through the tracker up to the point the provider accepted it. */
 async function sendCall(tracker: CallTracker, iteration: number, req: LanguageModelCallStartEvent) {
   tracker.begin(iteration);
   tracker.onRequest(req);
   await tracker.fetch("https://model.test/");
 }
 
-/** Call 1 finishes with `promptTokens` of uncached input; call 2 is cut off. */
 async function cutOffSecondCall(
   meter: UsageMeter,
   promptTokens: number,
@@ -117,7 +108,6 @@ describe("CallTracker.estimateCutOffCall", () => {
 
   it("prices a call pushed over Haiku 5.5's long-context threshold by new tools at the long-context tier", async () => {
     const base = [tool("search_available_tools")];
-    // ~35,000 chars of new declarations ≈ 10,000 tokens: 99,020 → above 100,000.
     const added = Array.from({ length: 5 }, (_, i) => tool(`found_${i}`, 7_000));
     const meter = new UsageMeter("anthropic", "claude-haiku-5-5", ctx);
     const cutOff = await cutOffSecondCall(
@@ -167,11 +157,8 @@ describe("CallTracker carry-over across turns", () => {
     const toolX = tool("x", 400);
     const req = request({ messages: 5, tools: [tool("core"), deferred(toolX)], extra: [references(["x"]), { role: "user", content: "new" }] });
     const carried = new CallTracker();
-    // The previous turn's last call sent the first 6 messages (5 + the reference result).
     carried.carryOver(50_000, 6);
-    // Growth: only the new user message; the referenced tool was already loaded then.
     expect(carried.estimateInputTokens(req)).toBe(50_000 + estimateTokens(JSON.stringify(req.messages.slice(6))));
-    // Without a carry-over the whole request is counted from characters.
     expect(new CallTracker().estimateInputTokens(req)).toBeLessThan(50_000);
   });
 

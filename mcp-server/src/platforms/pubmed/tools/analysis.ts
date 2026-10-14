@@ -1,12 +1,7 @@
-// Analysis and utility tools for PubMed platform module
-
 import { getClient } from '../client.js';
 import { formatPmid, formatCitation as formatCitationUtil } from '../utils.js';
 import type { MeshTerm, PubMedArticle } from '../types.js';
 
-/**
- * Get MeSH terms for an article
- */
 export async function getMeshTerms(
   pmid: string
 ): Promise<{
@@ -39,9 +34,6 @@ export async function getMeshTerms(
   };
 }
 
-/**
- * Get publication trends for a query over years
- */
 export async function getPublicationTrends(
   query: string,
   startYear: number,
@@ -57,7 +49,6 @@ export async function getPublicationTrends(
   const years: Array<{ year: number; count: number }> = [];
   let totalCount = 0;
 
-  // Query each year
   for (let year = startYear; year <= currentYear; year++) {
     const yearQuery = `${query} AND "${year}"[Date - Publication]`;
     const result = await client.search(yearQuery, { maxResults: 0 });
@@ -76,9 +67,6 @@ export async function getPublicationTrends(
   };
 }
 
-/**
- * Format a citation for an article
- */
 export async function formatCitation(
   pmid: string,
   style: 'apa' | 'mla' | 'vancouver' | 'bibtex' = 'vancouver'
@@ -119,9 +107,6 @@ export async function formatCitation(
   };
 }
 
-/**
- * Compare multiple articles' basic metadata
- */
 export async function compareArticles(
   pmids: string[]
 ): Promise<{
@@ -151,9 +136,6 @@ export async function compareArticles(
   };
 }
 
-/**
- * Extract keywords and key terms from multiple articles
- */
 export async function extractKeyTerms(
   pmids: string[]
 ): Promise<{
@@ -169,24 +151,20 @@ export async function extractKeyTerms(
   const pubTypeCounts: Record<string, number> = {};
 
   for (const article of articles) {
-    // Count MeSH terms
     for (const mesh of article.meshTerms || []) {
       const term = mesh.descriptorName;
       meshCounts[term] = (meshCounts[term] || 0) + 1;
     }
 
-    // Count keywords
     for (const kw of article.keywords || []) {
       keywordCounts[kw] = (keywordCounts[kw] || 0) + 1;
     }
 
-    // Count publication types
     for (const pt of article.publicationTypes || []) {
       pubTypeCounts[pt] = (pubTypeCounts[pt] || 0) + 1;
     }
   }
 
-  // Convert to sorted arrays
   const meshTermFrequency = Object.entries(meshCounts)
     .map(([term, count]) => ({ term, count }))
     .sort((a, b) => b.count - a.count)

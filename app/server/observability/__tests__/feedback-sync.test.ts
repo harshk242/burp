@@ -1,8 +1,3 @@
-/**
- * Feedback sync against a real (in-memory) DB and a fake ScoreWriter whose
- * calls the test holds open: acknowledged writes only, per-id ordering,
- * compare-and-set on revision, tombstone confirm reads, reconciliation.
- */
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createTestDb } from "../../__test-utils__/db";
 import { createQueries, type FeedbackKey } from "../../db/queries";
@@ -29,14 +24,13 @@ function makeSync(overrides: Partial<FeedbackSyncOptions> = {}) {
 }
 
 const row = () => q.messageFeedbackQueries.find(key)!;
-/** Calls on the main `user_feedback` score (category scores filtered out). */
 const mainLog = () => writer.log.filter((c) => c.id === scoreId);
 
 beforeEach(() => {
   q = createQueries(createTestDb().db);
   seedTracedTurn(q);
   writer = new FakeScoreWriter();
-  writer.hold = (_op, id) => id === scoreId; // category writes resolve at once unless a test holds them
+  writer.hold = (_op, id) => id === scoreId;
   clock = 1_000_000;
 });
 
@@ -114,10 +108,10 @@ describe("feedback sync", () => {
     q.messageFeedbackQueries.clear(key);
     const clearPush = sync.sync(key);
     await Bun.sleep(5);
-    expect(writer.held).toHaveLength(0); // the delete waits for the create
+    expect(writer.held).toHaveLength(0);
 
     create.resolve();
-    expect(await createPush).toBe("pending"); // revision moved on during the push
+    expect(await createPush).toBe("pending");
     expect(row()).toMatchObject({ sync_pending: 1, synced_revision: 1 });
 
     const remove = await writer.nextHeld();
@@ -125,7 +119,7 @@ describe("feedback sync", () => {
     remove.resolve();
     const confirm = await writer.nextHeld();
     expect(confirm.op).toBe("exists");
-    expect(row().sync_pending).toBe(1); // not before the confirm read
+    expect(row().sync_pending).toBe(1);
     confirm.resolve();
     expect(await clearPush).toBe("synced");
     expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 2 });
@@ -137,12 +131,12 @@ describe("feedback sync", () => {
     const sync = makeSync({ confirm: { settleMs: 60_000, pollMs: 15_000, deadlineMs: 120_000 } });
     await sync.sync(key);
     q.messageFeedbackQueries.clear(key);
-    writer.existsAnswer = () => true; // a late-ingested create
+    writer.existsAnswer = () => true;
     expect(await sync.sync(key)).toBe("failed");
     const ops = mainLog().map((c) => c.op);
     expect(ops[0]).toBe("upsert");
     expect(ops.at(1)).toBe("remove");
-    expect(ops.filter((op) => op === "exists")).toHaveLength(5); // at 60, 75, 90, 105, 120 s
+    expect(ops.filter((op) => op === "exists")).toHaveLength(5);
     expect(ops.at(-1)).toBe("remove");
     expect(row()).toMatchObject({ sync_pending: 1, synced_revision: 1 });
 
@@ -201,7 +195,7 @@ describe("feedback sync", () => {
     let clicked = false;
     sync = makeSync({
       sleep: async () => {
-        if (!clicked) q.messageFeedbackQueries.upsert(key, 1, null); // 👍 during the settle wait
+        if (!clicked) q.messageFeedbackQueries.upsert(key, 1, null);
         clicked = true;
       },
     });
@@ -215,32 +209,31 @@ describe("feedback sync", () => {
     q.messageFeedbackQueries.upsert(key, 0, null);
     await makeSync().sync(key);
     q.messageFeedbackQueries.clear(key);
-    writer.deferDeletes = true; // Langfuse acknowledges the delete (202) but applies it later
+    writer.deferDeletes = true;
     let clicked = false;
     let sync = makeSync({
       sleep: async () => {
-        if (!clicked) q.messageFeedbackQueries.upsert(key, 1, null); // 👍 during the settle wait
+        if (!clicked) q.messageFeedbackQueries.upsert(key, 1, null);
         clicked = true;
       },
     });
     expect(await sync.sync(key)).toBe("pending");
     expect(row().delete_unconfirmed).toBe(1);
 
-    // The 👍 push: the queued delete lands while its read-back waits.
     sync = makeSync({ sleep: async () => writer.landDeletes() });
     expect(await sync.sync(key)).toBe("failed");
-    expect(writer.remote.get(scoreId)?.value).toBe(1); // re-upserted after the read saw it gone
+    expect(writer.remote.get(scoreId)?.value).toBe(1);
     expect(row()).toMatchObject({ value: 1, sync_pending: 1, delete_unconfirmed: 1 });
 
     clock += 60 * 60_000;
-    await sync.reconcile(); // nothing left to land: present through the deadline
+    await sync.reconcile();
     expect(row()).toMatchObject({ value: 1, sync_pending: 0, delete_unconfirmed: 0 });
     expect(writer.remote.get(scoreId)?.value).toBe(1);
 
     q.messageFeedbackQueries.upsert(key, 0, null);
     const before = mainLog().length;
     expect(await sync.sync(key)).toBe("synced");
-    expect(mainLog().slice(before).map((c) => c.op)).toEqual(["upsert"]); // no read-back without a pending delete
+    expect(mainLog().slice(before).map((c) => c.op)).toEqual(["upsert"]);
   });
 
   it("marks rows synced without a remote write when the turn has no trace", async () => {
@@ -258,7 +251,7 @@ describe("feedback sync", () => {
     writer.failNext.push(new TypeError("fetch failed"));
     expect(await sync.sync(key)).toBe("failed");
 
-    await sync.reconcile(); // not due yet
+    await sync.reconcile();
     expect(mainLog()).toHaveLength(1);
 
     writer.failNext.push(new TypeError("fetch failed"));
@@ -267,7 +260,7 @@ describe("feedback sync", () => {
     expect(mainLog()).toHaveLength(2);
     expect(row().sync_pending).toBe(1);
 
-    clock += 60_000; // second failure doubled the wait to 2 min
+    clock += 60_000;
     await sync.reconcile();
     expect(mainLog()).toHaveLength(2);
     clock += 60_000;

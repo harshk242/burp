@@ -1,10 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { ALL_CATEGORY_IDS, MAX_FEEDBACK_CATEGORIES } from "./feedback-categories";
 
-// ============================================
-// Common Schemas
-// ============================================
-
 export const ErrorSchema = z.object({
   error: z.string().openapi({ example: "Error message" }),
 });
@@ -12,10 +8,6 @@ export const ErrorSchema = z.object({
 export const MessageSchema = z.object({
   message: z.string().openapi({ example: "Success message" }),
 });
-
-// ============================================
-// User Schemas
-// ============================================
 
 export const UserSchema = z.object({
   id: z.string().uuid().openapi({ example: "550e8400-e29b-41d4-a716-446655440000" }),
@@ -29,16 +21,11 @@ export const UserSchema = z.object({
   total_queries: z.number().int().openapi({ example: 42 }),
   created_at: z.number().int().openapi({ example: 1706371200 }),
   last_active_at: z.number().int().nullable().openapi({ example: 1706371200 }),
-  // Per-user rate limit overrides (NULL = use role/config default)
   daily_query_limit: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use role default" }),
   daily_token_limit: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default" }),
   daily_cost_limit_microusd: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default, -1 = unlimited" }),
   monthly_cost_limit_microusd: z.number().int().nullable().optional().openapi({ example: null, description: "NULL = use config default, -1 = unlimited" }),
 });
-
-// ============================================
-// Access Request / Waitlist Schemas
-// ============================================
 
 export const AccessRequestSchema = z.object({
   id: z.string().uuid(),
@@ -70,10 +57,6 @@ export const AccessRequestListSchema = z.object({
   requests: z.array(AccessRequestSchema),
 });
 
-// ============================================
-// Chat Session Schemas
-// ============================================
-
 export const ChatSessionSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
@@ -99,10 +82,6 @@ export const SessionListSchema = z.object({
   sessions: z.array(ChatSessionSchema),
 });
 
-// ============================================
-// Message Schemas
-// ============================================
-
 export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -112,7 +91,6 @@ export const ToolCallSchema = z.object({
   error: z.string().optional(),
 });
 
-// 👍 = 1, 👎 = 0. The client never sees trace or score ids.
 const FeedbackCategorySchema = z.enum(ALL_CATEGORY_IDS);
 
 export const FeedbackSchema = z.object({
@@ -121,7 +99,6 @@ export const FeedbackSchema = z.object({
   categories: z.array(FeedbackCategorySchema).openapi({ example: ["accurate", "well_sourced"] }),
 });
 
-// Every category must belong to the rating's polarity (checked in routes/feedback.ts).
 export const FeedbackRequestSchema = z.object({
   value: z.union([z.literal(0), z.literal(1)]).openapi({ example: 0 }),
   comment: z.string().max(2000).nullable().optional().openapi({ example: "Cited the wrong variant" }),
@@ -144,14 +121,10 @@ export const MessageSchema2 = z.object({
   content: z.string().nullable(),
   tool_calls: z.array(ToolCallSchema).nullable(),
   created_at: z.number().int(),
-  // Token counts — 0 for user messages and rows predating the migration
   input_tokens: z.number().int().default(0).openapi({ example: 150 }),
   output_tokens: z.number().int().default(0).openapi({ example: 300 }),
-  // Pre-tool-call reasoning text, stored separately to keep model context clean
   reasoning: z.string().nullable().default(null).openapi({ example: null }),
-  // Main chat model cost charged for this assistant response
   cost_microusd: z.number().int().default(0).openapi({ example: 1200 }),
-  // The current user's feedback (assistant messages, session history only)
   feedback: FeedbackSchema.nullable().optional(),
 });
 
@@ -191,18 +164,10 @@ export const SessionWithMessagesSchema = z.object({
   messages: z.array(MessageSchema2),
 });
 
-// ============================================
-// Chat Schemas
-// ============================================
-
 export const ChatRequestSchema = z.object({
   message: z.string().min(1).openapi({ example: "What are the known drugs targeting EGFR?" }),
   sessionId: z.string().uuid().optional().openapi({ example: "550e8400-e29b-41d4-a716-446655440000" }),
 });
-
-// ============================================
-// Tool Schemas
-// ============================================
 
 export const MCPToolSchema = z.object({
   name: z.string().openapi({ example: "search_proteins" }),
@@ -220,10 +185,6 @@ export const ToolListSchema = z.object({
 export const ToolSearchQuerySchema = z.object({
   q: z.string().openapi({ example: "protein search" }),
 });
-
-// ============================================
-// Usage / Rate Limit Schemas
-// ============================================
 
 export const UsageSchema = z.object({
   used: z.number().int().openapi({ example: 12 }),
@@ -254,10 +215,6 @@ export const UsageSchema = z.object({
 export const AccessRequestAllListSchema = z.object({
   requests: z.array(AccessRequestSchema),
 });
-
-// ============================================
-// Health Check Schemas
-// ============================================
 
 export const HealthSchema = z.object({
   status: z.literal("ok"),

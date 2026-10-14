@@ -1,5 +1,3 @@
-// XML Parser for ClinVar E-utilities responses
-
 import { XMLParser } from 'fast-xml-parser';
 import { XMLParseError } from './exceptions.js';
 import { ensureArray, extractText, normalizeClinicalSignificance, normalizeReviewStatus } from './utils.js';
@@ -17,10 +15,8 @@ import type {
   SubmissionRecord,
 } from './types.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObject = Record<string, any>;
 
-// Configure XML parser for ClinVar responses
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
@@ -37,9 +33,6 @@ const parser = new XMLParser({
   },
 });
 
-/**
- * Parse ESearch response for ClinVar
- */
 export function parseESearchResult(xml: string): { count: number; idList: string[] } {
   try {
     const result = parser.parse(xml);
@@ -61,9 +54,6 @@ export function parseESearchResult(xml: string): { count: number; idList: string
   }
 }
 
-/**
- * Parse ClinVar VCV (Variation) record from EFetch
- */
 export function parseVCVRecord(xml: string): VCVRecord[] {
   try {
     const result = parser.parse(xml);
@@ -76,7 +66,6 @@ export function parseVCVRecord(xml: string): VCVRecord[] {
       const interpretedRecord = archive.InterpretedRecord as AnyObject || {};
       const simpleAllele = interpretedRecord.SimpleAllele as AnyObject || archive.ClassifiedRecord?.SimpleAllele as AnyObject || {};
 
-      // Extract gene info
       const geneList = simpleAllele.GeneList?.Gene || [];
       const primaryGene = ensureArray(geneList)[0] as AnyObject | undefined;
       const gene: GeneInfo | undefined = primaryGene ? {
@@ -86,7 +75,6 @@ export function parseVCVRecord(xml: string): VCVRecord[] {
         hgncId: extractText(primaryGene['@_HGNC_ID']),
       } : undefined;
 
-      // Extract location
       const sequenceLocations = simpleAllele.Location?.SequenceLocation || [];
       const grch38Location = ensureArray(sequenceLocations).find(
         (loc: AnyObject) => extractText(loc['@_Assembly']) === 'GRCh38'
@@ -102,7 +90,6 @@ export function parseVCVRecord(xml: string): VCVRecord[] {
         cytogeneticLocation: extractText(simpleAllele.Location?.CytogeneticLocation),
       } : undefined;
 
-      // Extract HGVS
       const hgvsExpressions = simpleAllele.HGVSlist?.HGVS || [];
       const hgvs: HGVSExpressions = {};
       for (const expr of ensureArray(hgvsExpressions)) {
@@ -121,7 +108,6 @@ export function parseVCVRecord(xml: string): VCVRecord[] {
         }
       }
 
-      // Extract clinical assertions
       const assertions = interpretedRecord.ClinicalAssertionList?.ClinicalAssertion ||
                         archive.ClassifiedRecord?.ClinicalAssertionList?.ClinicalAssertion || [];
       const clinicalAssertions: ClinicalAssertion[] = ensureArray(assertions).map((assertion: AnyObject) => {
@@ -129,7 +115,6 @@ export function parseVCVRecord(xml: string): VCVRecord[] {
         // older records: Interpretation { Description } with a sibling ReviewStatus.
         const classification = assertion.Classification as AnyObject | undefined;
         const interpretation = ensureArray(assertion.Interpretation)[0] as AnyObject || {};
-        // TraitSet is parsed as an array (isArray above).
         const traitSet = ensureArray(assertion.TraitSet)[0] as AnyObject || {};
         const submission = assertion.ClinVarSubmissionID as AnyObject || {};
         const accession = assertion.ClinVarAccession as AnyObject || {};
@@ -159,7 +144,6 @@ export function parseVCVRecord(xml: string): VCVRecord[] {
         };
       });
 
-      // Extract aggregated classification
       const classification = interpretedRecord.Interpretations?.Interpretation?.[0] as AnyObject ||
                             archive.ClassifiedRecord?.Classifications?.GermlineClassification as AnyObject || undefined;
       const aggregatedClassification: ClinicalSignificance | undefined = classification ? {
@@ -188,9 +172,6 @@ export function parseVCVRecord(xml: string): VCVRecord[] {
   }
 }
 
-/**
- * Parse condition/trait from ClinVar data
- */
 function parseCondition(traitSet: AnyObject): Condition {
   const traits = ensureArray(traitSet.Trait || []);
   const primaryTrait = traits[0] as AnyObject | undefined;
@@ -223,9 +204,6 @@ function parseCondition(traitSet: AnyObject): Condition {
   };
 }
 
-/**
- * Parse ESummary response for ClinVar
- */
 export function parseESummaryResult(xml: string): VariantInfo[] {
   try {
     const result = parser.parse(xml);
@@ -233,10 +211,8 @@ export function parseESummaryResult(xml: string): VariantInfo[] {
                    result.eSummaryResult?.DocSum || [];
 
     return ensureArray(docSums).map((doc: AnyObject) => {
-      // Handle both XML formats
       const uid = extractText(doc['@_uid']) || extractText(doc.Id);
 
-      // Extract from Item elements if present
       const items = ensureArray(doc.Item || []);
       const itemMap: AnyObject = {};
       for (const item of items) {
@@ -280,9 +256,6 @@ export function parseESummaryResult(xml: string): VariantInfo[] {
   }
 }
 
-/**
- * Parse submission records from VCV
- */
 export function parseSubmissions(vcvRecord: VCVRecord): SubmissionRecord[] {
   return vcvRecord.clinicalAssertions.map((assertion) => ({
     submissionId: assertion.id,

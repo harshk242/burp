@@ -1,11 +1,8 @@
-/**
- * Daily usage queries (rate limiting). One row per user per UTC day.
- */
 import { and, eq, sql } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { dailyUsage } from "../schema";
 
-const utcToday = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+const utcToday = () => new Date().toISOString().slice(0, 10);
 
 export function createDailyUsageQueries(db: DrizzleDb) {
   const todayRow = (userId: string) => and(eq(dailyUsage.user_id, userId), eq(dailyUsage.date, utcToday()));
@@ -45,11 +42,6 @@ export function createDailyUsageQueries(db: DrizzleDb) {
       return row ?? { query_count: 0, input_tokens: 0, output_tokens: 0 };
     },
 
-    /**
-     * Add token counts for today's usage row (best-effort, called post-response).
-     * Token enforcement is checked pre-request via getTodayFull; incremented here
-     * after the response completes — up to 1 request of overshoot is possible.
-     */
     incrementTokens(userId: string, inputTokens: number, outputTokens: number): void {
       db.insert(dailyUsage)
         .values({

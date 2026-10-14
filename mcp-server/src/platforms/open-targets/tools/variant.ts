@@ -1,11 +1,6 @@
-// Variant API Tools
-
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
 
-/**
- * Retrieve core metadata and functional annotations for a variant.
- */
 export async function getVariantInfo(variantId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -58,9 +53,6 @@ export async function getVariantInfo(variantId: string): Promise<unknown> {
   return client.query(query, { variantId });
 }
 
-/**
- * List credible sets that include a specific variant.
- */
 export async function getVariantCredibleSets(
   variantId: string,
   studyTypes?: string[],
@@ -127,9 +119,6 @@ export async function getVariantCredibleSets(
   return client.query(query, variables);
 }
 
-/**
- * Retrieve pharmacogenomic annotations for a variant.
- */
 export async function getVariantPharmacogenomics(
   variantId: string,
   pageIndex: number = 0,
@@ -185,9 +174,6 @@ export async function getVariantPharmacogenomics(
   return client.query(query, { variantId, pageIndex, pageSize });
 }
 
-/**
- * Retrieve evidence strings linking a variant to targets or diseases.
- */
 export async function getVariantEvidences(
   variantId: string,
   datasourceIds?: string[],
@@ -253,9 +239,6 @@ export async function getVariantEvidences(
   return client.query(query, variables);
 }
 
-/**
- * Retrieve enhancer-to-gene (E2G) predictions overlapping a variant.
- */
 export async function getVariantIntervals(
   variantId: string,
   pageIndex: number = 0,
@@ -305,9 +288,6 @@ export async function getVariantIntervals(
   return client.query(query, { variantId, pageIndex, pageSize });
 }
 
-/**
- * Retrieve protein-level consequences for a variant.
- */
 export async function getVariantProteinCoordinates(
   variantId: string,
   pageIndex: number = 0,

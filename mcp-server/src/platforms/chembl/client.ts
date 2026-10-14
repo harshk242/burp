@@ -1,8 +1,6 @@
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 
-// ── ChEMBL API interfaces ──────────────────────────────────────────────────
-
 export interface CompoundSearchResult {
   molecule_chembl_id: string;
   pref_name?: string;
@@ -63,13 +61,6 @@ export interface AssayInfo {
   confidence_score?: number;
 }
 
-// ── Retry policy ───────────────────────────────────────────────────────────
-
-/**
- * Production retry policy (plans/shared-http-retry-plan.md, "Platform
- * inventory"): one attempt as before, now with a 40s request budget and the
- * tool-call deadline; failures surface as a structured `UpstreamError`.
- */
 export const CHEMBL_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: 1,
   backoffMs: [0],
@@ -102,8 +93,6 @@ export function createChemblClient(options: ChemblClientOptions = {}): AxiosInst
   return attachRetry(client, options.policy ?? CHEMBL_POLICY, 'chembl', options.retryDeps);
 }
 
-// ── Singleton axios client ─────────────────────────────────────────────────
-
 let apiClient: AxiosInstance | null = null;
 
 export function getClient(): AxiosInstance {
@@ -121,8 +110,6 @@ export function cleanup(): void {
   apiClient = null;
 }
 
-// ── Shared validation helpers ──────────────────────────────────────────────
-
 export const isValidChemblIdArgs = (
   args: any,
 ): args is { chembl_id: string } => {
@@ -133,8 +120,6 @@ export const isValidChemblIdArgs = (
     args.chembl_id.length > 0
   );
 };
-
-// ── Shared assessment helpers ──────────────────────────────────────────────
 
 export function assessAbsorption(props: any): string {
   const mw = props.full_mwt || props.molecular_weight || 0;

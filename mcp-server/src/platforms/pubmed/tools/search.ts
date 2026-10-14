@@ -1,12 +1,7 @@
-// Search tools for PubMed platform module
-
 import { getClient } from '../client.js';
 import { buildSearchQuery } from '../utils.js';
 import type { SearchFilters } from '../types.js';
 
-/**
- * Basic PubMed search
- */
 export async function searchPubmed(
   query: string,
   maxResults: number = 20,
@@ -33,9 +28,6 @@ export async function searchPubmed(
   };
 }
 
-/**
- * Advanced search with filters
- */
 export async function searchWithFilters(
   query: string,
   filters: SearchFilters,
@@ -86,9 +78,6 @@ export async function searchWithFilters(
   };
 }
 
-/**
- * Search by author name
- */
 export async function searchByAuthor(
   authorName: string,
   additionalQuery?: string,
@@ -100,7 +89,6 @@ export async function searchByAuthor(
 }> {
   const client = getClient();
 
-  // Format author search query
   let query = `"${authorName}"[Author]`;
   if (additionalQuery) {
     query = `${query} AND (${additionalQuery})`;
@@ -118,9 +106,6 @@ export async function searchByAuthor(
   };
 }
 
-/**
- * Search by journal name
- */
 export async function searchByJournal(
   journalName: string,
   additionalQuery?: string,
@@ -134,7 +119,6 @@ export async function searchByJournal(
 }> {
   const client = getClient();
 
-  // Format journal search query
   let query = `"${journalName}"[Journal]`;
   if (additionalQuery) {
     query = `${query} AND (${additionalQuery})`;
@@ -154,9 +138,6 @@ export async function searchByJournal(
   };
 }
 
-/**
- * Search clinical trials literature
- */
 export async function searchClinicalTrialsLiterature(
   condition: string,
   intervention?: string,
@@ -168,7 +149,6 @@ export async function searchClinicalTrialsLiterature(
 }> {
   const client = getClient();
 
-  // Build clinical trial search query
   let query = `"${condition}"[MeSH Terms] AND (Clinical Trial[Publication Type] OR Randomized Controlled Trial[Publication Type])`;
   if (intervention) {
     query = `${query} AND "${intervention}"[MeSH Terms]`;

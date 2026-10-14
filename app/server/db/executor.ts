@@ -36,7 +36,6 @@ interface HistoryRow {
   created_at: number | string | null;
 }
 
-/** Read migration files exactly as drizzle-orm does, plus their journal tags. */
 export function loadMigrations(migrationsFolder: string): Migration[] {
   const metas = readMigrationFiles({ migrationsFolder });
   const journal = JSON.parse(readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf-8")) as {
@@ -53,7 +52,6 @@ export function hasMigrationsTable(sqlite: Database): boolean {
   );
 }
 
-/** Same DDL as drizzle-orm's migrator (whitespace aside). */
 export function ensureMigrationsTable(sqlite: Database): void {
   sqlite.run(
     `CREATE TABLE IF NOT EXISTS "${MIGRATIONS_TABLE}" (
@@ -83,7 +81,6 @@ export function pendingMigrations<M extends MigrationMeta>(sqlite: Database, mig
   return migrations.filter((m) => lastMillis < m.folderMillis);
 }
 
-/** Insert the history row Drizzle's migrator would write for `migration`. */
 export function recordMigration(sqlite: Database, migration: MigrationMeta): void {
   sqlite
     .query(`INSERT INTO "${MIGRATIONS_TABLE}" ("hash", "created_at") VALUES (?, ?)`)

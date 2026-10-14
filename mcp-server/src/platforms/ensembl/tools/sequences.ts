@@ -3,8 +3,6 @@ import type { ToolHandler } from '../../../types.js';
 import { getToolCallContext } from '../../../shared/tool-call-context.js';
 import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
 
-// ── Validation ──────────────────────────────────────────────────────────────
-
 const isValidSequenceArgs = (
   args: any,
 ): args is {
@@ -66,8 +64,6 @@ const isValidBatchSequenceArgs = (
     (args.format === undefined || ['json', 'fasta'].includes(args.format))
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -157,8 +153,6 @@ export const tools: Tool[] = [
     },
   },
 ];
-
-// ── Handlers ────────────────────────────────────────────────────────────────
 
 async function fetchSingleSequence(args: {
   region: string;
@@ -269,7 +263,6 @@ async function handleBatchSequenceFetch(args: Record<string, unknown>) {
   const context = getToolCallContext();
 
   for (const [index, region] of args.regions.entries()) {
-    // Regions share the tool-call deadline: once it is gone, don't send the rest.
     if (context && context.remainingMs() <= 0) {
       for (const skipped of args.regions.slice(index)) {
         results.push({ region: skipped, success: false, skipped: 'deadline' });
@@ -290,8 +283,6 @@ async function handleBatchSequenceFetch(args: Record<string, unknown>) {
 
   return { batch_results: results };
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   get_sequence: handleGetSequence,

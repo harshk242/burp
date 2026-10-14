@@ -1,5 +1,3 @@
-// PubChem API response interfaces
-
 export interface CompoundSearchResult {
   IdentifierList: {
     CID: number[];
@@ -34,8 +32,6 @@ export interface PropertyData {
     }>;
   };
 }
-
-// ── Argument validation helpers ──────────────────────────────────────────────
 
 export const isValidCompoundSearchArgs = (
   args: unknown,

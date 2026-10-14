@@ -6,6 +6,5 @@ export function generateStaticParams() {
 }
 
 export default function ChatPage() {
-  // Session ID is resolved client-side from window.location in ChatPageClient
   return <ChatPageClient sessionId={null} />;
 }

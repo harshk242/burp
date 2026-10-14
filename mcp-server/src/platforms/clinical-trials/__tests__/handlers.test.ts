@@ -17,7 +17,6 @@ function study(nctId: string, countries: string[] = []) {
   };
 }
 
-// Each request goes to mockGet(url, { params }); the `{ data }` it resolves to becomes a 200.
 const mockGet = vi.fn();
 const adapter: AxiosAdapter = async (config) => {
   const { data } = await mockGet(config.url, { params: config.params });

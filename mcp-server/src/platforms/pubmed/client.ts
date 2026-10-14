@@ -1,5 +1,3 @@
-// PubMed API Client with rate limiting and caching
-
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { filterNoneValues, generateCacheKey } from './utils.js';
 import {
@@ -21,13 +19,10 @@ import type {
 } from './types.js';
 
 const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
-const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
+const DEFAULT_CACHE_TTL = 3600 * 1000;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 1000;
 
-// ── Retry policy ────────────────────────────────────────────────────────────
-
-/** Waits of `2^n × baseMs` before retry n+1 (1s, 2s with the default base). */
 function exponentialBackoff(baseMs: number): (attempt: number) => number {
   return (attempt) => 2 ** (attempt - 1) * baseMs;
 }
@@ -52,13 +47,11 @@ export const PUBMED_POLICY: RetryPolicy = Object.freeze({
 export interface PubMedHttpOptions {
   /** Retry policy (default PUBMED_POLICY). */
   policy?: RetryPolicy;
-  /** Transport override (tests). */
   adapter?: AxiosAdapter;
   /** Injectable sleep/clock/random for the retry loop (tests). */
   retryDeps?: RetryDeps;
 }
 
-/** An NCBI E-utilities Axios instance with the shared retry attached. */
 export function createPubMedHttp(options: PubMedHttpOptions = {}): AxiosInstance {
   const instance = axios.create({
     baseURL: NCBI_BASE_URL,
@@ -124,7 +117,6 @@ export class PubMedClient {
         ...PUBMED_POLICY,
         maxAttempts: this.maxRetries,
         backoffMs: exponentialBackoff(this.retryDelay),
-        // A token before every attempt; the wait counts against the budget.
         beforeAttempt: (signal) => this.rateLimiter.waitForToken(signal),
       },
       adapter: options.adapter,
@@ -132,22 +124,16 @@ export class PubMedClient {
     });
   }
 
-  /**
-   * Execute a request with caching; rate limiting and retries run in the
-   * shared retry adapter.
-   */
   private async request<T>(
     endpoint: string,
     params: Record<string, unknown>,
     parser: (xml: string) => T
   ): Promise<T> {
-    // Add API key if available
     const fullParams: Record<string, unknown> = {
       ...filterNoneValues(params),
       ...(this.apiKey ? { api_key: this.apiKey } : {}),
     };
 
-    // Check cache
     const cacheKey = generateCacheKey(endpoint, fullParams);
     const cachedEntry = this.cache.get(cacheKey);
 
@@ -162,7 +148,6 @@ export class PubMedClient {
 
     const data = parser(response.data);
 
-    // Cache result
     this.cache.set(cacheKey, {
       data,
       timestamp: Date.now(),
@@ -171,9 +156,6 @@ export class PubMedClient {
     return data;
   }
 
-  /**
-   * ESearch - Search and retrieve UIDs
-   */
   async esearch(params: ESearchParams): Promise<ESearchResult> {
     return this.request(
       'esearch.fcgi',
@@ -194,9 +176,6 @@ export class PubMedClient {
     );
   }
 
-  /**
-   * ESummary - Retrieve document summaries
-   */
   async esummary(params: ESummaryParams): Promise<ArticleSummary[]> {
     return this.request(
       'esummary.fcgi',
@@ -209,9 +188,6 @@ export class PubMedClient {
     );
   }
 
-  /**
-   * EFetch - Retrieve full records
-   */
   async efetch(params: EFetchParams): Promise<PubMedArticle[]> {
     return this.request(
       'efetch.fcgi',
@@ -225,9 +201,6 @@ export class PubMedClient {
     );
   }
 
-  /**
-   * ELink - Find related records
-   */
   async elink(params: ELinkParams): Promise<LinkResult> {
     return this.request(
       'elink.fcgi',
@@ -243,9 +216,6 @@ export class PubMedClient {
     );
   }
 
-  /**
-   * Search PubMed with a query string
-   */
   async search(
     query: string,
     options?: {
@@ -272,17 +242,11 @@ export class PubMedClient {
     };
   }
 
-  /**
-   * Fetch article details by PMID(s)
-   */
   async fetchArticles(pmids: string | string[]): Promise<PubMedArticle[]> {
     const idString = Array.isArray(pmids) ? pmids.join(',') : pmids;
     return this.efetch({ id: idString });
   }
 
-  /**
-   * Get article summaries by PMID(s)
-   */
   async getArticleSummaries(
     pmids: string | string[]
   ): Promise<ArticleSummary[]> {
@@ -290,9 +254,6 @@ export class PubMedClient {
     return this.esummary({ id: idString });
   }
 
-  /**
-   * Find related articles
-   */
   async findRelatedArticles(pmid: string): Promise<string[]> {
     const result = await this.elink({
       id: pmid,
@@ -335,16 +296,10 @@ export class PubMedClient {
     return refsLinks?.link.map((l) => l.id) || [];
   }
 
-  /**
-   * Clear the cache
-   */
   clearCache(): void {
     this.cache.clear();
   }
 
-  /**
-   * Get cache statistics
-   */
   getCacheStats(): { size: number; entries: number } {
     return {
       size: this.cache.size,
@@ -352,28 +307,18 @@ export class PubMedClient {
     };
   }
 
-  /**
-   * Check if API key is configured
-   */
   hasApiKey(): boolean {
     return !!this.apiKey;
   }
 }
 
-// Global client instance
 let _client: PubMedClient | null = null;
 
-/**
- * Initialize the global client
- */
 export function initializeClient(options?: PubMedClientOptions): PubMedClient {
   _client = new PubMedClient(options);
   return _client;
 }
 
-/**
- * Get the global client instance
- */
 export function getClient(): PubMedClient {
   if (!_client) {
     throw new Error('PubMedClient not initialized. Call initializeClient() first.');
@@ -381,9 +326,6 @@ export function getClient(): PubMedClient {
   return _client;
 }
 
-/**
- * Close the global client (cleanup)
- */
 export function closeClient(): void {
   if (_client) {
     _client.clearCache();

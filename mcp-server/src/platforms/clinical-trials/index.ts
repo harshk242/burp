@@ -1,7 +1,3 @@
-/**
- * ClinicalTrials.gov platform module for the unified MCP server.
- */
-
 import type { PlatformModule } from '../../types.js';
 import { initClient, cleanupClient } from './client.js';
 import { tools, handlers } from './tools/index.js';

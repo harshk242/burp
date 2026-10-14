@@ -9,7 +9,6 @@ import {
 import { createCallToolHandler } from './call-tool.js';
 import type { PlatformModule, ToolHandler } from './types.js';
 
-// Import all platform modules
 import { platform as ensembl } from './platforms/ensembl/index.js';
 import { platform as openTargets } from './platforms/open-targets/index.js';
 import { platform as chembl } from './platforms/chembl/index.js';
@@ -34,7 +33,6 @@ const PLATFORMS: PlatformModule[] = [
   uniprot,
 ];
 
-/** Build the combined tool list and handler map (prefixed with platform name) */
 export function buildToolRegistry(platforms: PlatformModule[]) {
   const allTools: Tool[] = [];
   const allHandlers = new Map<string, ToolHandler>();
@@ -79,8 +77,6 @@ export function createServer(
 }
 
 export async function runServer(): Promise<void> {
-  // Filter platforms based on ENABLED_PLATFORMS env var from the app.
-  // If not set, all platforms are enabled (backwards-compatible default).
   const enabledNames = process.env.ENABLED_PLATFORMS
     ? new Set(process.env.ENABLED_PLATFORMS.split(',').map((s: string) => s.trim()).filter(Boolean))
     : null;
@@ -96,7 +92,6 @@ export async function runServer(): Promise<void> {
     }
   }
 
-  // Initialise only active platforms
   const env = process.env as Record<string, string | undefined>;
   for (const p of activePlatforms) {
     try {
@@ -114,7 +109,7 @@ export async function runServer(): Promise<void> {
 
   const cleanup = () => {
     for (const p of activePlatforms) {
-      try { p.cleanup(); } catch { /* ignore */ }
+      try { p.cleanup(); } catch { }
     }
     process.exit(0);
   };

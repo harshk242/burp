@@ -1,9 +1,3 @@
-/**
- * Dispatch abort checks: dispatchToolCall yields tool_start before it runs the
- * tool, and the client can go away while that event is being written. The
- * search tool and system tools must then not run, and a result that lands
- * after an abort must not be emitted as tool_end.
- */
 import { afterAll, afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import type { Tool } from "ai";
 import { createTestDb } from "../__test-utils__/db";
@@ -30,7 +24,6 @@ function context(turn: AbortController, activeTools: Record<string, Tool> = {}) 
   };
 }
 
-/** Runs one dispatch; `onEvent` sees each event before the next is pulled (the SSE write). */
 async function run(
   toolName: string,
   turn: AbortController,

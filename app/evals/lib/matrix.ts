@@ -1,17 +1,3 @@
-/**
- * Runs the arms of one invocation (plan 2.4): sequentially (items within an
- * arm keep the run's concurrency, so bio-API load is the same per arm), each
- * arm `repeat` times, all on one shared context: the pinned dataset version
- * and one cost budget for the whole matrix. Once the budget is spent the
- * remaining repeats and arms are not started and are reported as
- * `skipped_budget`. An arm's status also reflects what happened inside its
- * repeats (`interruption`): a repeat whose items the budget cut short makes the
- * arm `partial_budget`, one the signal cut short makes it `stopped`, and
- * items that failed otherwise make it `incomplete`, so `complete` always
- * means every repeat ran every item.
- */
-
-/** What every arm shares. */
 export interface MatrixShared<B extends { readonly exhausted: boolean }> {
   datasetVersion: string;
   budget: B;

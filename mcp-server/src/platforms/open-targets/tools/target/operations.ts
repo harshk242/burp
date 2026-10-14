@@ -1,5 +1,3 @@
-/** Complete GraphQL operations shared by target tools and live API contracts. */
-
 export const TARGET_INFO_OPERATION = `
   query TargetInfo($ensemblId: String!) {
     target(ensemblId: $ensemblId) {

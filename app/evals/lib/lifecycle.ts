@@ -1,18 +1,3 @@
-/**
- * Signal-safe cleanup for the experiment runner (plan 2.1 step 2).
- *
- * Aborting doesn't finish a turn synchronously: each processChat generator
- * still has to reach its `finally` (span end, failed-turn rows, online scores).
- * Tracing is flushed only after that, so nothing is dropped. A signal:
- *   1. stops scheduling (no new item, no new turn),
- *   2. aborts the run's signal (in-flight turns end as `aborted`),
- *   3. drains the tracked tasks (bounded, 30 s; stragglers are logged),
- *   4. flushes tracing (spans + score queue),
- *   5. stops MCP (bounded).
- * Normal completion and failure run steps 3–5 in the same order through the
- * same idempotent `cleanup()`. A second signal exits immediately.
- */
-
 export interface LifecycleDeps {
   shutdownTracing: () => Promise<void>;
   stopMcp: () => Promise<void>;
@@ -95,7 +80,6 @@ export class RunLifecycle {
     this.exit(this.signalExitCode!);
   }
 
-  /** Steps 3–5 once (later calls return the first call's promise). Never rejects. */
   cleanup(): Promise<void> {
     this.cleanupPromise ??= this.runCleanup();
     return this.cleanupPromise;

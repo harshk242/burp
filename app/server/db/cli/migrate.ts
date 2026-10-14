@@ -1,9 +1,3 @@
-/**
- * Apply pending Drizzle migrations to the configured database.
- *
- *   bun run db:migrate              # DATABASE_URL / config.yaml database_url
- *   bun run db:migrate ./some.db    # explicit path (relative to the repo root, or absolute)
- */
 import { appConfig } from "../../config";
 import { openDatabase } from "../connection";
 import { runMigrations } from "../migrate";

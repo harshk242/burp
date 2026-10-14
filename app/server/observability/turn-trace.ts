@@ -1,21 +1,3 @@
-/**
- * One Langfuse trace per chat turn:
- *
- *   chat-turn (agent) → llm-call (generation) / <tool name> (tool | retriever)
- *
- * Rules (plans/eval-pipeline-langfuse-plan.md, Phase 1a):
- * - The trace id is derived from the turn id (sha256, first 32 hex chars, the
- *   same as Langfuse's `createTraceId(turnId)`), so a turn row finds its trace.
- *   With `traceParent` (eval runner) the turn root nests under that span
- *   instead and shares its trace; the trace name is then left to the parent.
- * - No reliance on async context: every child is started from its parent and
- *   the trace attributes (session, user, name, tags) are stamped on each span.
- * - Tracing never breaks a turn: every method catches and logs. When tracing is
- *   off, `TurnTrace.start` returns a no-op trace.
- * - Every observation ends exactly once. `end` closes any child still open
- *   (WARNING on abort/close, ERROR on failure) before ending the root.
- */
-
 import { LangfuseOtelSpanAttributes, startObservation, type LangfuseAgent, type LangfuseObservation, type ObservationLevel } from "@langfuse/tracing";
 import { TraceFlags, type Attributes } from "@opentelemetry/api";
 import type { CallCost } from "../usage";
@@ -36,7 +18,6 @@ export interface TurnTraceStart {
   traceParent?: TraceParent;
 }
 
-/** An existing span to nest a turn under. */
 export interface TraceParent {
   traceId: string;
   spanId: string;
@@ -116,11 +97,9 @@ function warn(event: string, error: unknown): void {
   try {
     logger.warn("TRACE", event, { error: error instanceof Error ? error : String(error) });
   } catch {
-    // Logging must not break the turn either.
   }
 }
 
-/** Runs `fn`; a throw is logged, never propagated. */
 function safely<T>(event: string, fn: () => T, fallback: T): T {
   try {
     return fn();
@@ -130,7 +109,6 @@ function safely<T>(event: string, fn: () => T, fallback: T): T {
   }
 }
 
-/** A generation or tool span; `close` is how the root ends it if still open. */
 abstract class Child {
   private done = false;
 
@@ -139,7 +117,6 @@ abstract class Child {
     private readonly onDone: (child: Child) => void
   ) {}
 
-  /** Ends the observation once; later calls do nothing. */
   protected endOnce(event: string, apply: (obs: LangfuseObservation) => void): void {
     if (this.done) return;
     this.done = true;
@@ -175,7 +152,6 @@ export class GenerationObservation extends Child {
     );
   }
 
-  /** The call finished normally. */
   finish(result: GenerationResult): void {
     this.endOnce("generation_finish_failed", (obs) => obs.updateOtelSpanAttributes(this.attributes(result)));
   }
@@ -264,7 +240,6 @@ export class TurnTrace {
           },
           {
             asType: "agent",
-            // Without a parent, a sampled remote context only carries the trace id.
             parentSpanContext: { traceId, spanId: parent?.spanId ?? "0123456789abcdef", traceFlags: TraceFlags.SAMPLED, isRemote: true },
           }
         );

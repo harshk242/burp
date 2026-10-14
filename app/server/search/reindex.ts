@@ -1,8 +1,3 @@
-/**
- * Keeps hybrid search in step with the tool registry (at boot and whenever the
- * MCP manager reports that the tool set changed) and with the embeddings index.
- */
-
 import { readToolEmbeddings, toVectorMap } from "../embeddings/index-file";
 import type { ToolEmbeddingSync } from "../embeddings/sync-queue";
 import type { Embedder, QueryEmbedder } from "../embeddings/types";
@@ -28,11 +23,6 @@ export function reindexToolSearch(
   return tools;
 }
 
-/**
- * The reindex run at boot and on every tool-set change: rebuild the keyword
- * index, then (when enabled) sync the embeddings index to the same snapshot in
- * the background. The sync attaches its vectors itself.
- */
 export function createSearchReindexer(
   registry: Pick<typeof ToolRegistryType, "getAll">,
   search: Pick<HybridToolSearch, "indexTools">,

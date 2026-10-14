@@ -1,12 +1,7 @@
-// Clinical significance tools for ClinVar platform module
-
 import { getClient } from '../client.js';
 import { parseSubmissions } from '../xml-parser.js';
 import type { VariantInfo, SubmissionRecord, ClinicalSignificance } from '../types.js';
 
-/**
- * Get clinical significance for a variant
- */
 export async function getClinicalSignificance(
   variationId: string
 ): Promise<{
@@ -40,7 +35,6 @@ export async function getClinicalSignificance(
     dateSubmitted: assertion.dateSubmitted,
   }));
 
-  // Check for conflicting interpretations
   const interpretations = new Set(submissions.map((s) => s.interpretation));
   const pathogenicTerms = ['Pathogenic', 'Likely pathogenic'];
   const benignTerms = ['Benign', 'Likely benign'];
@@ -58,9 +52,6 @@ export async function getClinicalSignificance(
   };
 }
 
-/**
- * Search variants by condition/disease
- */
 export async function searchByCondition(
   condition: string,
   options?: {
@@ -88,9 +79,6 @@ export async function searchByCondition(
   };
 }
 
-/**
- * Search variants by molecular consequence
- */
 export async function searchByMolecularConsequence(
   consequence: string,
   options?: {
@@ -120,9 +108,6 @@ export async function searchByMolecularConsequence(
   };
 }
 
-/**
- * Search by review status
- */
 export async function searchByReviewStatus(
   reviewStatus: string,
   options?: {
@@ -151,9 +136,6 @@ export async function searchByReviewStatus(
   };
 }
 
-/**
- * Get variant submissions
- */
 export async function getVariantSubmissions(
   variationId: string
 ): Promise<{
@@ -181,9 +163,6 @@ export async function getVariantSubmissions(
   };
 }
 
-/**
- * Get variant frequency data
- */
 export async function getVariantFrequency(
   variationId: string
 ): Promise<{
@@ -205,8 +184,6 @@ export async function getVariantFrequency(
     };
   }
 
-  // Note: Full frequency data requires querying gnomAD or other sources
-  // ClinVar provides limited frequency info directly
   return {
     variationId: vcvRecord.variationId,
     hasFrequencyData: false,
@@ -214,9 +191,6 @@ export async function getVariantFrequency(
   };
 }
 
-/**
- * Get pathogenic variants for a gene
- */
 export async function getPathogenicVariantsForGene(
   gene: string,
   maxResults: number = 50

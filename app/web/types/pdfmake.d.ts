@@ -23,7 +23,6 @@ declare module 'pdfmake/build/pdfmake' {
 }
 
 declare module 'pdfmake/build/vfs_fonts' {
-  // Side-effect import — populates pdfmake's virtualfs.storage with Roboto fonts
 }
 
 declare module 'pdfmake/build/standard-fonts/Courier' {

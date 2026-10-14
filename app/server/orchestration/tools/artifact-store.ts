@@ -1,27 +1,3 @@
-/**
- * Artifact Store: SQLite with an in-memory read-through cache
- * (process-level singleton)
- *
- * Stores large, noise-reduced JSON tool outputs so the LLM can
- * query them via the inspect_artifact tool using jq filters.
- *
- * Design:
- * - Process-level singleton, NOT per-request
- * - Every artifact is written to the `artifacts` table (gzipped JSON), so
- *   IDs in replayed history stay readable after the memory copy is gone
- * - Memory holds parsed data for recently used artifacts: TTL based on
- *   lastAccessedAt, periodic background cleanup every 60s
- * - Per-session size budget (`max_session_bytes`) instead of a count cap, so
- *   references from replayed history stay valid: when a store pushes the
- *   session's rows over budget, the oldest by creation are deleted (rows and
- *   memory copies), never the one just stored
- * - Database expiry (`db_ttl_hours`) is measured from creation, not access:
- *   an expired artifact returns refresh guidance (tool + input to re-run),
- *   and an hourly sweep deletes expired rows
- * - Data partitioned by sessionId — cross-session access blocked
- * - Session deletion cascades to the rows
- */
-
 import { appConfig } from "../../config";
 import { artifactQueries } from "../../db";
 import { logger } from "../../logger";
@@ -30,7 +6,6 @@ import { executeJq } from "./jq-engine";
 const MEMORY_CLEANUP_INTERVAL_MS = 60_000;
 const DB_SWEEP_INTERVAL_MS = 3_600_000;
 
-// Simple ID generator — "art_" + 8 random hex chars
 function generateArtifactId(): string {
   const hex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -40,7 +15,6 @@ function generateArtifactId(): string {
 
 const MAX_ID_ATTEMPTS = 5;
 
-/** SQLite primary-key violation, raw or wrapped by Drizzle (`cause`). */
 function isPrimaryKeyConflict(err: unknown): boolean {
   for (let e: unknown = err; e instanceof Error; e = e.cause) {
     if ((e as { code?: unknown }).code === "SQLITE_CONSTRAINT_PRIMARYKEY") return true;
@@ -52,16 +26,15 @@ export interface Artifact {
   id: string;
   sessionId: string;
   toolName: string;
-  toolInput: unknown; // arguments of the tool call that produced the data
-  data: unknown; // parsed JSON (noise-reduced)
-  rawSizeChars: number; // original size before noise reduction
-  storedSizeChars: number; // size after noise reduction
-  createdAt: number; // ms
-  expiresAt: number; // ms, measured from createdAt
-  lastAccessedAt: number; // ms, memory TTL only
+  toolInput: unknown;
+  data: unknown;
+  rawSizeChars: number;
+  storedSizeChars: number;
+  createdAt: number;
+  expiresAt: number;
+  lastAccessedAt: number;
 }
 
-/** Enough of an expired artifact to tell the model how to refetch it. */
 export type ExpiredArtifact = Pick<Artifact, "id" | "toolName" | "toolInput" | "createdAt">;
 
 export type ArtifactLookup =
@@ -69,13 +42,11 @@ export type ArtifactLookup =
   | { status: "expired"; artifact: ExpiredArtifact }
   | { status: "missing" };
 
-/** The persistence the store needs; the app binds the SQLite queries, tests a test DB. */
 export type ArtifactRows = Pick<
   typeof artifactQueries,
   "insert" | "findForSession" | "deleteExpired" | "evictOverBudget"
 >;
 
-/** "26h" / "45m": how long ago an artifact was fetched. */
 function formatAge(ms: number): string {
   const minutes = Math.floor(ms / 60_000);
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
@@ -97,13 +68,9 @@ export class ArtifactStore {
       setInterval(() => this.cleanup(), MEMORY_CLEANUP_INTERVAL_MS),
       setInterval(() => this.sweepExpired(), DB_SWEEP_INTERVAL_MS),
     );
-    // Don't hold the process open for cleanup
     for (const timer of this.timers) timer.unref?.();
   }
 
-  /**
-   * Store a noise-reduced JSON artifact: write the row, then warm memory.
-   */
   store(
     sessionId: string,
     toolName: string,
@@ -116,8 +83,6 @@ export class ArtifactStore {
     const now = Date.now();
     const expiresAt = now + appConfig.artifact.db_ttl_hours * 3_600_000;
 
-    // IDs are short (32 bits) to keep previews cheap, so a collision with a
-    // live row is possible: draw a fresh ID rather than shadow the stored one.
     let id = generateArtifactId();
     let persisted = false;
     for (let attempt = 1; ; attempt++) {
@@ -140,7 +105,6 @@ export class ArtifactStore {
           id = generateArtifactId();
           continue;
         }
-        // Still usable for this memory window; only the later read-back is lost.
         logger.warn("TOOL", "artifact_persist_failed", {
           error: err instanceof Error ? err : String(err),
           data: { artifact_id: id, tool: toolName },
@@ -149,7 +113,6 @@ export class ArtifactStore {
         break;
       }
     }
-    // A memory-only artifact must not replace another cached artifact either.
     while (!persisted && this.artifacts.has(id)) id = generateArtifactId();
 
     const artifact: Artifact = {
@@ -170,13 +133,6 @@ export class ArtifactStore {
     return id;
   }
 
-  /**
-   * Delete the session's oldest rows (and their memory copies) while its total
-   * exceeds `max_session_bytes`, keeping `keepId`. Size is the noise-reduced JSON
-   * char count (`stored_size_chars`, pre-gzip): a close-enough proxy for bytes
-   * that also bounds the parsed data held in memory. Failures are logged; the
-   * tool call still succeeds.
-   */
   private enforceSessionBudget(sessionId: string, keepId: string): void {
     try {
       const evicted = this.rows.evictOverBudget(
@@ -268,7 +224,6 @@ export class ArtifactStore {
     return executeJq(lookup.artifact.data, jqFilter);
   }
 
-  /** Whether an artifact's parsed data is currently held in memory. */
   isCached(id: string): boolean {
     return this.artifacts.has(id);
   }
@@ -311,17 +266,14 @@ export class ArtifactStore {
     }
   }
 
-  /** For testing: clear the memory cache */
   clear(): void {
     this.artifacts.clear();
   }
 
-  /** For testing: stop cleanup timers */
   destroy(): void {
     for (const timer of this.timers) clearInterval(timer);
     this.timers = [];
   }
 }
 
-/** Process-level singleton */
 export const artifactStore = new ArtifactStore(artifactQueries);

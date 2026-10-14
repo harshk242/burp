@@ -1,5 +1,3 @@
-// Utility functions for ClinVar platform module
-
 import { createHash } from 'crypto';
 
 /**
@@ -31,9 +29,6 @@ export function generateCacheKey(
   return createHash('sha256').update(content).digest('hex');
 }
 
-/**
- * Ensures a value is an array
- */
 export function ensureArray<T>(value: T | T[] | undefined | null): T[] {
   if (value === undefined || value === null) {
     return [];
@@ -41,9 +36,6 @@ export function ensureArray<T>(value: T | T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
-/**
- * Extracts text content from potentially nested XML structure
- */
 export function extractText(obj: unknown): string {
   if (typeof obj === 'string') {
     return obj;
@@ -64,9 +56,6 @@ export function extractText(obj: unknown): string {
   return '';
 }
 
-/**
- * Truncates an array with a size limit
- */
 export function truncateArray<T>(arr: T[], size: number): T[] {
   if (size <= 0) {
     return arr;
@@ -74,9 +63,6 @@ export function truncateArray<T>(arr: T[], size: number): T[] {
   return arr.slice(0, size);
 }
 
-/**
- * Validates and formats a ClinVar variation ID
- */
 export function formatVariationId(id: string): string {
   const cleaned = id.replace(/[^0-9]/g, '');
   if (!cleaned) {
@@ -107,7 +93,6 @@ export function parseCoordinates(coordStr: string): {
   ref?: string;
   alt?: string;
 } {
-  // Simple chr:pos format
   const simpleMatch = coordStr.match(/^chr(\w+):(\d+)(?:-(\d+))?$/i);
   if (simpleMatch) {
     return {
@@ -117,7 +102,6 @@ export function parseCoordinates(coordStr: string): {
     };
   }
 
-  // HGVS genomic format
   const hgvsMatch = coordStr.match(/NC_0+(\d+)\.\d+:g\.(\d+)([ACGT]+)>([ACGT]+)/i);
   if (hgvsMatch) {
     return {
@@ -151,9 +135,6 @@ export function toVariationId(id: string): string {
   return id.trim().replace(/^VCV0*/i, '').replace(/\.\d+$/, '');
 }
 
-/**
- * Maps clinical significance string to normalized form
- */
 export function normalizeClinicalSignificance(sig: string): string {
   const lower = sig.toLowerCase().trim();
   const mappings: Record<string, string> = {
@@ -172,9 +153,6 @@ export function normalizeClinicalSignificance(sig: string): string {
     'not provided': 'not provided',
   };
 
-  // Exact terms only: a substring match would turn "Likely pathogenic" into
-  // "Pathogenic" and "Conflicting classifications of pathogenicity" into
-  // "Pathogenic". Combined terms ("Pathogenic/Likely pathogenic") stay as given.
   if (Object.hasOwn(mappings, lower)) {
     return mappings[lower];
   }
@@ -182,9 +160,6 @@ export function normalizeClinicalSignificance(sig: string): string {
   return sig;
 }
 
-/**
- * Maps review status string to normalized form
- */
 export function normalizeReviewStatus(status: string): string {
   const lower = status.toLowerCase().trim();
   const mappings: Record<string, string> = {
@@ -206,9 +181,6 @@ export function normalizeReviewStatus(status: string): string {
   return status;
 }
 
-/**
- * Builds ClinVar search term
- */
 export function buildClinVarSearchTerm(params: {
   gene?: string;
   condition?: string;

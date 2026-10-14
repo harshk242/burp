@@ -2,8 +2,6 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
 
-// ── Validation ──────────────────────────────────────────────────────────────
-
 const isValidVariantArgs = (
   args: any,
 ): args is { region: string; species?: string; format?: string; consequence_type?: string[] } => {
@@ -32,8 +30,6 @@ const isValidVariantConsequenceArgs = (
     (args.species === undefined || typeof args.species === 'string')
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -76,8 +72,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ────────────────────────────────────────────────────────────────
-
 async function handleGetVariants(args: Record<string, unknown>) {
   if (!isValidVariantArgs(args)) {
     throw new Error('Invalid variant arguments');
@@ -110,8 +104,6 @@ async function handleGetVariantConsequences(args: Record<string, unknown>) {
 
   return response.data;
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   get_variants: handleGetVariants,

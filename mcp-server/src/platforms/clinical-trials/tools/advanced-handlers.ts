@@ -1,10 +1,3 @@
-/**
- * Advanced / specialised handler functions for ClinicalTrials.gov tools.
- *
- * Covers results, rare-disease, pediatric, similarity, outcome,
- * eligibility, timeline, and international study searches.
- */
-
 import type { ToolHandler } from '../../../types.js';
 import {
   fetchStudies,
@@ -12,10 +5,6 @@ import {
   resultMeta,
   filteredResultMeta,
 } from '../client.js';
-
-// ---------------------------------------------------------------------------
-// get_studies_with_results
-// ---------------------------------------------------------------------------
 
 export const handleGetStudiesWithResults: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
@@ -50,10 +39,6 @@ export const handleGetStudiesWithResults: ToolHandler = async (args) => {
     })),
   };
 };
-
-// ---------------------------------------------------------------------------
-// search_rare_diseases
-// ---------------------------------------------------------------------------
 
 export const handleSearchRareDiseases: ToolHandler = async (args) => {
   if (!args.rareDisease) {
@@ -93,10 +78,6 @@ export const handleSearchRareDiseases: ToolHandler = async (args) => {
     })),
   };
 };
-
-// ---------------------------------------------------------------------------
-// get_pediatric_studies
-// ---------------------------------------------------------------------------
 
 export const handleGetPediatricStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
@@ -157,17 +138,12 @@ export const handleGetPediatricStudies: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// get_similar_studies
-// ---------------------------------------------------------------------------
-
 export const handleGetSimilarStudies: ToolHandler = async (args) => {
   const nctId = args.nctId as string;
   if (!nctId || !/^NCT\d{8}$/.test(nctId)) {
     throw new Error('Valid NCT ID is required (format: NCT########)');
   }
 
-  // Fetch the reference study
   const refData = await fetchStudies({
     format: 'json',
     'query.term': nctId,
@@ -194,7 +170,6 @@ export const handleGetSimilarStudies: ToolHandler = async (args) => {
       break;
     }
     case 'INTERVENTION':
-      // Intervention-based similarity uses general search
       searchParams['query.term'] =
         referenceStudy.protocolSection.identificationModule.briefTitle;
       break;
@@ -233,10 +208,6 @@ export const handleGetSimilarStudies: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// search_by_primary_outcome
-// ---------------------------------------------------------------------------
-
 export const handleSearchByPrimaryOutcome: ToolHandler = async (args) => {
   if (!args.outcome) {
     throw new Error('Outcome parameter is required');
@@ -265,10 +236,6 @@ export const handleSearchByPrimaryOutcome: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// search_by_eligibility_criteria
-// ---------------------------------------------------------------------------
-
 export const handleSearchByEligibilityCriteria: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
@@ -287,7 +254,6 @@ export const handleSearchByEligibilityCriteria: ToolHandler = async (args) => {
   const data = await fetchStudies(params);
   let studies = data.studies || [];
 
-  // Client-side exclusion keyword filtering
   if (args.exclusionKeywords) {
     const exclusionWords = (args.exclusionKeywords as string)
       .toLowerCase()
@@ -332,10 +298,6 @@ export const handleSearchByEligibilityCriteria: ToolHandler = async (args) => {
     })),
   };
 };
-
-// ---------------------------------------------------------------------------
-// get_study_timeline
-// ---------------------------------------------------------------------------
 
 export const handleGetStudyTimeline: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
@@ -400,10 +362,6 @@ export const handleGetStudyTimeline: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// search_international_studies
-// ---------------------------------------------------------------------------
-
 export const handleSearchInternationalStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
@@ -417,7 +375,6 @@ export const handleSearchInternationalStudies: ToolHandler = async (args) => {
   const data = await fetchStudies(params);
   const studies = data.studies || [];
 
-  // Filter for truly international (multi-country) studies
   const filtered = studies.filter((study) => {
     const locations =
       study.protocolSection.contactsLocationsModule?.locations || [];

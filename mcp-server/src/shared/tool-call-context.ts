@@ -1,7 +1,3 @@
-// Per-tool-call context for the shared HTTP retry layer: the tool-call deadline
-// signal, the caller's abort signal and the upstream request records that are
-// aggregated into `_meta.retry` (see plans/shared-http-retry-plan.md, step 4).
-
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 /** Default tool-call time when the client sends no `_meta.deadline_ms`. */
@@ -47,7 +43,6 @@ export interface ToolCallContextOptions {
   now?: () => number;
 }
 
-/** A timer-backed abort signal that works with fake timers and can be cleared. */
 export interface TimeoutSignal {
   signal: AbortSignal;
   clear: () => void;
@@ -136,7 +131,6 @@ export class ToolCallContext {
     };
   }
 
-  /** Stops the deadline timer. */
   dispose(): void {
     this.clearDeadline();
   }
@@ -167,7 +161,5 @@ export function resolveToolCallTimeoutMs(deadlineMs: unknown): number {
   if (typeof deadlineMs !== 'number' || !Number.isFinite(deadlineMs) || deadlineMs <= 0) {
     return DEFAULT_TOOL_CALL_MS;
   }
-  // A client timeout within the margin leaves no time: requests fail as
-  // `timeout` without being sent rather than outliving the client.
   return Math.max(0, deadlineMs - DEADLINE_MARGIN_MS);
 }

@@ -1,7 +1,3 @@
-/**
- * Query-layer tests for users, access requests, chat sessions and messages,
- * run against createTestDb() (in-memory, every migration applied).
- */
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createTestDb, type TestDb } from "../__test-utils__/db";
 import { createQueries, type Queries } from "../db/queries";

@@ -1,11 +1,6 @@
-// Study API Tools
-
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
 
-/**
- * Retrieve metadata and cohort details for a GWAS study.
- */
 export async function getStudyInfo(studyId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -73,9 +68,6 @@ export async function getStudyInfo(studyId: string): Promise<unknown> {
   return client.query(query, { studyId });
 }
 
-/**
- * List studies linked to one or more diseases.
- */
 export async function getStudiesByDisease(
   diseaseIds: string[],
   enableIndirect: boolean = false,
@@ -133,9 +125,6 @@ export async function getStudiesByDisease(
   return client.query(query, variables);
 }
 
-/**
- * Retrieve fine-mapped credible sets for a study.
- */
 export async function getStudyCredibleSets(
   studyId: string,
   pageIndex: number = 0,
@@ -202,9 +191,6 @@ export async function getStudyCredibleSets(
   return client.query(query, { studyId, pageIndex, pageSize });
 }
 
-/**
- * Fetch detailed information for a specific study locus credible set.
- */
 export async function getCredibleSetById(studyLocusId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -271,9 +257,6 @@ export async function getCredibleSetById(studyLocusId: string): Promise<unknown>
   return client.query(query, { studyLocusId });
 }
 
-/**
- * Retrieve colocalisation results for a credible set.
- */
 export async function getCredibleSetColocalisation(
   studyLocusId: string,
   pageIndex: number = 0,
@@ -338,9 +321,6 @@ export async function getCredibleSetColocalisation(
   return client.query(query, { studyLocusId, pageIndex, pageSize });
 }
 
-/**
- * Query credible sets with flexible filtering options.
- */
 export async function getCredibleSets(
   studyLocusIds?: string[],
   studyIds?: string[],

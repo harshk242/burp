@@ -1,24 +1,16 @@
 #!/usr/bin/env python3
-"""
-Test script for failed API cases
-Requires: requests
-Install: pip install requests
-Usage: python3 test_failed_cases.py
-"""
 
 import requests
 import json
 from datetime import datetime
 from typing import Dict, Tuple
 
-# ANSI color codes
 GREEN = '\033[0;32m'
 RED = '\033[0;31m'
 YELLOW = '\033[1;33m'
-NC = '\033[0m'  # No Color
+NC = '\033[0m'
 
 def print_status(success: bool, message: str, warning: bool = False):
-    """Print colored status message"""
     if warning:
         print(f"   {YELLOW}⚠{NC} {message}")
     elif success:
@@ -27,7 +19,6 @@ def print_status(success: bool, message: str, warning: bool = False):
         print(f"   {RED}✗{NC} {message}")
 
 def test_chembl() -> Tuple[str, str]:
-    """Test ChEMBL REST API"""
     print("1. Testing ChEMBL REST API...")
     try:
         url = "https://www.ebi.ac.uk/chembl/api/data/molecule/CHEMBL25.json"
@@ -45,7 +36,6 @@ def test_chembl() -> Tuple[str, str]:
         return "FAIL", str(e)[:50]
 
 def test_uniprot() -> Tuple[str, str]:
-    """Test UniProt REST API"""
     print("\n2. Testing UniProt REST API...")
     try:
         url = "https://rest.uniprot.org/uniprotkb/P04637.json"
@@ -63,7 +53,6 @@ def test_uniprot() -> Tuple[str, str]:
         return "FAIL", str(e)[:50]
 
 def test_reactome() -> Tuple[str, str]:
-    """Test Reactome REST API"""
     print("\n3. Testing Reactome REST API...")
     try:
         url = "https://reactome.org/ContentService/data/query/TP53/pathways"
@@ -86,7 +75,6 @@ def test_reactome() -> Tuple[str, str]:
         return "FAIL", str(e)[:50]
 
 def test_pharmgkb() -> Tuple[str, str]:
-    """Test PharmGKB API"""
     print("\n4. Testing PharmGKB API...")
     try:
         url = "https://api.clinpgx.org/v1/data/gene?symbol=CYP2D6"
@@ -109,12 +97,10 @@ def test_pharmgkb() -> Tuple[str, str]:
         return "FAIL", str(e)[:50]
 
 def test_opentargets() -> Tuple[str, str]:
-    """Test Open Targets GraphQL"""
     print("\n5. Testing Open Targets GraphQL...")
     try:
         url = "https://api.platform.opentargets.org/api/v4/graphql"
 
-        # Test basic query
         query = {"query": '{ target(ensemblId: "ENSG00000141510") { approvedSymbol } }'}
         response = requests.post(url, json=query, timeout=10)
 
@@ -123,7 +109,6 @@ def test_opentargets() -> Tuple[str, str]:
             symbol = data.get('data', {}).get('target', {}).get('approvedSymbol', 'Unknown')
             print_status(True, f"Open Targets API accessible: {symbol}")
 
-            # Test search query
             search_query = {"query": '{ search(queryString: "TP53", entityNames: ["target"]) { total } }'}
             search_response = requests.post(url, json=search_query, timeout=10)
 
@@ -143,16 +128,13 @@ def test_opentargets() -> Tuple[str, str]:
         return "FAIL", str(e)[:50]
 
 def test_ensembl() -> Tuple[str, str]:
-    """Test Ensembl REST API"""
     print("\n6. Testing Ensembl REST API...")
     try:
         headers = {"Content-Type": "application/json"}
 
-        # Test with Ensembl ID
         url1 = "https://rest.ensembl.org/lookup/id/ENSG00000141510"
         response1 = requests.get(url1, headers=headers, timeout=10)
 
-        # Test with gene symbol
         url2 = "https://rest.ensembl.org/lookup/symbol/homo_sapiens/TP53"
         response2 = requests.get(url2, headers=headers, timeout=10)
 
@@ -179,10 +161,8 @@ def test_ensembl() -> Tuple[str, str]:
         return "FAIL", str(e)[:50]
 
 def test_pubchem() -> Tuple[str, str]:
-    """Test PubChem API"""
     print("\n7. Testing PubChem APIs...")
     try:
-        # Test external references
         url = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/2244/xrefs/RegistryID/JSON"
         response = requests.get(url, timeout=10)
 
@@ -193,7 +173,6 @@ def test_pubchem() -> Tuple[str, str]:
             print_status(True, f"PubChem xrefs API accessible: CID {cid}")
             results.append("XRefs OK")
 
-            # Test similarity search
             url2 = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/fastsimilarity_2d/cid/2244/cids/JSON?Threshold=95&MaxRecords=3"
             response2 = requests.get(url2, timeout=10)
 
@@ -217,13 +196,11 @@ def test_pubchem() -> Tuple[str, str]:
         return "FAIL", str(e)[:50]
 
 def main():
-    """Main test runner"""
     print("=" * 60)
     print("Testing Failed API Cases")
     print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
-    # Run all tests
     results = {
         "ChEMBL": test_chembl(),
         "UniProt": test_uniprot(),
@@ -234,7 +211,6 @@ def main():
         "PubChem": test_pubchem()
     }
 
-    # Print summary
     print("\n" + "=" * 60)
     print("Summary")
     print("=" * 60)
@@ -242,7 +218,6 @@ def main():
     for platform, (status, detail) in results.items():
         print(f"{platform:15} {status:15} {detail}")
 
-    # Count results
     passed = sum(1 for status, _ in results.values() if status == "PASS")
     partial = sum(1 for status, _ in results.values() if status == "PARTIAL")
     total = len(results)
@@ -252,7 +227,6 @@ def main():
     if partial > 0:
         print(f"       {partial}/{total} platforms partially accessible")
 
-    # Save results to file
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     report_file = f"api_test_results_{timestamp}.txt"
 

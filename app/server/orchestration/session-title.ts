@@ -1,8 +1,3 @@
-/**
- * Session title: a short title from the first user question (title model),
- * with a fallback built from the question itself.
- */
-
 import { generateText } from "ai";
 import { getTitleModel, loadLLMConfig } from "../llm";
 import { chatSessionQueries } from "../db";

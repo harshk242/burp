@@ -73,7 +73,6 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
       {expanded && (
         <CardContent className="p-3 pt-0 space-y-2">
-          {/* Input */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">
               Input
@@ -83,7 +82,6 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             </pre>
           </div>
 
-          {/* Output or Error */}
           {toolCall.error ? (
             <div>
               <p className="text-xs font-medium text-destructive mb-1">Error</p>

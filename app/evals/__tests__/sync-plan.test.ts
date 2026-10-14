@@ -1,7 +1,3 @@
-/**
- * Sync planner + apply against an in-memory Langfuse: first apply writes everything, a second
- * apply is a no-op, removed items are archived (never deleted), changed metric definitions conflict.
- */
 import { describe, expect, it } from "bun:test";
 import type {
   DatasetBody,
@@ -51,7 +47,6 @@ class FakeLangfuse implements LangfuseApi {
     const existing = this.items.get(body.id);
     if (existing && existing.datasetName !== body.datasetName) throw new Error(`item ${body.id} in another dataset`);
     this.writes++;
-    // Round-trip through JSON like the real API does.
     const item = JSON.parse(JSON.stringify(body)) as RemoteDatasetItem;
     this.items.set(body.id, item);
     return item;

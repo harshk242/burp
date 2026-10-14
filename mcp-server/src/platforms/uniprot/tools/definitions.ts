@@ -1,8 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
-/** All UniProt tool definitions. */
 export const tools: Tool[] = [
-  // ── Search tools ──────────────────────────────────────────────────────
   {
     name: 'search_proteins',
     description: 'Search UniProt database for proteins by name, keyword, or organism',
@@ -95,7 +93,6 @@ export const tools: Tool[] = [
     },
   },
 
-  // ── Single-protein info tools ─────────────────────────────────────────
   {
     name: 'get_protein_info',
     description: 'Get detailed information for a specific protein by UniProt accession',
@@ -198,7 +195,6 @@ export const tools: Tool[] = [
     },
   },
 
-  // ── Comparative & evolutionary tools ──────────────────────────────────
   {
     name: 'compare_proteins',
     description: 'Compare multiple proteins side-by-side with sequence and feature comparison',
@@ -255,7 +251,6 @@ export const tools: Tool[] = [
     },
   },
 
-  // ── Batch & cross-reference tools ─────────────────────────────────────
   {
     name: 'batch_protein_lookup',
     description: 'Process multiple accessions efficiently',
@@ -308,7 +303,6 @@ export const tools: Tool[] = [
     },
   },
 
-  // ── Export & utility tools ────────────────────────────────────────────
   {
     name: 'export_protein_data',
     description: 'Export data in specialized formats (GFF, GenBank, etc.)',

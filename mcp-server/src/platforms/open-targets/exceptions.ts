@@ -1,6 +1,3 @@
-// Platform-specific exceptions for Open Targets
-// Extend shared base classes from the unified server
-
 import { MCPError, APIError, GraphQLError as SharedGraphQLError } from '../../shared/exceptions.js';
 
 export class OpenTargetsError extends MCPError {
@@ -27,5 +24,4 @@ export class GraphQLError extends SharedGraphQLError {
   }
 }
 
-// Re-export shared exceptions used directly in this platform
 export { NetworkError, ValidationError, CacheError } from '../../shared/exceptions.js';

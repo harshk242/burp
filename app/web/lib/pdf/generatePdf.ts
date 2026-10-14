@@ -1,11 +1,3 @@
-/**
- * generatePdf.ts
- *
- * Orchestrates markdown → mdast → pdfmake → download.
- * All heavy dependencies (pdfmake, unified, fonts) are loaded via dynamic
- * imports so they stay out of the main bundle.
- */
-
 import { PAGE_MARGINS, pdfStyles, buildTitleBlock, buildFooter } from './styles';
 import { mdastToPdfmakeContent } from './mdastToPdfmake';
 
@@ -22,7 +14,6 @@ export async function generatePdfFromMarkdown(
   markdown: string,
   title: string
 ): Promise<void> {
-  // Load all heavy deps in parallel.
   const [pdfMod, vfsFontsMod, remarkParseMod, unifiedMod, remarkGfmMod, courierMod] =
     await Promise.all([
       import('pdfmake/build/pdfmake'),
@@ -45,15 +36,11 @@ export async function generatePdfFromMarkdown(
   const robotoVfs = (vfsFontsMod as any).default ?? vfsFontsMod;
   pdfMake.addVirtualFileSystem(robotoVfs);
 
-  // Courier ships as a fontContainer = { vfs, fonts }.
-  // addFontContainer() handles both vfs registration and font descriptor merge.
   const courier = (courierMod as any).default ?? courierMod;
   pdfMake.addFontContainer(courier);
 
-  // Parse markdown → mdast.
   const tree = unified().use(remarkParse).use(remarkGfm).parse(markdown);
 
-  // Convert mdast → pdfmake content array.
   const body = mdastToPdfmakeContent(tree as any);
 
   const date = new Date().toLocaleDateString('en-US', {

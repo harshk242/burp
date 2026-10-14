@@ -1,7 +1,3 @@
-# Metrics registry v0. One entry per metric; `name` is the Langfuse score name.
-# `bun run eval:sync --apply` creates a score config for every `status: active` metric.
-# Configs are effectively permanent: never change a synced metric's data_type, min/max or
-# categories in place. Add a new name (e.g. id_grounding_v2) and retire the old one.
 - name: turn_outcome
   description: How the turn ended, from the persisted chat_turns row (status + error_code).
   method: code
@@ -66,8 +62,6 @@
   rubric: null
   status: active
 
-# Feedback category pills (server/schemas/feedback-categories.ts), one BOOLEAN score per
-# category on every feedback push: 1 if the user picked it, else 0 (deselected, other polarity, cleared).
 - name: feedback_factually_incorrect
   description: The user picked the "Factually incorrect" category on a 👎.
   method: human

@@ -1,20 +1,8 @@
-/**
- * Legacy DB adoption (plans/drizzle-orm-migration.md §6 steps 2–6).
- *
- * A legacy DB was built by the old `schema.sql` + try/catch ALTER list and has
- * no `__drizzle_migrations`. `adoptLegacyDatabase()` turns it into exactly what
- * migration `0000` builds and records `0000` as applied. It runs inside the
- * caller's migration transaction (migrate.ts), so any failure rolls everything
- * back and the legacy DB stays as it was.
- *
- * Delete this file (and its fixtures/tests) once every DB has been adopted (§11 Phase 7).
- */
 import { Database } from "bun:sqlite";
 import { ensureMigrationsTable, recordMigration } from "./executor";
 import { diffFingerprints, fingerprintSchema, isFingerprintedTable, quoteIdent } from "./introspect";
 import type { MigrationMeta } from "drizzle-orm/migrator";
 
-/** The old `applyMigrations()` list, frozen. Only "duplicate column" errors are expected. */
 export const LEGACY_CATCH_UP: readonly string[] = [
   "ALTER TABLE users ADD COLUMN daily_query_limit INTEGER",
   "ALTER TABLE users ADD COLUMN daily_token_limit INTEGER",
@@ -149,7 +137,6 @@ function rebuildTables(sqlite: Database, baseline: MigrationMeta, reference: Dat
     .filter(isFingerprintedTable);
   const sequences = savedSequences(sqlite, tables);
 
-  // Named indexes would clash with the canonical ones; their definitions were verified above.
   const named = sqlite
     .query<{ name: string; tbl_name: string }, []>("SELECT name, tbl_name FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL")
     .all()
@@ -172,7 +159,6 @@ function rebuildTables(sqlite: Database, baseline: MigrationMeta, reference: Dat
       .all();
     const pk = info.filter((c) => c.pk > 0);
     const rowidAlias = pk.length === 1 && pk[0]!.type.toUpperCase() === "INTEGER";
-    // Copy by name (legacy column order may differ); keep rowids so implicit row order survives.
     const cols = [...(rowidAlias ? [] : ["rowid"]), ...info.map((c) => quoteIdent(c.name))].join(", ");
     sqlite.run(`INSERT INTO ${quoteIdent(t)} (${cols}) SELECT ${cols} FROM ${quoteIdent(LEGACY_PREFIX + t)}`);
   }

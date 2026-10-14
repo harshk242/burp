@@ -1,19 +1,3 @@
-/**
- * Minimal Langfuse public-API client for eval sync: plain fetch, Basic auth.
- *
- * Field names checked against `bunx langfuse-cli api schema --json` (API snapshot 4.35.0,
- * 2026-10-11):
- * - POST /api/public/score-configs     { name, dataType, categories?[{label,value}], minValue?, maxValue?, description? }
- * - GET  /api/public/score-configs     paginated (page, limit)
- * - POST /api/public/v2/datasets       { name, description?, metadata? }
- * - GET  /api/public/v2/datasets/{name}
- * - POST /api/public/dataset-items     { id, datasetName, input?, expectedOutput?, metadata?, status? }; upsert by id,
- *                                      ids are unique project-wide; status ACTIVE | ARCHIVED
- * - GET  /api/public/dataset-items     paginated, filter datasetName
- * - GET  /api/public/dataset-items/{id}
- * Nothing here deletes: removed items are archived, configs are never edited.
- */
-
 export interface ScoreConfigCategory {
   label: string;
   value: number;

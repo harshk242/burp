@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { TokenBucketRateLimiter, createNcbiRateLimiter } from '../rate-limiter.js';
 
-// ── TokenBucketRateLimiter ────────────────────────────────────────────────────
-
 describe('TokenBucketRateLimiter', () => {
   describe('constructor', () => {
     it('uses requestsPerSecond as maxTokens when no burstSize given', () => {
@@ -22,7 +20,6 @@ describe('TokenBucketRateLimiter', () => {
 
     it('starts full (all maxTokens available)', () => {
       const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 5 });
-      // Allow tiny floating-point drift from the immediate refill() call
       expect(limiter.getAvailableTokens()).toBeGreaterThanOrEqual(4.99);
     });
   });
@@ -37,7 +34,7 @@ describe('TokenBucketRateLimiter', () => {
 
     it('returns false when bucket is exhausted', () => {
       const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 1, burstSize: 1 });
-      limiter.tryAcquire(); // use the single token
+      limiter.tryAcquire();
       expect(limiter.tryAcquire()).toBe(false);
     });
 
@@ -63,11 +60,9 @@ describe('TokenBucketRateLimiter', () => {
     it('refills tokens over time', () => {
       vi.useFakeTimers();
       const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 10, burstSize: 10 });
-      // Exhaust bucket
       for (let i = 0; i < 10; i++) limiter.tryAcquire();
       expect(limiter.getAvailableTokens()).toBeCloseTo(0, 0);
 
-      // Advance 500 ms — should refill ~5 tokens (10 req/s * 0.5 s)
       vi.advanceTimersByTime(500);
       expect(limiter.getAvailableTokens()).toBeGreaterThan(4);
     });
@@ -75,7 +70,7 @@ describe('TokenBucketRateLimiter', () => {
     it('never exceeds maxTokens after over-filling time', () => {
       vi.useFakeTimers();
       const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 5, burstSize: 5 });
-      vi.advanceTimersByTime(10_000); // 10 s of refill
+      vi.advanceTimersByTime(10_000);
       expect(limiter.getAvailableTokens()).toBeLessThanOrEqual(5);
     });
   });
@@ -95,7 +90,6 @@ describe('TokenBucketRateLimiter', () => {
     it('resolves after delay when bucket is exhausted', async () => {
       vi.useFakeTimers();
       const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 3, burstSize: 3 });
-      // Exhaust all tokens
       limiter.tryAcquire();
       limiter.tryAcquire();
       limiter.tryAcquire();
@@ -147,8 +141,6 @@ describe('TokenBucketRateLimiter', () => {
       const first = limiter.waitForToken().then(() => {
         firstResolved = true;
       });
-      // The wall clock jumps without firing timers: the second waiter sees a
-      // nearly refilled bucket, so its wait would end before the first's.
       vi.setSystemTime(Date.now() + 900);
       const controller = new AbortController();
       const second = limiter.waitForToken(controller.signal);
@@ -195,8 +187,6 @@ describe('TokenBucketRateLimiter', () => {
   });
 });
 
-// ── createNcbiRateLimiter ─────────────────────────────────────────────────────
-
 describe('createNcbiRateLimiter', () => {
   it('creates 3 req/s limiter without API key', () => {
     const limiter = createNcbiRateLimiter(false);
@@ -218,7 +208,6 @@ describe('createNcbiRateLimiter', () => {
 
   it('starts with full burst bucket', () => {
     const limiter = createNcbiRateLimiter(false);
-    // Should be able to immediately acquire up to burstSize (6) times
     let acquired = 0;
     while (limiter.tryAcquire()) acquired++;
     expect(acquired).toBe(6);

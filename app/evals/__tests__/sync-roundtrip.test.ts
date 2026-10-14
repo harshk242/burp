@@ -1,14 +1,3 @@
-/**
- * Live round-trip against Langfuse (opt-in: writes to the project).
- *
- *   EVAL_SYNC_ROUNDTRIP=1 bun test evals/__tests__/sync-roundtrip.test.ts
- *
- * Pushes a probe item with awkward shapes (nulls, unicode, nested arrays, floats, empty
- * containers) to the `eval-sync-roundtrip` dataset, fetches it back, and checks the hash
- * recomputed from the fetched payload equals the local one. Catches any normalization
- * Langfuse applies. The probe item is deleted afterwards; the API cannot delete
- * datasets, so the empty `eval-sync-roundtrip` dataset stays (delete it in the UI).
- */
 import { describe, expect, it } from "bun:test";
 import { contentHash } from "../lib/hash";
 import { langfuseApiFromEnv } from "../lib/langfuse-api";

@@ -58,7 +58,6 @@
   }
 }
 
-/* Custom scrollbar for chat */
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
 }
@@ -76,7 +75,6 @@
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
-/* Streaming cursor animation */
 @keyframes blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }

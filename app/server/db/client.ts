@@ -1,6 +1,3 @@
-/**
- * The app's single SQLite connection (opened on import) and its Drizzle wrapper.
- */
 import { appConfig } from "../config";
 import { createDrizzle, openDatabase } from "./connection";
 import { resolveDbPath } from "./paths";

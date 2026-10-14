@@ -2,8 +2,6 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
 
-// ── Validation ──────────────────────────────────────────────────────────────
-
 const isValidXrefArgs = (
   args: any,
 ): args is { gene_id: string; species?: string; external_db?: string; all_levels?: boolean } => {
@@ -31,8 +29,6 @@ const isValidMapCoordinatesArgs = (
     args.target_assembly.length > 0
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -70,8 +66,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ────────────────────────────────────────────────────────────────
-
 async function handleGetXrefs(args: Record<string, unknown>) {
   if (!isValidXrefArgs(args)) {
     throw new Error('Invalid xref arguments');
@@ -104,8 +98,6 @@ async function handleMapCoordinates(args: Record<string, unknown>) {
   );
   return response.data;
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   get_xrefs: handleGetXrefs,

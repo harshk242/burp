@@ -5,10 +5,8 @@ import { streamChat } from "../sse";
 const store = () => useChatStore.getState();
 const realFetch = globalThis.fetch;
 
-/** An SSE frame as the server writes it: every payload JSON (server/routes/sse-encode.ts). */
 const frame = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
-/** Serves `body` in chunks of `chunkSize` bytes, so frames split across reads. */
 function serve(body: string, chunkSize = 7) {
   const bytes = new TextEncoder().encode(body);
   globalThis.fetch = (async () =>

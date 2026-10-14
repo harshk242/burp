@@ -1,10 +1,5 @@
-// Utility functions for PubMed platform module
-
 import { createHash } from 'crypto';
 
-/**
- * Removes null and undefined values from an object
- */
 export function filterNoneValues<T extends Record<string, unknown>>(
   obj: T
 ): Partial<T> {
@@ -17,9 +12,6 @@ export function filterNoneValues<T extends Record<string, unknown>>(
   return result;
 }
 
-/**
- * Generates a deterministic cache key from endpoint and params
- */
 export function generateCacheKey(
   endpoint: string,
   params?: Record<string, unknown>
@@ -31,9 +23,6 @@ export function generateCacheKey(
   return createHash('sha256').update(content).digest('hex');
 }
 
-/**
- * Validates and formats a PMID
- */
 export function formatPmid(id: string): string {
   const cleaned = id.replace(/[^0-9]/g, '');
   if (!cleaned) {
@@ -42,9 +31,6 @@ export function formatPmid(id: string): string {
   return cleaned;
 }
 
-/**
- * Validates multiple PMIDs
- */
 export function formatPmids(ids: string[]): string[] {
   return ids.map(formatPmid);
 }
@@ -60,9 +46,6 @@ export function formatDate(date: Date | string): string {
   return `${year}/${month}/${day}`;
 }
 
-/**
- * Truncates an array with a size limit
- */
 export function truncateArray<T>(arr: T[], size: number): T[] {
   if (size <= 0) {
     return arr;
@@ -70,9 +53,6 @@ export function truncateArray<T>(arr: T[], size: number): T[] {
   return arr.slice(0, size);
 }
 
-/**
- * Ensures a value is an array
- */
 export function ensureArray<T>(value: T | T[] | undefined | null): T[] {
   if (value === undefined || value === null) {
     return [];
@@ -80,9 +60,6 @@ export function ensureArray<T>(value: T | T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
-/**
- * Extracts text content from potentially nested XML structure
- */
 export function extractText(obj: unknown): string {
   if (typeof obj === 'string') {
     return obj;
@@ -94,7 +71,6 @@ export function extractText(obj: unknown): string {
     if ('#text' in obj) {
       return String((obj as Record<string, unknown>)['#text']);
     }
-    // Try common text node names
     for (const key of ['_', 'text', 'value', '$t']) {
       if (key in obj) {
         return String((obj as Record<string, unknown>)[key]);
@@ -104,9 +80,6 @@ export function extractText(obj: unknown): string {
   return '';
 }
 
-/**
- * Safely gets a nested property from an object
- */
 export function getNestedValue(
   obj: Record<string, unknown>,
   path: string
@@ -126,9 +99,6 @@ export function getNestedValue(
   return current;
 }
 
-/**
- * Builds a PubMed search query with filters
- */
 export function buildSearchQuery(
   baseQuery: string,
   filters?: {
@@ -172,9 +142,6 @@ export function buildSearchQuery(
   return parts.join(' AND ');
 }
 
-/**
- * Formats author name for display
- */
 export function formatAuthorName(author: {
   lastName?: string;
   foreName?: string;
@@ -193,9 +160,6 @@ export function formatAuthorName(author: {
   return author.lastName || author.foreName || 'Unknown';
 }
 
-/**
- * Formats a citation in a specified style
- */
 export function formatCitation(
   article: {
     authors?: Array<{ lastName?: string; foreName?: string; initials?: string }>;

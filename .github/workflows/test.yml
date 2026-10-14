@@ -4,16 +4,13 @@ on:
   pull_request:
     branches: [main, develop]
   push:
-    # main is tested by deploy.yml (via workflow_call) right before deploying
     branches: [develop]
   schedule:
-    # Contract tests: daily 06:00 UTC
     - cron: '0 6 * * *'
   workflow_dispatch:
   workflow_call:
 
 jobs:
-  # ── Unit Tests (every PR + push) ────────────────────────────────────────────
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -48,8 +45,6 @@ jobs:
         working-directory: app
         run: bunx drizzle-kit check
 
-      # Fails any change that edits server/db/schema without committing the
-      # migration drizzle-kit would generate for it (modified or new files).
       - name: Drizzle schema drift guard
         working-directory: app
         run: |
@@ -65,7 +60,6 @@ jobs:
         working-directory: app
         run: bun test
 
-  # ── Contract Tests (daily schedule + manual dispatch) ──────────────────────
   contract-tests:
     name: API Contract Tests
     runs-on: ubuntu-latest

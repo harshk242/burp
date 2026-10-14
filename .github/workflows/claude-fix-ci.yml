@@ -1,13 +1,5 @@
 name: Claude Fix CI
 
-# Runs after the "Tests" workflow finishes. If it failed on develop (push or
-# daily schedule), Claude reads the failed job logs, fixes the root cause on a
-# new branch, and opens a PR against develop. Feature-branch PR failures are
-# ignored so fix PRs never carry unrelated feature commits.
-#
-# Note: workflow_run only fires for workflow files on the default branch,
-# so this must be on develop (the default branch) to take effect.
-
 on:
   workflow_run:
     workflows: ["Tests"]
@@ -18,7 +10,7 @@ permissions:
   pull-requests: write
   actions: read
   issues: write
-  id-token: write # OIDC exchange for the Claude GitHub App token
+  id-token: write
 
 concurrency:
   group: claude-fix-ci-${{ github.event.workflow_run.head_branch }}
@@ -69,7 +61,6 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: true
-          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: >-
             --model claude-sonnet-5-5
             --effort high

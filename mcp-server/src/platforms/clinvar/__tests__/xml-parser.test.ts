@@ -1,10 +1,3 @@
-/**
- * ClinVar parsers against the current E-utilities XML (trimmed from live
- * responses for variation 5005761, 2026-10). The pre-2024 parser read
- * `clinical_significance` and the `ClinVarResult` root, so every
- * classification came back empty.
- */
-
 import { describe, expect, it } from 'vitest';
 import { parseESummaryResult, parseVCVRecord } from '../xml-parser.js';
 import { normalizeClinicalSignificance, toVariationId } from '../utils.js';

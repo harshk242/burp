@@ -19,7 +19,6 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center px-4">
-        {/* Mobile menu button — only on pages with a sidebar */}
         {hasSidebar && (
           <Button
             variant="ghost"
@@ -32,7 +31,6 @@ export function Header() {
           </Button>
         )}
 
-        {/* Desktop sidebar toggle — only on pages with a sidebar */}
         {hasSidebar && (
           <Button
             variant="ghost"
@@ -45,16 +43,13 @@ export function Header() {
           </Button>
         )}
 
-        {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <Image src="/burp-logo.png" alt="BURP" width={28} height={28} className="rounded-sm" />
           <span className="hidden sm:inline">BURP</span>
         </Link>
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Navigation */}
         <nav className="flex items-center gap-2">
           {pathname.startsWith("/admin") ? (
             <Button variant="ghost" size="sm" asChild>

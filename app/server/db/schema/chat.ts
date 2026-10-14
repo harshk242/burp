@@ -1,6 +1,3 @@
-/**
- * chat_sessions, messages, chat_turns, model_transcript (rules in ./users.ts).
- */
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "./users";
@@ -28,14 +25,11 @@ export const messages = sqliteTable(
       .references(() => chatSessions.id, { onDelete: "cascade" }),
     role: text("role", { enum: ["user", "assistant"] }).notNull(),
     content: text("content"),
-    tool_calls: text("tool_calls"), // JSON array of tool calls
+    tool_calls: text("tool_calls"),
     created_at: integer("created_at").notNull().default(sql`(unixepoch())`),
-    // Token counts per assistant message (0 for user messages and pre-migration rows)
     input_tokens: integer("input_tokens").notNull().default(0),
     output_tokens: integer("output_tokens").notNull().default(0),
-    // Reasoning text (pre-tool-call text) stored separately to avoid model context contamination
     reasoning: text("reasoning"),
-    // Dollar cost charged for this assistant turn (main chat model only)
     cost_microusd: integer("cost_microusd").notNull().default(0),
   },
   (t) => [
@@ -44,11 +38,6 @@ export const messages = sqliteTable(
   ],
 );
 
-/**
- * One row per user turn: created `running` when the turn starts, finalized when
- * it ends. Rows are kept for failed and aborted turns too (investigation); only
- * `ok` turns are meant for replay. Linked from usage_events.turn_id.
- */
 export const chatTurns = sqliteTable(
   "chat_turns",
   {
@@ -59,23 +48,14 @@ export const chatTurns = sqliteTable(
     user_message_id: text("user_message_id")
       .notNull()
       .references(() => messages.id, { onDelete: "cascade" }),
-    // NULL unless the turn succeeded.
     assistant_message_id: text("assistant_message_id").references(() => messages.id, { onDelete: "set null" }),
     status: text("status", { enum: ["running", "ok", "error", "aborted"] }).notNull().default("running"),
-    // e.g. provider_error, max_tool_iterations, refusal, aborted (orchestration/chat-turn.ts).
     error_code: text("error_code"),
     error_message: text("error_message"),
-    // LLM calls started (loop iterations).
     iterations: integer("iterations").notNull().default(0),
-    // Measured prompt of the turn's last LLM call (ok turns): seeds the next
-    // turn's context-budget estimate.
     last_prompt_tokens: integer("last_prompt_tokens"),
-    // Langfuse trace of the turn; NULL when tracing was off.
     trace_id: text("trace_id"),
-    // finish_reason of the turn's last completed LLM call ("length" = truncated
-    // answer); NULL when no call completed. Read by observability/turn-signals.ts.
     final_finish_reason: text("final_finish_reason"),
-    // Tool results that went back to the model as errors, failed searches included.
     tool_error_count: integer("tool_error_count").notNull().default(0),
     started_at: integer("started_at").notNull().default(sql`(unixepoch())`),
     finished_at: integer("finished_at"),
@@ -86,13 +66,6 @@ export const chatTurns = sqliteTable(
   ],
 );
 
-/**
- * What the model saw, one row per `ModelMessage`, in send order (`seq`). Rows
- * are appended as each loop iteration finishes and never updated (an UPDATE
- * trigger enforces it): replay will `JSON.parse` them as they are, and any
- * change to a stored message breaks the prompt cache and thinking signatures.
- * Written for failed turns too; replay reads `ok` turns only.
- */
 export const modelTranscript = sqliteTable(
   "model_transcript",
   {
@@ -105,13 +78,10 @@ export const modelTranscript = sqliteTable(
       .notNull()
       .references(() => chatTurns.id, { onDelete: "cascade" }),
     role: text("role", { enum: ["user", "assistant", "tool", "system"] }).notNull(),
-    // The ModelMessage exactly as sent (cache markers excluded).
     content_json: text("content_json").notNull(),
-    // Compatibility tag: a later turn replays this row only if all three match.
     provider: text("provider").notNull(),
     model: text("model").notNull(),
     context_version: text("context_version").notNull(),
-    // Sorted tool names from the message's tool-call and tool-reference parts.
     tool_names_json: text("tool_names_json").notNull().default("[]"),
     created_at: integer("created_at").notNull().default(sql`(unixepoch())`),
   },

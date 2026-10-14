@@ -33,10 +33,8 @@ export default function HomePage() {
     setMounted(true);
   }, []);
 
-  // Render auth-conditional content only after mounting
   const AuthButtons = () => {
     if (!mounted) {
-      // Show both buttons during SSR/build
       return (
         <>
           <Button asChild size="lg">
@@ -105,7 +103,6 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen">
-      {/* Hero Section */}
       <section className="relative overflow-hidden py-20 sm:py-32">
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-primary/5 to-transparent" />
         <div className="container mx-auto px-4">
@@ -133,7 +130,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Features */}
       <section className="py-16 bg-muted/30">
         <div className="container mx-auto px-4">
           <h2 className="text-2xl font-bold text-center mb-12">
@@ -174,7 +170,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Databases */}
       <section className="py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-2xl font-bold text-center mb-4">
@@ -199,7 +194,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA */}
       <section className="py-20 bg-primary/5">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-2xl font-bold mb-4">Ready to accelerate your research?</h2>
@@ -211,7 +205,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="py-8 border-t">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>BURP - Bio Unified Research Platform</p>

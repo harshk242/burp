@@ -31,9 +31,6 @@ interface UsageResponse {
   };
 }
 
-/**
- * Fetches usage info on mount and re-fetches each time streaming ends.
- */
 export function useUsage() {
   const { get } = useApi();
   const setUsage = useUserStore((s) => s.setUsage);
@@ -54,16 +51,13 @@ export function useUsage() {
       };
       setUsage(info);
     } catch {
-      // Silently ignore — usage indicator just stays stale
     }
   }, [get, setUsage, user]);
 
-  // Fetch on mount
   useEffect(() => {
     fetchUsage();
   }, [fetchUsage]);
 
-  // Re-fetch when streaming ends (isStreaming goes from true → false)
   useEffect(() => {
     if (!isStreaming) {
       fetchUsage();

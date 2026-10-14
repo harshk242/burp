@@ -1,9 +1,3 @@
-/**
- * Run-level results (plan 2.1 steps 4–5, 8): score means, total cost, p50/p95
- * item latency, failed items, pass/fail over reviewed items only, and the
- * per-item variance report across repeats. Budget-skipped items are listed but
- * excluded from every aggregate except cost (their calls were paid for).
- */
 import type { Evaluation, TaskOutput } from "../evaluators/types";
 
 export interface ItemRun {
@@ -80,7 +74,6 @@ export function summarizeRun(items: ItemRun[]): RunSummary {
   };
 }
 
-/** Run-level scores written to the Langfuse dataset run. */
 export function runEvaluations(s: RunSummary): Evaluation[] {
   const out: Evaluation[] = Object.entries(s.means).map(([name, value]) => ({
     name: `avg_${name}`,

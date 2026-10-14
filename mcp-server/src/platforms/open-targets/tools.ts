@@ -1,9 +1,5 @@
-// Open Targets tool definitions and handler map
-// Extracted from the standalone server.ts, without MCP Server boilerplate.
-
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
-// Import all tool implementation modules
 import * as targetIdentity from './tools/target/identity.js';
 import * as targetBiology from './tools/target/biology.js';
 import * as targetAssociations from './tools/target/associations.js';
@@ -18,12 +14,7 @@ import * as variant from './tools/variant.js';
 import * as study from './tools/study.js';
 import * as meta from './tools/meta.js';
 
-// ---------------------------------------------------------------------------
-// Tool definitions with schemas
-// ---------------------------------------------------------------------------
-
 export const toolDefinitions: Tool[] = [
-  // Target Identity Tools
   {
     name: 'get_target_info',
     description: 'Retrieve core identity details for a target gene including approved symbol, name, biotype, and chromosomal location.',
@@ -57,7 +48,6 @@ export const toolDefinitions: Tool[] = [
       required: ['ensembl_id'],
     },
   },
-  // Target Biology Tools
   {
     name: 'get_target_expression',
     description: 'Return RNA and protein expression profiles for a target across tissues.',
@@ -165,7 +155,6 @@ export const toolDefinitions: Tool[] = [
       required: ['ensembl_id'],
     },
   },
-  // Target Associations Tools
   {
     name: 'get_target_associated_diseases',
     description: 'List diseases linked to a target with association scores.',
@@ -210,7 +199,6 @@ export const toolDefinitions: Tool[] = [
       required: ['ensembl_id'],
     },
   },
-  // Target Safety Tools
   {
     name: 'get_target_safety_information',
     description: 'Retrieve documented safety liabilities for a target.',
@@ -266,7 +254,6 @@ export const toolDefinitions: Tool[] = [
       required: ['ensembl_id'],
     },
   },
-  // Disease Tools
   {
     name: 'get_disease_info',
     description: 'Retrieve core metadata for an Open Targets disease entity. Accepts disease IDs from any ontology (EFO, MONDO, Orphanet, etc.). Use search_entities to find disease IDs.',
@@ -315,7 +302,6 @@ export const toolDefinitions: Tool[] = [
       required: ['efo_id'],
     },
   },
-  // Drug Tools
   {
     name: 'get_drug_info',
     description: 'Fetch identity, indication, and mechanism data for a drug.',
@@ -395,7 +381,6 @@ export const toolDefinitions: Tool[] = [
       required: ['chembl_id'],
     },
   },
-  // Evidence Tools
   {
     name: 'get_target_disease_evidence',
     description: 'Retrieve evidence strings linking a target to a disease.',
@@ -425,7 +410,6 @@ export const toolDefinitions: Tool[] = [
       required: ['ensembl_id', 'efo_id'],
     },
   },
-  // Search Tools
   {
     name: 'search_entities',
     description: 'Search Open Targets entities and resolve synonyms to canonical IDs.',
@@ -481,7 +465,6 @@ export const toolDefinitions: Tool[] = [
       required: [],
     },
   },
-  // Variant Tools
   {
     name: 'get_variant_info',
     description: 'Retrieve core metadata and functional annotations for a variant.',
@@ -560,7 +543,6 @@ export const toolDefinitions: Tool[] = [
       required: ['variant_id'],
     },
   },
-  // Study Tools
   {
     name: 'get_study_info',
     description: 'Retrieve metadata and cohort details for a GWAS study.',
@@ -641,7 +623,6 @@ export const toolDefinitions: Tool[] = [
       required: [],
     },
   },
-  // Meta Tools
   {
     name: 'get_api_metadata',
     description: 'Return Open Targets Platform release metadata.',
@@ -694,19 +675,13 @@ export const toolDefinitions: Tool[] = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Tool handler map
-// ---------------------------------------------------------------------------
-
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
 export const toolHandlers: Record<string, ToolHandler> = {
-  // Target Identity
   get_target_info: (args) => targetIdentity.getTargetInfo(args.ensembl_id as string),
   get_target_class: (args) => targetIdentity.getTargetClass(args.ensembl_id as string),
   get_target_alternative_genes: (args) => targetIdentity.getTargetAlternativeGenes(args.ensembl_id as string),
 
-  // Target Biology
   get_target_expression: (args) => targetBiology.getTargetExpression(args.ensembl_id as string),
   get_target_pathways_and_go_terms: (args) => targetBiology.getTargetPathwaysAndGoTerms(
     args.ensembl_id as string,
@@ -731,7 +706,6 @@ export const toolHandlers: Record<string, ToolHandler> = {
     args.page_size as number | undefined
   ),
 
-  // Target Associations
   get_target_associated_diseases: (args) => targetAssociations.getTargetAssociatedDiseases(
     args.ensembl_id as string,
     args.page_index as number | undefined,
@@ -753,14 +727,12 @@ export const toolHandlers: Record<string, ToolHandler> = {
     args.size as number | undefined
   ),
 
-  // Target Safety
   get_target_safety_information: (args) => targetSafety.getTargetSafetyInformation(args.ensembl_id as string),
   get_target_tractability: (args) => targetSafety.getTargetTractability(args.ensembl_id as string),
   get_target_chemical_probes: (args) => targetSafety.getTargetChemicalProbes(args.ensembl_id as string),
   get_target_tep: (args) => targetSafety.getTargetTep(args.ensembl_id as string),
   get_target_prioritization: (args) => targetSafety.getTargetPrioritization(args.ensembl_id as string),
 
-  // Disease
   get_disease_info: (args) => disease.getDiseaseInfo(args.efo_id as string),
   get_disease_associated_targets: (args) => disease.getDiseaseAssociatedTargets(
     args.efo_id as string,
@@ -774,15 +746,12 @@ export const toolHandlers: Record<string, ToolHandler> = {
   ),
   get_disease_otar_projects: (args) => disease.getDiseaseOtarProjects(args.efo_id as string),
 
-  // Drug Identity
   get_drug_info: (args) => drugIdentity.getDrugInfo(args.chembl_id as string),
   get_drug_cross_references: (args) => drugIdentity.getDrugCrossReferences(args.chembl_id as string),
 
-  // Drug Associations
   get_drug_linked_diseases: (args) => drugAssociations.getDrugLinkedDiseases(args.chembl_id as string),
   get_drug_linked_targets: (args) => drugAssociations.getDrugLinkedTargets(args.chembl_id as string),
 
-  // Drug Safety
   get_drug_adverse_events: (args) => drugSafety.getDrugAdverseEvents(
     args.chembl_id as string,
     args.page_index as number | undefined,
@@ -791,7 +760,6 @@ export const toolHandlers: Record<string, ToolHandler> = {
   get_drug_pharmacovigilance: (args) => drugSafety.getDrugPharmacovigilance(args.chembl_id as string),
   get_drug_warnings: (args) => drugSafety.getDrugWarnings(args.chembl_id as string),
 
-  // Evidence
   get_target_disease_evidence: (args) => evidence.getTargetDiseaseEvidence(
     args.ensembl_id as string,
     args.efo_id as string,
@@ -806,7 +774,6 @@ export const toolHandlers: Record<string, ToolHandler> = {
     args.cursor as string | undefined
   ),
 
-  // Search
   search_entities: (args) => search.searchEntities(
     args.query_string as string,
     args.entity_names as string[] | undefined,
@@ -831,7 +798,6 @@ export const toolHandlers: Record<string, ToolHandler> = {
     args.page_size as number | undefined
   ),
 
-  // Variant
   get_variant_info: (args) => variant.getVariantInfo(args.variant_id as string),
   get_variant_credible_sets: (args) => variant.getVariantCredibleSets(
     args.variant_id as string,
@@ -861,7 +827,6 @@ export const toolHandlers: Record<string, ToolHandler> = {
     args.page_size as number | undefined
   ),
 
-  // Study
   get_study_info: (args) => study.getStudyInfo(args.study_id as string),
   get_studies_by_disease: (args) => study.getStudiesByDisease(
     args.disease_ids as string[],
@@ -891,7 +856,6 @@ export const toolHandlers: Record<string, ToolHandler> = {
     args.page_size as number | undefined
   ),
 
-  // Meta
   get_api_metadata: () => meta.getApiMetadata(),
   get_association_datasources: () => meta.getAssociationDatasources(),
   get_interaction_resources: () => meta.getInteractionResources(),

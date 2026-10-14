@@ -3,8 +3,6 @@ import type { ToolHandler } from '../../../types.js';
 import { UpstreamError } from '../../../shared/exceptions.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
-// ── Validation ──────────────────────────────────────────────────────────────
-
 const isValidGeneArgs = (
   args: any,
 ): args is { gene_id: string; species?: string; expand?: boolean; format?: string } => {
@@ -61,8 +59,6 @@ const isValidBatchArgs = (
     (args.format === undefined || ['json', 'xml'].includes(args.format))
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -164,8 +160,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ────────────────────────────────────────────────────────────────
-
 async function handleLookupGene(args: Record<string, unknown>) {
   if (!isValidGeneArgs(args)) {
     throw new Error('Invalid gene lookup arguments');
@@ -230,8 +224,6 @@ async function handleSearchGenes(args: Record<string, unknown>) {
       result: response.data,
     };
   } catch (error) {
-    // Only a rejected lookup means "no such symbol"; outages, timeouts and
-    // rate limits must reach the agent as structured upstream errors.
     if (!(error instanceof UpstreamError) || (error.kind !== 'not_found' && error.kind !== 'bad_request')) {
       throw error;
     }
@@ -264,8 +256,6 @@ async function handleBatchGeneLookup(args: Record<string, unknown>) {
 
   return response.data;
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   lookup_gene: handleLookupGene,

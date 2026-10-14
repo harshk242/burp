@@ -1,7 +1,3 @@
-// Token Bucket Rate Limiter for NCBI API
-// - 3 requests/second without API key
-// - 10 requests/second with API key
-
 export interface RateLimiterOptions {
   requestsPerSecond: number;
   burstSize?: number;
@@ -13,7 +9,6 @@ export class TokenBucketRateLimiter {
   private readonly maxTokens: number;
   private readonly refillRate: number;
   private pendingRequests: Array<() => void> = [];
-  // One timer drains the queue in order; it only runs while waiters are queued.
   private drainTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: RateLimiterOptions) {
@@ -31,11 +26,6 @@ export class TokenBucketRateLimiter {
     this.lastRefill = now;
   }
 
-  /**
-   * Serves queued waiters in order while tokens are available, then re-arms
-   * the timer for the next token if anyone is still waiting. A token is only
-   * consumed when handed to a live waiter.
-   */
   private drain(): void {
     clearTimeout(this.drainTimer);
     this.drainTimer = undefined;
@@ -83,7 +73,6 @@ export class TokenBucketRateLimiter {
     });
   }
 
-  /** Number of callers waiting for a token. */
   getPendingCount(): number {
     return this.pendingRequests.length;
   }

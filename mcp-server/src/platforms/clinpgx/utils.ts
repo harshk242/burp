@@ -1,5 +1,3 @@
-// Utility functions for ClinPGx platform module
-
 import { createHash } from 'crypto';
 
 /**
@@ -31,9 +29,6 @@ export function generateCacheKey(
   return createHash('sha256').update(content).digest('hex');
 }
 
-/**
- * Truncates an array with a size limit
- */
 export function truncateArray<T>(arr: T[], size: number): T[] {
   if (size <= 0) {
     return arr;
@@ -55,9 +50,6 @@ export function formatGeneSymbol(symbol: string): string {
   return symbol.toUpperCase().trim();
 }
 
-/**
- * Formats a drug name (capitalize first letter)
- */
 export function formatDrugName(name: string): string {
   return name.trim();
 }
@@ -73,9 +65,6 @@ export function formatRsId(id: string): string {
   return `rs${cleaned}`;
 }
 
-/**
- * Parse guideline source from name
- */
 export function parseGuidelineSource(name: string): 'CPIC' | 'DPWG' | 'Other' {
   const lower = name.toLowerCase();
   if (lower.includes('cpic')) return 'CPIC';
@@ -90,7 +79,6 @@ export function parseGuidelineSource(name: string): 'CPIC' | 'DPWG' | 'Other' {
 export function parseEvidenceLevel(level: unknown): string {
   if (!level) return 'Unknown';
 
-  // Handle object with term property (from API response)
   let levelStr: string;
   if (typeof level === 'object' && level !== null && 'term' in level) {
     levelStr = String((level as { term: unknown }).term);
@@ -119,20 +107,13 @@ export function parseEvidenceLevel(level: unknown): string {
   return levelStr;
 }
 
-/**
- * Extract PharmGKB ID from various formats
- */
 export function extractPharmGKBId(input: string): string | null {
-  // Direct PA ID
   const paMatch = input.match(/PA\d+/);
   if (paMatch) return paMatch[0];
 
   return null;
 }
 
-/**
- * Build search query for PharmGKB
- */
 export function buildSearchQuery(
   type: 'gene' | 'drug' | 'variant' | 'pathway',
   term: string,
@@ -164,7 +145,6 @@ export function buildSearchQuery(
 export function normalizePhenotypeCategory(category: unknown): string {
   if (!category) return 'Unknown';
 
-  // Handle array input (from types field)
   let categoryStr: string;
   if (Array.isArray(category)) {
     categoryStr = category[0] || 'Unknown';

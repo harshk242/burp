@@ -18,7 +18,6 @@ export const ALL_CATEGORY_IDS = [...NEGATIVE_CATEGORIES, ...POSITIVE_CATEGORIES]
 
 export type FeedbackCategory = (typeof ALL_CATEGORY_IDS)[number];
 
-/** Most categories one feedback can carry. */
 export const MAX_FEEDBACK_CATEGORIES = 5;
 
 /** The categories allowed for a rating: 👍 (1) → positive, 👎 (0) → negative. */

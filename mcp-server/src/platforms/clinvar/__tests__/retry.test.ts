@@ -1,7 +1,3 @@
-// ClinVar on the shared HTTP retry: NCBI policy with a token per attempt,
-// abortable token waits, constructor overrides, and Clinical Tables at one
-// attempt with no rate limiter. Stub adapter only, no network.
-
 import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -16,7 +12,6 @@ const ESEARCH_XML =
   '<?xml version="1.0"?><eSearchResult><Count>1</Count><IdList><Id>12375</Id></IdList></eSearchResult>';
 const CLINICAL_TABLES_BODY = [1, ['12375'], null, [['NM_000546.6(TP53):c.215C>G', 'TP53', 'Benign', '17', '7676154']]];
 
-/** A ClinVar client on a stub transport; successes carry the body for whichever API was called. */
 function stubClinVar(steps: Step[], options: ClinVarClientOptions = {}) {
   const { adapter: base, calls } = stubAdapter(steps);
   const adapter: AxiosAdapter = async (config) => {
@@ -135,7 +130,7 @@ describe('ClinVar NCBI instance on the shared retry', () => {
 
   it('an abort during the token wait sends no request and removes the waiter from the queue', async () => {
     const rateLimiter = new TokenBucketRateLimiter({ requestsPerSecond: 1, burstSize: 1 });
-    rateLimiter.tryAcquire(); // empty bucket: the next token is ~1s away
+    rateLimiter.tryAcquire();
     const { client, calls } = stubClinVar([200], { rateLimiter });
     const controller = new AbortController();
 

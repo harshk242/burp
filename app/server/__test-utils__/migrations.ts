@@ -1,7 +1,3 @@
-/**
- * Fixtures for migration tests: temp migration folders (real migrations + extra
- * test-only ones) and schema snapshots for comparisons.
- */
 import type { Database } from "bun:sqlite";
 import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";

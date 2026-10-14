@@ -1,9 +1,3 @@
-/**
- * Comparison arms (plan 2.4): `--arm` / `--matrix` parsing, matrix files, the
- * Models API capability check (stubbed fetch), the preflight order (pricing and
- * capabilities fail before any spend), the per-arm estimate and the sequential
- * arm loop sharing one dataset version and one budget.
- */
 import { afterAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,7 +12,6 @@ import { RunAbort } from "../lib/search-check";
 
 const config = loadLLMConfig();
 
-/** A Models API model object: adaptive thinking and the given effort levels. */
 function modelInfo(id: string, levels: readonly string[] = EFFORT_LEVELS, adaptive = true): ModelInfo {
   return {
     id,
@@ -31,7 +24,6 @@ function modelInfo(id: string, levels: readonly string[] = EFFORT_LEVELS, adapti
   };
 }
 
-/** Stub Models API: known models by id, 404 otherwise; records requested URLs and headers. */
 function modelsApi(models: ModelInfo[]) {
   const requests: { url: string; headers: Record<string, string> }[] = [];
   const fetch = (async (url: string, init?: RequestInit) => {
@@ -100,7 +92,6 @@ describe("arm resolution", () => {
     expect(DEFAULT_ARM_MAX_OUTPUT_TOKENS).toBeGreaterThan(config.maxOutputTokens);
     expect(resolveArm({ model: "m", effort: "low" }, config, 8_000).maxOutputTokens).toBe(8_000);
     expect(resolveArm({ model: "m", effort: "low", max_output_tokens: 20_000 }, config, 128_000)).toMatchObject({ maxOutputTokens: 20_000, maxOutputTokensSource: "arm" });
-    // History budget never differs between arms.
     expect(arm.maxContextTokens).toBe(config.maxContextTokens);
   });
 });
@@ -187,7 +178,6 @@ describe("per-arm estimate", () => {
 });
 
 describe("arm loop", () => {
-  /** Budget that runs out after `limit` charges. */
   const budget = (limit: number) => ({ spent: 0, get exhausted() { return this.spent >= limit; } });
 
   it("arms run sequentially on one dataset version and one budget, each repeated", async () => {
@@ -250,12 +240,10 @@ describe("arm loop", () => {
     expect(results.map((r) => r.status)).toEqual(["complete", "stopped"]);
   });
 
-  /** Outcome of one repeat: which items ran, were budget-skipped, or never produced a result. */
   type Repeat = { label: string; skipped: number; missing: number };
   const cutBy = (o: Repeat) => (o.missing ? "stopped" : o.skipped ? "budget" : null);
 
   it("budget exhausted inside an arm's experiment: the arm is partial_budget, not complete", async () => {
-    // 3 items per repeat, budget of 2 item charges: arm a's first repeat skips its last item.
     const b = budget(2);
     const log: string[] = [];
     const results = await runArms<string, Repeat, typeof b>({

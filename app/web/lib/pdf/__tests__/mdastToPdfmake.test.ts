@@ -1,13 +1,10 @@
 import { describe, it, expect } from 'bun:test';
 import { mdastToPdfmakeContent } from '../mdastToPdfmake';
 
-/** Minimal Root shape mirroring the one in mdastToPdfmake.ts. */
 interface Root {
   type: 'root';
   children: any[];
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeRoot(...children: any[]): Root {
   return { type: 'root', children } as Root;
@@ -16,8 +13,6 @@ function makeRoot(...children: any[]): Root {
 function text(value: string) {
   return { type: 'text', value };
 }
-
-// ─── Headings ─────────────────────────────────────────────────────────────────
 
 describe('headings', () => {
   it('converts h1', () => {
@@ -54,8 +49,6 @@ describe('headings', () => {
     expect((h5[0] as any).style).toBe('h4');
   });
 });
-
-// ─── Paragraphs with mixed inline ─────────────────────────────────────────────
 
 describe('paragraph with mixed inline', () => {
   it('produces { text: [...], style: body }', () => {
@@ -94,8 +87,6 @@ describe('paragraph with mixed inline', () => {
   });
 });
 
-// ─── Lists ────────────────────────────────────────────────────────────────────
-
 describe('lists', () => {
   it('converts unordered list to { ul }', () => {
     const result = mdastToPdfmakeContent(
@@ -111,7 +102,6 @@ describe('lists', () => {
     const list = result[0] as any;
     expect(list.ul).toBeDefined();
     expect(list.ul).toHaveLength(2);
-    // Single-paragraph items are flattened to their inline text.
     expect(list.ul[0]).toBe('A');
     expect(list.ul[1]).toBe('B');
   });
@@ -156,7 +146,6 @@ describe('lists', () => {
     );
     const outer = result[0] as any;
     expect(outer.ul).toBeDefined();
-    // Multi-child listItem → { stack }
     const item = outer.ul[0] as any;
     expect(item.stack).toBeDefined();
     const nestedList = item.stack[1] as any;
@@ -187,8 +176,6 @@ describe('lists', () => {
     );
     const list = result[0] as any;
     const item = list.ul[0];
-    // Must be an object with .text (not a bare array), so pdfmake
-    // keeps the bold + plain parts flowing on one line.
     expect(typeof item).toBe('object');
     expect(item).not.toBeNull();
     expect(item.text).toBeDefined();
@@ -197,8 +184,6 @@ describe('lists', () => {
     expect(item.text[1]).toBe(' (CHEMBL553) - Approved 2004; oral TKI');
   });
 });
-
-// ─── Table ────────────────────────────────────────────────────────────────────
 
 describe('table', () => {
   it('converts GFM table with headerRows: 1', () => {
@@ -233,8 +218,6 @@ describe('table', () => {
   });
 });
 
-// ─── Code block ───────────────────────────────────────────────────────────────
-
 describe('code block', () => {
   it('wraps in single-cell table with monospace font and grey bg', () => {
     const result = mdastToPdfmakeContent(
@@ -249,8 +232,6 @@ describe('code block', () => {
   });
 });
 
-// ─── Blockquote ───────────────────────────────────────────────────────────────
-
 describe('blockquote', () => {
   it('wraps content in left-border table cell', () => {
     const result = mdastToPdfmakeContent(
@@ -264,13 +245,10 @@ describe('blockquote', () => {
     const bq = result[0] as any;
     expect(bq.table).toBeDefined();
     const cell = bq.table.body[0][0];
-    // Left border only
     expect(cell.border).toEqual([true, false, false, false]);
     expect(cell.stack).toBeDefined();
   });
 });
-
-// ─── Thematic break ───────────────────────────────────────────────────────────
 
 describe('thematicBreak', () => {
   it('renders a canvas line', () => {
@@ -281,8 +259,6 @@ describe('thematicBreak', () => {
   });
 });
 
-// ─── Strikethrough (delete) ───────────────────────────────────────────────────
-
 describe('strikethrough', () => {
   it('converts delete node to lineThrough decoration', () => {
     const result = mdastToPdfmakeContent(
@@ -292,12 +268,9 @@ describe('strikethrough', () => {
       })
     );
     const p = result[0] as any;
-    // Single inline child is unwrapped — p.text is the object directly.
     expect(p.text).toMatchObject({ decoration: 'lineThrough', text: 'struck' });
   });
 });
-
-// ─── Unknown node fallback ────────────────────────────────────────────────────
 
 describe('unknown node', () => {
   it('falls back to value extraction, no crash', () => {
@@ -322,16 +295,12 @@ describe('unknown node', () => {
   });
 });
 
-// ─── Empty markdown ───────────────────────────────────────────────────────────
-
 describe('empty input', () => {
   it('returns an empty array for a root with no children', () => {
     const result = mdastToPdfmakeContent(makeRoot());
     expect(result).toHaveLength(0);
   });
 });
-
-// ─── Inline edge cases ────────────────────────────────────────────────────────
 
 describe('inline edge cases', () => {
   it('handles bold inside link', () => {
@@ -350,7 +319,6 @@ describe('inline edge cases', () => {
     const p = result[0] as any;
     const link = Array.isArray(p.text) ? p.text[0] : p.text;
     expect(link.link).toBe('https://a.com');
-    // link.text is the inline content of the link
     const innerText = Array.isArray(link.text) ? link.text[0] : link.text;
     expect(innerText).toMatchObject({ bold: true });
   });

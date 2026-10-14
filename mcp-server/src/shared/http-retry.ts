@@ -1,11 +1,3 @@
-// Shared HTTP retry layer used by platform clients and contract tests
-// (see plans/shared-http-retry-plan.md, "Deadlines and cancellation" and "Design").
-//
-// Timeouts nest: tool-call deadline > request budget > per-attempt timeout.
-// Every wait (attempt, backoff sleep, beforeAttempt) is interrupted by one
-// combined abort signal. Deadline/budget firing → `budget_timeout`; the
-// caller's signal or the MCP request's signal firing → `cancelled`.
-
 import axios, { AxiosHeaders, type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { UpstreamError } from './exceptions.js';
 import {
@@ -66,7 +58,6 @@ export interface WithRetryOptions<T> extends RetryDeps {
   method?: string;
   /** Path only, recorded in `_meta` and errors. */
   path?: string;
-  /** The caller's own abort signal. */
   signal?: AbortSignal;
   /** The caller's/instance timeout; 0 or undefined means none. */
   timeoutMs?: number;
@@ -90,7 +81,6 @@ export function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** Settles with `promise`, or rejects as soon as `signal` fires. */
 function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     if (signal.aborted) {
@@ -171,7 +161,6 @@ export async function withRetry<T>(
   };
   const fail = (reason: UpstreamReason, cause: unknown, retryAfterMs: number | null = null): never => {
     finish(reason === 'cancelled' ? 'cancelled' : 'failed', reason);
-    // The final attempt's status; per-attempt history stays in the record.
     const status = record.statuses.at(-1) ?? null;
     const details = { reason, platform, status, attempts: record.attempts, elapsedMs: record.ms };
     throw new UpstreamError(formatUpstreamMessage(details), {
@@ -182,14 +171,12 @@ export async function withRetry<T>(
       cause,
     });
   };
-  // Delay before the next attempt, or null to stop with the current failure.
   const nextDelay = (reason: RetryReason, error: unknown, attempt: number, retryAfterMs: number | undefined) => {
     if (attempt >= policy.maxAttempts || !methodRetryable) return null;
     if (reason === 'rate_limited') {
       const on429 = policy.on429 ?? 'wait';
       if (on429 === 'fail') return null;
       if (on429 === 'wait') {
-        // No usable server-directed wait, or one that doesn't fit: fail fast.
         if (retryAfterMs === undefined) return null;
         const tooLong = retryAfterMs > (policy.maxRetryAfterMs ?? Infinity) || retryAfterMs >= remaining();
         return tooLong ? null : retryAfterMs;
@@ -199,7 +186,6 @@ export async function withRetry<T>(
     }
     return computeBackoffMs(policy, attempt, random);
   };
-  // Converts an interrupted wait into the matching failure; rethrows anything else.
   const interrupted = (error: unknown, lastError: unknown): never => {
     const stop = abortReason();
     if (stop) fail(stop, lastError ?? error);
@@ -230,14 +216,11 @@ export async function withRetry<T>(
       record.attempts = attempt;
       let settled: { ok: true; value: T } | { ok: false; error: unknown };
       try {
-        // Raced against the combined signal: a callback that ignores the
-        // signal can't outlive the budget or a cancellation.
         settled = { ok: true, value: await raceAbort(fn({ attempt, signal: combined, timeoutMs }), combined) };
       } catch (error) {
         settled = { ok: false, error };
       }
       if (settled.ok) {
-        // A response that lands after the budget or a cancellation is discarded.
         const late = abortReason();
         record.statuses.push(late ? null : (options.statusOf?.(settled.value) ?? null));
         if (late) fail(late, combined.reason);
@@ -273,7 +256,6 @@ export async function withRetry<T>(
 }
 
 const RETRY_ADAPTER = Symbol('httpRetryAdapter');
-/** Where the request interceptor parks the caller's signal, out of Axios's sight. */
 const CALLER_SIGNAL = Symbol('httpRetryCallerSignal');
 
 type RetryRequestConfig = InternalAxiosRequestConfig & { [CALLER_SIGNAL]?: AbortSignal };
@@ -304,7 +286,6 @@ function transformErrorResponse(config: InternalAxiosRequestConfig, error: unkno
     response.data = fns.reduce((data, fn) => fn.call(config, data, headers, response.status), response.data);
     response.headers = headers;
   } catch {
-    // Keep the raw body.
   }
 }
 

@@ -1,5 +1,3 @@
-// Open Targets platform module for the unified MCP server
-
 import type { PlatformModule } from '../../types.js';
 import { initializeClient, closeClient } from './client.js';
 import { toolDefinitions, toolHandlers } from './tools.js';

@@ -1,8 +1,3 @@
-/**
- * In-memory tracing for tests: installs the Langfuse tracer provider with an
- * InMemorySpanExporter and tracks which spans are still open and how often
- * each one ended.
- */
 import type { Context } from "@opentelemetry/api";
 import {
   InMemorySpanExporter,

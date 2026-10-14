@@ -25,7 +25,6 @@ export default function ProtectedLayout({
     setMounted(true);
   }, []);
 
-  // Show loading during SSR/initial mount
   if (!mounted) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -68,7 +67,6 @@ function ProtectedContent({
   const { post } = useApi();
   const router = useRouter();
 
-  // Sync user with backend on first load
   useEffect(() => {
     if (isSignedIn && !isSynced) {
       post<User>("/users/sync", {})
@@ -91,7 +89,6 @@ function ProtectedContent({
     }
   }, [isSignedIn, isSynced, post, setIsSynced, setSyncError]);
 
-  // Redirect to sign-in if not authenticated
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
       router.push("/sign-in");

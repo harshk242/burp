@@ -1,12 +1,7 @@
-// Article fetch tools for PubMed platform module
-
 import { getClient } from '../client.js';
 import { formatPmid, formatPmids } from '../utils.js';
 import type { PubMedArticle, ArticleSummary } from '../types.js';
 
-/**
- * Fetch full article details by PMID
- */
 export async function fetchArticleDetails(
   pmid: string
 ): Promise<PubMedArticle | null> {
@@ -16,9 +11,6 @@ export async function fetchArticleDetails(
   return articles.length > 0 ? articles[0] : null;
 }
 
-/**
- * Get article abstract only
- */
 export async function getArticleAbstract(
   pmid: string
 ): Promise<{
@@ -51,9 +43,6 @@ export async function getArticleAbstract(
   };
 }
 
-/**
- * Get article summary (lightweight metadata)
- */
 export async function getArticleSummary(
   pmid: string
 ): Promise<ArticleSummary | null> {
@@ -63,9 +52,6 @@ export async function getArticleSummary(
   return summaries.length > 0 ? summaries[0] : null;
 }
 
-/**
- * Batch fetch multiple articles
- */
 export async function batchFetchArticles(
   pmids: string[],
   includeAbstracts: boolean = true
@@ -78,7 +64,6 @@ export async function batchFetchArticles(
     return { articles: [], found: 0, notFound: [] };
   }
 
-  // Limit batch size to 200 (NCBI recommended max)
   const batchSize = 200;
   const batches: string[][] = [];
 
@@ -95,11 +80,9 @@ export async function batchFetchArticles(
     allArticles.push(...articles);
   }
 
-  // Find PMIDs that weren't found
   const foundPmids = new Set(allArticles.map((a) => a.pmid));
   const notFound = pmids.filter((p) => !foundPmids.has(formatPmid(p)));
 
-  // Optionally strip abstracts for smaller response
   const responseArticles = includeAbstracts
     ? allArticles
     : allArticles.map((a) => ({ ...a, abstract: undefined }));
@@ -111,9 +94,6 @@ export async function batchFetchArticles(
   };
 }
 
-/**
- * Get article summaries for multiple PMIDs
- */
 export async function batchGetSummaries(
   pmids: string[]
 ): Promise<{

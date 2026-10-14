@@ -1,12 +1,7 @@
-// Target Associations API Tools
-
 import { getClient } from '../../client.js';
 import { filterNoneValues, truncateArray } from '../../utils.js';
 import { TARGET_ASSOCIATED_DISEASES_OPERATION } from './operations.js';
 
-/**
- * List diseases linked to a target with association scores.
- */
 export async function getTargetAssociatedDiseases(
   ensemblId: string,
   pageIndex: number = 0,
@@ -16,9 +11,6 @@ export async function getTargetAssociatedDiseases(
   return client.query(TARGET_ASSOCIATED_DISEASES_OPERATION, { ensemblId, pageIndex, pageSize });
 }
 
-/**
- * Return compounds with known activity on the target.
- */
 export async function getTargetKnownDrugs(
   ensemblId: string,
   _pageIndex: number = 0,
@@ -65,9 +57,6 @@ interface LiteratureResult {
   [key: string]: unknown;
 }
 
-/**
- * Return literature co-occurrence records for a target.
- */
 export async function getTargetLiteratureOccurrences(
   ensemblId: string,
   additionalEntityIds?: string[],
@@ -124,7 +113,6 @@ export async function getTargetLiteratureOccurrences(
 
   const result = await client.query<LiteratureResult>(query, variables);
 
-  // Client-side trimming since API no longer paginates server-side
   if (size > 0 && result?.target?.literatureOcurrences?.rows) {
     result.target.literatureOcurrences.rows = truncateArray(
       result.target.literatureOcurrences.rows,

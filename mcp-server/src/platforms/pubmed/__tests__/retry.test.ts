@@ -1,6 +1,3 @@
-// PubMed on the shared HTTP retry: policy wiring, NCBI token per attempt,
-// abortable token waits and constructor overrides. Stub adapter only, no network.
-
 import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -15,7 +12,6 @@ const ESEARCH_XML =
   '<?xml version="1.0"?><eSearchResult><Count>1</Count><RetMax>1</RetMax><RetStart>0</RetStart>' +
   '<IdList><Id>28485846</Id></IdList><QueryTranslation>CRISPR</QueryTranslation></eSearchResult>';
 
-/** A PubMed client on a stub transport whose successes carry an ESearch body. */
 function stubPubMed(steps: Step[], options: PubMedClientOptions = {}) {
   const { adapter: base, calls } = stubAdapter(steps);
   const adapter: AxiosAdapter = async (config) => ({ ...(await base(config)), data: ESEARCH_XML });
@@ -129,7 +125,7 @@ describe('PubMedClient on the shared retry', () => {
 
   it('an abort during the token wait sends no request and removes the waiter from the queue', async () => {
     const rateLimiter = new TokenBucketRateLimiter({ requestsPerSecond: 1, burstSize: 1 });
-    rateLimiter.tryAcquire(); // empty bucket: the next token is ~1s away
+    rateLimiter.tryAcquire();
     const { client, calls } = stubPubMed([200], { rateLimiter });
     const controller = new AbortController();
 

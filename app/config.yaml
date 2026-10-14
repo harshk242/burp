@@ -1,21 +1,12 @@
-# ============================================================
-# BURP — Application Configuration
-# Non-secret settings. Secrets (API keys, Clerk) go in .env
-# All values here can be overridden by environment variables.
-# ============================================================
-
-# ── Rate Limits ──────────────────────────────────────────────
 rate_limits:
-  default_daily_tokens: 200000  # 200k tokens/day for 'user' role; -1 = unlimited
+  default_daily_tokens: 200000
 
-# ── Dollar Usage Limits ──────────────────────────────────────
 usage:
-  default_daily_cost_limit_usd: 4.00    # env: DEFAULT_DAILY_COST_LIMIT_USD
-  default_monthly_cost_limit_usd: 25.00  # env: DEFAULT_MONTHLY_COST_LIMIT_USD
-  max_chat_input_chars: 20000           # env: MAX_CHAT_INPUT_CHARS
+  default_daily_cost_limit_usd: 4.00
+  default_monthly_cost_limit_usd: 25.00
+  max_chat_input_chars: 20000
   pricing:
     anthropic:
-      # Missing cache rates fall back to: read = input, 5m write = 1.25x, 1h write = 2x input.
       claude-haiku-4-5:
         input_usd_per_mtok: 1.00
         output_usd_per_mtok: 5.00
@@ -40,8 +31,8 @@ usage:
         cache_read_usd_per_mtok: 0.01
         cache_write_5m_usd_per_mtok: 0.125
         cache_write_1h_usd_per_mtok: 0.20
-        long_context:                   # optional; the whole request uses these rates
-          above_input_tokens: 100000    # strictly greater than; counts cache reads/writes
+        long_context:
+          above_input_tokens: 100000
           input_usd_per_mtok: 0.50
           output_usd_per_mtok: 2.50
           cache_read_usd_per_mtok: 0.05
@@ -52,85 +43,73 @@ usage:
         input_usd_per_mtok: 0.50
         output_usd_per_mtok: 3.00
 
-# ── LLM ──────────────────────────────────────────────────────
 llm:
-  provider: anthropic           # "anthropic" | "google" — env: LLM_PROVIDER
-  chat_model: claude-sonnet-5-5  # env: LLM_CHAT_MODEL
-  title_model: claude-haiku-4-5 # env: LLM_TITLE_MODEL
-  max_retries: 3                # env: LLM_MAX_RETRIES
-  max_output_tokens: 16000      # includes thinking tokens — env: LLM_MAX_OUTPUT_TOKENS
-  max_context_tokens: 180000    # estimated input budget — env: LLM_MAX_CONTEXT_TOKENS
-  thinking_display: summarized  # Anthropic adaptive thinking: omitted | summarized | updates
-  effort: medium                # Anthropic, required: low | medium | high | xhigh | max (API default is high) — env: LLM_EFFORT
-  max_tool_iterations: 20        # env: LLM_MAX_TOOL_ITERATIONS
+  provider: anthropic
+  chat_model: claude-sonnet-5-5
+  title_model: claude-haiku-4-5
+  max_retries: 3
+  max_output_tokens: 16000
+  max_context_tokens: 180000
+  thinking_display: summarized
+  effort: medium
+  max_tool_iterations: 20
 
-# ── Server ───────────────────────────────────────────────────
 server:
-  port: 3000                    # env: PORT
-  database_url: ./data/app.db    # env: DATABASE_URL
-  mcp_servers_base: ../mcp-server # relative to app/; /app/mcp-server in Docker — env: MCP_SERVERS_BASE
-  mcp_tool_timeout_ms: 60000    # per MCP tool call; server deadline = this − 5s — env: MCP_TOOL_TIMEOUT_MS
-  cors_origins:                 # env: CORS_ORIGINS (comma-separated)
+  port: 3000
+  database_url: ./data/app.db
+  mcp_servers_base: ../mcp-server
+  mcp_tool_timeout_ms: 60000
+  cors_origins:
     - http://localhost:3000
     - http://localhost:3001
     - http://192.168.0.27:3001
     - http://100.127.112.7:3001
-  log_dir: ../logs              # relative to app/ — env: LOG_DIR
-  log_level: DEBUG              # DEBUG | INFO | WARN | ERROR — env: LOG_LEVEL
+  log_dir: ../logs
+  log_level: DEBUG
 
-# ── Tool search tuning ───────────────────────────────────────
 tool_search:
-  bm25_weight: 1.0              # env: TOOL_SEARCH_BM25_WEIGHT
-  semantic_weight: 1.0          # env: TOOL_SEARCH_SEMANTIC_WEIGHT
-  short_query_threshold: 4      # queries with ≤ N words bias toward BM25 — env: TOOL_SEARCH_SHORT_QUERY_THRESHOLD
-  short_query_bm25_weight: 2.0  # BM25 weight multiplier for short queries — env: TOOL_SEARCH_SHORT_QUERY_BM25_WEIGHT
-  top_k: 5                      # tools returned per search (and activated in chat) — env: TOOL_SEARCH_TOP_K
-  candidate_k: 30               # candidates per ranker (BM25, semantic) before fusion — env: TOOL_SEARCH_CANDIDATE_K
-  embeddings_path: ./data/tool-embeddings.json  # relative to app/ (/app/data on the fly volume) — env: TOOL_EMBEDDINGS_PATH
+  bm25_weight: 1.0
+  semantic_weight: 1.0
+  short_query_threshold: 4
+  short_query_bm25_weight: 2.0
+  top_k: 5
+  candidate_k: 30
+  embeddings_path: ./data/tool-embeddings.json
 
-# ── Embeddings (semantic tool search) ────────────────────────
-# Independent of the chat `llm` provider. The index file records which
-# embedder made it. The server keeps it in sync in the background at boot and
-# whenever the tool set changes, embedding only new/changed tools; after
-# changing provider/model/dimensions it re-embeds everything (search is
-# keyword-only until that finishes). No key → no sync, keyword-only search.
 embedding:
-  provider: openai              # "openai" (OPENAI_API_KEY) | "google" (GEMINI_API_KEY) — env: EMBEDDING_PROVIDER
-  model: text-embedding-3-small # env: EMBEDDING_MODEL (override provider AND model together)
-  dimensions: 1536              # omit for the model's native size — env: EMBEDDING_DIMENSIONS ("native" clears it)
-  query_timeout_ms: 2000        # semantic half falls back to keyword results after this — env: EMBEDDING_QUERY_TIMEOUT_MS
-  sync_on_boot: true            # background index sync at boot + on tool changes — env: EMBEDDING_SYNC_ON_BOOT ("true"/"false"/"1"/"0")
-  sync_timeout_ms: 120000       # deadline for the embedding call of one sync attempt — env: EMBEDDING_SYNC_TIMEOUT_MS
+  provider: openai
+  model: text-embedding-3-small
+  dimensions: 1536
+  query_timeout_ms: 2000
+  sync_on_boot: true
+  sync_timeout_ms: 120000
 
-# ── Platforms ────────────────────────────────────────────────
-# enabled: toggle a platform on/off without code changes
-# always_loaded_tools: tools pre-loaded into the LLM context on every request
 platforms:
   ensembl:
     enabled: true
     always_loaded_tools:
-      - search_genes    # Gene symbol → ENSG (foundation ID)
-      - get_xrefs       # Ensembl → UniProt cross-refs
+      - search_genes
+      - get_xrefs
 
   open-targets:
     enabled: true
     always_loaded_tools:
-      - search_entities # Gene/disease → ENSG/EFO (most connected hub)
+      - search_entities
 
   chembl:
     enabled: true
     always_loaded_tools:
-      - search_compounds # Drug name → ChEMBL ID
+      - search_compounds
 
   pubchem:
     enabled: true
     always_loaded_tools:
-      - search_by_smiles # SMILES → PubChem CID
+      - search_by_smiles
 
   clinvar:
     enabled: true
     always_loaded_tools:
-      - lookup_by_rsid   # rsID → clinical context + gene
+      - lookup_by_rsid
 
   reactome:
     enabled: true
@@ -139,13 +118,13 @@ platforms:
   clinicaltrials:
     enabled: true
     always_loaded_tools:
-      - search_by_intervention # Drug → NCT IDs
-      - search_by_condition    # Condition → NCT IDs
+      - search_by_intervention
+      - search_by_condition
 
   pubmed:
     enabled: true
     always_loaded_tools:
-      - search_pubmed    # Quick PMID discovery
+      - search_pubmed
 
   clinpgx:
     enabled: true
@@ -157,21 +136,17 @@ platforms:
       - search_by_gene
       - get_external_references
 
-# ── Artifact & Large Output Handling ─────────────────────────
-# Two-tier jq pipeline: noise reduction + artifact inspection
 artifact:
-  inline_max_chars: 15000       # single threshold for both tiers
-  hard_cap_bytes: 1048576       # 1MB — reject output entirely above this
-  ttl_minutes: 5                # in-memory copy expiry (based on last access)
-  db_ttl_hours: 24              # stored artifact expiry (from creation, not access)
-  max_session_bytes: 20971520   # 20MB stored per chat session (JSON chars); oldest evicted when over
-  preview_sample_items: 2       # sample items in schema preview
-  preview_max_chars_per_value: 150 # truncate long strings in preview
-  jq_timeout_ms: 5000           # per-filter execution timeout
-  jq_max_output_chars: 50000    # max chars per jq filter output
+  inline_max_chars: 15000
+  hard_cap_bytes: 1048576
+  ttl_minutes: 5
+  db_ttl_hours: 24
+  max_session_bytes: 20971520
+  preview_sample_items: 2
+  preview_max_chars_per_value: 150
+  jq_timeout_ms: 5000
+  jq_max_output_chars: 50000
 
-  # 3-layer policy system: global -> platform -> tool
-  # All layers compose (not override) — filters are concatenated
   policies:
     global:
       noise_filters:
@@ -189,21 +164,11 @@ artifact:
           - "if .activities then .activities |= .[:25] else . end"
 
     tools: {}
-      # Future: per-tool semantic profiles
-      # uniprot__search_by_gene:
-      #   semantic_profile: "profile_uniprot_gene_bridge_v1"
 
     profiles: {}
-      # Future: named, versioned jq transform sequences
-      # profile_uniprot_gene_bridge_v1:
-      #   - "..."
 
-# ── Observability ────────────────────────────────────────────
-# Langfuse tracing: one trace per chat turn. Keys stay in .env
-# (LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL); without them
-# tracing is a no-op. release = GIT_SHA env, else git short sha, else "unknown".
 observability:
   langfuse:
-    enabled: true                 # env: LANGFUSE_ENABLED
-    environment: dev              # env: LANGFUSE_TRACING_ENVIRONMENT (dev | prod)
-    full_generation_input: false  # env: LANGFUSE_FULL_GENERATION_INPUT (debugging only)
+    enabled: true
+    environment: dev
+    full_generation_input: false

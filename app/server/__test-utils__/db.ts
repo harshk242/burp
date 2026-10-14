@@ -1,6 +1,3 @@
-/**
- * In-memory SQLite DB with every migration applied, for tests.
- */
 import type { Database } from "bun:sqlite";
 import { createDrizzle, openDatabase, type DrizzleDb } from "../db/connection";
 import { runMigrations, type RunMigrationsOptions } from "../db/migrate";

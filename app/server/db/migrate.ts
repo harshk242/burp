@@ -74,12 +74,11 @@ export function runMigrations(sqlite: Database, options: RunMigrationsOptions = 
   const started = performance.now();
   try {
     const result = sqlite.transaction(() => {
-      // Re-checked under the write lock (BEGIN IMMEDIATE); §6 steps 2–6, recording 0000.
       const adopted = isLegacyDatabase(sqlite);
       if (adopted) adoptLegacyDatabase(sqlite, migrations[0]!);
       const applied = applyPendingMigrations(sqlite, migrations);
       const violations = sqlite.query<ForeignKeyViolation, []>("PRAGMA foreign_key_check").all();
-      if (violations.length > 0) throw new MigrationFkError(violations); // → ROLLBACK
+      if (violations.length > 0) throw new MigrationFkError(violations);
       return { applied, adopted };
     }).immediate();
     return { ...result, backupPath, transactionMs: performance.now() - started };
@@ -123,7 +122,7 @@ function backupBeforeMigrate(sqlite: Database, options: RunMigrationsOptions, la
 function pruneBackups(dir: string, prefix: string, keep: number): void {
   const backups = readdirSync(dir)
     .filter((f) => f.startsWith(prefix) && f.endsWith(".db"))
-    .sort(); // ISO timestamps sort chronologically
+    .sort();
   for (const old of backups.slice(0, Math.max(0, backups.length - keep))) {
     unlinkSync(join(dir, old));
   }

@@ -7,8 +7,6 @@ import { stubClient } from '../shared/__tests__/retry-test-utils.js';
 import type { PlatformModule, ToolHandler } from '../types.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function makePlatform(name: string, toolNames: string[]): PlatformModule {
   return {
     name,
@@ -24,8 +22,6 @@ function makePlatform(name: string, toolNames: string[]): PlatformModule {
     cleanup: () => {},
   };
 }
-
-// ── buildToolRegistry ─────────────────────────────────────────────────────────
 
 describe('buildToolRegistry', () => {
   it('prefixes each tool name with "<platform>__"', () => {
@@ -70,11 +66,10 @@ describe('buildToolRegistry', () => {
           inputSchema: { type: 'object', properties: {} },
         } as Tool,
       ],
-      handlers: {}, // intentionally empty
+      handlers: {},
       init: () => {},
       cleanup: () => {},
     };
-    // Should not throw — just omit the handler with a console warning
     expect(() => buildToolRegistry([platform])).not.toThrow();
     const { allHandlers } = buildToolRegistry([platform]);
     expect(allHandlers.has('broken__ghost_tool')).toBe(false);
@@ -114,8 +109,6 @@ describe('buildToolRegistry', () => {
   });
 });
 
-// ── createServer ──────────────────────────────────────────────────────────────
-
 describe('createServer', () => {
   it('returns a Server instance without throwing', () => {
     const { allTools, allHandlers } = buildToolRegistry([makePlatform('test', ['foo'])]);
@@ -126,8 +119,6 @@ describe('createServer', () => {
     expect(() => createServer([], new Map())).not.toThrow();
   });
 });
-
-// ── CallTool over the MCP protocol ────────────────────────────────────────────
 
 async function connect(handlers: Record<string, ToolHandler>) {
   const platform: PlatformModule = {

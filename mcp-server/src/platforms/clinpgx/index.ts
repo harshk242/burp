@@ -1,13 +1,9 @@
-// ClinPGx (PharmGKB) platform module for unified MCP server
-
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { PlatformModule, ToolHandler } from '../../types.js';
 import { initializeClient, closeClient, getClient } from './client.js';
 import * as tools from './tools/index.js';
 
-// Tool definitions
 const TOOLS: Tool[] = [
-  // Gene tools
   {
     name: 'search_genes',
     description: 'Search for pharmacogenes by name or symbol in PharmGKB',
@@ -55,7 +51,6 @@ const TOOLS: Tool[] = [
     },
   },
 
-  // Drug tools
   {
     name: 'search_drugs',
     description: 'Search for drugs with pharmacogenomic information in PharmGKB',
@@ -103,7 +98,6 @@ const TOOLS: Tool[] = [
     },
   },
 
-  // Variant tools
   {
     name: 'search_variants',
     description: 'Search for pharmacogenomic variants',
@@ -165,7 +159,6 @@ const TOOLS: Tool[] = [
     },
   },
 
-  // Clinical annotation tools
   {
     name: 'get_clinical_annotations',
     description: 'Get clinical annotations for a gene or drug showing drug response associations',
@@ -217,7 +210,6 @@ const TOOLS: Tool[] = [
     },
   },
 
-  // Dosing guideline tools
   {
     name: 'get_dosing_guidelines',
     description: 'Get CPIC/DPWG dosing guidelines for a gene or drug',
@@ -273,7 +265,6 @@ const TOOLS: Tool[] = [
     },
   },
 
-  // Pathway tools
   {
     name: 'get_pathways',
     description: 'Get pharmacokinetic/pharmacodynamic pathways',
@@ -288,7 +279,6 @@ const TOOLS: Tool[] = [
     },
   },
 
-  // Database info
   {
     name: 'get_database_stats',
     description: 'Get PharmGKB database statistics',
@@ -299,9 +289,7 @@ const TOOLS: Tool[] = [
   },
 ];
 
-// Tool handlers
 const handlers: Record<string, ToolHandler> = {
-  // Gene tools
   search_genes: async (args) => {
     return tools.searchGenes(
       args.query as string,
@@ -315,7 +303,6 @@ const handlers: Record<string, ToolHandler> = {
     return tools.getGenePathways(args.gene as string);
   },
 
-  // Drug tools
   search_drugs: async (args) => {
     return tools.searchDrugs(
       args.query as string,
@@ -329,7 +316,6 @@ const handlers: Record<string, ToolHandler> = {
     return tools.getDrugLabels(args.drug as string);
   },
 
-  // Variant tools
   search_variants: async (args) => {
     return tools.searchVariants(
       args.query as string,
@@ -346,7 +332,6 @@ const handlers: Record<string, ToolHandler> = {
     return tools.getStarAlleles(args.gene as string);
   },
 
-  // Clinical annotation tools
   get_clinical_annotations: async (args) => {
     const gene = args.gene as string | undefined;
     const drug = args.drug as string | undefined;
@@ -371,7 +356,6 @@ const handlers: Record<string, ToolHandler> = {
     );
   },
 
-  // Dosing guideline tools
   get_dosing_guidelines: async (args) => {
     const gene = args.gene as string | undefined;
     const drug = args.drug as string | undefined;
@@ -397,13 +381,11 @@ const handlers: Record<string, ToolHandler> = {
     return tools.getActionablePairs(args.gene as string);
   },
 
-  // Pathway tools
   get_pathways: async (args) => {
     const client = getClient();
     return client.getPathways(args.query as string | undefined);
   },
 
-  // Database stats
   get_database_stats: async () => {
     const client = getClient();
     return client.getDatabaseStats();

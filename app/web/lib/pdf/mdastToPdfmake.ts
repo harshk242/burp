@@ -1,29 +1,15 @@
-/**
- * mdastToPdfmake.ts
- *
- * Walks an mdast (unified Markdown AST) and converts it to a pdfmake
- * Content array. Pure logic — no DOM, no pdfmake dependency needed at
- * import time, safe to unit-test in any JS runtime.
- */
-
 import { LINK_BLUE, CODE_BG, BLOCKQUOTE_BORDER } from './styles';
 
-/** Minimal mdast Root shape — avoids a direct `mdast` package dependency. */
 interface Root {
   type: 'root';
   children: any[];
 }
 
-// Loose pdfmake content type — avoids pulling in pdfmake types at test time.
 type PdfContent = Record<string, any> | string;
-
-// ─── Public API ────────────────────────────────────────────────────────────────
 
 export function mdastToPdfmakeContent(tree: Root): PdfContent[] {
   return tree.children.map(convertNode).filter(Boolean) as PdfContent[];
 }
-
-// ─── Block-level converter ─────────────────────────────────────────────────────
 
 function convertNode(node: any): PdfContent | null {
   switch (node.type) {
@@ -52,7 +38,6 @@ function convertNode(node: any): PdfContent | null {
 
     case 'blockquote': {
       const children = node.children.map(convertNode).filter(Boolean);
-      // Single-cell table gives us a controllable left border.
       return {
         table: {
           widths: ['*'],
@@ -143,11 +128,9 @@ function convertNode(node: any): PdfContent | null {
     }
 
     case 'html':
-      // LLM output doesn't contain raw HTML blocks — skip silently.
       return null;
 
     default: {
-      // Fallback: extract .value or recurse .children; log for debugging.
       console.warn(`[mdastToPdfmake] unhandled node: ${node.type}`);
       if (typeof node.value === 'string') {
         return { text: node.value, style: 'body' };
@@ -161,12 +144,9 @@ function convertNode(node: any): PdfContent | null {
   }
 }
 
-// ─── List item converter ───────────────────────────────────────────────────────
-
 function convertListItem(node: any): PdfContent {
   const children = node.children.map(convertNode).filter(Boolean) as PdfContent[];
 
-  // Flatten single-paragraph items: avoids double-nesting inside ul/ol.
   if (children.length === 1) {
     const first = children[0];
     if (
@@ -185,12 +165,9 @@ function convertListItem(node: any): PdfContent {
   return { stack: children };
 }
 
-// ─── Inline (phrasing content) converter ──────────────────────────────────────
-
 function convertInline(nodes: any[]): PdfContent | PdfContent[] {
   if (!nodes || nodes.length === 0) return '';
   const result = nodes.map(convertInlineNode).filter(Boolean) as PdfContent[];
-  // Unwrap single items — pdfmake accepts both `text: obj` and `text: [obj]`.
   if (result.length === 1) return result[0];
   return result;
 }
@@ -229,7 +206,6 @@ function convertInlineNode(node: any): PdfContent | null {
       return '\n';
 
     case 'image':
-      // Images require base64 in pdfmake — render alt text as fallback.
       return node.alt ? `[Image: ${node.alt as string}]` : '[Image]';
 
     default: {

@@ -76,7 +76,6 @@ describe("splitCallUsage", () => {
   });
 
   it("maps Google cached tokens to reads, with no writes", () => {
-    // @ai-sdk/google: noCache = input - cachedContentTokenCount, cacheWrite undefined.
     const split = splitCallUsage(sdkUsage({ total: 1000, noCache: 400, cacheRead: 600, output: 20 }), {
       google: { usageMetadata: { cachedContentTokenCount: 600 } },
     });
@@ -132,7 +131,7 @@ describe("UsageMeter", () => {
       cache_write_1h_tokens: 0,
       input_cost_per_mtok_microusd: 2_000_000,
       output_cost_per_mtok_microusd: 10_000_000,
-      input_cost_microusd: 5000, // 2500 tokens × $2/MTok
+      input_cost_microusd: 5000,
       cache_read_cost_microusd: 200,
       cache_write_cost_microusd: 5000,
       output_cost_microusd: 3000,
@@ -181,7 +180,6 @@ describe("UsageMeter", () => {
     const meter = new UsageMeter("google", "gemini-3-flash-preview", ctx, config);
     meter.record(sdkUsage({ total: 1000, noCache: 400, cacheRead: 600, output: 10 }), undefined, info());
 
-    // No cache_read rate configured: reads fall back to the input rate.
     expect(meter.ledgerFields()).toMatchObject({
       input_tokens: 1000,
       cache_read_tokens: 600,

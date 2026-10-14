@@ -1,9 +1,3 @@
-/**
- * Tool catalog: on Anthropic every LLM call of a turn sends the same tool list
- * (every registered tool, sorted, non-core deferred), whatever the registry's
- * availability flags say. Gemini keeps today's set. With every server down the
- * turn fails before any LLM call.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { MockLanguageModelV4 } from "ai/test";
 import { createTestDb } from "../__test-utils__/db";
@@ -32,7 +26,6 @@ const SYSTEM_TOOLS = [INSPECT_TOOL_NAME, SEARCH_TOOL_NAME];
 const identity = (name: string) => name;
 const schema = { type: "object", properties: {} };
 
-/** Registers `server__name` tools in the given (unsorted) order. */
 function register(fullNames: string[], available = true) {
   for (const fullName of fullNames) {
     const { server, name } = toolRegistry.parseToolName(fullName);
@@ -40,7 +33,6 @@ function register(fullNames: string[], available = true) {
   }
 }
 
-/** The catalog as it would be serialized: no closures. */
 function declarations(tools: ReturnType<typeof buildToolCatalog>) {
   return Object.entries(tools).map(([key, tool]) => [key, tool.description, tool.providerOptions ?? null]);
 }
@@ -82,7 +74,6 @@ describe("buildToolCatalog (anthropic)", () => {
   it("loads core and system tools and defers everything else", () => {
     const tools = buildToolCatalog("anthropic", identity, "s1");
     const loaded = Object.keys(tools).filter((key) => !deferred(tools, key));
-    // chembl__search_compounds is core but unavailable: still declared, still loaded.
     expect(loaded).toEqual([
       "chembl__search_compounds",
       CORE,
@@ -91,7 +82,6 @@ describe("buildToolCatalog (anthropic)", () => {
     ]);
     expect(countDeferred(tools)).toBe(4);
     expect(tools[INSPECT_TOOL_NAME]!.execute).toBeFunction();
-    // Search runs through runToolSearch in the dispatcher; its declaration has no execute.
     expect(tools[SEARCH_TOOL_NAME]!.execute).toBeUndefined();
   });
 
@@ -104,7 +94,6 @@ describe("buildToolCatalog (anthropic)", () => {
 
   it("is identical across builds and availability changes, and doesn't warn", () => {
     const first = declarations(buildToolCatalog("anthropic", identity, "s1"));
-    // The last-built hash is process-wide; spy only after this registry's first build.
     const warn = spyOn(logger, "warn");
     toolRegistry.setAllAvailability(false);
     const second = declarations(buildToolCatalog("anthropic", identity, "s2"));

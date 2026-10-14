@@ -1,5 +1,3 @@
-// Shared exception hierarchy across all platforms
-
 export class MCPError extends Error {
   constructor(message: string) {
     super(message);

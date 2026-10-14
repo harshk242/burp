@@ -1,13 +1,3 @@
-/**
- * jq Execution Engine
- *
- * Thin wrapper around node-jq that provides timeout enforcement,
- * output size caps, and structured error handling.
- *
- * Used by both the noise-reduction pipeline (Tier 1) and the
- * inspect_artifact tool (Tier 2).
- */
-
 import { run } from "node-jq";
 import { writeFileSync, unlinkSync, rmdirSync, mkdtempSync } from "fs";
 import { join } from "path";
@@ -20,12 +10,6 @@ export interface JqResult {
   error?: string;
 }
 
-/**
- * Execute a jq filter against JSON data.
- *
- * Writes data to a temp file, spawns jq via node-jq, and parses the output.
- * Enforces timeout and output size limits from config (or overrides).
- */
 export async function executeJq(
   data: unknown,
   filter: string,
@@ -48,7 +32,6 @@ export async function executeJq(
     tempFile = join(tempDir, "input.json");
     writeFileSync(tempFile, JSON.stringify(data), "utf-8");
 
-    // Race jq execution against timeout
     const jqPromise = run(filter, tempFile, {
       output: "string",
     });
@@ -65,27 +48,21 @@ export async function executeJq(
       timeoutPromise,
     ])) as string;
 
-    // NOTE: Callers that need complete output (noise-reduction) should pass
-    // maxOutputChars: Infinity. The cap is primarily for inspect_artifact
-    // where LLM-written filters could produce unbounded output.
     return parseJqOutput(rawOutput, maxOutputChars);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { result: null, truncated: false, error: `jq error: ${message}` };
   } finally {
-    // Clean up temp files
     if (tempFile) {
       try {
         unlinkSync(tempFile);
       } catch {
-        /* ignore cleanup errors */
       }
     }
     if (tempDir) {
       try {
         rmdirSync(tempDir);
       } catch {
-        /* ignore cleanup errors */
       }
     }
   }
@@ -139,19 +116,13 @@ export function parseJqOutput(
   try {
     values = kept.map((line) => JSON.parse(line));
   } catch {
-    // Not expected with --compact-output; return the text unchanged.
     return { result: kept.join("\n"), truncated };
   }
 
-  // Shape follows the full stream, so a truncated stream stays an array.
   const result = lines.length === 1 ? values[0] : values;
   return { result, truncated };
 }
 
-/**
- * Validate a jq filter expression without executing it on real data.
- * Runs `jq --null-input 'filter'` to check syntax.
- */
 export async function validateJqFilter(
   filter: string,
 ): Promise<{ valid: boolean; error?: string }> {

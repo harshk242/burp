@@ -3,8 +3,6 @@ import type { ToolHandler } from '../../../types.js';
 import { isRejectedLookup } from '../../../shared/exceptions.js';
 import { getClient, isValidChemblIdArgs, getExternalUrl } from '../client.js';
 
-// ── Validation ─────────────────────────────────────────────────────────────
-
 const isValidSubstructureSearchArgs = (
   args: any,
 ): args is { smiles: string; limit?: number } => {
@@ -53,8 +51,6 @@ const isValidPropertyFilterArgs = (
     (args.limit === undefined || (typeof args.limit === 'number' && args.limit > 0 && args.limit <= 1000))
   );
 };
-
-// ── Tool definitions ───────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -116,8 +112,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ───────────────────────────────────────────────────────────────
-
 async function handleSubstructureSearch(args: Record<string, unknown>) {
   if (!isValidSubstructureSearchArgs(args)) {
     throw new Error('Invalid substructure search arguments');
@@ -167,8 +161,6 @@ async function handleGetExternalReferences(args: Record<string, unknown>) {
   try {
     response = await client.get(`/molecule/${args.chembl_id}.json`);
   } catch (error) {
-    // If not a molecule, try target. Outages, timeouts and rate limits must
-    // reach the agent as structured upstream errors, not as "not found".
     if (!isRejectedLookup(error)) throw error;
     try {
       response = await client.get(`/target/${args.chembl_id}.json`);

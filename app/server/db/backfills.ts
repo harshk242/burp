@@ -1,11 +1,3 @@
-/**
- * The `0003_tighten_not_null` backfills (plans/drizzle-orm-migration.md §5), as data.
- *
- * The migration SQL is hand-edited and can't import this file, so a test checks
- * that 0003 starts with exactly `backfillSql()` of every entry, in order, and that
- * every column 0003 tightens is covered by a backfill or is a primary key.
- * `db:verify` uses `previewTightening()` to report what 0003 will do before deploy.
- */
 import type { Database } from "bun:sqlite";
 import { quoteIdent } from "./introspect";
 
@@ -50,7 +42,6 @@ export const TIGHTENED_PRIMARY_KEYS: readonly ColumnRef[] = [
   { table: "rate_limits", column: "role" },
 ];
 
-/** The statement 0003 runs for `b` (backtick quoting, as drizzle-kit emits). */
 export function backfillSql(b: Backfill): string {
   return `UPDATE \`${b.table}\` SET \`${b.column}\` = ${b.value} WHERE \`${b.column}\` IS NULL;`;
 }

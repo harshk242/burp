@@ -1,13 +1,3 @@
-/**
- * One incremental sync of the tool embeddings index against a tool snapshot:
- * keep entries whose stored text still matches, embed only new or changed
- * tools, prune removed tools of platforms that were discovered, carry over
- * platforms that weren't (their server is down), then write and attach.
- *
- * Nothing is kept or carried over from a file the current embedder didn't make
- * (or of a size other than its configured one).
- */
-
 import {
   inspectToolEmbeddings,
   toolEmbeddingText,
@@ -20,7 +10,6 @@ import {
 import { withDeadline } from "./deadline";
 import { EmbeddingTimeoutError, type Embedder } from "./types";
 
-/** The tool fields the sync needs; `server` is the platform. */
 export interface SyncTool {
   fullName: string;
   server: string;
@@ -77,16 +66,16 @@ export async function syncToolEmbeddings(options: SyncOptions): Promise<SyncStat
   let pruned = 0;
   const seen = new Set<string>();
   for (const entry of stored) {
-    if (seen.has(entry.fullName)) continue; // a duplicate entry is dropped on the next write
+    if (seen.has(entry.fullName)) continue;
     seen.add(entry.fullName);
     const text = wanted.get(entry.fullName);
     if (text !== undefined) {
       if (text === entry.text) kept.push(entry);
-      else stale.push(entry); // re-embedded below; served until then
+      else stale.push(entry);
     } else if (livePlatforms.has(platformOf(entry.fullName))) {
-      pruned++; // its platform was discovered without it: removed or renamed
+      pruned++;
     } else {
-      carried.push(entry); // platform absent from this snapshot: keep for when it's back
+      carried.push(entry);
     }
   }
 
@@ -103,7 +92,6 @@ export async function syncToolEmbeddings(options: SyncOptions): Promise<SyncStat
   const duplicates = stored.length - seen.size;
 
   if (toEmbed.length === 0) {
-    // Only pruning (or deduplicating) left: rewrite without any API call.
     if (existing.ok && (pruned > 0 || duplicates > 0)) {
       const header = { embedder: embedder.id, dimension: existing.index.dimension };
       await writeToolEmbeddings(path, header, sortEntries([...kept, ...carried]));
@@ -113,7 +101,6 @@ export async function syncToolEmbeddings(options: SyncOptions): Promise<SyncStat
     return stats;
   }
 
-  // Serve every stored vector for the snapshot while new/changed tools are embedded.
   attach(options, [...kept, ...stale]);
 
   const texts = toEmbed.map(([, text]) => text);

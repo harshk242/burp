@@ -6,7 +6,7 @@
 export function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise;
   if (signal.aborted) {
-    promise.catch(() => {}); // the caller has moved on; don't surface a late rejection
+    promise.catch(() => {});
     return Promise.reject(signal.reason);
   }
   return new Promise<T>((resolve, reject) => {
@@ -49,7 +49,6 @@ export async function withDeadline<T>(
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
-    // No-op if already aborted; otherwise cancels whatever `fn` left running.
     controller.abort(new DOMException("embedding attempt settled", "AbortError"));
   }
 }

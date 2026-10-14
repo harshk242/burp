@@ -1,12 +1,3 @@
-/**
- * Dispatch of model tool calls.
- *
- * Tools are declared to the model without `execute` (the set comes from
- * context/tool-catalog.ts); the chat loop runs each call here so it can emit
- * SSE events, run tool search (references on Anthropic, activation on Gemini)
- * and route large outputs through handleLargeOutput.
- */
-
 import type { ToolResultPart } from "ai";
 import { desanitizeToolName, type LLMProviderName } from "../llm";
 import { toolRegistry } from "../mcp/registry";
@@ -29,7 +20,6 @@ export interface DispatchContext {
   ctx: LogContext;
   /** Aborted when the client disconnects; cancels in-flight tool calls. */
   signal?: AbortSignal;
-  /** The turn's trace: each call gets a tool (or retriever, for search) span. */
   trace?: TurnTrace;
 }
 
@@ -43,7 +33,6 @@ export interface DispatchResult {
   /** Absent when a search call fails (it is not recorded in tool_calls). */
   record?: ToolCallRecord;
   part: ToolResultPart;
-  /** Extra metadata for the call's trace span (large-output handling, upstream retries). */
   traceMetadata?: Record<string, unknown>;
   /** Span output when it differs from the result part (search: the hit names). */
   traceOutput?: unknown;
@@ -92,7 +81,7 @@ function errorEnd(call: ParsedCall, errorMsg: string): StreamEvent {
 
 function tryParseJson(str: string): unknown {
   if (str.startsWith("{") || str.startsWith("[")) {
-    try { return JSON.parse(str); } catch { /* ignore */ }
+    try { return JSON.parse(str); } catch { }
   }
   return str;
 }
@@ -108,8 +97,6 @@ export async function* dispatchToolCall(
   const originalName = desanitizeToolName(tc.toolName, dc.provider);
   const input = tc.input as Record<string, unknown>;
 
-  // All tools use "server__name" format — MCP tools use platform
-  // prefix (e.g. "uniprot__"), system tools use "system__" prefix
   const parsed = toolRegistry.parseToolName(originalName);
   const call: ParsedCall = { tc, originalName, server: parsed.server, name: parsed.name, input };
 
@@ -124,14 +111,12 @@ export async function* dispatchToolCall(
     },
   };
   const isSearch = parsed.server === "system" && originalName === SEARCH_TOOL_NAME;
-  // Left open on abort (the throws below); ending the turn closes it.
   const span = dc.trace?.tool({
     name: originalName,
     input,
     asType: isSearch ? "retriever" : "tool",
     metadata: { server: parsed.server, tool_call_id: tc.toolCallId },
   });
-  // The client may have gone while tool_start was being written.
   dc.signal?.throwIfAborted();
 
   let result: DispatchResult;
@@ -140,7 +125,6 @@ export async function* dispatchToolCall(
   else result = yield* runSystemTool(call, dc);
   const part = withFetchedAt(result.part);
   if (span) {
-    // What the model saw: the result part as sent (after large-output handling, with fetched_at).
     const { output } = part;
     const seen = output.type === "text" || output.type === "error-text" ? output.value : output;
     const traced = { output: result.traceOutput ?? seen, metadata: { server: parsed.server, ...result.traceMetadata } };
@@ -170,22 +154,15 @@ export function withFetchedAt(part: ToolResultPart, at: Date = new Date()): Tool
   return { ...part, output: { ...output, value: `${fetchedAtLine(at)}\n${output.value}` } };
 }
 
-/**
- * search_available_tools. On Anthropic every tool is already declared and the
- * result's tool-reference parts load the found ones; on Gemini the found tools
- * are activated here (exactly the ones shown).
- */
 async function* runSearchTool(
   call: ParsedCall,
   dc: DispatchContext,
 ): AsyncGenerator<StreamEvent, DispatchResult> {
   const { activeTools, sanitize, provider } = dc;
   try {
-    // Inside the try: a malformed call can arrive with input === null.
     const query = (call.input as { query: string }).query;
     const declared = provider === "anthropic" ? activeTools : undefined;
     const search = await runToolSearch(query, { provider, sanitize, declared, signal: dc.signal });
-    // A result that lands after an abort is dropped (no tools activated).
     dc.signal?.throwIfAborted();
 
     if (provider !== "anthropic") {
@@ -231,7 +208,6 @@ async function* runSearchTool(
       traceOutput: search.hits.map((h) => h.name),
     };
   } catch (err) {
-    // An aborted turn ends here; don't turn the abort into a tool result.
     if (dc.signal?.aborted) throw err;
     const errorMsg = err instanceof Error ? err.message : String(err);
     yield errorEnd(call, errorMsg);
@@ -239,7 +215,6 @@ async function* runSearchTool(
   }
 }
 
-/** Generic system tool (e.g. inspect_artifact) — runs the tool's own execute. */
 async function* runSystemTool(
   call: ParsedCall,
   dc: DispatchContext,
@@ -289,7 +264,6 @@ async function* runSystemTool(
       traceMetadata: { raw_chars: output.length },
     };
   } catch (err) {
-    // An aborted turn ends here; don't turn the abort into a tool result.
     if (dc.signal?.aborted) throw err;
     const errorMsg = err instanceof Error ? err.message : String(err);
     yield errorEnd(call, errorMsg);
@@ -343,7 +317,6 @@ async function* runMcpTool(
       },
     };
   } catch (err) {
-    // An aborted turn ends here; don't turn the abort into a tool result.
     if (dc.signal?.aborted) throw err;
     const errorMsg = err instanceof Error ? err.message : String(err);
     yield errorEnd(call, errorMsg);

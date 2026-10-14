@@ -8,7 +8,6 @@ interface Seen {
   body: unknown;
 }
 
-/** A fetch stub answering every call with `respond`, recording what it saw. */
 function stub(respond: (seen: Seen, signal: AbortSignal | undefined) => Response | Promise<Response>) {
   const seen: Seen[] = [];
   const fetchStub = (async (url: string, init: RequestInit = {}) => {

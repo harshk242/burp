@@ -1,11 +1,3 @@
-/**
- * Unit tests for Zod schemas in server/schemas/index.ts.
- *
- * These are pure validation tests — no I/O, no database, no auth.
- * They ensure the schema contracts are correct and stay correct as
- * the codebase evolves.
- */
-
 import { describe, it, expect } from 'bun:test';
 import {
   ChatRequestSchema,
@@ -20,8 +12,6 @@ import {
   MCPToolSchema,
   ToolListSchema,
 } from '../schemas/index.ts';
-
-// ── ChatRequestSchema ─────────────────────────────────────────────────────────
 
 describe('ChatRequestSchema', () => {
   it('accepts a message with no sessionId', () => {
@@ -56,8 +46,6 @@ describe('ChatRequestSchema', () => {
   });
 });
 
-// ── CreateSessionSchema ───────────────────────────────────────────────────────
-
 describe('CreateSessionSchema', () => {
   it('accepts an empty object (title is optional)', () => {
     const result = CreateSessionSchema.safeParse({});
@@ -77,8 +65,6 @@ describe('CreateSessionSchema', () => {
   });
 });
 
-// ── UpdateSessionSchema ───────────────────────────────────────────────────────
-
 describe('UpdateSessionSchema', () => {
   it('accepts a non-empty title', () => {
     const result = UpdateSessionSchema.safeParse({ title: 'New Title' });
@@ -95,8 +81,6 @@ describe('UpdateSessionSchema', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ── ErrorSchema ───────────────────────────────────────────────────────────────
 
 describe('ErrorSchema', () => {
   it('accepts a string error', () => {
@@ -115,8 +99,6 @@ describe('ErrorSchema', () => {
   });
 });
 
-// ── MessageSchema ─────────────────────────────────────────────────────────────
-
 describe('MessageSchema', () => {
   it('accepts a string message', () => {
     const result = MessageSchema.safeParse({ message: 'Session deleted' });
@@ -128,8 +110,6 @@ describe('MessageSchema', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ── UserSchema ────────────────────────────────────────────────────────────────
 
 describe('UserSchema', () => {
   const validUser = {
@@ -186,8 +166,6 @@ describe('UserSchema', () => {
   });
 });
 
-// ── UsageSchema ───────────────────────────────────────────────────────────────
-
 describe('UsageSchema', () => {
   const validUsage = {
     used: 12,
@@ -237,8 +215,6 @@ describe('UsageSchema', () => {
   });
 });
 
-// ── SessionCreatedSchema ──────────────────────────────────────────────────────
-
 describe('SessionCreatedSchema', () => {
   it('accepts valid id and title', () => {
     const result = SessionCreatedSchema.safeParse({
@@ -253,8 +229,6 @@ describe('SessionCreatedSchema', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ── ChatSessionSchema ─────────────────────────────────────────────────────────
 
 describe('ChatSessionSchema', () => {
   it('accepts a session with all fields', () => {
@@ -279,8 +253,6 @@ describe('ChatSessionSchema', () => {
     expect(result.success).toBe(true);
   });
 });
-
-// ── MCPToolSchema / ToolListSchema ────────────────────────────────────────────
 
 describe('MCPToolSchema', () => {
   const validTool = {

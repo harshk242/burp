@@ -1,16 +1,3 @@
-/**
- * The experiment runner behind `bun run eval` (plan 2.1). Loaded by run.ts
- * after DATABASE_URL points at the run's own DB, because server modules read
- * config at import.
- *
- * Order: arms checked (pricing, Models API; arm-setup.ts) → own DB + eval
- * user → tracing (with async context for the task span) → pinned dataset
- * fetched and verified against the local YAML → tools booted through the
- * production path, search indexed and probed → per arm, N experiments, all
- * arms on the same dataset version and one cost budget (matrix.ts) → reports
- * (variance per arm, comparison across arms). Cleanup is signal-safe
- * (lifecycle.ts).
- */
 import { randomUUID } from "node:crypto";
 import type { LangfuseClient } from "@langfuse/client";
 import { initializeTools, toolsReport, type ToolsBoot } from "../../server/boot/tools";
@@ -76,7 +63,6 @@ async function fetchVerifiedItems(client: LangfuseClient, args: RunArgs, dataset
   return { version, items, evalItems, datasetHash: check.datasetHash };
 }
 
-/** Boots tools like the server, waits for the embedding sync, and checks search works. */
 async function bootTools(boot: ToolsBoot): Promise<SearchState> {
   await boot.ready;
   await boot.embeddingSync?.idle();
@@ -85,7 +71,6 @@ async function bootTools(boot: ToolsBoot): Promise<SearchState> {
   return search;
 }
 
-/** The context version of an arm's requests (system prompt + provider options). */
 function armContextVersion(arm: ResolvedArm): string {
   return contextVersion(SYSTEM_PROMPT, chatProviderOptions(effectiveLLMConfig(loadLLMConfig(), arm.override)));
 }
@@ -107,7 +92,6 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
   });
   const removeHandlers = lifecycle.installSignalHandlers();
   try {
-    // Arms first: a bad model, effort level or missing pricing fails before any spend.
     const config = loadLLMConfig();
     const { arms, comparing } = await prepareArms(args, config, {
       apiKey: process.env.ANTHROPIC_API_KEY,
@@ -128,7 +112,6 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
     const loaded = home.datasets.find((d) => d.dataset.name === args.dataset);
     if (!loaded) throw new RunAbort(`unknown dataset "${args.dataset}" (have: ${home.datasets.map((d) => d.dataset.name).join(", ")})`);
     const dataset = loaded.dataset;
-    // One pinned dataset version for every arm and repeat.
     const pinned = await fetchVerifiedItems(client, args, dataset);
     if (pinned.items.length === 0) throw new RunAbort("no items to run");
 

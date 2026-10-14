@@ -28,7 +28,6 @@ export function MessageList({
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll on new content
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -42,10 +41,8 @@ export function MessageList({
           <MessageBubble key={message.id} message={message} sessionTitle={sessionTitle} />
         ))}
 
-        {/* Streaming content */}
         {isStreaming && (streamingContent || pendingToolCalls.length > 0 || reasoningSegments.length > 0) && (
           <div className="space-y-2">
-            {/* Collapsed reasoning (text that was reclassified via text_block_end) */}
             {reasoningSegments.length > 0 && (
               <ReasoningBlock
                 content={joinReasoning(reasoningSegments)}
@@ -53,12 +50,10 @@ export function MessageList({
               />
             )}
 
-            {/* Pending tool calls */}
             {pendingToolCalls.length > 0 && (
               <ToolCallGroup toolCalls={pendingToolCalls} />
             )}
 
-            {/* Streaming text (current chunk — reasoning or final response) */}
             {streamingContent && (
               <div className="flex gap-3">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
@@ -72,7 +67,6 @@ export function MessageList({
           </div>
         )}
 
-        {/* Empty state */}
         {messages.length === 0 && !isStreaming && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <h2 className="text-2xl font-semibold mb-2">

@@ -1,16 +1,12 @@
-// TypeScript interfaces for ClinVar platform module
-
 import type { AxiosAdapter } from 'axios';
 import type { RetryDeps } from '../../shared/http-retry.js';
 import type { TokenBucketRateLimiter } from '../../shared/rate-limiter.js';
 
-// Cache entry type
 export interface CacheEntry {
   data: unknown;
   timestamp: number;
 }
 
-// Clinical significance classification
 export type ClinicalSignificanceType =
   | 'Pathogenic'
   | 'Likely pathogenic'
@@ -26,7 +22,6 @@ export type ClinicalSignificanceType =
   | 'not provided'
   | 'other';
 
-// Review status
 export type ReviewStatus =
   | 'practice guideline'
   | 'reviewed by expert panel'
@@ -36,7 +31,6 @@ export type ReviewStatus =
   | 'no assertion criteria provided'
   | 'no assertion provided';
 
-// Variant types
 export type VariantType =
   | 'single nucleotide variant'
   | 'Deletion'
@@ -50,7 +44,6 @@ export type VariantType =
   | 'Complex'
   | 'other';
 
-// Molecular consequence
 export type MolecularConsequence =
   | 'missense variant'
   | 'nonsense'
@@ -67,7 +60,6 @@ export type MolecularConsequence =
   | 'inframe deletion'
   | 'other';
 
-// Basic variant info
 export interface VariantInfo {
   variationId: string;
   name: string;
@@ -83,7 +75,6 @@ export interface VariantInfo {
   rsId?: string;
 }
 
-// Gene information
 export interface GeneInfo {
   geneId?: string;
   symbol: string;
@@ -91,7 +82,6 @@ export interface GeneInfo {
   hgncId?: string;
 }
 
-// Genomic location
 export interface GenomicLocation {
   assembly: string;
   chromosome: string;
@@ -102,14 +92,12 @@ export interface GenomicLocation {
   cytogeneticLocation?: string;
 }
 
-// HGVS expressions
 export interface HGVSExpressions {
   genomic?: string;
   coding?: string;
   protein?: string;
 }
 
-// Clinical significance
 export interface ClinicalSignificance {
   description: ClinicalSignificanceType;
   dateLastEvaluated?: string;
@@ -118,7 +106,6 @@ export interface ClinicalSignificance {
   conflictingInterpretations?: boolean;
 }
 
-// Condition/disease
 export interface Condition {
   name: string;
   medGenId?: string;
@@ -127,7 +114,6 @@ export interface Condition {
   trait?: string;
 }
 
-// VCV (Variation) Record
 export interface VCVRecord {
   accession: string;
   version: number;
@@ -142,7 +128,6 @@ export interface VCVRecord {
   functionalConsequence?: string[];
 }
 
-// RCV (Reference) Record
 export interface RCVRecord {
   accession: string;
   version: number;
@@ -154,7 +139,6 @@ export interface RCVRecord {
   dateLastUpdated?: string;
 }
 
-// Clinical assertion
 export interface ClinicalAssertion {
   id: string;
   clinicalSignificance: ClinicalSignificance;
@@ -166,7 +150,6 @@ export interface ClinicalAssertion {
   dateLastUpdated?: string;
 }
 
-// Submitter information
 export interface Submitter {
   submitterId?: string;
   name: string;
@@ -174,7 +157,6 @@ export interface Submitter {
   orgCategory?: string;
 }
 
-// Submission record
 export interface SubmissionRecord {
   submissionId: string;
   submitter: Submitter;
@@ -189,7 +171,6 @@ export interface SubmissionRecord {
   comment?: string;
 }
 
-// Search result from Clinical Tables API
 export interface ClinicalTablesResult {
   totalCount: number;
   variants: ClinicalTablesVariant[];
@@ -205,7 +186,6 @@ export interface ClinicalTablesVariant {
   rsId?: string;
 }
 
-// Population frequency data
 export interface PopulationFrequency {
   source: string;
   population?: string;
@@ -215,7 +195,6 @@ export interface PopulationFrequency {
   alleleNumber?: number;
 }
 
-// Client options
 export interface ClinVarClientOptions {
   apiKey?: string;
   cacheTtl?: number;

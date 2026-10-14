@@ -6,11 +6,6 @@ import { ErrorSchema, FeedbackRequestSchema, FeedbackResponseSchema } from "../s
 import { categoriesForValue, normalizeCategories } from "../schemas/feedback-categories";
 import type { AppEnv } from "../types";
 
-/**
- * 👍/👎 on assistant messages. The DB row is written first (the source of
- * truth) and returned; the Langfuse score is synced afterwards
- * (observability/feedback-sync.ts), so Langfuse failures never fail a request.
- */
 const feedback = new OpenAPIHono<AppEnv>();
 
 feedback.use("*", clerkAuth, requireDbUser, requireUser);
@@ -33,7 +28,6 @@ const errors = {
 
 type OwnershipCheck = { ok: true } | { ok: false; status: 400 | 403 | 404; error: string };
 
-/** The message exists, is an assistant message, and its session belongs to the user. */
 function checkOwnership(messageId: string, userId: string): OwnershipCheck {
   const message = messageQueries.findById(messageId);
   if (!message) return { ok: false, status: 404, error: "Message not found" };
@@ -104,7 +98,6 @@ feedback.openapi(deleteFeedbackRoute, async (c) => {
     const check = checkOwnership(messageId, userId);
     if (!check.ok) return c.json({ error: check.error }, check.status);
     const key = { messageId, userId };
-    // Clearing feedback that is already cleared (or never given) writes nothing.
     if (messageFeedbackQueries.find(key)?.value != null) {
       messageFeedbackQueries.clear(key);
       requestFeedbackSync(key);

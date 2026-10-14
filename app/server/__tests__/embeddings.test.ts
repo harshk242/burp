@@ -1,8 +1,3 @@
-/**
- * createEmbedder with provider HTTP stubbed: request shapes per provider,
- * identity, the missing-key short-circuit, response validation, and the
- * query deadline. No network calls.
- */
 import { describe, expect, it } from "bun:test";
 import { withDeadline } from "../embeddings/deadline";
 import { createEmbedder } from "../embeddings/factory";
@@ -17,7 +12,6 @@ interface Call {
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
 
-/** OpenAI /v1/embeddings stub returning `vector` for every input. */
 function openaiFetch(vector: number[] | ((i: number) => unknown)) {
   const calls: Call[] = [];
   const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -34,7 +28,6 @@ function openaiFetch(vector: number[] | ((i: number) => unknown)) {
   return { fetch, calls };
 }
 
-/** Gemini embedContent / batchEmbedContents stub. */
 function googleFetch(vector: number[]) {
   const calls: Call[] = [];
   const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -137,7 +130,6 @@ describe("response validation", () => {
   });
 
   it("rejects non-finite values", async () => {
-    // 1e999 parses to Infinity. The SDK's response schema or our own check rejects it.
     const fetch = (async () =>
       new Response('{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.1,1e999,0.3]}],"model":"m","usage":{"prompt_tokens":1,"total_tokens":1}}', {
         headers: { "content-type": "application/json" },
@@ -164,7 +156,6 @@ describe("response validation", () => {
 describe("query deadline", () => {
   it("rejects a stalled query after the timeout without retrying", async () => {
     let calls = 0;
-    // Never responds; settles only when the request is aborted.
     const fetch = ((_url: unknown, init?: RequestInit) => {
       calls++;
       return new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal!.reason)));

@@ -1,11 +1,3 @@
-/**
- * The experiment task's output and the evaluator contract.
- *
- * The task output is built only from persisted rows of the eval DB (chat_turns,
- * messages, model_transcript, usage_events); tool outputs are exactly what the
- * model saw (model_transcript). Evaluators are pure functions of
- * `(taskOutput, item)`, so they are fixture-tested without Langfuse.
- */
 import type { DatasetItem } from "../lib/schema";
 
 export interface TaskToolCall {
@@ -39,7 +31,6 @@ export interface TaskTurn {
 }
 
 export interface TaskOutput {
-  /** Dataset item id. */
   item_id: string;
   session_id: string;
   turns: TaskTurn[];
@@ -47,7 +38,6 @@ export interface TaskOutput {
   skipped?: "budget";
 }
 
-/** What an evaluator sees of a dataset item. */
 export type EvalItem = Pick<DatasetItem, "input" | "expected_output" | "metadata">;
 
 export type ScoreDataType = "NUMERIC" | "BOOLEAN" | "CATEGORICAL";

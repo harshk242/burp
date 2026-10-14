@@ -1,15 +1,7 @@
-/**
- * HTTP client and shared types for the ClinicalTrials.gov API (v2).
- */
-
 import axios, { type AxiosAdapter, type AxiosInstance, type AxiosResponse } from 'axios';
 import { UpstreamError } from '../../shared/exceptions.js';
 import { getHeader } from '../../shared/http-retry-classify.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
-
-// ---------------------------------------------------------------------------
-// API response interfaces
-// ---------------------------------------------------------------------------
 
 export interface StudySearchResponse {
   studies: Study[];
@@ -67,15 +59,6 @@ export interface Study {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Retry policy and client factory
-// ---------------------------------------------------------------------------
-
-/**
- * Production retry policy (plans/shared-http-retry-plan.md, "Platform
- * inventory"): one attempt as before, now with a 40s request budget and the
- * tool-call deadline; failures surface as a structured `UpstreamError`.
- */
 export const CLINICAL_TRIALS_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: 1,
   backoffMs: [0],
@@ -108,10 +91,6 @@ export function createClinicalTrialsClient(options: ClinicalTrialsClientOptions 
   return attachRetry(instance, options.policy ?? CLINICAL_TRIALS_POLICY, 'clinicaltrials', options.retryDeps);
 }
 
-// ---------------------------------------------------------------------------
-// Singleton axios client
-// ---------------------------------------------------------------------------
-
 let client: AxiosInstance | null = null;
 
 export function getClient(): AxiosInstance {
@@ -132,16 +111,8 @@ export function cleanupClient(): void {
   client = null;
 }
 
-// ---------------------------------------------------------------------------
-// Shared API helper
-// ---------------------------------------------------------------------------
-
 const MAX_API_MESSAGE_CHARS = 500;
 
-/**
- * The API's own error text from the failed response: a plain-text body (what
- * v2 sends for a bad parameter) or a JSON `message`. HTML error pages are skipped.
- */
 function apiErrorMessage(cause: unknown): string | undefined {
   if (!axios.isAxiosError(cause) || !cause.response) return undefined;
   const { data, headers } = cause.response;
@@ -217,10 +188,6 @@ export function filteredResultMeta(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
 export function formatStudySummary(study: Study) {
   return {
     nctId: study.protocolSection.identificationModule.nctId,
@@ -262,10 +229,6 @@ export function formatDetailedStudy(study: Study) {
       study.protocolSection.contactsLocationsModule?.locations?.slice(0, 10),
   };
 }
-
-// ---------------------------------------------------------------------------
-// Statistics helpers
-// ---------------------------------------------------------------------------
 
 export function calculateStatistics(studies: Study[], groupBy?: string) {
   if (!groupBy) {

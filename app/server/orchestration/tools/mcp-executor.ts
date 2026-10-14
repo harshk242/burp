@@ -1,19 +1,12 @@
-/**
- * Wraps mcpManager.callTool() for the chat pipeline and as Vercel AI SDK
- * execute functions.
- */
-
 import { mcpManager } from "../../mcp/manager";
 import { toolRegistry } from "../../mcp/registry";
 
-/** One MCP tool call: its text, whether the tool reported an error, and the server's `_meta`. */
 export interface McpExecution {
   text: string;
   isError: boolean;
   meta?: Record<string, unknown>;
 }
 
-/** A tool that returned `isError`: the message is the tool's text, `meta` its `_meta`. */
 export class McpToolError extends Error {
   constructor(message: string, readonly meta?: Record<string, unknown>) {
     super(message);

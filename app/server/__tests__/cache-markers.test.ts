@@ -1,8 +1,3 @@
-/**
- * Prompt-cache breakpoints (Anthropic): the system message carries one marker
- * (tools + system); each call marks its last message and the previous call's
- * last message, on a copy. The loop's messages are never modified.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, type ModelMessage } from "ai";
@@ -86,7 +81,6 @@ describe("applyCacheMarkers", () => {
     expect(out).not.toBe(input);
     expect(input).toEqual(snapshot);
     expect(input.every((message, i) => message === originals[i])).toBe(true);
-    // Unmarked messages are shared, marked ones are copies that keep other options.
     expect(out[0]).toBe(input[0]!);
     expect(out[2]).not.toBe(input[2]!);
     expect(out[4]!.providerOptions).toEqual({
@@ -190,8 +184,6 @@ describe("processChat cache markers", () => {
       expect(prompt[0]).toMatchObject({ role: "system", content: SYSTEM_PROMPT, providerOptions: MARK });
     }
     const messageMarks = prompts.map((prompt) => prompt.slice(1).map(marked));
-    // Call 1: [user]. Call 2: + assistant(tool_use), tool. Call 3: + assistant, tool.
-    // Earlier markers don't linger: the loop's own messages were never marked.
     expect(messageMarks).toEqual([
       [true],
       [true, false, true],

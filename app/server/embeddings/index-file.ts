@@ -1,15 +1,3 @@
-/**
- * The tool embeddings index file (v2): which embedder made it, the vector
- * size, and for each tool the exact text that was embedded plus its vector.
- *
- *   { version: 2, embedder, dimension, generated_at, tools: [{ full_name, text, embedding }] }
- *
- * A file that is missing, malformed, from an older version, from another
- * embedder, with a size other than the embedder's, or holding any invalid
- * vector is rejected as a whole, so vectors from different models are never
- * compared.
- */
-
 import { randomUUID } from "crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "fs/promises";
 import { dirname } from "path";
@@ -49,7 +37,6 @@ export function toolEmbeddingText(fullName: string, description: string): string
   return `${fullName}: ${description}`;
 }
 
-/** Name → vector map, the shape hybrid search attaches. */
 export function toVectorMap(entries: readonly ToolEmbeddingEntry[]): Map<string, Float32Array> {
   return new Map(entries.map((e) => [e.fullName, e.vector]));
 }
@@ -116,7 +103,6 @@ export async function inspectToolEmbeddings(
   };
 }
 
-/** The one warning logged when an index file is rejected. */
 export function logIndexRejected(path: string, result: Extract<IndexReadResult, { ok: false }>): void {
   logger.warn("SEARCH", "embeddings_index_rejected", {
     data: { path, reason: result.reason, ...result.detail },
