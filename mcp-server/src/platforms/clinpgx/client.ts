@@ -1,3 +1,4 @@
+import { decodeEnvelope, list } from './response-decoding.js';
 import { fetchDatabaseStats } from './database-stats.js';
 import { parseGeneInfo, parseDrugInfo, parseVariantInfo, parseClinicalAnnotation, parseDosingGuideline, parseDrugLabel, parsePathway } from './response-parsers.js';
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
@@ -28,8 +29,6 @@ export const PHARMGKB_BASE_URL = 'https://api.clinpgx.org/v1';
 const DEFAULT_CACHE_TTL = 3600 * 1000;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY = 1000;
-
-type AnyObject = Record<string, any>;
 
 function exponentialBackoff(baseMs: number): (attempt: number) => number {
   return (attempt) => 2 ** (attempt - 1) * baseMs;
@@ -86,15 +85,15 @@ export class PharmGKBClient {
     });
   }
 
-  private async request<T>(
+  private async request(
     endpoint: string,
     params?: Record<string, unknown>
-  ): Promise<T> {
+  ): Promise<ReturnType<typeof decodeEnvelope>> {
     const cacheKey = generateCacheKey(endpoint, params);
     const cachedEntry = this.cache.get(cacheKey);
 
     if (cachedEntry && Date.now() - cachedEntry.timestamp < this.cacheTtl) {
-      return cachedEntry.data as T;
+      return decodeEnvelope(cachedEntry.data);
     }
 
     let response;
@@ -109,31 +108,31 @@ export class PharmGKBClient {
       throw error;
     }
 
-    const data = response.data;
+    const data = decodeEnvelope(response.data as unknown);
 
     this.cache.set(cacheKey, {
       data,
       timestamp: Date.now(),
     });
 
-    return data as T;
+    return data;
   }
 
   async searchGenes(query: string, maxResults: number = 20): Promise<SearchResult<GeneInfo>> {
+    query = query.trim();
+    if (!query) throw new Error('Gene symbol query must not be blank; use listCPICGenes');
     try {
-      const params: Record<string, unknown> = query && query.trim()
-        ? { symbol: query }
-        : { cpicGene: true };
+      const params: Record<string, unknown> = { symbol: query };
 
-      const response = await this.request<AnyObject>('/data/gene', params);
+      const response = await this.request('/data/gene', params);
 
-      const data = response.data || [];
-      const results: GeneInfo[] = data.slice(0, maxResults).map((gene: AnyObject) => parseGeneInfo(gene));
+      const data = list(response.data);
+      const results: GeneInfo[] = data.slice(0, maxResults).map((gene) => parseGeneInfo(gene));
 
       return {
-        totalCount: response.total || results.length,
+        totalCount: response.total ?? data.length,
         results,
-        query: query || 'CPIC pharmacogenes',
+        query,
       };
     } catch (error) {
       if (error instanceof NotFoundError) {
@@ -147,18 +146,24 @@ export class PharmGKBClient {
     }
   }
 
+  async listCPICGenes(maxResults: number = 100): Promise<SearchResult<GeneInfo>> {
+    const response = await this.request('/data/gene', { cpicGene: true });
+    const records = list(response.data);
+    return { totalCount: response.total ?? records.length, results: records.slice(0, maxResults).map(parseGeneInfo), query: 'CPIC pharmacogenes' };
+  }
+
   async getGeneInfo(idOrSymbol: string): Promise<GeneInfo | null> {
     try {
       if (isPharmGKBAccession(idOrSymbol)) {
-        const response = await this.request<AnyObject>(`/data/gene/${encodeURIComponent(idOrSymbol)}`);
+        const response = await this.request(`/data/gene/${encodeURIComponent(idOrSymbol)}`);
         return parseGeneInfo(response.data);
       }
 
-      const response = await this.request<AnyObject>('/data/gene', {
+      const response = await this.request('/data/gene', {
         symbol: idOrSymbol,
       });
 
-      const data = response.data || [];
+      const data = list(response.data);
       if (data.length === 0) {
         return null;
       }
@@ -182,15 +187,15 @@ export class PharmGKBClient {
         };
       }
 
-      const response = await this.request<AnyObject>('/data/chemical', {
+      const response = await this.request('/data/chemical', {
         name: query,
       });
 
-      const data = response.data || [];
-      const results: DrugInfo[] = data.slice(0, maxResults).map((drug: AnyObject) => parseDrugInfo(drug));
+      const data = list(response.data);
+      const results: DrugInfo[] = data.slice(0, maxResults).map((drug) => parseDrugInfo(drug));
 
       return {
-        totalCount: response.total || results.length,
+        totalCount: response.total ?? data.length,
         results,
         query,
       };
@@ -209,15 +214,15 @@ export class PharmGKBClient {
   async getDrugInfo(idOrName: string): Promise<DrugInfo | null> {
     try {
       if (isPharmGKBAccession(idOrName)) {
-        const response = await this.request<AnyObject>(`/data/chemical/${encodeURIComponent(idOrName)}`);
+        const response = await this.request(`/data/chemical/${encodeURIComponent(idOrName)}`);
         return parseDrugInfo(response.data);
       }
 
-      const response = await this.request<AnyObject>('/data/chemical', {
+      const response = await this.request('/data/chemical', {
         name: idOrName,
       });
 
-      const data = response.data || [];
+      const data = list(response.data);
       if (data.length === 0) {
         return null;
       }
@@ -241,15 +246,15 @@ export class PharmGKBClient {
         };
       }
 
-      const response = await this.request<AnyObject>('/data/variant', {
+      const response = await this.request('/data/variant', {
         symbol: query,
       });
 
-      const data = response.data || [];
-      const results: VariantInfo[] = data.slice(0, maxResults).map((variant: AnyObject) => parseVariantInfo(variant));
+      const data = list(response.data);
+      const results: VariantInfo[] = data.slice(0, maxResults).map((variant) => parseVariantInfo(variant));
 
       return {
-        totalCount: response.total || results.length,
+        totalCount: response.total ?? data.length,
         results,
         query,
       };
@@ -268,15 +273,15 @@ export class PharmGKBClient {
   async getVariantInfo(idOrRsId: string): Promise<VariantInfo | null> {
     try {
       if (isPharmGKBAccession(idOrRsId)) {
-        const response = await this.request<AnyObject>(`/data/variant/${encodeURIComponent(idOrRsId)}`);
+        const response = await this.request(`/data/variant/${encodeURIComponent(idOrRsId)}`);
         return parseVariantInfo(response.data);
       }
 
-      const response = await this.request<AnyObject>('/data/variant', {
+      const response = await this.request('/data/variant', {
         symbol: idOrRsId,
       });
 
-      const data = response.data || [];
+      const data = list(response.data);
       if (data.length === 0) {
         return null;
       }
@@ -292,12 +297,12 @@ export class PharmGKBClient {
 
   async getClinicalAnnotationsForGene(gene: string): Promise<ClinicalAnnotation[]> {
     try {
-      const response = await this.request<AnyObject>('/data/clinicalAnnotation', {
+      const response = await this.request('/data/clinicalAnnotation', {
         'location.genes.symbol': gene,
       });
 
-      const data = response.data || [];
-      return data.map((annotation: AnyObject) => parseClinicalAnnotation(annotation));
+      const data = list(response.data);
+      return data.map((annotation) => parseClinicalAnnotation(annotation));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -308,12 +313,12 @@ export class PharmGKBClient {
 
   async getClinicalAnnotationsForDrug(drug: string): Promise<ClinicalAnnotation[]> {
     try {
-      const response = await this.request<AnyObject>('/data/clinicalAnnotation', {
+      const response = await this.request('/data/clinicalAnnotation', {
         'relatedChemicals.name': drug,
       });
 
-      const data = response.data || [];
-      return data.map((annotation: AnyObject) => parseClinicalAnnotation(annotation));
+      const data = list(response.data);
+      return data.map((annotation) => parseClinicalAnnotation(annotation));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -324,13 +329,13 @@ export class PharmGKBClient {
 
   async getDrugGeneAnnotations(drug: string, gene: string): Promise<ClinicalAnnotation[]> {
     try {
-      const response = await this.request<AnyObject>('/data/clinicalAnnotation', {
+      const response = await this.request('/data/clinicalAnnotation', {
         'relatedChemicals.name': drug,
         'location.genes.symbol': gene,
       });
 
-      const data = response.data || [];
-      return data.map((annotation: AnyObject) => parseClinicalAnnotation(annotation));
+      const data = list(response.data);
+      return data.map((annotation) => parseClinicalAnnotation(annotation));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -341,12 +346,12 @@ export class PharmGKBClient {
 
   async getDosingGuidelinesForGene(gene: string): Promise<DosingGuideline[]> {
     try {
-      const response = await this.request<AnyObject>('/data/guidelineAnnotation', {
+      const response = await this.request('/data/guidelineAnnotation', {
         'relatedGenes.symbol': gene,
       });
 
-      const data = response.data || [];
-      return data.map((guideline: AnyObject) => parseDosingGuideline(guideline));
+      const data = list(response.data);
+      return data.map((guideline) => parseDosingGuideline(guideline));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -357,12 +362,12 @@ export class PharmGKBClient {
 
   async getDosingGuidelinesForDrug(drug: string): Promise<DosingGuideline[]> {
     try {
-      const response = await this.request<AnyObject>('/data/guidelineAnnotation', {
+      const response = await this.request('/data/guidelineAnnotation', {
         'relatedChemicals.name': drug,
       });
 
-      const data = response.data || [];
-      return data.map((guideline: AnyObject) => parseDosingGuideline(guideline));
+      const data = list(response.data);
+      return data.map((guideline) => parseDosingGuideline(guideline));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -373,12 +378,12 @@ export class PharmGKBClient {
 
   async getDrugLabels(drug: string): Promise<DrugLabel[]> {
     try {
-      const response = await this.request<AnyObject>('/data/labelAnnotation', {
+      const response = await this.request('/data/labelAnnotation', {
         'relatedChemicals.name': drug,
       });
 
-      const data = response.data || [];
-      return data.map((label: AnyObject) => parseDrugLabel(label));
+      const data = list(response.data);
+      return data.map((label) => parseDrugLabel(label));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -390,9 +395,9 @@ export class PharmGKBClient {
   async getPathways(query?: string): Promise<Pathway[]> {
     try {
       const params = query ? { 'genes.symbol': query } : { cpicGene: true };
-      const response = await this.request<AnyObject>('/data/pathway', params);
+      const response = await this.request('/data/pathway', params);
 
-      const data = response.data || [];
+      const data = list(response.data);
       return data.map(parsePathway);
     } catch (error) {
       if (error instanceof NotFoundError) {
@@ -404,11 +409,11 @@ export class PharmGKBClient {
 
   async getGenePathways(gene: string): Promise<Pathway[]> {
     try {
-      const response = await this.request<AnyObject>('/data/pathway', {
+      const response = await this.request('/data/pathway', {
         'genes.symbol': gene,
       });
 
-      const data = response.data || [];
+      const data = list(response.data);
       return data.map(parsePathway);
     } catch (error) {
       if (error instanceof NotFoundError) {
@@ -457,7 +462,7 @@ export class PharmGKBClient {
   }
 
   async getDatabaseStats() {
-    return fetchDatabaseStats((endpoint, params) => this.request<AnyObject>(endpoint, params));
+    return fetchDatabaseStats((endpoint, params) => this.request(endpoint, params));
   }
 
   clearCache(): void {

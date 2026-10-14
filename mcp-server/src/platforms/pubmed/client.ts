@@ -34,7 +34,7 @@ export const PUBMED_POLICY: RetryPolicy = Object.freeze({
   totalBudgetMs: 40_000,
   perAttemptTimeoutMs: 30_000,
   on429: 'fail',
-  defaultRetryAfterMs: 5_000,
+  fallbackReportedRetryAfterMs: 5_000,
 });
 
 export interface PubMedHttpOptions {

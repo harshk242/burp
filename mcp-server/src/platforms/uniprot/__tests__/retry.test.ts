@@ -90,3 +90,13 @@ describe('search_by_function', () => {
     });
   });
 });
+
+describe('accession authentication failures', () => {
+  it.each([401, 403])('propagates HTTP %i instead of reporting invalid accession', async status => {
+    stubUniProt([status]);
+    const result = await callTool(handlers, 'validate_accession', { accession: 'P04637' });
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(toolText(result))).toMatchObject({ status, error: 'bad_request' });
+    expect(JSON.parse(toolText(result))).not.toHaveProperty('isValid');
+  });
+});

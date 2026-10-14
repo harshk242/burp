@@ -1,140 +1,92 @@
 import { parseGuidelineSource, parseEvidenceLevel, normalizePhenotypeCategory } from './utils.js';
-import type { GeneInfo, DrugInfo, VariantInfo, ClinicalAnnotation, DosingGuideline, DrugLabel, Pathway } from './types.js';
+import { record, child, list, text, required, flag, texts, names } from './response-decoding.js';
+import type { GeneInfo, DrugInfo, VariantInfo, ClinicalAnnotation, DosingGuideline, DrugLabel, Pathway, CrossReference } from './types.js';
 
-type AnyObject = Record<string, any>;
+function narrative(value: unknown): string | undefined {
+  return value !== null && typeof value === 'object' ? text(record(value).html) : text(value);
+}
 
-export function parseGeneInfo(data: AnyObject): GeneInfo {
+function crossReferences(value: unknown): CrossReference[] {
+  return list(value).map(value => {
+    const xref = record(value);
+    return { database: required(xref.resource, 'resource'), id: required(xref.resourceId, 'resourceId'), url: text(xref.url) };
+  });
+}
+
+export function parseGeneInfo(value: unknown): GeneInfo {
+  const data = record(value);
   return {
-    id: data.id || data.pharmgkbAccessionId,
-    symbol: data.symbol,
-    name: data.name,
-    alternateSymbols: data.alternateSymbols,
-    chromosomeLocation: data.chromosomeLocation,
-    pharmgkbAccessionId: data.pharmgkbAccessionId,
-    hasVariants: data.hasVariantAnnotation,
-    hasGuidelines: data.hasGuideline,
-    hasClinicalAnnotations: data.hasClinicalAnnotation,
-    crossReferences: data.crossReferences?.map((xref: AnyObject) => ({
-      database: xref.resource,
-      id: xref.resourceId,
-      url: xref.url,
-    })),
-    summary: data.summary,
+    id: required(data.id ?? data.pharmgkbAccessionId, 'gene id'), symbol: required(data.symbol, 'gene symbol'),
+    name: text(data.name), alternateSymbols: texts(data.alternateSymbols), chromosomeLocation: text(data.chromosomeLocation),
+    pharmgkbAccessionId: text(data.pharmgkbAccessionId), hasVariants: flag(data.hasVariantAnnotation),
+    hasGuidelines: flag(data.hasGuideline), hasClinicalAnnotations: flag(data.hasClinicalAnnotation),
+    crossReferences: crossReferences(data.crossReferences), summary: narrative(data.summary),
   };
 }
 
-export function parseDrugInfo(data: AnyObject): DrugInfo {
+export function parseDrugInfo(value: unknown): DrugInfo {
+  const data = record(value);
   return {
-    id: data.id || data.pharmgkbAccessionId,
-    name: data.name,
-    genericNames: data.genericNames,
-    brandNames: data.brandNames,
-    drugClass: data.drugClasses?.[0]?.name,
-    atcCodes: data.atcCodes,
-    pharmgkbAccessionId: data.pharmgkbAccessionId,
-    hasGuidelines: data.hasGuideline,
-    hasClinicalAnnotations: data.hasClinicalAnnotation,
-    hasLabels: data.hasLabel,
-    crossReferences: data.crossReferences?.map((xref: AnyObject) => ({
-      database: xref.resource,
-      id: xref.resourceId,
-      url: xref.url,
-    })),
-    summary: data.summary,
+    id: required(data.id ?? data.pharmgkbAccessionId, 'drug id'), name: required(data.name, 'drug name'),
+    genericNames: texts(data.genericNames), brandNames: texts(data.brandNames), drugClass: text(child(list(data.drugClasses)[0]).name),
+    atcCodes: texts(data.atcCodes), pharmgkbAccessionId: text(data.pharmgkbAccessionId), hasGuidelines: flag(data.hasGuideline),
+    hasClinicalAnnotations: flag(data.hasClinicalAnnotation), hasLabels: flag(data.hasLabel),
+    crossReferences: crossReferences(data.crossReferences), summary: narrative(data.summary),
   };
 }
 
-export function parseVariantInfo(data: AnyObject): VariantInfo {
+export function parseVariantInfo(value: unknown): VariantInfo {
+  const data = record(value);
   return {
-    id: data.id || data.pharmgkbAccessionId,
-    name: data.name,
-    rsid: data.rsid,
-    gene: data.gene?.symbol,
-    variantType: data.variantType,
-    location: data.location,
-    hasClinicalAnnotations: data.hasClinicalAnnotation,
-    hasGuidelines: data.hasGuideline,
-    crossReferences: data.crossReferences?.map((xref: AnyObject) => ({
-      database: xref.resource,
-      id: xref.resourceId,
-      url: xref.url,
-    })),
+    id: required(data.id ?? data.pharmgkbAccessionId, 'variant id'), name: text(data.name), rsid: text(data.rsid),
+    gene: text(child(data.gene).symbol), variantType: text(data.variantType), location: text(data.location),
+    hasClinicalAnnotations: flag(data.hasClinicalAnnotation), hasGuidelines: flag(data.hasGuideline), crossReferences: crossReferences(data.crossReferences),
   };
 }
 
-export function parseClinicalAnnotation(data: AnyObject): ClinicalAnnotation {
-  const levelOfEvidence = data.levelOfEvidence;
-  const evidenceLevel = typeof levelOfEvidence === 'object' && levelOfEvidence !== null
-    ? levelOfEvidence.term
-    : levelOfEvidence;
-
-  const genes = data.location?.genes || data.genes || [];
-  const geneSymbol = genes[0]?.symbol;
-
-  const chemicals = data.relatedChemicals || data.chemicals || [];
-  const drugName = chemicals[0]?.name;
-
-  const types = data.types || [];
-  const phenotypeCategory = types[0] || 'Unknown';
-
+export function parseClinicalAnnotation(value: unknown): ClinicalAnnotation {
+  const data = record(value);
+  const location = child(data.location);
+  const genes = names(location.genes ?? data.genes, 'symbol');
+  const chemicals = names(data.relatedChemicals ?? data.chemicals, 'name');
+  const allelePhenotypes = list(data.allelePhenotypes).map(record);
+  const evidence = typeof data.levelOfEvidence === 'object' && data.levelOfEvidence !== null ? child(data.levelOfEvidence).term : data.levelOfEvidence;
   return {
-    id: data.id,
-    gene: geneSymbol,
-    drug: drugName,
-    variant: data.variant?.name || data.location?.displayName,
-    phenotypeCategory: normalizePhenotypeCategory(phenotypeCategory),
-    levelOfEvidence: parseEvidenceLevel(evidenceLevel),
-    annotation: data.text || data.allelePhenotypes?.[0]?.phenotype,
-    alleles: data.allelePhenotypes?.map((ap: AnyObject) => ap.allele),
-    phenotypes: data.phenotypes?.map((p: AnyObject) => typeof p === 'string' ? p : p.name),
-    populations: data.populations,
-    relatedChemicals: chemicals.map((c: AnyObject) => c.name),
-    relatedGenes: genes.map((g: AnyObject) => g.symbol),
-    pmids: data.literature?.map((l: AnyObject) => l.pmid),
+    id: required(data.id, 'annotation id'), gene: required(genes[0], 'annotation gene'), drug: required(chemicals[0], 'annotation drug'),
+    variant: text(child(data.variant).name ?? location.displayName),
+    phenotypeCategory: normalizePhenotypeCategory(texts(data.types)[0] ?? 'Unknown'), levelOfEvidence: parseEvidenceLevel(text(evidence)),
+    annotation: text(data.text ?? allelePhenotypes[0]?.phenotype), alleles: allelePhenotypes.map(item => required(item.allele, 'allele')),
+    phenotypes: list(data.phenotypes).map(item => required(typeof item === 'string' ? item : record(item).name, 'phenotype')),
+    populations: texts(data.populations), relatedChemicals: chemicals, relatedGenes: genes, pmids: names(data.literature, 'pmid'),
   };
 }
 
-export function parseDosingGuideline(data: AnyObject): DosingGuideline {
+export function parseDosingGuideline(value: unknown): DosingGuideline {
+  const data = record(value);
+  const id = required(data.id, 'guideline id');
+  const name = required(data.name, 'guideline name');
   return {
-    id: data.id,
-    name: data.name,
-    source: parseGuidelineSource(data.name || data.source),
-    genes: data.genes?.map((g: AnyObject) => g.symbol) || [],
-    drugs: data.chemicals?.map((c: AnyObject) => c.name) || [],
-    recommendation: data.recommendation,
-    implications: data.implications,
-    phenotypeCategory: data.phenotypeCategory,
-    alternateDrug: data.alternateDrug,
-    url: data.url || `https://www.pharmgkb.org/guideline/${data.id}`,
-    version: data.version,
-    lastModified: data.lastModified,
+    id, name, source: parseGuidelineSource(name), genes: names(data.genes ?? data.relatedGenes, 'symbol'),
+    drugs: names(data.chemicals ?? data.relatedChemicals, 'name'), recommendation: typeof data.recommendation === 'boolean' ? undefined : narrative(data.recommendation), hasRecommendation: typeof data.recommendation === 'boolean' ? flag(data.recommendation) : undefined, implications: text(data.implications),
+    phenotypeCategory: text(data.phenotypeCategory), alternateDrug: text(data.alternateDrug), url: text(data.url) ?? `https://www.pharmgkb.org/guideline/${id}`,
+    version: text(data.version), lastModified: text(data.lastModified),
   };
 }
 
-export function parseDrugLabel(data: AnyObject): DrugLabel {
+export function parseDrugLabel(value: unknown): DrugLabel {
+  const data = record(value);
   return {
-    id: data.id,
-    name: data.name,
-    drug: data.chemical?.name,
-    source: data.source,
-    agency: data.agency,
-    approvalDate: data.approvalDate,
-    biomarkerCategory: data.biomarkerCategory,
-    genes: data.genes?.map((g: AnyObject) => g.symbol),
-    variants: data.variants?.map((v: AnyObject) => v.name),
-    labelText: data.text,
-    url: data.url,
+    id: required(data.id, 'label id'), name: required(data.name, 'label name'), drug: required(child(data.chemical).name ?? names(data.relatedChemicals, 'name')[0], 'label drug'),
+    source: required(data.source, 'label source'), agency: text(data.agency), approvalDate: text(data.approvalDate),
+    biomarkerCategory: text(data.biomarkerCategory), genes: names(data.genes ?? data.relatedGenes, 'symbol'), variants: names(data.variants, 'name'), labelText: text(data.text), url: text(data.url),
   };
 }
 
-export function parsePathway(pathway: AnyObject): Pathway {
+export function parsePathway(value: unknown): Pathway {
+  const data = record(value);
+  const id = required(data.id, 'pathway id');
   return {
-    id: pathway.id,
-    name: pathway.name,
-    type: pathway.type,
-    description: pathway.description,
-    genes: pathway.genes?.map((g: AnyObject) => g.symbol),
-    drugs: pathway.chemicals?.map((c: AnyObject) => c.name),
-    url: pathway.url || `https://www.pharmgkb.org/pathway/${pathway.id}`,
+    id, name: required(data.name, 'pathway name'), type: text(data.type), description: narrative(data.description),
+    genes: names(data.genes, 'symbol'), drugs: names(data.chemicals, 'name'), url: text(data.url) ?? `https://www.pharmgkb.org/pathway/${id}`,
   };
 }

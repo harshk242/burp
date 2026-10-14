@@ -33,7 +33,7 @@ describe('ClinVar retry policies', () => {
       totalBudgetMs: 40_000,
       perAttemptTimeoutMs: 30_000,
       on429: 'fail',
-      defaultRetryAfterMs: 5_000,
+      fallbackReportedRetryAfterMs: 5_000,
     });
     const backoff = CLINVAR_NCBI_POLICY.backoffMs as (attempt: number) => number;
     expect([backoff(1), backoff(2)]).toEqual([1_000, 2_000]);

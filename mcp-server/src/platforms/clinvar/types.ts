@@ -7,7 +7,9 @@ export interface CacheEntry {
   timestamp: number;
 }
 
+// ClinVar may return new or composite terms; preserve their upstream text.
 export type ClinicalSignificanceType =
+  | (string & {})
   | 'Pathogenic'
   | 'Likely pathogenic'
   | 'Uncertain significance'
@@ -22,7 +24,9 @@ export type ClinicalSignificanceType =
   | 'not provided'
   | 'other';
 
+// ClinVar may return new or composite terms; preserve their upstream text.
 export type ReviewStatus =
+  | (string & {})
   | 'practice guideline'
   | 'reviewed by expert panel'
   | 'criteria provided, multiple submitters, no conflicts'
@@ -31,7 +35,9 @@ export type ReviewStatus =
   | 'no assertion criteria provided'
   | 'no assertion provided';
 
+// ClinVar may return new or composite terms; preserve their upstream text.
 export type VariantType =
+  | (string & {})
   | 'single nucleotide variant'
   | 'Deletion'
   | 'Insertion'

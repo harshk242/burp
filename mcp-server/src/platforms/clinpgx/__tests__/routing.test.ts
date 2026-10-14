@@ -15,7 +15,7 @@ describe('ClinPGx accession routing', () => {
     ['getDrugInfo', '/data/chemical'],
     ['getVariantInfo', '/data/variant'],
   ] as const)('routes PA128 to the accession endpoint for %s', async (method, endpoint) => {
-    const adapter = vi.fn<AxiosAdapter>(async (config) => ({ data: { data: { id: 'PA128' } }, status: 200, statusText: 'OK', headers: {}, config }));
+    const adapter = vi.fn<AxiosAdapter>(async (config) => ({ data: { data: { id: 'PA128', symbol: 'CYP2D6', name: 'test record' } }, status: 200, statusText: 'OK', headers: {}, config }));
     await new PharmGKBClient({ adapter })[method]('PA128');
     expect(adapter.mock.calls[0][0].url).toBe(`${endpoint}/PA128`);
   });

@@ -8,6 +8,7 @@ import {
   getRetryAfterMs,
   isRetryableReason,
   type RetryReason,
+  type RateLimitResetHeader,
   type UpstreamReason,
 } from './http-retry-classify.js';
 import { createTimeoutSignal, getToolCallContext, type RequestRecord } from './tool-call-context.js';
@@ -21,7 +22,8 @@ export interface RetryPolicy {
   retryOn?: (reason: RetryReason, error: unknown) => boolean;
   on429?: 'wait' | 'retry' | 'fail';
   maxRetryAfterMs?: number;
-  defaultRetryAfterMs?: number;
+  rateLimitResetHeader?: RateLimitResetHeader;
+  fallbackReportedRetryAfterMs?: number;
   retryMethods?: readonly string[];
   beforeAttempt?: (signal: AbortSignal, remainingMs: number) => Promise<void>;
 }
@@ -213,12 +215,12 @@ export async function withRetry<T>(
         finish('failed', 'unknown');
         throw lastError;
       }
-      const retryAfterMs = reason === 'rate_limited' ? getRetryAfterMs(lastError, now()) : undefined;
+      const retryAfterMs = reason === 'rate_limited' ? getRetryAfterMs(lastError, now(), policy.rateLimitResetHeader) : undefined;
       const delay = reason === 'cancelled' || reason === 'budget_timeout'
         ? null
         : nextDelay(reason, lastError, attempt, retryAfterMs);
       if (delay === null) {
-        const reported = reason === 'rate_limited' ? (retryAfterMs ?? policy.defaultRetryAfterMs) : retryAfterMs;
+        const reported = reason === 'rate_limited' ? (retryAfterMs ?? policy.fallbackReportedRetryAfterMs) : retryAfterMs;
         fail(reason, lastError, reported ?? null);
       }
 

@@ -166,23 +166,26 @@ export function parseRetryAfter(value: unknown, now = Date.now()): number | unde
   return Number.isNaN(date) ? undefined : finiteDelay(date - now);
 }
 
-/**
- * Parses `x-ratelimit-reset`. Ensembl sends seconds until the window resets;
- */
-export function parseRateLimitReset(value: unknown, now = Date.now()): number | undefined {
-  if (typeof value !== 'string' || !NON_NEGATIVE_NUMBER.test(value)) return undefined;
-  const seconds = Number(value);
-  if (seconds > 1_000_000_000) return finiteDelay(seconds * 1_000 - now);
-  return finiteDelay(seconds * 1_000);
+export type RateLimitResetSemantics = 'relative-seconds' | 'epoch-seconds' | 'epoch-milliseconds';
+
+export interface RateLimitResetHeader {
+  name: string;
+  semantics: RateLimitResetSemantics;
 }
 
-export function getRetryAfterMs(error: unknown, now = Date.now()): number | undefined {
+export function parseRateLimitReset(value: unknown, semantics: RateLimitResetSemantics, now = Date.now()): number | undefined {
+  if (typeof value !== 'string' || !NON_NEGATIVE_NUMBER.test(value)) return undefined;
+  const amount = Number(value);
+  if (semantics === 'epoch-milliseconds') return finiteDelay(amount - now);
+  if (semantics === 'epoch-seconds') return finiteDelay(amount * 1_000 - now);
+  return finiteDelay(amount * 1_000);
+}
+
+export function getRetryAfterMs(error: unknown, now = Date.now(), resetHeader?: RateLimitResetHeader): number | undefined {
   if (!axios.isAxiosError(error) || !error.response) return undefined;
   const headers = error.response.headers;
-  return (
-    parseRetryAfter(getHeader(headers, 'retry-after'), now) ??
-    parseRateLimitReset(getHeader(headers, 'x-ratelimit-reset'), now)
-  );
+  return parseRetryAfter(getHeader(headers, 'retry-after'), now) ??
+    (resetHeader ? parseRateLimitReset(getHeader(headers, resetHeader.name), resetHeader.semantics, now) : undefined);
 }
 
 export function formatUpstreamMessage(details: {
