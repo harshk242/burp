@@ -3,6 +3,7 @@ import { userQueries, dailyUsageQueries, rateLimitQueries, usageEventQueries } f
 import { clerkAuth, requireDbUser, requireAdmin } from "../middleware/clerk";
 import { ErrorSchema } from "../schemas";
 import type { AppEnv } from "../types";
+import { IntegerLimitSchema } from "../schemas/limits";
 import { resolveEffectiveLimits } from "../usage";
 
 const admin = new OpenAPIHono<AppEnv>();
@@ -15,10 +16,10 @@ const AdminUserSchema = z.object({
   name: z.string().nullable(),
   role: z.enum(["waitlist", "user", "admin"]),
   total_queries: z.number().int(),
-  daily_query_limit: z.number().int().nullable(),
-  daily_token_limit: z.number().int().nullable(),
-  daily_cost_limit_microusd: z.number().int().nullable(),
-  monthly_cost_limit_microusd: z.number().int().nullable(),
+  daily_query_limit: IntegerLimitSchema.nullable(),
+  daily_token_limit: IntegerLimitSchema.nullable(),
+  daily_cost_limit_microusd: IntegerLimitSchema.nullable(),
+  monthly_cost_limit_microusd: IntegerLimitSchema.nullable(),
   created_at: z.number().int(),
   last_active_at: z.number().int().nullable(),
   today_queries: z.number().int(),
@@ -27,9 +28,9 @@ const AdminUserSchema = z.object({
   today_cost_microusd: z.number().int(),
   month_cost_microusd: z.number().int(),
   effective_limits: z.object({
-    daily_query_limit: z.number().int(),
-    daily_cost_limit_microusd: z.number().int(),
-    monthly_cost_limit_microusd: z.number().int(),
+    daily_query_limit: IntegerLimitSchema,
+    daily_cost_limit_microusd: IntegerLimitSchema,
+    monthly_cost_limit_microusd: IntegerLimitSchema,
   }),
 });
 
@@ -37,22 +38,17 @@ const AdminUserListSchema = z.object({
   users: z.array(AdminUserSchema),
 });
 
-const limitValue = () =>
-  z.union([
-    z.null(),
-    z.literal(-1),
-    z.number().int().min(1),
-  ]);
+const limitValue = () => IntegerLimitSchema.nullable();
 
 const PatchLimitsSchema = z.object({
   daily_query_limit: limitValue().optional()
-    .openapi({ example: 100, description: "null = role default, -1 = unlimited, >0 = hard cap" }),
+    .openapi({ example: 100, description: "null = role default, -1 = unlimited, >=0 = hard cap" }),
   daily_token_limit: limitValue().optional()
-    .openapi({ example: 500000, description: "null = config default, -1 = unlimited, >0 = hard cap" }),
+    .openapi({ example: 500000, description: "null = config default, -1 = unlimited, >=0 = reporting threshold (not enforced)" }),
   daily_cost_limit_microusd: limitValue().optional()
-    .openapi({ example: 250000, description: "null = config default, -1 = unlimited, >0 = hard cap in microdollars" }),
+    .openapi({ example: 250000, description: "null = config default, -1 = unlimited, >=0 = hard cap in microdollars" }),
   monthly_cost_limit_microusd: limitValue().optional()
-    .openapi({ example: 3000000, description: "null = config default, -1 = unlimited, >0 = hard cap in microdollars" }),
+    .openapi({ example: 3000000, description: "null = config default, -1 = unlimited, >=0 = hard cap in microdollars" }),
 });
 
 const listUsersRoute = createRoute({

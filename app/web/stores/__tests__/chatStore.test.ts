@@ -160,3 +160,29 @@ describe("chatStore feedback", () => {
     expect(store().messages).toEqual([]);
   });
 });
+
+describe("chatStore completion", () => {
+  it("finishes an empty persisted turn without attributing usage to the previous answer", () => {
+    store().setMessages([{ id: "old", role: "assistant", content: "old answer", createdAt: 1 }]);
+    store().setStreaming(true);
+    store().finalizeAssistantMessage("empty", { input: 7, output: 0 });
+    expect(store().isStreaming).toBe(false);
+    expect(store().messages).toHaveLength(2);
+    expect(store().messages[0].tokenUsage).toBeUndefined();
+    expect(store().messages[1]).toMatchObject({ id: "empty", content: "", persisted: true, tokenUsage: { input: 7, output: 0 } });
+    expect(store().streamingContent).toBe("");
+  });
+
+  it("finishes even an empty turn without a persisted message", () => {
+    store().setStreaming(true);
+    store().finalizeAssistantMessage();
+    expect(store().isStreaming).toBe(false);
+    expect(store().messages).toEqual([]);
+  });
+
+  it("preserves identity and usage when an empty persisted message is reloaded", () => {
+    const row: DbMessage = { id: "empty", chat_id: "s", role: "assistant", content: null, tool_calls: null, created_at: 1, input_tokens: 7, output_tokens: 0 };
+    expect(dbMessageToMessage(row)).toMatchObject({ id: "empty", content: "", persisted: true, tokenUsage: { input: 7, output: 0 } });
+    expect(dbMessageToMessage({ ...row, input_tokens: 0 }).tokenUsage).toBeUndefined();
+  });
+});

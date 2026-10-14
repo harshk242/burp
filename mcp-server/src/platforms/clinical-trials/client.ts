@@ -34,6 +34,9 @@ export interface Study {
         class: string;
       };
     };
+    armsInterventionsModule?: {
+      interventions?: Array<{ name: string; type?: string }>;
+    };
     conditionsModule?: {
       conditions: string[];
     };

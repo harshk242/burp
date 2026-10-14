@@ -2,7 +2,7 @@ export {
   searchGenes,
   getGeneInfo,
   getGenePathways,
-  getVIPGenes,
+  getCPICGenesWithGuidelines,
   getGenesWithAnnotations,
 } from './genes.js';
 

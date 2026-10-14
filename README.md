@@ -113,6 +113,12 @@ bun install
 cd ../..
 ```
 
+For local development without Clerk, leave `CLERK_SECRET_KEY` empty and set
+`AUTH_MODE=development` in `app/.env` (or the environment used by Docker Compose).
+This explicitly enables a local admin identity and is disabled when
+`NODE_ENV=production`. Production requires `CLERK_SECRET_KEY` and refuses to start
+without it. Without either configuration, protected requests return HTTP 503.
+
 #### 2. **Setup Clerk Authentication**
 
 Go to [Clerk Dashboard](https://dashboard.clerk.com):

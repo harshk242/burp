@@ -195,3 +195,14 @@ describe("UsageMeter", () => {
     expect(meter.ledgerFields()).toMatchObject({ llm_calls: 0, cost_microusd: 0, input_tokens: 0 });
   });
 });
+
+it("discards an overflowing split and prices only authoritative input as uncached", () => {
+  const meter = new UsageMeter("anthropic", "claude-sonnet-5-5", ctx);
+  const call = meter.record(sdkUsage({ total: 100, noCache: 100, cacheRead: 50 }), undefined, info());
+  expect(call.promptTokens).toBe(100);
+  expect(call.noCacheTokens).toBe(100);
+  expect(call.cacheReadTokens).toBe(0);
+  expect(events(warnSpy, "usage_mismatch")[0]).toMatchObject({ gap: -50, policy: "discard_inconsistent_split_as_uncached" });
+  expect(splitCallUsage(sdkUsage({ total: 0, cacheWrite: 100 }), anthropicMeta({ ephemeral_1h_input_tokens: 100 })).usage)
+    .toMatchObject({ noCacheTokens: 0, cacheReadTokens: 0, cacheWrite5mTokens: 0, cacheWrite1hTokens: 0 });
+});

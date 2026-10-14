@@ -5,7 +5,6 @@ import { ALWAYS_LOADED_TOOLS } from "../../mcp/platforms.config";
 import { logger } from "../../logger";
 import { createSearchTool } from "../tools/search-tool";
 import { createInspectArtifactTool } from "../tools/artifact-inspector";
-import { createMcpToolExecutor } from "../tools/mcp-executor";
 import { shortHash } from "../usage-meter";
 
 export type ToolSet = Record<string, Tool>;
@@ -34,7 +33,7 @@ export function buildToolCatalog(
     [SEARCH_TOOL_NAME]: createSearchTool(),
     [INSPECT_TOOL_NAME]: createInspectArtifactTool(sessionId),
   };
-  if (provider !== "anthropic") return { ...geminiCoreTools(sanitize, provider), ...systemTools };
+  if (provider !== "anthropic") return { ...toolRegistry.toVercelCoreTools(sanitize), ...systemTools };
 
   const all: ToolSet = { ...toolRegistry.toVercelTools(toolRegistry.getAll(), sanitize), ...systemTools };
   const catalog: ToolSet = {};
@@ -53,14 +52,6 @@ export function buildToolCatalog(
   }
   lastCatalogHash = hash;
   return catalog;
-}
-
-function geminiCoreTools(sanitize: (name: string) => string, provider: LLMProviderName): ToolSet {
-  const tools: ToolSet = {};
-  for (const [key, coreTool] of Object.entries(toolRegistry.toVercelCoreTools(sanitize))) {
-    tools[key] = { ...coreTool, execute: createMcpToolExecutor(desanitizeToolName(key, provider)) };
-  }
-  return tools;
 }
 
 function schemaOf(key: string): unknown {

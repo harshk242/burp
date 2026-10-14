@@ -191,7 +191,13 @@ describe("turn tracing", () => {
     spyOn(hybridSearch, "search").mockRejectedValue(new Error("index broken"));
     model = scriptedModel([() => streamOf([toolCall("c1"), toolCall("c2", SEARCH_KEY, '{"query":"x"}'), finish("tool-calls")])]);
 
-    await collect(processChat(crypto.randomUUID(), USER_ID, "hi"));
+    const sessionId = crypto.randomUUID();
+    await collect(processChat(sessionId, USER_ID, "hi"));
+    const assistant = q.messageQueries.findByChatId(sessionId).find((m) => m.role === "assistant")!;
+    expect(JSON.parse(assistant.tool_calls!)).toEqual([
+      expect.objectContaining({ id: "c1", error: "server down" }),
+      expect.objectContaining({ id: "c2", name: SEARCH_TOOL_NAME, error: "index broken" }),
+    ]);
 
     const spans = mem.spans();
     expect(one(spans, TOOL_FULL_NAME).attributes[LEVEL]).toBe("ERROR");

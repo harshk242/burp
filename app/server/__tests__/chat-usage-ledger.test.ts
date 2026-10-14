@@ -108,7 +108,7 @@ describe("processChat usage ledger", () => {
     const sessionId = crypto.randomUUID();
     const events = await collect(processChat(sessionId, USER_ID, "hi"));
 
-    expect(events.find((e) => e.type === "usage")?.data).toEqual({ inputTokens: 6300, outputTokens: 100 });
+    expect(events.find((e) => e.type === "done")?.data).toEqual({ messageId: q.messageQueries.findByChatId(sessionId).find((m) => m.role === "assistant")!.id, inputTokens: 6300, outputTokens: 100 });
 
     const rows = t.sqlite.query<Record<string, unknown>, []>("SELECT * FROM usage_events").all();
     expect(rows).toHaveLength(1);
@@ -145,7 +145,7 @@ describe("processChat usage ledger", () => {
 
     expect(model.doStreamCalls).toHaveLength(3);
     expect(events.some((e) => e.type === "error")).toBe(true);
-    expect(events.some((e) => e.type === "done" || e.type === "usage")).toBe(false);
+    expect(events.some((e) => e.type === "done")).toBe(false);
 
     const { provider, chatModel } = loadLLMConfig();
     const expected = summarizeTurnCost([
@@ -194,9 +194,9 @@ describe("processChat usage ledger", () => {
     expect(rows).toEqual([{ status: "error", llm_calls: 1 }]);
   });
 
-  it("a failing error-row write is logged and never masks the turn's error", async () => {
+  it("a failing error-row write retries without masking the turn's error", async () => {
     spyOn(mcpManager, "callTool").mockResolvedValue({ content: "ok", isError: false });
-    spyOn(q.usageEventQueries, "create").mockImplementation(() => {
+    const write = spyOn(q.usageEventQueries, "create").mockImplementation(() => {
       throw new Error("disk full");
     });
     model = scriptedModel([[toolCallPart("c1"), finish("tool-calls", { noCache: 100, cacheRead: 0, cacheWrite: 0 })]]);
@@ -206,5 +206,12 @@ describe("processChat usage ledger", () => {
     expect(events.filter((e) => e.type === "error")).toHaveLength(1);
     expect(t.sqlite.query("SELECT count(*) AS n FROM usage_events").get()).toEqual({ n: 0 });
     expect(q.dailyUsageQueries.getTodayFull(USER_ID)).toMatchObject({ input_tokens: 0, output_tokens: 0 });
+    write.mockRestore();
+    const { usageRecovery } = await import("../orchestration/usage-reconciliation");
+    usageRecovery.flush();
+    usageRecovery.flush();
+    expect(t.sqlite.query("SELECT count(*) AS n FROM usage_events").get()).toEqual({ n: 1 });
+    expect(q.dailyUsageQueries.getTodayFull(USER_ID)).toMatchObject({ input_tokens: 100, output_tokens: 50 });
+    expect(t.sqlite.query("SELECT status FROM chat_turns").get()).toEqual({ status: "error" });
   });
 });

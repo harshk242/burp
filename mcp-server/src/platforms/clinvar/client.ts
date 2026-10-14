@@ -1,4 +1,5 @@
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { decodeFrequencySummary } from './frequency-decoder.js';
 import {
   filterNoneValues,
   generateCacheKey,
@@ -39,7 +40,7 @@ export const CLINVAR_NCBI_POLICY: RetryPolicy = Object.freeze({
   totalBudgetMs: 40_000,
   perAttemptTimeoutMs: 30_000,
   on429: 'fail',
-  defaultRetryAfterMs: 5_000,
+  fallbackReportedRetryAfterMs: 5_000,
 });
 
 export const CLINICAL_TABLES_POLICY: RetryPolicy = Object.freeze({
@@ -252,6 +253,15 @@ export class ClinVarClient {
         retmode: 'xml',
       },
       parseESummaryResult
+    );
+  }
+
+  async getVariantFrequency(variationId: string) {
+    const id = toVariationId(variationId);
+    return this.ncbiRequest(
+      'esummary.fcgi',
+      { id, retmode: 'json' },
+      (json) => decodeFrequencySummary(JSON.parse(json), id)
     );
   }
 

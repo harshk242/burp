@@ -1,15 +1,23 @@
 import { Database } from "bun:sqlite";
 import { streamText, type ModelMessage, type TextStreamPart, type Tool, type ToolSet } from "ai";
 import { chatProviderOptions, getChatModel, loadLLMConfig, sanitizeToolName } from "../../server/llm";
-import { SYSTEM_PROMPT } from "../../server/orchestration/context/system-prompt";
+import { buildSystemPrompt } from "../../server/orchestration/context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "../../server/orchestration/context/cache-markers";
 import { buildToolCatalog, SEARCH_TOOL_NAME } from "../../server/orchestration/context/tool-catalog";
 import { toDeclarations } from "../../server/orchestration/tool-dispatch";
+import { parseGateEffort, preflightThinking } from "./gate-config";
 import { MOA_HITS, sha, verdict } from "./gate-lib";
 import { checkRedactedOffline, REDACTED_TRIGGER } from "./phase4b-redacted";
 
 const config = loadLLMConfig();
-const EFFORT = (process.env.GATE_EFFORT ?? "high") as "high";
+const EFFORT = parseGateEffort(process.env.GATE_EFFORT);
+let preflight: Promise<void> | undefined;
+export function ensureThinkingCapabilities(): Promise<void> {
+  return preflight ??= preflightThinking(config, EFFORT, {
+    apiKey: process.env.ANTHROPIC_API_KEY, baseUrl: process.env.ANTHROPIC_BASE_URL,
+  });
+}
+
 const providerOptions = chatProviderOptions({ ...config, effort: EFFORT });
 
 interface Req { raw: string; body: any; status: number; errorText?: string; signal?: AbortSignal | null }
@@ -41,7 +49,7 @@ async function call(label: string, tools: Record<string, Tool>, messages: ModelM
   let streamError: unknown;
   const result = streamText({
     model,
-    instructions: cachedInstructions(SYSTEM_PROMPT),
+    instructions: cachedInstructions(buildSystemPrompt()),
     messages: applyCacheMarkers(messages, prevLast),
     tools,
     maxRetries: 0,
@@ -167,6 +175,7 @@ const Q2 =
 const Q3 = "Without calling any tools: in one sentence, what drug class does that make imatinib?";
 
 export async function check4b(nonce: string) {
+  await ensureThinkingCapabilities();
   const tools = toDeclarations(buildToolCatalog(config.provider, (n) => sanitizeToolName(n, config.provider), "phase4b-gate"));
   tools[SEARCH_TOOL_NAME] = { ...tools[SEARCH_TOOL_NAME]!, description: `${tools[SEARCH_TOOL_NAME]!.description} (gate run ${nonce})` } as Tool;
   for (const n of HITS) if (!tools[n]) throw new Error(`${n} is not in the catalog`);

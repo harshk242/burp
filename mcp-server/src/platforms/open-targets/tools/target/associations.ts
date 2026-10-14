@@ -114,10 +114,16 @@ export async function getTargetLiteratureOccurrences(
   const result = await client.query<LiteratureResult>(query, variables);
 
   if (size > 0 && result?.target?.literatureOcurrences?.rows) {
-    result.target.literatureOcurrences.rows = truncateArray(
-      result.target.literatureOcurrences.rows,
-      size
-    );
+    return {
+      ...result,
+      target: {
+        ...result.target,
+        literatureOcurrences: {
+          ...result.target.literatureOcurrences,
+          rows: truncateArray(result.target.literatureOcurrences.rows, size),
+        },
+      },
+    };
   }
 
   return result;

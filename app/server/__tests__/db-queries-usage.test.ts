@@ -77,6 +77,7 @@ describe("usageEventQueries", () => {
       long_context_calls: 0,
       status: "ok",
       usage_estimated: 0,
+      reconciliation_state: "none",
       session_id: null,
       message_id: null,
       turn_id: null,

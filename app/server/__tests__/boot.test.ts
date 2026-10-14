@@ -20,7 +20,7 @@ function freePort(): number {
   return port;
 }
 
-function spawnServer(dbPath: string, actAs: string) {
+function spawnServer(dbPath: string, actAs: string, authEnv: Record<string, string> = {}) {
   const port = freePort();
   const proc = Bun.spawn(["bun", "run", "server/index.ts"], {
     cwd: APP_DIR,
@@ -32,9 +32,11 @@ function spawnServer(dbPath: string, actAs: string) {
       LOG_DIR: join(dir, "logs"),
       MCP_SERVERS_BASE: join(dir, "no-mcp"),
       CLERK_SECRET_KEY: "",
+      AUTH_MODE: "clerk",
       DEV_AGENT_TOKEN: TOKEN,
       DEV_AGENT_EMAIL: actAs,
       LANGFUSE_ENABLED: "false",
+      ...authEnv,
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -107,6 +109,21 @@ const USER_KEYS = [
 ];
 
 describe("server boot", () => {
+  for (const mode of ["clerk", "development"]) {
+    it(`refuses production startup without a Clerk secret with AUTH_MODE=${mode}`, async () => {
+      const { proc } = spawnServer(":memory:", "dev-agent@example.com", { NODE_ENV: "production", AUTH_MODE: mode });
+      const timer = setTimeout(() => proc.kill("SIGKILL"), 20_000);
+      try {
+        expect(await proc.exited).toBe(1);
+        const output = await new Response(proc.stdout).text() + await new Response(proc.stderr).text();
+        expect(output).toContain("Server authentication is not configured");
+        expect(output).not.toContain("Status: Running");
+      } finally {
+        clearTimeout(timer);
+      }
+    }, 30_000);
+  }
+
   it("migrates a fresh DB before listening and serves snake_case rows", async () => {
     const dbPath = join(dir, "fresh.db");
     await withServer(dbPath, "dev-agent@example.com", async (api) => {

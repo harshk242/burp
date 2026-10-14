@@ -68,7 +68,7 @@ describe("transcript compatibility", () => {
     expect(replay.messages).toEqual([
       ...messages, { role: "user", content: "changed question" }, { role: "assistant", content: "changed answer" }, ...messages,
     ]);
-    expect(replay.previousLastIndex).toBe(8);
+    expect(replay.previousLastIndex).toBeUndefined();
     expect(replay.previousFinishedAt).toBeNumber();
     expect(q.modelTranscriptQueries.findBySessionId(sessionId).map((row) => JSON.parse(row.content_json))).toEqual([
       ...messages, ...messages, ...messages,
@@ -95,7 +95,7 @@ describe("transcript compatibility", () => {
   it("carries the last prompt size only with a lossless endpoint", () => {
     seed();
     turn("first", messages);
-    t.sqlite.run("UPDATE chat_turns SET last_prompt_tokens = 1234 WHERE id = 'first'");
+    t.sqlite.run("UPDATE chat_turns SET last_input_message_count = 3, last_input_identity = 'measured', last_prompt_tokens = 1234 WHERE id = 'first'");
     expect(loadTranscript(sessionId, current)).toMatchObject({ previousLastIndex: 2, previousPromptTokens: 1234 });
     turn("changed", messages, { contextVersion: "old-version" });
     t.sqlite.run("UPDATE chat_turns SET last_prompt_tokens = 99 WHERE id = 'changed'");

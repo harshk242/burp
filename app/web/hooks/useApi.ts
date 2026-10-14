@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@/lib/auth";
 import { useCallback } from "react";
 import { buildApiUrl } from "@/lib/api-url";
 
@@ -17,7 +17,7 @@ export function useApi() {
         ...options,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options?.headers,
         },
       });
@@ -33,13 +33,13 @@ export function useApi() {
   );
 
   const get = useCallback(
-    <T>(path: string) => request<T>(path),
+    <T>(path: string, options?: RequestInit) => request<T>(path, options),
     [request]
   );
 
   const post = useCallback(
-    <T>(path: string, body?: unknown) =>
-      request<T>(path, { method: "POST", body: JSON.stringify(body) }),
+    <T>(path: string, body?: unknown, options?: RequestInit) =>
+      request<T>(path, { ...options, method: "POST", body: JSON.stringify(body) }),
     [request]
   );
 

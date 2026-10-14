@@ -180,9 +180,9 @@ describe("processChat reasoning", () => {
   });
 
   it("still meters usage when consuming the full stream", async () => {
-    const { events } = await run([[...thinking("r1", "Hmm."), ...text("t1", "Ok"), finish("stop")]]);
+    const { events, assistant } = await run([[...thinking("r1", "Hmm."), ...text("t1", "Ok"), finish("stop")]]);
 
-    expect(events.find((e) => e.type === "usage")?.data).toEqual({ inputTokens: 100, outputTokens: 50 });
+    expect(events.find((e) => e.type === "done")?.data).toEqual({ messageId: assistant!.id, inputTokens: 100, outputTokens: 50 });
     const rows = t.sqlite.query<Record<string, unknown>, []>("SELECT status, llm_calls FROM usage_events").all();
     expect(rows).toEqual([{ status: "ok", llm_calls: 1 }]);
   });

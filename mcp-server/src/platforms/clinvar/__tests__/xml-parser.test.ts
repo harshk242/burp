@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseESummaryResult, parseVCVRecord } from '../xml-parser.js';
+import { parseESearchResult, parseESummaryResult, parseVCVRecord } from '../xml-parser.js';
 import { normalizeClinicalSignificance, toVariationId } from '../utils.js';
 
 const ESUMMARY = `<?xml version="1.0" encoding="UTF-8" ?>
@@ -116,5 +116,44 @@ describe('toVariationId', () => {
     expect(toVariationId('17661')).toBe('17661');
     expect(toVariationId('VCV000017661')).toBe('17661');
     expect(toVariationId('VCV000017661.150')).toBe('17661');
+  });
+});
+
+describe('XML boundary validation', () => {
+  it.each([
+    VCV.replace('VariationID="5005761"', ''),
+    VCV.replace('VariationName="NM_007294.4(BRCA1):c.387del (p.Tyr130fs)"', ''),
+    VCV.replace('Version="1"', 'Version="invalid"'),
+    VCV.replace('ID="15275337"', ''),
+    VCV.replace('Symbol="BRCA1"', ''),
+    VCV.replace('SubmitterName="Juno Genomics"', ''),
+    '<unexpected/>',
+    '<ClinVarResult-Set><VariationArchive>bad</VariationArchive></ClinVarResult-Set>',
+  ])('rejects malformed VCV records instead of emitting incomplete domain records', xml => {
+    expect(() => parseVCVRecord(xml)).toThrow();
+  });
+  it('requires a summary identifier and name', () => {
+    expect(() => parseESummaryResult(ESUMMARY.replace('uid="5005761"', ''))).toThrow('variation ID');
+    expect(() => parseESummaryResult('<eSummaryResult><DocSum><Id>1</Id></DocSum></eSummaryResult>')).toThrow('variant name');
+  });
+  it('normalizes singleton and repeated summary records', () => {
+    const doc = '<DocumentSummary uid="1"><title>variant</title></DocumentSummary>';
+    expect(parseESummaryResult(`<eSummaryResult><DocumentSummarySet>${doc}${doc}</DocumentSummarySet></eSummaryResult>`)).toHaveLength(2);
+    expect(parseESummaryResult(`<eSummaryResult><DocumentSummarySet>${doc}</DocumentSummarySet></eSummaryResult>`)).toHaveLength(1);
+  });
+  it('preserves new upstream classification terms without type assertions', () => {
+    expect(parseESummaryResult(ESUMMARY.replace('<description>Pathogenic</description>', '<description>Pathogenic/Likely pathogenic</description>'))[0].clinicalSignificance?.description).toBe('Pathogenic/Likely pathogenic');
+  });
+});
+
+describe('ESearch boundary decoding', () => {
+  it('normalizes singleton identifiers and validates the required count', () => {
+    expect(parseESearchResult('<eSearchResult><Count>1</Count><IdList><Id>123</Id></IdList></eSearchResult>')).toEqual({ count: 1, idList: ['123'] });
+    expect(() => parseESearchResult('<eSearchResult><Count>bad</Count></eSearchResult>')).toThrow('Count');
+    expect(() => parseESearchResult('<eSearchResult><IdList/></eSearchResult>')).toThrow('Count');
+  });
+  it('propagates upstream error envelopes instead of returning empty records', () => {
+    expect(() => parseESearchResult('<eSearchResult><ERROR>invalid query</ERROR></eSearchResult>')).toThrow('invalid query');
+    expect(() => parseESummaryResult('<eSummaryResult><ERROR>invalid identifier</ERROR></eSummaryResult>')).toThrow('invalid identifier');
   });
 });

@@ -22,7 +22,11 @@ function isPrimaryKeyConflict(err: unknown): boolean {
   return false;
 }
 
+export const MAX_TEXT_RANGE_CHARS = 16_000;
+
 export interface Artifact {
+  type: "json" | "text";
+  storedSizeBytes: number;
   id: string;
   sessionId: string;
   toolName: string;
@@ -30,12 +34,12 @@ export interface Artifact {
   data: unknown;
   rawSizeChars: number;
   storedSizeChars: number;
-  createdAt: number;
-  expiresAt: number;
-  lastAccessedAt: number;
+  createdAtMs: number;
+  expiresAtMs: number;
+  lastAccessedAtMs: number;
 }
 
-export type ExpiredArtifact = Pick<Artifact, "id" | "toolName" | "toolInput" | "createdAt">;
+export type ExpiredArtifact = Pick<Artifact, "id" | "toolName" | "toolInput" | "createdAtMs">;
 
 export type ArtifactLookup =
   | { status: "ok"; artifact: Artifact }
@@ -54,7 +58,7 @@ function formatAge(ms: number): string {
 
 export function expiredArtifactMessage(artifact: ExpiredArtifact, now = Date.now()): string {
   return (
-    `Artifact ${artifact.id} expired (fetched ${formatAge(now - artifact.createdAt)} ago). ` +
+    `Artifact ${artifact.id} expired (fetched ${formatAge(now - artifact.createdAtMs)} ago). ` +
     `Re-run \`${artifact.toolName}\` with ${JSON.stringify(artifact.toolInput ?? {})} for current data.`
   );
 }
@@ -77,11 +81,14 @@ export class ArtifactStore {
     toolInput: unknown,
     data: unknown,
     rawSizeChars: number,
+    type: "json" | "text" = "json",
   ): string {
-    const json = JSON.stringify(data);
+    if (type === "text" && typeof data !== "string") throw new Error("Text artifacts require string data");
+    const json = type === "text" ? data as string : JSON.stringify(data);
+    const uncompressedUtf8Bytes = Buffer.byteLength(json, "utf8");
     const gzipped = Buffer.from(Bun.gzipSync(json));
     const now = Date.now();
-    const expiresAt = now + appConfig.artifact.db_ttl_hours * 3_600_000;
+    const expiresAtMs = now + appConfig.artifact.db_ttl_hours * 3_600_000;
 
     let id = generateArtifactId();
     let persisted = false;
@@ -93,10 +100,12 @@ export class ArtifactStore {
           tool_name: toolName,
           tool_input_json: JSON.stringify(toolInput ?? null),
           data: gzipped,
+          artifact_type: type,
+          stored_size_bytes: uncompressedUtf8Bytes,
           raw_size_chars: rawSizeChars,
           stored_size_chars: json.length,
           created_at: Math.floor(now / 1000),
-          expires_at: Math.floor(expiresAt / 1000),
+          expires_at: Math.floor(expiresAtMs / 1000),
         });
         persisted = true;
         break;
@@ -116,6 +125,8 @@ export class ArtifactStore {
     while (!persisted && this.artifacts.has(id)) id = generateArtifactId();
 
     const artifact: Artifact = {
+      type,
+      storedSizeBytes: uncompressedUtf8Bytes,
       id,
       sessionId,
       toolName,
@@ -123,9 +134,9 @@ export class ArtifactStore {
       data,
       rawSizeChars,
       storedSizeChars: json.length,
-      createdAt: now,
-      expiresAt,
-      lastAccessedAt: now,
+      createdAtMs: now,
+      expiresAtMs,
+      lastAccessedAtMs: now,
     };
 
     this.artifacts.set(id, artifact);
@@ -160,11 +171,11 @@ export class ArtifactStore {
     const cached = this.artifacts.get(id);
     if (cached) {
       if (cached.sessionId !== sessionId) return { status: "missing" };
-      if (now >= cached.expiresAt) {
+      if (now >= cached.expiresAtMs) {
         this.artifacts.delete(id);
         return { status: "expired", artifact: cached };
       }
-      cached.lastAccessedAt = now;
+      cached.lastAccessedAtMs = now;
       return { status: "ok", artifact: cached };
     }
 
@@ -175,21 +186,23 @@ export class ArtifactStore {
     if (now >= row.expires_at * 1000) {
       return {
         status: "expired",
-        artifact: { id: row.id, toolName: row.tool_name, toolInput, createdAt: row.created_at * 1000 },
+        artifact: { id: row.id, toolName: row.tool_name, toolInput, createdAtMs: row.created_at * 1000 },
       };
     }
 
     const artifact: Artifact = {
+      type: row.artifact_type,
+      storedSizeBytes: row.stored_size_bytes,
       id: row.id,
       sessionId: row.session_id,
       toolName: row.tool_name,
       toolInput,
-      data: JSON.parse(new TextDecoder().decode(Bun.gunzipSync(new Uint8Array(row.data)))),
+      data: this.decode(row.data, row.artifact_type),
       rawSizeChars: row.raw_size_chars,
       storedSizeChars: row.stored_size_chars,
-      createdAt: row.created_at * 1000,
-      expiresAt: row.expires_at * 1000,
-      lastAccessedAt: now,
+      createdAtMs: row.created_at * 1000,
+      expiresAtMs: row.expires_at * 1000,
+      lastAccessedAtMs: now,
     };
     this.artifacts.set(artifact.id, artifact);
     return { status: "ok", artifact };
@@ -199,6 +212,7 @@ export class ArtifactStore {
     id: string,
     sessionId: string,
     jqFilter: string,
+    signal?: AbortSignal,
   ): Promise<{ result: unknown; truncated?: boolean; error?: string }> {
     const lookup = this.get(id, sessionId);
     if (lookup.status === "missing") {
@@ -211,7 +225,29 @@ export class ArtifactStore {
       return { result: null, error: expiredArtifactMessage(lookup.artifact) };
     }
 
-    return executeJq(lookup.artifact.data, jqFilter);
+    if (lookup.artifact.type !== "json") {
+      return { result: null, error: "Text artifacts require text_range inspection instead of jq_filter." };
+    }
+    return executeJq(lookup.artifact.data, jqFilter, { signal });
+  }
+
+  private decode(data: Buffer, type: "json" | "text"): unknown {
+    const text = new TextDecoder().decode(Bun.gunzipSync(new Uint8Array(data)));
+    return type === "text" ? text : JSON.parse(text);
+  }
+
+  readText(id: string, sessionId: string, start: number, length: number) {
+    const lookup = this.get(id, sessionId);
+    if (lookup.status === "missing") return { error: "Artifact not found in this session." };
+    if (lookup.status === "expired") return { error: expiredArtifactMessage(lookup.artifact) };
+    if (lookup.artifact.type !== "text") return { error: "JSON artifacts require jq_filter inspection." };
+    if (!Number.isSafeInteger(start) || start < 0 || !Number.isSafeInteger(length) || length < 1 || length > MAX_TEXT_RANGE_CHARS) {
+      return { error: "text_range requires a nonnegative start and length between 1 and " + MAX_TEXT_RANGE_CHARS + " UTF-16 code units." };
+    }
+    const text = lookup.artifact.data as string;
+    const end = Math.min(start + length, text.length);
+    if (start > text.length) return { error: "text_range start exceeds the artifact length." };
+    return { text: text.slice(start, end), start, end, total_chars: text.length, next_start: end < text.length ? end : null };
   }
 
   isCached(id: string): boolean {
@@ -224,7 +260,7 @@ export class ArtifactStore {
     const expired: string[] = [];
 
     for (const [id, artifact] of this.artifacts) {
-      if (now - artifact.lastAccessedAt > ttlMs || now >= artifact.expiresAt) {
+      if (now - artifact.lastAccessedAtMs > ttlMs || now >= artifact.expiresAtMs) {
         expired.push(id);
       }
     }

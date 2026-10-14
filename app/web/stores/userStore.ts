@@ -1,33 +1,8 @@
 import { create } from "zustand";
 import type { User } from "@/types";
 
-export interface TokenUsageInfo {
-  used_today: number;
-  limit: number;
-  remaining: number;
-  input_today: number;
-  output_today: number;
-}
-
-export interface CostUsageInfo {
-  daily_used_microusd: number;
-  daily_limit_microusd: number;
-  daily_remaining_microusd: number;
-  daily_reset_at: number;
-  monthly_used_microusd: number;
-  monthly_limit_microusd: number;
-  monthly_remaining_microusd: number;
-  monthly_reset_at: number;
-}
-
-export interface UsageInfo {
-  used: number;
-  limit: number;
-  remaining: number;
-  resetAt: number;
-  tokens?: TokenUsageInfo;
-  cost?: CostUsageInfo;
-}
+import type { UsageInfo } from "../../shared/usage";
+export type { TokenUsageInfo, CostUsageInfo, UsageInfo } from "../../shared/usage";
 
 interface UserState {
   user: User | null;

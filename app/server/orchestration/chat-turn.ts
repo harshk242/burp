@@ -1,6 +1,6 @@
 import { AISDKError, type ProviderMetadata } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { db, chatSessionQueries, chatTurnQueries, messageQueries, type ChatTurnOutcome } from "../db";
+import { db, chatSessionQueries, chatTurnQueries, messageQueries } from "../db";
 import { logger, type LogContext } from "../logger";
 import { turnSignals, writeTurnScores } from "../observability/turn-signals";
 
@@ -129,22 +129,6 @@ export function recordTraceId(turnId: string, traceId: string | null, ctx: LogCo
     chatTurnQueries.setTraceId(turnId, traceId);
   } catch (error) {
     logger.warn("TRACE", "trace_id_write_failed", { ctx, error: error instanceof Error ? error : String(error) });
-  }
-}
-
-export function finishFailedTurn(turnId: string, outcome: ChatTurnOutcome, ctx: LogContext): void {
-  try {
-    chatTurnQueries.finish(turnId, outcome);
-    logger.info("CHAT", "turn_finished", {
-      ctx,
-      data: { turn_id: turnId, status: outcome.status, error_code: outcome.errorCode, iterations: outcome.iterations },
-    });
-  } catch (error) {
-    logger.error("CHAT", "turn_finish_failed", {
-      ctx,
-      error: error instanceof Error ? error : String(error),
-      data: { turn_id: turnId, status: outcome.status, error_code: outcome.errorCode },
-    });
   }
 }
 

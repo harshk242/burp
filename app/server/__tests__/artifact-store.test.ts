@@ -57,6 +57,22 @@ function rowCount(): number {
 }
 
 describe("ArtifactStore", () => {
+  it("budgets serialized UTF-8 bytes rather than UTF-16 characters or compressed size", () => {
+    const data = { p: "🧬漢é".repeat(30) };
+    const json = JSON.stringify(data);
+    const bytes = Buffer.byteLength(json, "utf8");
+    expect(bytes).toBeGreaterThan(json.length);
+    appConfig.artifact.max_session_bytes = bytes * 2 - 1;
+    const first = store.store(SESSION, TOOL, INPUT, data, json.length);
+    const second = store.store(SESSION, TOOL, INPUT, data, json.length);
+    expect(sessionIds(SESSION)).toEqual([second]);
+    expect(store.isCached(first)).toBe(false);
+    expect(q.artifactQueries.findForSession(second, SESSION)!.stored_size_bytes).toBe(bytes);
+    store.clear();
+    const lookup = store.get(second, SESSION);
+    expect(lookup.status === "ok" && lookup.artifact.storedSizeBytes).toBe(bytes);
+  });
+
   it("store() writes a gzipped row and warms memory", () => {
     const id = store.store(SESSION, TOOL, INPUT, DATA, 9000);
     const json = JSON.stringify(DATA);

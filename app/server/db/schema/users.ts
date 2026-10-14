@@ -20,10 +20,8 @@ export const users = sqliteTable(
     daily_cost_limit_microusd: integer("daily_cost_limit_microusd"),
     monthly_cost_limit_microusd: integer("monthly_cost_limit_microusd"),
   },
-  (t) => [
+  () => [
     check("users_role_check", sql`role IN ('waitlist', 'user', 'admin')`),
-    index("idx_users_clerk_id").on(t.clerk_id),
-    index("idx_users_email").on(t.email),
   ],
 );
 

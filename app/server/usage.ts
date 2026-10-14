@@ -1,3 +1,5 @@
+import type { EpochSeconds } from "../shared/usage";
+import { UNLIMITED } from "../shared/limits";
 import { appConfig, type AppConfig, type ModelPricing } from "./config";
 
 export const MICROUSD_PER_USD = 1_000_000;
@@ -15,8 +17,8 @@ export function usdToMicrousd(usd: number): number {
 }
 
 export function defaultCostLimitMicrousd(usdLimit: number, isAdmin: boolean): number {
-  if (isAdmin) return -1;
-  if (usdLimit === -1) return -1;
+  if (isAdmin) return UNLIMITED;
+  if (usdLimit === UNLIMITED) return UNLIMITED;
   return usdToMicrousd(usdLimit);
 }
 
@@ -43,7 +45,7 @@ export function resolveEffectiveLimits(
   const isAdmin = role === "admin";
   return {
     daily_query_limit: user.daily_query_limit ?? roleQueryLimit,
-    daily_token_limit: user.daily_token_limit ?? (isAdmin ? -1 : config.rate_limits.default_daily_tokens),
+    daily_token_limit: user.daily_token_limit ?? (isAdmin ? UNLIMITED : config.rate_limits.default_daily_tokens),
     daily_cost_limit_microusd:
       user.daily_cost_limit_microusd ??
       defaultCostLimitMicrousd(config.usage.default_daily_cost_limit_usd, isAdmin),
@@ -54,7 +56,7 @@ export function resolveEffectiveLimits(
 }
 
 export function getRemainingMicrousd(limitMicrousd: number, usedMicrousd: number): number {
-  return limitMicrousd === -1 ? -1 : Math.max(0, limitMicrousd - usedMicrousd);
+  return limitMicrousd === UNLIMITED ? UNLIMITED : Math.max(0, limitMicrousd - usedMicrousd);
 }
 
 export function getUtcDate(date = new Date()): string {
@@ -65,14 +67,14 @@ export function getUtcMonth(date = new Date()): string {
   return date.toISOString().slice(0, 7);
 }
 
-export function getNextUtcMidnight(date = new Date()): number {
+export function getNextUtcMidnight(date = new Date()): EpochSeconds {
   const resetDate = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1)
   );
   return Math.floor(resetDate.getTime() / 1000);
 }
 
-export function getNextUtcMonthStart(date = new Date()): number {
+export function getNextUtcMonthStart(date = new Date()): EpochSeconds {
   const resetDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
   return Math.floor(resetDate.getTime() / 1000);
 }

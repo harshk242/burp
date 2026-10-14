@@ -8,6 +8,7 @@ import { processChat, generateSessionTitle } from "../orchestration/chat-v2";
 import { chatSessionQueries, messageQueries } from "../db";
 import { logger } from "../logger";
 import { appConfig } from "../config";
+import { userCostBudgets } from "../orchestration/user-cost-budget";
 import { encodeSSE } from "./sse-encode";
 
 import type { AppEnv } from "../types";
@@ -42,8 +43,7 @@ The agent can query 10 biomedical databases:
 - \`text_block_end\` - Preceding text was pre-tool-call reasoning
 - \`tool_start\` - Tool execution started
 - \`tool_end\` - Tool execution completed
-- \`done\` - Response complete
-- \`usage\` - Token totals for the turn
+- \`done\` - Response complete (\`{ messageId, inputTokens, outputTokens }\`)
 - \`title\` - Generated session title
 - \`error\` - Turn failed (\`{ error, code? }\`; \`code\` is e.g. \`turn_in_progress\` when a reply is already running in the session, or \`refusal\`)`,
   security: [{ bearerAuth: [] }],
@@ -79,7 +79,7 @@ event: text
 data: "Found 5 proteins related to EGFR..."
 
 event: done
-data: {"messageId":"0b6c1f5e-6a1d-4e5b-9d65-0f2a4c8e7a11"}`,
+data: {"messageId":"0b6c1f5e-6a1d-4e5b-9d65-0f2a4c8e7a11","inputTokens":100,"outputTokens":50}`,
           }),
         },
       },
@@ -144,6 +144,7 @@ chat.openapi(chatRoute, async (c) => {
     const abortController = new AbortController();
     stream.onAbort(() => abortController.abort());
 
+    const costBudget = userCostBudgets.acquire(userId, c.get("effectiveLimits"));
     try {
       const titlePromise = shouldGenerateTitle
         ? generateSessionTitle(sessionId, firstUserMessage || message).catch(
@@ -154,7 +155,9 @@ chat.openapi(chatRoute, async (c) => {
           )
         : null;
 
-      for await (const event of processChat(sessionId, userId, message, abortController.signal)) {
+      for await (const event of processChat(sessionId, userId, message, abortController.signal, {
+        costBudget, onUsageRecorded: () => costBudget.release(),
+      })) {
         await stream.writeSSE(encodeSSE(event.type, event.data));
       }
 
@@ -168,6 +171,8 @@ chat.openapi(chatRoute, async (c) => {
       if (abortController.signal.aborted) return;
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       await stream.writeSSE(encodeSSE("error", { error: errorMsg }));
+    } finally {
+      costBudget.release();
     }
   });
 });

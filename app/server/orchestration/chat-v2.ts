@@ -2,7 +2,6 @@ import type { ModelMessage, ToolResultPart } from "ai";
 import { sanitizeToolName, type TurnLLMOverride } from "../llm";
 import { chatSessionQueries } from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
-import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
 import { appendTranscript, loadTranscript } from "./context/transcript";
 import { toolRegistry } from "../mcp/registry";
@@ -17,7 +16,6 @@ import {
   TurnError,
   acquireSessionLock,
   classifyTurnError,
-  finishFailedTurn,
   recordTraceId,
   registerActiveTurn,
   refusalError,
@@ -37,6 +35,7 @@ export { generateSessionTitle } from "./session-title";
 export interface ProcessChatOptions {
   traceParent?: TraceParent;
   costBudget?: CostBudget;
+  onUsageRecorded?: () => void;
   llm?: TurnLLMOverride;
 }
 
@@ -49,7 +48,7 @@ export async function* processChat(
 ): AsyncGenerator<StreamEvent> {
   const chatElapsed = startTimer();
   const ctx: LogContext = { session_id: sessionId, user_id: userId };
-  const { llmConfig, providerOptions, transcriptTag, generationParameters } = resolveTurnLLM(options.llm);
+  const { llmConfig, providerOptions, transcriptTag, generationParameters, systemPrompt } = resolveTurnLLM(options.llm);
   const sanitize = (name: string) => sanitizeToolName(name, llmConfig.provider);
 
   logger.info("CHAT", "process_start", {
@@ -157,10 +156,10 @@ export async function* processChat(
     const reasoningBlocks: string[] = [];
     const allToolCalls: ToolCallRecord[] = [];
     const caching = llmConfig.provider === "anthropic";
-    const instructions = caching ? cachedInstructions(SYSTEM_PROMPT) : SYSTEM_PROMPT;
+    const instructions = caching ? cachedInstructions(systemPrompt) : systemPrompt;
     let previousLastIndex = history.previousLastIndex;
     if (previousLastIndex !== undefined && history.previousPromptTokens !== undefined) {
-      tracker.carryOver(history.previousPromptTokens, previousLastIndex + 1);
+      tracker.carryOver(history.previousPromptTokens, previousLastIndex + 1, history.previousInputIdentity);
     }
 
     while (continueLoop) {
@@ -211,7 +210,7 @@ export async function* processChat(
         finishReason,
         toolCalls: toolCalls?.length ?? 0,
         toolNames: Object.keys(declarationTools),
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: systemPrompt,
       });
       tracker.finish(call);
       budget.chargeCall(call.costPicoUsd);
@@ -294,9 +293,12 @@ export async function* processChat(
       toolCalls: allToolCalls,
       iterations: loopIteration,
       lastPromptTokens: tracker.lastPromptTokens,
+      lastInputMessageCount: tracker.lastInputMessageCount,
+      lastInputIdentity: tracker.lastInputIdentity,
       ...signals,
     });
     ledgerWritten = true;
+    options.onUsageRecorded?.();
     trace.end({
       status: "ok",
       output: persistedAssistantText,
@@ -319,8 +321,10 @@ export async function* processChat(
       },
     });
 
-    yield { type: "done", data: { messageId: assistantMsgId } };
-    yield { type: "usage", data: { inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens } };
+    yield {
+      type: "done",
+      data: { messageId: assistantMsgId, inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens },
+    };
   } catch (error) {
     if (turnSignal.aborted) {
       const message = turnAbort.signal.aborted ? "Server shutting down" : "Client disconnected";
@@ -337,46 +341,44 @@ export async function* processChat(
     });
     yield { type: "error", data: { error: failure.userMessage, code: failure.code } };
   } finally {
-    if (!ledgerWritten) {
-      turnAbort.abort();
-      const errorCode = failure?.code ?? "closed";
-      const cutOffCall = recordFailedTurn({
-        meter,
-        tracker,
-        userId,
-        sessionId,
-        turnId,
-        provider: llmConfig.provider,
-        model: llmConfig.chatModel,
-        ctx,
-        errorCode,
-      });
-      budget.reconcile(meter.summary().costPicoUsd);
-      const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
-      if (turnId) {
-        finishFailedTurn(
+    try {
+      if (!ledgerWritten) {
+        turnAbort.abort();
+        const errorCode = failure?.code ?? "closed";
+        const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
+        const cutOffCall = recordFailedTurn({
+          meter,
+          tracker,
+          userId,
+          sessionId,
           turnId,
-          {
+          provider: llmConfig.provider,
+          model: llmConfig.chatModel,
+          ctx,
+          errorCode,
+          outcome: {
             status: errorCode === "aborted" || errorCode === "closed" ? "aborted" : "error",
-            errorCode,
-            errorMessage,
-            iterations: loopIteration,
-            ...signals,
+            errorCode, errorMessage, iterations: loopIteration, ...signals,
           },
-          ctx
-        );
+        });
+        budget.reconcile(meter.summary().costPicoUsd);
+        trace.end({
+          status: errorCode === "aborted" || errorCode === "closed" ? errorCode : "error",
+          errorCode,
+          message: errorMessage,
+          metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
+          cutOffCall,
+          tags: errorCode === "budget_exceeded" ? ["budget_exceeded"] : undefined,
+        });
+        if (turnId) scoreTurn(turnId, ctx, trace.scoreObservationId);
+        options.onUsageRecorded?.();
       }
-      trace.end({
-        status: errorCode === "aborted" || errorCode === "closed" ? errorCode : "error",
-        errorCode,
-        message: errorMessage,
-        metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
-        cutOffCall,
-        tags: errorCode === "budget_exceeded" ? ["budget_exceeded"] : undefined,
-      });
-      if (turnId) scoreTurn(turnId, ctx, trace.scoreObservationId);
+    } finally {
+      try {
+        releaseLock?.();
+      } finally {
+        drained();
+      }
     }
-    releaseLock?.();
-    drained();
   }
 }

@@ -196,7 +196,7 @@ describe('429 handling', () => {
   it('wait: falls back to x-ratelimit-reset when Retry-After is unusable', async () => {
     const sleep = vi.fn().mockResolvedValue(undefined);
     const headers = { 'retry-after': '-1', 'x-ratelimit-reset': '3' };
-    const { client } = stubClient([{ status: 429, headers }, 200], {}, { deps: { sleep } });
+    const { client } = stubClient([{ status: 429, headers }, 200], { rateLimitResetHeader: { name: 'x-ratelimit-reset', semantics: 'relative-seconds' } }, { deps: { sleep } });
     await expect(client.get('/x')).resolves.toMatchObject({ status: 200 });
     expect(sleep).toHaveBeenCalledWith(3_000, expect.any(AbortSignal));
   });
@@ -217,8 +217,8 @@ describe('429 handling', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('reports defaultRetryAfterMs only when the 429 carries no usable wait', async () => {
-    const policy = { on429: 'fail' as const, defaultRetryAfterMs: 5_000 };
+  it('reports fallbackReportedRetryAfterMs only when the 429 carries no usable wait', async () => {
+    const policy = { on429: 'fail' as const, fallbackReportedRetryAfterMs: 5_000 };
     const bare = stubClient([429], policy);
     expect(await rejection(bare.client.get('/x'))).toMatchObject({ kind: 'rate_limited', retryAfterMs: 5_000 });
     const directed = stubClient([rateLimited], policy);
@@ -253,5 +253,15 @@ describe('beforeAttempt', () => {
     const { client, calls } = stubClient([200], { beforeAttempt: async () => { throw failure; } });
     expect(await rejection(client.get('/x'))).toBe(failure);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('reported retry hint', () => {
+  it('does not sleep for the fallback hint on an undirected 429', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const { client, calls } = stubClient([429, 200], { on429: 'wait', fallbackReportedRetryAfterMs: 7000 }, { deps: { sleep } });
+    expect(await rejection(client.get('/x'))).toMatchObject({ retryAfterMs: 7000 });
+    expect(calls).toHaveLength(1);
+    expect(sleep).not.toHaveBeenCalled();
   });
 });

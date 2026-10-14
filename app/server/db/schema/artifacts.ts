@@ -11,6 +11,8 @@ export const artifacts = sqliteTable(
     tool_name: text("tool_name").notNull(),
     tool_input_json: text("tool_input_json").notNull(),
     data: blob("data", { mode: "buffer" }).notNull(),
+    artifact_type: text("artifact_type", { enum: ["json", "text"] }).notNull().default("json"),
+    stored_size_bytes: integer("stored_size_bytes").notNull().default(0),
     raw_size_chars: integer("raw_size_chars").notNull(),
     stored_size_chars: integer("stored_size_chars").notNull(),
     created_at: integer("created_at").notNull(),
