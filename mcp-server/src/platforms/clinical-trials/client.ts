@@ -103,7 +103,7 @@ export function initClient(
   client = createClinicalTrialsClient(options);
 }
 
-export function cleanupClient(): void {
+export function resetClient(): void {
   client = null;
 }
 

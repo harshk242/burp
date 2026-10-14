@@ -160,7 +160,7 @@ export interface SearchResult<T> {
 
 export interface PharmGKBClientOptions {
   cacheTtl?: number;
-  maxRetries?: number;
+  maxAttempts?: number;
   retryDelay?: number;
   adapter?: AxiosAdapter;
   retryDeps?: RetryDeps;

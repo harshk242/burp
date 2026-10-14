@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { UpstreamError } from '../../../shared/exceptions.js';
 import { callTool, rejection, stubAdapter, toolText, type Step } from '../../../shared/__tests__/retry-test-utils.js';
-import { CLINICAL_TRIALS_POLICY, cleanupClient, fetchStudies, initClient } from '../client.js';
+import { CLINICAL_TRIALS_POLICY, resetClient, fetchStudies, initClient } from '../client.js';
 import { handlers } from '../tools/index.js';
 
 function stubClinicalTrials(steps: Step[]) {
@@ -31,7 +31,7 @@ function failWith(status: number, body: unknown, contentType: string) {
 }
 
 afterEach(() => {
-  cleanupClient();
+  resetClient();
 });
 
 describe('CLINICAL_TRIALS_POLICY', () => {

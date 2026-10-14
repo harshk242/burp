@@ -48,7 +48,7 @@ export function scoreConfigBody(m: Metric): ScoreConfigBody {
   };
 }
 
-function definition(c: ScoreConfigBody): string {
+function scoreDefinitionFields(c: ScoreConfigBody): string {
   return canonicalJson({
     dataType: c.dataType,
     minValue: c.minValue ?? null,
@@ -116,10 +116,10 @@ function planConfigs(metrics: Metric[], remote: RemoteScoreConfig[], plan: SyncP
       plan.report.push(`  + ${m.name} (${m.data_type})`);
       continue;
     }
-    if (definition(existing) !== definition(local)) {
+    if (scoreDefinitionFields(existing) !== scoreDefinitionFields(local)) {
       plan.conflicts.push(
-        `score config ${m.name} exists with a different definition (remote ${definition(existing)} vs local ` +
-          `${definition(local)}). Changed definitions need a new metric name; configs are never edited.`,
+        `score config ${m.name} exists with a different definition (remote ${scoreDefinitionFields(existing)} vs local ` +
+          `${scoreDefinitionFields(local)}). Changed definitions need a new metric name; configs are never edited.`,
       );
       plan.report.push(`  ! ${m.name} (definition differs)`);
       continue;

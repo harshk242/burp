@@ -4,7 +4,7 @@ import { evaluateItem } from "../evaluators";
 import type { TaskOutput } from "../evaluators/types";
 import type { DatasetItem } from "./schema";
 import { runEvaluations, summarizeRun, type ItemRun, type RunSummary } from "./aggregate";
-import { countsTowardScores } from "./schema";
+import { isEligibleForPassFail } from "./schema";
 import { createItemTask, type TaskContext } from "./task";
 
 export type FetchedItem = FetchedDataset["items"][number];
@@ -40,7 +40,7 @@ function toItemRun(result: ExperimentItemResult, evalItems: Map<string, DatasetI
   const output = result.output as TaskOutput;
   return {
     itemId: output.item_id,
-    reviewed: countsTowardScores(evalItem(evalItems, output.item_id)),
+    reviewed: isEligibleForPassFail(evalItem(evalItems, output.item_id)),
     output,
     evaluations: result.evaluations.map((e) => ({ name: e.name, value: e.value as number | string })),
   };

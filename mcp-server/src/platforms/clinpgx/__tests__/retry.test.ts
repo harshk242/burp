@@ -76,13 +76,13 @@ describe('PharmGKBClient on the shared retry', () => {
     expect(slow.calls).toHaveLength(1);
   });
 
-  it('honours constructor maxRetries/retryDelay overrides', async () => {
-    const { client, calls, sleep } = stubClinPGx([503], { maxRetries: 2, retryDelay: 50 });
+  it('honours constructor maxAttempts/retryDelay overrides', async () => {
+    const { client, calls, sleep } = stubClinPGx([503], { maxAttempts: 2, retryDelay: 50 });
     expect(await rejection(client.searchGenes('CYP2D6'))).toMatchObject({ kind: 'upstream_unavailable', attempts: 2 });
     expect(calls).toHaveLength(2);
     expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([50]);
 
-    const longer = stubClinPGx(['network'], { maxRetries: 4, retryDelay: 10 });
+    const longer = stubClinPGx(['network'], { maxAttempts: 4, retryDelay: 10 });
     await rejection(longer.client.searchGenes('CYP2D6'));
     expect(longer.calls).toHaveLength(4);
     expect(longer.sleep.mock.calls.map(([ms]) => ms)).toEqual([10, 20, 40]);

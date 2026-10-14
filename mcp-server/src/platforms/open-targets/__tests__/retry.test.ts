@@ -90,13 +90,13 @@ describe('OpenTargetsClient on the shared retry', () => {
     expect(slow.calls).toHaveLength(1);
   });
 
-  it('honours constructor maxRetries/retryDelay overrides', async () => {
-    const { client, calls, sleep } = stubOpenTargets([503], { maxRetries: 2, retryDelay: 50 });
+  it('honours constructor maxAttempts/retryDelay overrides', async () => {
+    const { client, calls, sleep } = stubOpenTargets([503], { maxAttempts: 2, retryDelay: 50 });
     expect(await rejection(client.query(QUERY))).toMatchObject({ kind: 'upstream_unavailable', attempts: 2 });
     expect(calls).toHaveLength(2);
     expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([50]);
 
-    const longer = stubOpenTargets([429], { maxRetries: 4, retryDelay: 10 });
+    const longer = stubOpenTargets([429], { maxAttempts: 4, retryDelay: 10 });
     await rejection(longer.client.query(QUERY));
     expect(longer.calls).toHaveLength(4);
     expect(longer.sleep.mock.calls.map(([ms]) => ms)).toEqual([10, 20, 40]);

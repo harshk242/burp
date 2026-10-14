@@ -183,19 +183,10 @@ export function init(_env: Record<string, string | undefined>, options: EnsemblC
   apiClient = createEnsemblClient(options);
 }
 
-export function cleanup(): void {
+export function resetClient(): void {
   apiClient = null;
 }
 
 export function getDefaultSpecies(species?: string): string {
   return species || 'homo_sapiens';
-}
-
-export function formatGenomicRegion(region: string): string {
-  if (region.includes(':') && region.includes('-')) {
-    return region;
-  } else if (region.startsWith('ENS')) {
-    return region;
-  }
-  return region;
 }

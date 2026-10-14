@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EVALS_DIR, EvalLoadError, loadEvalHome } from "../lib/load";
-import { countsTowardScores } from "../lib/schema";
+import { isEligibleForPassFail } from "../lib/schema";
 
 const tempDirs: string[] = [];
 afterEach(() => {
@@ -66,9 +66,9 @@ describe("eval home", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("keeps all AI-drafted items out of scoring until reviewed", () => {
+  it("keeps all AI-drafted items out of pass/fail until reviewed", () => {
     const items = home.datasets.flatMap((d) => d.dataset.items);
-    expect(items.filter(countsTowardScores)).toEqual([]);
+    expect(items.filter(isEligibleForPassFail)).toEqual([]);
   });
 
   it("starts every deep turn 1 with the shared instructions; 05 has no preamble on turn 2", () => {

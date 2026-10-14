@@ -102,7 +102,7 @@ export function init(_env: Record<string, string | undefined>, options: ChemblCl
   apiClient = createChemblClient(options);
 }
 
-export function cleanup(): void {
+export function resetClient(): void {
   apiClient = null;
 }
 

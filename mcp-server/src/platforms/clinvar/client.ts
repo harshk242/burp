@@ -25,7 +25,7 @@ import type {
 const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const CLINICAL_TABLES_URL = 'https://clinicaltables.nlm.nih.gov/api/variants/v4';
 const DEFAULT_CACHE_TTL = 3600 * 1000;
-const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY = 1000;
 
 function exponentialBackoff(baseMs: number): (attempt: number) => number {
@@ -33,7 +33,7 @@ function exponentialBackoff(baseMs: number): (attempt: number) => number {
 }
 
 export const CLINVAR_NCBI_POLICY: RetryPolicy = Object.freeze({
-  maxAttempts: DEFAULT_MAX_RETRIES,
+  maxAttempts: DEFAULT_MAX_ATTEMPTS,
   backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
   retryOn: isRetryableTransportOr5xx,
   totalBudgetMs: 40_000,
@@ -75,7 +75,7 @@ export function createClinicalTablesHttp(options: ClinVarHttpOptions = {}): Axio
 export class ClinVarClient {
   private readonly apiKey?: string;
   private readonly cacheTtl: number;
-  private readonly maxRetries: number;
+  private readonly maxAttempts: number;
   private readonly retryDelay: number;
   private readonly cache: Map<string, CacheEntry>;
   private readonly rateLimiter: TokenBucketRateLimiter;
@@ -85,7 +85,7 @@ export class ClinVarClient {
   constructor(options: ClinVarClientOptions = {}) {
     this.apiKey = options.apiKey || process.env.NCBI_API_KEY;
     this.cacheTtl = options.cacheTtl || DEFAULT_CACHE_TTL;
-    this.maxRetries = options.maxRetries || DEFAULT_MAX_RETRIES;
+    this.maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
     this.rateLimiter = options.rateLimiter ?? createNcbiRateLimiter(!!this.apiKey);
@@ -93,7 +93,7 @@ export class ClinVarClient {
     this.ncbiAxios = createClinVarNcbiHttp({
       policy: {
         ...CLINVAR_NCBI_POLICY,
-        maxAttempts: this.maxRetries,
+        maxAttempts: this.maxAttempts,
         backoffMs: exponentialBackoff(this.retryDelay),
         beforeAttempt: (signal) => this.rateLimiter.waitForToken(signal),
       },

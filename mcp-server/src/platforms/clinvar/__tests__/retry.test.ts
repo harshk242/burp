@@ -96,7 +96,7 @@ describe('ClinVar NCBI instance on the shared retry', () => {
   });
 
   it('keeps the HTTP 408 rule when the constructor overrides retries', async () => {
-    const { client, calls } = stubClinVar([408, 200], { maxRetries: 4, retryDelay: 10 });
+    const { client, calls } = stubClinVar([408, 200], { maxAttempts: 4, retryDelay: 10 });
     expect(await rejection(client.search('TP53[gene]'))).toMatchObject({ status: 408, attempts: 1 });
     expect(calls).toHaveLength(1);
     expect(CLINVAR_NCBI_POLICY.retryOn).toBeTypeOf('function');
@@ -116,13 +116,13 @@ describe('ClinVar NCBI instance on the shared retry', () => {
     expect(bare.calls).toHaveLength(1);
   });
 
-  it('honours constructor maxRetries/retryDelay overrides', async () => {
-    const { client, calls, sleep } = stubClinVar([503], { maxRetries: 2, retryDelay: 50 });
+  it('honours constructor maxAttempts/retryDelay overrides', async () => {
+    const { client, calls, sleep } = stubClinVar([503], { maxAttempts: 2, retryDelay: 50 });
     expect(await rejection(client.search('TP53[gene]'))).toMatchObject({ kind: 'upstream_unavailable', attempts: 2 });
     expect(calls).toHaveLength(2);
     expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([50]);
 
-    const longer = stubClinVar([503], { maxRetries: 4, retryDelay: 10 });
+    const longer = stubClinVar([503], { maxAttempts: 4, retryDelay: 10 });
     await rejection(longer.client.search('TP53[gene]'));
     expect(longer.calls).toHaveLength(4);
     expect(longer.sleep.mock.calls.map(([ms]) => ms)).toEqual([10, 20, 40]);
@@ -157,7 +157,7 @@ describe('ClinVar Clinical Tables instance', () => {
 
   it('still makes exactly 1 attempt on a retryable failure', async () => {
     for (const step of [503, 'network', 'timeout'] as const) {
-      const { client, calls, sleep, waitForToken } = stubClinVar([step, 200], { maxRetries: 5 });
+      const { client, calls, sleep, waitForToken } = stubClinVar([step, 200], { maxAttempts: 5 });
       const error = await rejection(client.quickLookup('rs1042522'));
       expect(error).toBeInstanceOf(UpstreamError);
       expect(error).toMatchObject({ platform: 'clinvar', attempts: 1 });

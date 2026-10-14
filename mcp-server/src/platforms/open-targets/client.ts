@@ -7,7 +7,7 @@ import type { CacheEntry, GraphQLResponse, GraphQLError as GraphQLErrorType } fr
 
 export const OPEN_TARGETS_GRAPHQL_URL = 'https://api.platform.opentargets.org/api/v4/graphql';
 const DEFAULT_CACHE_TTL = 3600 * 1000;
-const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY = 1000;
 
 function exponentialBackoff(baseMs: number): (attempt: number) => number {
@@ -15,7 +15,7 @@ function exponentialBackoff(baseMs: number): (attempt: number) => number {
 }
 
 export const OPEN_TARGETS_POLICY: RetryPolicy = Object.freeze({
-  maxAttempts: DEFAULT_MAX_RETRIES,
+  maxAttempts: DEFAULT_MAX_ATTEMPTS,
   backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
   retryOn: isRetryableTransportOr5xx,
   totalBudgetMs: 40_000,
@@ -46,7 +46,7 @@ export function createOpenTargetsHttp(options: OpenTargetsHttpOptions = {}): Axi
 export interface OpenTargetsClientOptions {
   baseUrl?: string;
   cacheTtl?: number;
-  maxRetries?: number;
+  maxAttempts?: number;
   retryDelay?: number;
   adapter?: AxiosAdapter;
   retryDeps?: RetryDeps;
@@ -55,7 +55,7 @@ export interface OpenTargetsClientOptions {
 export class OpenTargetsClient {
   private readonly baseUrl: string;
   private readonly cacheTtl: number;
-  private readonly maxRetries: number;
+  private readonly maxAttempts: number;
   private readonly retryDelay: number;
   private readonly cache: Map<string, CacheEntry>;
   private readonly axiosInstance: AxiosInstance;
@@ -63,7 +63,7 @@ export class OpenTargetsClient {
   constructor(options: OpenTargetsClientOptions = {}) {
     this.baseUrl = options.baseUrl || process.env.OPEN_TARGETS_API_URL || OPEN_TARGETS_GRAPHQL_URL;
     this.cacheTtl = options.cacheTtl || DEFAULT_CACHE_TTL;
-    this.maxRetries = options.maxRetries || DEFAULT_MAX_RETRIES;
+    this.maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
 
@@ -71,7 +71,7 @@ export class OpenTargetsClient {
       baseUrl: this.baseUrl,
       policy: {
         ...OPEN_TARGETS_POLICY,
-        maxAttempts: this.maxRetries,
+        maxAttempts: this.maxAttempts,
         backoffMs: exponentialBackoff(this.retryDelay),
       },
       adapter: options.adapter,

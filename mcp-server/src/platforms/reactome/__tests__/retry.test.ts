@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { callTool, stubAdapter, toolText, type Step } from '../../../shared/__tests__/retry-test-utils.js';
-import { REACTOME_POLICY, cleanupClient, initClient } from '../client.js';
+import { REACTOME_POLICY, resetClient, initClient } from '../client.js';
 import { handlers } from '../handlers.js';
 
 function stubReactome(steps: Step[]) {
@@ -11,7 +11,7 @@ function stubReactome(steps: Step[]) {
 }
 
 afterEach(() => {
-  cleanupClient();
+  resetClient();
 });
 
 describe('REACTOME_POLICY', () => {

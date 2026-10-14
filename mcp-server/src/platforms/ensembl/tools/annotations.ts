@@ -1,6 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
-import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
+import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidXrefArgs = (
   args: any,
@@ -91,7 +91,7 @@ async function handleMapCoordinates(args: Record<string, unknown>) {
   }
 
   const species = getDefaultSpecies(args.species);
-  const region = formatGenomicRegion(args.region);
+  const region = args.region;
 
   const response = await getClient().get(
     `/map/coords/${species}/${args.target_assembly}/${region}`,

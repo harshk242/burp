@@ -38,7 +38,7 @@ export function formatGeneSymbol(symbol: string): string {
   return symbol.toUpperCase().trim();
 }
 
-export function formatDrugName(name: string): string {
+export function trimDrugName(name: string): string {
   return name.trim();
 }
 
