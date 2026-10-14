@@ -29,7 +29,7 @@ mock.module("../llm/provider", () => ({
 }));
 
 const { processChat } = await import("../orchestration/chat-v2");
-const { TURN_IN_PROGRESS_MESSAGE } = await import("../orchestration/chat-turn");
+const { TURN_IN_PROGRESS_MESSAGE, abortActiveTurns } = await import("../orchestration/chat-turn");
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
@@ -256,6 +256,21 @@ describe("per-session lock", () => {
 
     first.release();
     await collect(first.running);
+  });
+});
+
+describe("cleanup failures", () => {
+  it("releases the session lock and drains when the failed-turn usage callback throws", async () => {
+    model = scriptedModel([]);
+    const sessionId = crypto.randomUUID();
+    await expect(collect(processChat(sessionId, USER_ID, "hi", undefined, {
+      onUsageRecorded: () => { throw new Error("usage callback failed"); },
+    }))).rejects.toThrow("usage callback failed");
+    expect(await abortActiveTurns(10)).toBe(0);
+
+    model = scriptedModel([[...text("answer"), finish("stop")]]);
+    expect((await collect(processChat(sessionId, USER_ID, "retry"))).some((e) => e.type === "done")).toBe(true);
+    expect(turns(sessionId).map((turn) => turn.status)).toEqual(["error", "ok"]);
   });
 });
 

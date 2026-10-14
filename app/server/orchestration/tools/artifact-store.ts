@@ -34,12 +34,12 @@ export interface Artifact {
   data: unknown;
   rawSizeChars: number;
   storedSizeChars: number;
-  createdAt: number;
-  expiresAt: number;
-  lastAccessedAt: number;
+  createdAtMs: number;
+  expiresAtMs: number;
+  lastAccessedAtMs: number;
 }
 
-export type ExpiredArtifact = Pick<Artifact, "id" | "toolName" | "toolInput" | "createdAt">;
+export type ExpiredArtifact = Pick<Artifact, "id" | "toolName" | "toolInput" | "createdAtMs">;
 
 export type ArtifactLookup =
   | { status: "ok"; artifact: Artifact }
@@ -58,7 +58,7 @@ function formatAge(ms: number): string {
 
 export function expiredArtifactMessage(artifact: ExpiredArtifact, now = Date.now()): string {
   return (
-    `Artifact ${artifact.id} expired (fetched ${formatAge(now - artifact.createdAt)} ago). ` +
+    `Artifact ${artifact.id} expired (fetched ${formatAge(now - artifact.createdAtMs)} ago). ` +
     `Re-run \`${artifact.toolName}\` with ${JSON.stringify(artifact.toolInput ?? {})} for current data.`
   );
 }
@@ -88,7 +88,7 @@ export class ArtifactStore {
     const uncompressedUtf8Bytes = Buffer.byteLength(json, "utf8");
     const gzipped = Buffer.from(Bun.gzipSync(json));
     const now = Date.now();
-    const expiresAt = now + appConfig.artifact.db_ttl_hours * 3_600_000;
+    const expiresAtMs = now + appConfig.artifact.db_ttl_hours * 3_600_000;
 
     let id = generateArtifactId();
     let persisted = false;
@@ -105,7 +105,7 @@ export class ArtifactStore {
           raw_size_chars: rawSizeChars,
           stored_size_chars: json.length,
           created_at: Math.floor(now / 1000),
-          expires_at: Math.floor(expiresAt / 1000),
+          expires_at: Math.floor(expiresAtMs / 1000),
         });
         persisted = true;
         break;
@@ -134,9 +134,9 @@ export class ArtifactStore {
       data,
       rawSizeChars,
       storedSizeChars: json.length,
-      createdAt: now,
-      expiresAt,
-      lastAccessedAt: now,
+      createdAtMs: now,
+      expiresAtMs,
+      lastAccessedAtMs: now,
     };
 
     this.artifacts.set(id, artifact);
@@ -171,11 +171,11 @@ export class ArtifactStore {
     const cached = this.artifacts.get(id);
     if (cached) {
       if (cached.sessionId !== sessionId) return { status: "missing" };
-      if (now >= cached.expiresAt) {
+      if (now >= cached.expiresAtMs) {
         this.artifacts.delete(id);
         return { status: "expired", artifact: cached };
       }
-      cached.lastAccessedAt = now;
+      cached.lastAccessedAtMs = now;
       return { status: "ok", artifact: cached };
     }
 
@@ -186,7 +186,7 @@ export class ArtifactStore {
     if (now >= row.expires_at * 1000) {
       return {
         status: "expired",
-        artifact: { id: row.id, toolName: row.tool_name, toolInput, createdAt: row.created_at * 1000 },
+        artifact: { id: row.id, toolName: row.tool_name, toolInput, createdAtMs: row.created_at * 1000 },
       };
     }
 
@@ -200,9 +200,9 @@ export class ArtifactStore {
       data: this.decode(row.data, row.artifact_type),
       rawSizeChars: row.raw_size_chars,
       storedSizeChars: row.stored_size_chars,
-      createdAt: row.created_at * 1000,
-      expiresAt: row.expires_at * 1000,
-      lastAccessedAt: now,
+      createdAtMs: row.created_at * 1000,
+      expiresAtMs: row.expires_at * 1000,
+      lastAccessedAtMs: now,
     };
     this.artifacts.set(artifact.id, artifact);
     return { status: "ok", artifact };
@@ -260,7 +260,7 @@ export class ArtifactStore {
     const expired: string[] = [];
 
     for (const [id, artifact] of this.artifacts) {
-      if (now - artifact.lastAccessedAt > ttlMs || now >= artifact.expiresAt) {
+      if (now - artifact.lastAccessedAtMs > ttlMs || now >= artifact.expiresAtMs) {
         expired.push(id);
       }
     }

@@ -2,7 +2,7 @@ import type { ToolResultPart } from "ai";
 import { desanitizeToolName, type LLMProviderName } from "../llm";
 import { toolRegistry } from "../mcp/registry";
 import { logger, type LogContext } from "../logger";
-import { createMcpToolExecutor, executeMcpTool, upstreamTraceMetadata, type McpExecution } from "./tools/mcp-executor";
+import { executeMcpTool, upstreamTraceMetadata, type McpExecution } from "./tools/mcp-executor";
 import { handleLargeOutput } from "./large-output";
 import { runToolSearch } from "./tools/search-tool";
 import { SEARCH_TOOL_NAME, type ToolSet } from "./context/tool-catalog";
@@ -156,7 +156,7 @@ async function* runSearchTool(
         if (activeTools[hit.name]) continue;
         const vTool = toolRegistry.getVercelTool(hit.fullName, sanitize);
         if (vTool) {
-          activeTools[vTool.key] = { ...vTool.tool, execute: createMcpToolExecutor(hit.fullName) };
+          activeTools[vTool.key] = vTool.tool;
         }
       }
     }

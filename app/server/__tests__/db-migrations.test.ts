@@ -87,8 +87,6 @@ describe("fresh database migrations", () => {
       "idx_usage_events_turn_id",
       "idx_usage_events_user_date",
       "idx_usage_events_user_month",
-      "idx_users_clerk_id",
-      "idx_users_email",
       "uq_message_feedback_message_user",
       "uq_model_transcript_session_seq",
       "users_clerk_id_unique",

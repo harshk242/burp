@@ -7,13 +7,6 @@ export interface McpExecution {
   meta?: Record<string, unknown>;
 }
 
-export class McpToolError extends Error {
-  constructor(message: string, readonly meta?: Record<string, unknown>) {
-    super(message);
-    this.name = "McpToolError";
-  }
-}
-
 export async function executeMcpTool(
   fullName: string,
   args: Record<string, unknown>,
@@ -26,14 +19,6 @@ export async function executeMcpTool(
 
   const text = typeof result.content === "string" ? result.content : JSON.stringify(result.content);
   return { text, isError: result.isError, ...(result.meta && { meta: result.meta }) };
-}
-
-export function createMcpToolExecutor(fullName: string, signal?: AbortSignal) {
-  return async (args: Record<string, unknown>): Promise<string> => {
-    const { text, isError, meta } = await executeMcpTool(fullName, args, signal);
-    if (isError) throw new McpToolError(text, meta);
-    return text;
-  };
 }
 
 export function upstreamTraceMetadata(meta?: Record<string, unknown>): Record<string, unknown> | undefined {

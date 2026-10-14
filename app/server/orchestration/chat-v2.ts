@@ -341,38 +341,44 @@ export async function* processChat(
     });
     yield { type: "error", data: { error: failure.userMessage, code: failure.code } };
   } finally {
-    if (!ledgerWritten) {
-      turnAbort.abort();
-      const errorCode = failure?.code ?? "closed";
-      const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
-      const cutOffCall = recordFailedTurn({
-        meter,
-        tracker,
-        userId,
-        sessionId,
-        turnId,
-        provider: llmConfig.provider,
-        model: llmConfig.chatModel,
-        ctx,
-        errorCode,
-        outcome: {
-          status: errorCode === "aborted" || errorCode === "closed" ? "aborted" : "error",
-          errorCode, errorMessage, iterations: loopIteration, ...signals,
-        },
-      });
-      budget.reconcile(meter.summary().costPicoUsd);
-      trace.end({
-        status: errorCode === "aborted" || errorCode === "closed" ? errorCode : "error",
-        errorCode,
-        message: errorMessage,
-        metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
-        cutOffCall,
-        tags: errorCode === "budget_exceeded" ? ["budget_exceeded"] : undefined,
-      });
-      if (turnId) scoreTurn(turnId, ctx, trace.scoreObservationId);
-      options.onUsageRecorded?.();
+    try {
+      if (!ledgerWritten) {
+        turnAbort.abort();
+        const errorCode = failure?.code ?? "closed";
+        const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
+        const cutOffCall = recordFailedTurn({
+          meter,
+          tracker,
+          userId,
+          sessionId,
+          turnId,
+          provider: llmConfig.provider,
+          model: llmConfig.chatModel,
+          ctx,
+          errorCode,
+          outcome: {
+            status: errorCode === "aborted" || errorCode === "closed" ? "aborted" : "error",
+            errorCode, errorMessage, iterations: loopIteration, ...signals,
+          },
+        });
+        budget.reconcile(meter.summary().costPicoUsd);
+        trace.end({
+          status: errorCode === "aborted" || errorCode === "closed" ? errorCode : "error",
+          errorCode,
+          message: errorMessage,
+          metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
+          cutOffCall,
+          tags: errorCode === "budget_exceeded" ? ["budget_exceeded"] : undefined,
+        });
+        if (turnId) scoreTurn(turnId, ctx, trace.scoreObservationId);
+        options.onUsageRecorded?.();
+      }
+    } finally {
+      try {
+        releaseLock?.();
+      } finally {
+        drained();
+      }
     }
-    releaseLock?.();
-    drained();
   }
 }
