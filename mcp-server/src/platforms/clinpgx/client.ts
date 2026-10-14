@@ -1,3 +1,5 @@
+import { fetchDatabaseStats } from './database-stats.js';
+import { parseGeneInfo, parseDrugInfo, parseVariantInfo, parseClinicalAnnotation, parseDosingGuideline, parseDrugLabel, parsePathway } from './response-parsers.js';
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { NotFoundError } from './exceptions.js';
 import { UpstreamError } from '../../shared/exceptions.js';
@@ -5,10 +7,8 @@ import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http
 import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import {
   filterNoneValues,
+  isPharmGKBAccession,
   generateCacheKey,
-  parseGuidelineSource,
-  parseEvidenceLevel,
-  normalizePhenotypeCategory,
 } from './utils.js';
 import type {
   CacheEntry,
@@ -128,7 +128,7 @@ export class PharmGKBClient {
       const response = await this.request<AnyObject>('/data/gene', params);
 
       const data = response.data || [];
-      const results: GeneInfo[] = data.slice(0, maxResults).map((gene: AnyObject) => this.parseGeneInfo(gene));
+      const results: GeneInfo[] = data.slice(0, maxResults).map((gene: AnyObject) => parseGeneInfo(gene));
 
       return {
         totalCount: response.total || results.length,
@@ -149,9 +149,9 @@ export class PharmGKBClient {
 
   async getGeneInfo(idOrSymbol: string): Promise<GeneInfo | null> {
     try {
-      if (idOrSymbol.startsWith('PA')) {
+      if (isPharmGKBAccession(idOrSymbol)) {
         const response = await this.request<AnyObject>(`/data/gene/${encodeURIComponent(idOrSymbol)}`);
-        return this.parseGeneInfo(response.data);
+        return parseGeneInfo(response.data);
       }
 
       const response = await this.request<AnyObject>('/data/gene', {
@@ -163,33 +163,13 @@ export class PharmGKBClient {
         return null;
       }
 
-      return this.parseGeneInfo(data[0]);
+      return parseGeneInfo(data[0]);
     } catch (error) {
       if (error instanceof NotFoundError) {
         return null;
       }
       throw error;
     }
-  }
-
-  private parseGeneInfo(data: AnyObject): GeneInfo {
-    return {
-      id: data.id || data.pharmgkbAccessionId,
-      symbol: data.symbol,
-      name: data.name,
-      alternateSymbols: data.alternateSymbols,
-      chromosomeLocation: data.chromosomeLocation,
-      pharmgkbAccessionId: data.pharmgkbAccessionId,
-      hasVariants: data.hasVariantAnnotation,
-      hasGuidelines: data.hasGuideline,
-      hasClinicalAnnotations: data.hasClinicalAnnotation,
-      crossReferences: data.crossReferences?.map((xref: AnyObject) => ({
-        database: xref.resource,
-        id: xref.resourceId,
-        url: xref.url,
-      })),
-      summary: data.summary,
-    };
   }
 
   async searchDrugs(query: string, maxResults: number = 20): Promise<SearchResult<DrugInfo>> {
@@ -207,7 +187,7 @@ export class PharmGKBClient {
       });
 
       const data = response.data || [];
-      const results: DrugInfo[] = data.slice(0, maxResults).map((drug: AnyObject) => this.parseDrugInfo(drug));
+      const results: DrugInfo[] = data.slice(0, maxResults).map((drug: AnyObject) => parseDrugInfo(drug));
 
       return {
         totalCount: response.total || results.length,
@@ -228,9 +208,9 @@ export class PharmGKBClient {
 
   async getDrugInfo(idOrName: string): Promise<DrugInfo | null> {
     try {
-      if (idOrName.startsWith('PA')) {
+      if (isPharmGKBAccession(idOrName)) {
         const response = await this.request<AnyObject>(`/data/chemical/${encodeURIComponent(idOrName)}`);
-        return this.parseDrugInfo(response.data);
+        return parseDrugInfo(response.data);
       }
 
       const response = await this.request<AnyObject>('/data/chemical', {
@@ -242,34 +222,13 @@ export class PharmGKBClient {
         return null;
       }
 
-      return this.parseDrugInfo(data[0]);
+      return parseDrugInfo(data[0]);
     } catch (error) {
       if (error instanceof NotFoundError) {
         return null;
       }
       throw error;
     }
-  }
-
-  private parseDrugInfo(data: AnyObject): DrugInfo {
-    return {
-      id: data.id || data.pharmgkbAccessionId,
-      name: data.name,
-      genericNames: data.genericNames,
-      brandNames: data.brandNames,
-      drugClass: data.drugClasses?.[0]?.name,
-      atcCodes: data.atcCodes,
-      pharmgkbAccessionId: data.pharmgkbAccessionId,
-      hasGuidelines: data.hasGuideline,
-      hasClinicalAnnotations: data.hasClinicalAnnotation,
-      hasLabels: data.hasLabel,
-      crossReferences: data.crossReferences?.map((xref: AnyObject) => ({
-        database: xref.resource,
-        id: xref.resourceId,
-        url: xref.url,
-      })),
-      summary: data.summary,
-    };
   }
 
   async searchVariants(query: string, maxResults: number = 20): Promise<SearchResult<VariantInfo>> {
@@ -287,7 +246,7 @@ export class PharmGKBClient {
       });
 
       const data = response.data || [];
-      const results: VariantInfo[] = data.slice(0, maxResults).map((variant: AnyObject) => this.parseVariantInfo(variant));
+      const results: VariantInfo[] = data.slice(0, maxResults).map((variant: AnyObject) => parseVariantInfo(variant));
 
       return {
         totalCount: response.total || results.length,
@@ -308,9 +267,9 @@ export class PharmGKBClient {
 
   async getVariantInfo(idOrRsId: string): Promise<VariantInfo | null> {
     try {
-      if (idOrRsId.startsWith('PA')) {
+      if (isPharmGKBAccession(idOrRsId)) {
         const response = await this.request<AnyObject>(`/data/variant/${encodeURIComponent(idOrRsId)}`);
-        return this.parseVariantInfo(response.data);
+        return parseVariantInfo(response.data);
       }
 
       const response = await this.request<AnyObject>('/data/variant', {
@@ -322,31 +281,13 @@ export class PharmGKBClient {
         return null;
       }
 
-      return this.parseVariantInfo(data[0]);
+      return parseVariantInfo(data[0]);
     } catch (error) {
       if (error instanceof NotFoundError) {
         return null;
       }
       throw error;
     }
-  }
-
-  private parseVariantInfo(data: AnyObject): VariantInfo {
-    return {
-      id: data.id || data.pharmgkbAccessionId,
-      name: data.name,
-      rsid: data.rsid,
-      gene: data.gene?.symbol,
-      variantType: data.variantType,
-      location: data.location,
-      hasClinicalAnnotations: data.hasClinicalAnnotation,
-      hasGuidelines: data.hasGuideline,
-      crossReferences: data.crossReferences?.map((xref: AnyObject) => ({
-        database: xref.resource,
-        id: xref.resourceId,
-        url: xref.url,
-      })),
-    };
   }
 
   async getClinicalAnnotationsForGene(gene: string): Promise<ClinicalAnnotation[]> {
@@ -356,7 +297,7 @@ export class PharmGKBClient {
       });
 
       const data = response.data || [];
-      return data.map((annotation: AnyObject) => this.parseClinicalAnnotation(annotation));
+      return data.map((annotation: AnyObject) => parseClinicalAnnotation(annotation));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -372,7 +313,7 @@ export class PharmGKBClient {
       });
 
       const data = response.data || [];
-      return data.map((annotation: AnyObject) => this.parseClinicalAnnotation(annotation));
+      return data.map((annotation: AnyObject) => parseClinicalAnnotation(annotation));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -389,45 +330,13 @@ export class PharmGKBClient {
       });
 
       const data = response.data || [];
-      return data.map((annotation: AnyObject) => this.parseClinicalAnnotation(annotation));
+      return data.map((annotation: AnyObject) => parseClinicalAnnotation(annotation));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
       }
       throw error;
     }
-  }
-
-  private parseClinicalAnnotation(data: AnyObject): ClinicalAnnotation {
-    const levelOfEvidence = data.levelOfEvidence;
-    const evidenceLevel = typeof levelOfEvidence === 'object' && levelOfEvidence !== null
-      ? levelOfEvidence.term
-      : levelOfEvidence;
-
-    const genes = data.location?.genes || data.genes || [];
-    const geneSymbol = genes[0]?.symbol;
-
-    const chemicals = data.relatedChemicals || data.chemicals || [];
-    const drugName = chemicals[0]?.name;
-
-    const types = data.types || [];
-    const phenotypeCategory = types[0] || 'Unknown';
-
-    return {
-      id: data.id,
-      gene: geneSymbol,
-      drug: drugName,
-      variant: data.variant?.name || data.location?.displayName,
-      phenotypeCategory: normalizePhenotypeCategory(phenotypeCategory),
-      levelOfEvidence: parseEvidenceLevel(evidenceLevel),
-      annotation: data.text || data.allelePhenotypes?.[0]?.phenotype,
-      alleles: data.allelePhenotypes?.map((ap: AnyObject) => ap.allele),
-      phenotypes: data.phenotypes?.map((p: AnyObject) => typeof p === 'string' ? p : p.name),
-      populations: data.populations,
-      relatedChemicals: chemicals.map((c: AnyObject) => c.name),
-      relatedGenes: genes.map((g: AnyObject) => g.symbol),
-      pmids: data.literature?.map((l: AnyObject) => l.pmid),
-    };
   }
 
   async getDosingGuidelinesForGene(gene: string): Promise<DosingGuideline[]> {
@@ -437,7 +346,7 @@ export class PharmGKBClient {
       });
 
       const data = response.data || [];
-      return data.map((guideline: AnyObject) => this.parseDosingGuideline(guideline));
+      return data.map((guideline: AnyObject) => parseDosingGuideline(guideline));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -453,30 +362,13 @@ export class PharmGKBClient {
       });
 
       const data = response.data || [];
-      return data.map((guideline: AnyObject) => this.parseDosingGuideline(guideline));
+      return data.map((guideline: AnyObject) => parseDosingGuideline(guideline));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
       }
       throw error;
     }
-  }
-
-  private parseDosingGuideline(data: AnyObject): DosingGuideline {
-    return {
-      id: data.id,
-      name: data.name,
-      source: parseGuidelineSource(data.name || data.source),
-      genes: data.genes?.map((g: AnyObject) => g.symbol) || [],
-      drugs: data.chemicals?.map((c: AnyObject) => c.name) || [],
-      recommendation: data.recommendation,
-      implications: data.implications,
-      phenotypeCategory: data.phenotypeCategory,
-      alternateDrug: data.alternateDrug,
-      url: data.url || `https://www.pharmgkb.org/guideline/${data.id}`,
-      version: data.version,
-      lastModified: data.lastModified,
-    };
   }
 
   async getDrugLabels(drug: string): Promise<DrugLabel[]> {
@@ -486,7 +378,7 @@ export class PharmGKBClient {
       });
 
       const data = response.data || [];
-      return data.map((label: AnyObject) => this.parseDrugLabel(label));
+      return data.map((label: AnyObject) => parseDrugLabel(label));
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -495,37 +387,13 @@ export class PharmGKBClient {
     }
   }
 
-  private parseDrugLabel(data: AnyObject): DrugLabel {
-    return {
-      id: data.id,
-      name: data.name,
-      drug: data.chemical?.name,
-      source: data.source,
-      agency: data.agency,
-      approvalDate: data.approvalDate,
-      biomarkerCategory: data.biomarkerCategory,
-      genes: data.genes?.map((g: AnyObject) => g.symbol),
-      variants: data.variants?.map((v: AnyObject) => v.name),
-      labelText: data.text,
-      url: data.url,
-    };
-  }
-
   async getPathways(query?: string): Promise<Pathway[]> {
     try {
       const params = query ? { 'genes.symbol': query } : { cpicGene: true };
       const response = await this.request<AnyObject>('/data/pathway', params);
 
       const data = response.data || [];
-      return data.map((pathway: AnyObject) => ({
-        id: pathway.id,
-        name: pathway.name,
-        type: pathway.type,
-        description: pathway.description,
-        genes: pathway.genes?.map((g: AnyObject) => g.symbol),
-        drugs: pathway.chemicals?.map((c: AnyObject) => c.name),
-        url: pathway.url || `https://www.pharmgkb.org/pathway/${pathway.id}`,
-      }));
+      return data.map(parsePathway);
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -541,15 +409,7 @@ export class PharmGKBClient {
       });
 
       const data = response.data || [];
-      return data.map((pathway: AnyObject) => ({
-        id: pathway.id,
-        name: pathway.name,
-        type: pathway.type,
-        description: pathway.description,
-        genes: pathway.genes?.map((g: AnyObject) => g.symbol),
-        drugs: pathway.chemicals?.map((c: AnyObject) => c.name),
-        url: pathway.url || `https://www.pharmgkb.org/pathway/${pathway.id}`,
-      }));
+      return data.map(parsePathway);
     } catch (error) {
       if (error instanceof NotFoundError) {
         return [];
@@ -596,50 +456,8 @@ export class PharmGKBClient {
     return Array.from(interactionMap.values());
   }
 
-  async getDatabaseStats(): Promise<{
-    genes: number;
-    drugs: number;
-    variants: number;
-    clinicalAnnotations: number;
-    guidelines: number;
-    labels: number;
-    pathways: number;
-    note: string;
-  }> {
-    const stats = {
-      genes: 0,
-      drugs: 0,
-      variants: 0,
-      clinicalAnnotations: 0,
-      guidelines: 0,
-      labels: 0,
-      pathways: 0,
-      note: 'Counts represent CPIC pharmacogenes and CYP2D6-related data as representative samples',
-    };
-
-    try {
-      const [genesResult, pathwaysResult] = await Promise.all([
-        this.request<AnyObject>('/data/gene', { cpicGene: true }).catch(() => ({ data: [] })),
-        this.request<AnyObject>('/data/pathway', { cpicGene: true }).catch(() => ({ data: [] })),
-      ]);
-      stats.genes = genesResult.data?.length || 0;
-      stats.pathways = pathwaysResult.data?.length || 0;
-    } catch {
-    }
-
-    try {
-      const [annotationsResult, guidelinesResult, labelsResult] = await Promise.all([
-        this.request<AnyObject>('/data/clinicalAnnotation', { 'location.genes.symbol': 'CYP2D6' }).catch(() => ({ data: [] })),
-        this.request<AnyObject>('/data/guidelineAnnotation', { 'relatedGenes.symbol': 'CYP2D6' }).catch(() => ({ data: [] })),
-        this.request<AnyObject>('/data/labelAnnotation', { 'relatedGenes.symbol': 'CYP2D6' }).catch(() => ({ data: [] })),
-      ]);
-      stats.clinicalAnnotations = annotationsResult.data?.length || 0;
-      stats.guidelines = guidelinesResult.data?.length || 0;
-      stats.labels = labelsResult.data?.length || 0;
-    } catch {
-    }
-
-    return stats;
+  async getDatabaseStats() {
+    return fetchDatabaseStats((endpoint, params) => this.request<AnyObject>(endpoint, params));
   }
 
   clearCache(): void {

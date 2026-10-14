@@ -150,3 +150,7 @@ export function normalizePhenotypeCategory(category: unknown): string {
 
   return categoryStr;
 }
+
+export function isPharmGKBAccession(value: string): boolean {
+  return /^PA\d+$/.test(value);
+}

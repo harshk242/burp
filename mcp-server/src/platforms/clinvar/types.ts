@@ -186,7 +186,15 @@ export interface ClinicalTablesVariant {
   rsId?: string;
 }
 
+export interface VariantFrequencyResult {
+  variationId: string;
+  hasFrequencyData: boolean;
+  frequencies: PopulationFrequency[];
+}
+
 export interface PopulationFrequency {
+  minorAllele?: string;
+  measureId?: string;
   source: string;
   population?: string;
   alleleFrequency?: number;

@@ -1,6 +1,6 @@
 import { getClient } from '../client.js';
 import { parseSubmissions } from '../xml-parser.js';
-import type { VariantInfo, SubmissionRecord, ClinicalSignificance } from '../types.js';
+import type { VariantInfo, SubmissionRecord, ClinicalSignificance, VariantFrequencyResult } from '../types.js';
 
 export async function getClinicalSignificance(
   variationId: string
@@ -165,30 +165,8 @@ export async function getVariantSubmissions(
 
 export async function getVariantFrequency(
   variationId: string
-): Promise<{
-  variationId: string;
-  hasFrequencyData: boolean;
-  frequencies?: Array<{
-    source: string;
-    population?: string;
-    alleleFrequency?: number;
-  }>;
-}> {
-  const client = getClient();
-  const vcvRecord = await client.getVCVRecord(variationId);
-
-  if (!vcvRecord || !vcvRecord.location) {
-    return {
-      variationId,
-      hasFrequencyData: false,
-    };
-  }
-
-  return {
-    variationId: vcvRecord.variationId,
-    hasFrequencyData: false,
-    frequencies: [],
-  };
+): Promise<VariantFrequencyResult> {
+  return getClient().getVariantFrequency(variationId);
 }
 
 export async function getPathogenicVariantsForGene(
