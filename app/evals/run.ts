@@ -22,12 +22,17 @@ async function main(argv: string[]): Promise<number> {
   const outDir = join(import.meta.dir, "..", "tmp", "evals");
   mkdirSync(outDir, { recursive: true });
   const dbPath = `app/tmp/evals/${runId}.db`;
-  process.env.DATABASE_URL = dbPath;
   process.env.LANGFUSE_TRACING_ENVIRONMENT = EVAL_ENVIRONMENT;
   process.env.LOG_LEVEL ??= "WARN";
 
+  const { initializeRunDependencies } = await import("./lib/bootstrap");
+  const deps = await initializeRunDependencies(dbPath);
   const { runEval } = await import("./lib/runner");
-  return runEval(args, { runId, dbPath, outDir });
+  try {
+    return await runEval(args, { runId, dbPath, outDir }, deps);
+  } finally {
+    deps.sqlite.close();
+  }
 }
 
 main(process.argv.slice(2)).then(

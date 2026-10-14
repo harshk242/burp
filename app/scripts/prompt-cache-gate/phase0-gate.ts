@@ -12,14 +12,14 @@ import { createSearchTool } from "../../server/orchestration/tools/search-tool";
 import { createInspectArtifactTool } from "../../server/orchestration/tools/artifact-inspector";
 import { toDeclarations } from "../../server/orchestration/tool-dispatch";
 import { MOA_HITS, sha, verdict, verdicts } from "./gate-lib";
-import { check4b } from "./phase4b-checks";
+import { coldCacheWritten } from "./gate-config";
+import { check4b, ensureThinkingCapabilities } from "./phase4b-checks";
 import { checkRedactedOffline } from "./phase4b-redacted";
 
 const MODEL_ID = loadLLMConfig().chatModel;
 const MAX_OUTPUT = 256;
 const SEARCH = "system__search_available_tools";
 const INSPECT = "system__inspect_artifact";
-const MIN_CACHEABLE = 512;
 const RUN_ID = randomUUID().slice(0, 8);
 
 interface Capture { status: number; beta: string | null; body: any; errorText?: string }
@@ -212,9 +212,8 @@ async function check5() {
   });
   console.log("\n── check 5 verdicts ──");
   verdict("5 call 1 → 200", "required", ok(c), `HTTP ${c.status}${c.error ? ` — ${c.error}` : ""}`);
-  verdict("5 prompt ≥ min cacheable", "required", (c.inputTokens ?? 0) >= MIN_CACHEABLE, `inputTokens ${c.inputTokens} vs ${MIN_CACHEABLE}`);
   verdict("5 cold: cacheRead = 0", "required", c.cacheRead === 0, `cacheRead ${c.cacheRead} (non-zero = the nonce didn't make it cold)`);
-  verdict("5 cold call 1 writes the cache", "required", (c.cacheWrite ?? 0) > 0, `${tok(c)}; cache_creation ${JSON.stringify(c.cacheCreation)}`);
+  verdict("5 cold call 1 writes the cache", "required", coldCacheWritten(c), `${tok(c)}; cache_creation ${JSON.stringify(c.cacheCreation)}`);
 }
 
 async function check1() {
@@ -362,6 +361,7 @@ async function main() {
     return result.pass ? 0 : 1;
   }
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set (run from app/ so .env loads)");
+  if (target === "all" || target === "4b") await ensureThinkingCapabilities();
   const pkg = async (p: string) => (await import(`${p}/package.json`, { with: { type: "json" } })).default.version;
   console.log("model:", MODEL_ID, "| ai", await pkg("ai"), "| @ai-sdk/anthropic", await pkg("@ai-sdk/anthropic"), "| run", RUN_ID);
 

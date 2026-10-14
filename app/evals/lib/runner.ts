@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { LangfuseClient } from "@langfuse/client";
 import { initializeTools, toolsReport, type ToolsBoot } from "../../server/boot/tools";
-import { runMigrations, sqlite, userQueries } from "../../server/db";
-import { chatProviderOptions, effectiveLLMConfig, loadLLMConfig } from "../../server/llm";
+import { runMigrations, userQueries } from "../../server/db";
+import { resolveDbPath } from "../../server/db/paths";
+import { chatProviderOptions, effectiveLLMConfig, type LLMConfig } from "../../server/llm";
 import { mcpManager } from "../../server/mcp/manager";
 import { getScoreClient, initTracing, scoreConfigsReady, shutdownTracing } from "../../server/observability/langfuse";
 import { contextVersion } from "../../server/orchestration/context/transcript";
@@ -17,6 +18,7 @@ import { buildComparison, saveItemRun, type SavedComparison } from "./compare";
 import { comparisonMarkdown, printComparison } from "./compare-render";
 import { runArms, type ArmRunResult } from "./matrix";
 import { runExperiment, type ExperimentOutcome, type FetchedItem } from "./experiment";
+import type { RunDependencies } from "./bootstrap";
 import { RunLifecycle } from "./lifecycle";
 import { loadEvalHome } from "./load";
 import { pinnedEvalItems, PinnedItemError } from "./pinned-items";
@@ -69,8 +71,8 @@ async function bootTools(boot: ToolsBoot): Promise<SearchState> {
   return search;
 }
 
-function armContextVersion(arm: ResolvedArm): string {
-  return contextVersion(SYSTEM_PROMPT, chatProviderOptions(effectiveLLMConfig(loadLLMConfig(), arm.override)));
+function armContextVersion(arm: ResolvedArm, config: LLMConfig): string {
+  return contextVersion(SYSTEM_PROMPT, chatProviderOptions(effectiveLLMConfig(config, arm.override)));
 }
 
 async function writeVariance(outDir: string, runId: string, arm: ResolvedArm, repeatGroup: string, outcomes: ExperimentOutcome[]): Promise<void> {
@@ -81,7 +83,7 @@ async function writeVariance(outDir: string, runId: string, arm: ResolvedArm, re
   log(`variance report (${arm.label}): ${path}`);
 }
 
-export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
+export async function runEval(args: RunArgs, env: RunEnv, deps: RunDependencies): Promise<number> {
   let tools: ToolsBoot | null = null;
   const lifecycle = new RunLifecycle({
     shutdownTracing: () => shutdownTracing(),
@@ -90,7 +92,8 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
   });
   const removeHandlers = lifecycle.installSignalHandlers();
   try {
-    const config = loadLLMConfig();
+    if (deps.dbPath !== resolveDbPath(env.dbPath)) throw new RunAbort("initialized database does not match RunEnv.dbPath");
+    const { config, sqlite } = deps;
     const { arms, comparing } = await prepareArms(args, config, {
       apiKey: process.env.ANTHROPIC_API_KEY,
       baseUrl: process.env.ANTHROPIC_BASE_URL,
@@ -162,7 +165,7 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
             arm: arm.label,
             armIndex: arms.indexOf(arm) + 1,
             armCount: arms.length,
-            contextVersion: armContextVersion(arm),
+            contextVersion: armContextVersion(arm, config),
             git,
             datasetName: args.dataset,
             datasetVersion: shared.datasetVersion,
@@ -182,7 +185,7 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
           evalItems: pinned.evalItems,
           datasetVersion: shared.datasetVersion,
           concurrency,
-          task: { userId, provider: arm.provider, llm: arm.override, budget: shared.budget, lifecycle, log },
+          task: { userId, provider: arm.provider, llm: arm.override ?? { model: config.chatModel, effort: config.effort, max_output_tokens: config.maxOutputTokens }, budget: shared.budget, lifecycle, log },
         });
         printOutcome(outcome, log);
         return outcome;
@@ -229,7 +232,10 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
     console.error(error instanceof RunAbort ? `eval aborted: ${error.message}` : error);
     return 1;
   } finally {
-    await lifecycle.cleanup();
-    removeHandlers();
+    try {
+      await lifecycle.cleanup();
+    } finally {
+      removeHandlers();
+    }
   }
 }
