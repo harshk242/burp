@@ -32,6 +32,7 @@ export function createInspectArtifactTool(sessionId: string) {
         artifact_id,
         sessionId,
         jq_filter,
+        abortSignal,
       );
       abortSignal?.throwIfAborted();
 

@@ -199,6 +199,7 @@ export class ArtifactStore {
     id: string,
     sessionId: string,
     jqFilter: string,
+    signal?: AbortSignal,
   ): Promise<{ result: unknown; truncated?: boolean; error?: string }> {
     const lookup = this.get(id, sessionId);
     if (lookup.status === "missing") {
@@ -211,7 +212,7 @@ export class ArtifactStore {
       return { result: null, error: expiredArtifactMessage(lookup.artifact) };
     }
 
-    return executeJq(lookup.artifact.data, jqFilter);
+    return executeJq(lookup.artifact.data, jqFilter, { signal });
   }
 
   isCached(id: string): boolean {
