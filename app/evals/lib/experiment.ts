@@ -1,9 +1,3 @@
-/**
- * One Langfuse experiment over the verified dataset items: the item task,
- * the code evaluators (each score referencing its config) and the run
- * evaluator (aggregates). Imports server modules (via task.ts): load only
- * after run.ts set up the environment.
- */
 import type { ExperimentItemResult, FetchedDataset, LangfuseClient } from "@langfuse/client";
 import { scoreConfigId } from "../../server/observability/score-configs";
 import { evaluateItem } from "../evaluators";

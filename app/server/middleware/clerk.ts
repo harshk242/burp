@@ -1,8 +1,3 @@
-/**
- * Clerk Authentication Middleware for Hono
- * Verifies JWT tokens and manages user sessions
- */
-
 import type { Context, Next } from "hono";
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import { userQueries, accessRequestQueries } from "../db";
@@ -11,7 +6,6 @@ import { logger } from "../logger";
 import type { AppEnv, DbUser, DbAccessRequest } from "../types";
 import { isValidDevAgentToken } from "./devAgentAuth";
 
-// Initialize Clerk client (lazy, only when needed)
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
 
 function getClerkClient() {
@@ -23,9 +17,8 @@ function getClerkClient() {
   return clerkClient;
 }
 
-// Cache user info to avoid repeated Clerk API calls
 const userCache = new Map<string, { email: string; name: string | null; imageUrl: string | null; expiresAt: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 5 * 60 * 1000;
 
 function setDevelopmentUser(
   c: Context<AppEnv>,
@@ -62,8 +55,6 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
   if (isValidDevAgentToken(token)) {
-    // Act as the real account matching DEV_AGENT_EMAIL (if it exists) so agent
-    // sessions show up in that user's frontend; otherwise use a synthetic user.
     const agentEmail = process.env.DEV_AGENT_EMAIL || "dev-agent@example.com";
     const existingUser = userQueries.findByEmail(agentEmail);
     logger.info("AUTH", "dev_agent_authenticated", { data: { actingAsExistingUser: Boolean(existingUser) } });
@@ -73,7 +64,6 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
 
   const clerk = getClerkClient();
 
-  // Development mode - skip auth if no Clerk keys configured
   if (!clerk) {
     logger.warn("AUTH", "dev_mode_no_clerk_key");
     setDevelopmentUser(
@@ -85,7 +75,6 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
     return next();
   }
 
-  // Extract Bearer token
   if (!authHeader?.startsWith("Bearer ")) {
     return c.json({ error: "Unauthorized - missing or invalid Authorization header" }, 401);
   }
@@ -95,7 +84,6 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   }
 
   try {
-    // Verify JWT with Clerk
     const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
     const clerkUserId = payload.sub;
 
@@ -103,11 +91,9 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
       return c.json({ error: "Invalid token - missing subject" }, 401);
     }
 
-    // Get user info from cache or Clerk API
     let userInfo = userCache.get(clerkUserId);
 
     if (!userInfo || userInfo.expiresAt < Date.now()) {
-      // Fetch from Clerk API
       const clerkUser = await clerk.users.getUser(clerkUserId);
       const primaryEmail = clerkUser.emailAddresses.find(e => e.id === clerkUser.primaryEmailAddressId);
       const email = primaryEmail?.emailAddress;
@@ -127,10 +113,8 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
       userCache.set(clerkUserId, userInfo);
     }
 
-    // Look up user in database
     const dbUser = userQueries.findByClerkId(clerkUserId);
 
-    // Set context variables
     c.set("clerkUserId", clerkUserId);
     c.set("email", userInfo.email);
     c.set("clerkName", userInfo.name);
@@ -141,14 +125,10 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
       c.set("role", dbUser.role);
       c.set("dbUser", dbUser);
 
-      // Update last active timestamp (fire and forget)
       try {
         userQueries.updateLastActive(dbUser.id);
-      } catch {
-        // Ignore errors
-      }
+      } catch {}
     } else {
-      // User not in database yet - set minimal context
       c.set("userId", null);
       c.set("role", "unknown");
       c.set("dbUser", null);
@@ -185,9 +165,6 @@ export async function requireDbUser(c: Context<AppEnv>, next: Next) {
   return next();
 }
 
-/**
- * Role-based access control middleware
- */
 export function requireRole(...roles: string[]) {
   return async (c: Context<AppEnv>, next: Next) => {
     const userRole = c.get("role") as string | undefined;
@@ -206,9 +183,6 @@ export function requireRole(...roles: string[]) {
   };
 }
 
-/**
- * Admin-only middleware
- */
 export const requireAdmin = requireRole("admin");
 
 /**
@@ -216,24 +190,17 @@ export const requireAdmin = requireRole("admin");
  */
 export const requireUser = requireRole("user", "admin");
 
-/**
- * Sync user from Clerk to database
- * Creates new user or updates existing one
- * Returns the user with determined role
- */
 export function syncUserToDatabase(
   clerkUserId: string,
   email: string,
   name: string | null,
   imageUrl: string | null
 ): DbUser {
-  // Check if user already exists
   let dbUser = userQueries.findByClerkId(clerkUserId);
   const adminEmail = process.env.ADMIN_EMAIL;
   const isAdminEmail = Boolean(adminEmail && email.toLowerCase() === adminEmail.toLowerCase());
 
   if (dbUser) {
-    // Open access: existing waitlist users should not remain stranded after launch.
     if (isAdminEmail && dbUser.role !== "admin") {
       userQueries.updateRole(dbUser.id, "admin");
       dbUser = userQueries.findByClerkId(clerkUserId)!;
@@ -241,24 +208,20 @@ export function syncUserToDatabase(
       userQueries.updateRole(dbUser.id, "user");
       dbUser = userQueries.findByClerkId(clerkUserId)!;
     }
-    // Update last active and return
     userQueries.updateLastActive(dbUser.id);
     return dbUser;
   }
 
-  // New users are open-access by default; ADMIN_EMAIL still receives admin role.
   let role: "waitlist" | "user" | "admin" = "user";
 
   if (isAdminEmail) {
     role = "admin";
   }
 
-  // Get institution and research area from access request if available
   const accessRequest: DbAccessRequest | null = accessRequestQueries.findByEmail(email);
   const institution = accessRequest?.institution || null;
   const researchArea = accessRequest?.research_area || null;
 
-  // Create new user
   const userId = uuidv4();
   userQueries.create(
     userId,
@@ -271,7 +234,6 @@ export function syncUserToDatabase(
     researchArea
   );
 
-  // Return the newly created user
   const created = userQueries.findById(userId);
   if (!created) {
     throw new Error(`[syncUserToDatabase] User create succeeded but findById(${userId}) returned null — possible DB write failure`);
@@ -279,9 +241,6 @@ export function syncUserToDatabase(
   return created;
 }
 
-/**
- * Clear user cache (useful for testing)
- */
 export function clearUserCache() {
   userCache.clear();
 }

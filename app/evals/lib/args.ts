@@ -1,7 +1,3 @@
-/**
- * `bun run eval` arguments. Pure: no server imports, so run.ts can parse them
- * before it points DATABASE_URL at the run's own DB.
- */
 import { ArmsError, parseArmFlag, type ArmSpec } from "./arms";
 
 export interface RunArgs {

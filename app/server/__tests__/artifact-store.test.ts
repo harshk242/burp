@@ -1,8 +1,3 @@
-/**
- * Artifact store: SQLite rows behind an in-memory read-through cache.
- * Memory hit, miss → DB load → re-warm, expiry with refresh guidance,
- * periodic sweep, per-session byte-budget eviction, and cascade on session delete.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createTestDb, type TestDb } from "../__test-utils__/db";
 import { createQueries, type Queries } from "../db/queries";
@@ -38,7 +33,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  mock.restore(); // Date.now spies
+  mock.restore();
   appConfig.artifact.max_session_bytes = DEFAULT_BUDGET;
 });
 
@@ -46,7 +41,6 @@ afterAll(() => {
   for (const s of stores) s.destroy();
 });
 
-/** A payload whose stored JSON is exactly `chars` long. */
 function sized(chars: number): { p: string } {
   return { p: "x".repeat(chars - '{"p":""}'.length) };
 }
@@ -78,7 +72,6 @@ describe("ArtifactStore", () => {
   });
 
   it("draws a fresh ID when the generated one collides with a stored row", async () => {
-    // First two draws collide, the third is unique.
     const fills = [0xaa, 0xaa, 0xbb];
     spyOn(crypto, "getRandomValues").mockImplementation(<T extends ArrayBufferView | null>(arr: T) => {
       (arr as unknown as Uint8Array).fill(fills.shift() ?? 0xcc);
@@ -107,7 +100,7 @@ describe("ArtifactStore", () => {
 
   it("loads from the database on a memory miss and re-warms memory", async () => {
     const id = store.store(SESSION, TOOL, INPUT, DATA, 9000);
-    store.clear(); // as if the 5-minute memory window had passed
+    store.clear();
     expect(store.isCached(id)).toBe(false);
 
     const { result, error } = await store.query(id, SESSION, "[.results[] | .name]");
@@ -138,7 +131,7 @@ describe("ArtifactStore", () => {
   it("keeps many artifacts while the session is within its byte budget", () => {
     appConfig.artifact.max_session_bytes = 1000;
     const ids = Array.from({ length: 11 }, () => store.store(SESSION, TOOL, INPUT, sized(90), 100));
-    expect(sessionIds(SESSION)).toEqual(ids); // 990 chars ≤ 1000
+    expect(sessionIds(SESSION)).toEqual(ids);
     expect(ids.every((id) => store.isCached(id))).toBe(true);
   });
 
@@ -150,12 +143,10 @@ describe("ArtifactStore", () => {
       now.mockReturnValue(created + i * 60_000);
       return store.store(SESSION, TOOL, INPUT, sized(300), 100);
     });
-    // 4 × 300 = 1200 > 1000 → only the oldest goes
     expect(sessionIds(SESSION)).toEqual(ids.slice(1));
     expect(store.isCached(ids[0])).toBe(false);
     expect((await store.query(ids[0], SESSION, ".")).error).toContain("not found");
 
-    // A 700-char store leaves room for only the newest 300 (300 + 700 = 1000)
     now.mockReturnValue(created + 4 * 60_000);
     const big = store.store(SESSION, TOOL, INPUT, sized(700), 100);
     expect(sessionIds(SESSION)).toEqual([ids[3], big]);
@@ -172,7 +163,7 @@ describe("ArtifactStore", () => {
     now.mockReturnValue(created + 60_000);
     const second = store.store(SESSION, TOOL, INPUT, sized(300), 100);
     now.mockReturnValue(created + 120_000);
-    expect(store.get(first, SESSION).status).toBe("ok"); // recently read, still oldest
+    expect(store.get(first, SESSION).status).toBe("ok");
 
     const third = store.store(SESSION, TOOL, INPUT, sized(300), 100);
     expect(sessionIds(SESSION)).toEqual([second, third]);
@@ -227,17 +218,14 @@ describe("ArtifactStore", () => {
       `Artifact ${id} expired (fetched 26h ago). ` +
       `Re-run \`${TOOL}\` with ${JSON.stringify(INPUT)} for current data.`;
 
-    // Memory copy
     const fromMemory = await store.query(id, SESSION, ".");
     expect(fromMemory.result).toBeNull();
     expect(fromMemory.error).toBe(expected);
     expect(store.isCached(id)).toBe(false);
 
-    // Database row (memory already gone)
     expect((await store.query(id, SESSION, ".")).error).toBe(expected);
     expect(store.isCached(id)).toBe(false);
 
-    // Another session still sees it as missing, not expired
     expect((await store.query(id, OTHER_SESSION, ".")).error).toContain("not found");
   });
 

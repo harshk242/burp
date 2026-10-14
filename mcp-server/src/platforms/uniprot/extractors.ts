@@ -1,23 +1,3 @@
-/**
- * UniProt response extraction utilities.
- *
- * Reduces raw UniProt API responses by ~97-98% while preserving
- * all semantically useful fields for LLM reasoning.
- *
- * See docs/UNIPROT_EXTRACTION_PLAN.md for the full rationale.
- *
- * TODO: The extractor functions below (extractEntry, extractSearchByGeneResponse,
- * pickBestEntry) are currently unused — output shaping is now handled by the
- * orchestration-layer jq pipeline. They encode valuable semantic logic (species
- * defaults, taxon grouping, best-reviewed-entry selection) that should be
- * revisited when designing semantic profiles for the jq policy system.
- * See: artifact.policies.profiles in app/config.yaml
- */
-
-// ---------------------------------------------------------------------------
-// Species configuration
-// ---------------------------------------------------------------------------
-
 export const SPECIES_MAP: Record<string, number> = {
   human: 9606,
   'homo sapiens': 9606,
@@ -56,26 +36,19 @@ export function resolveSpeciesFilter(
 
   const parts = species.map((s) => {
     const trimmed = s.trim();
-    // If it's a bare number, treat as taxon ID
     if (/^\d+$/.test(trimmed)) {
       return `organism_id:${trimmed}`;
     }
-    // Look up common name -> scientific name
     const lower = trimmed.toLowerCase();
     if (SPECIES_MAP[lower]) {
       return `organism_id:${SPECIES_MAP[lower]}`;
     }
-    // Assume it's a scientific name
     return `organism_name:"${trimmed}"`;
   });
 
   if (parts.length === 1) return parts[0];
   return `(${parts.join(' OR ')})`;
 }
-
-// ---------------------------------------------------------------------------
-// Cross-reference databases to keep
-// ---------------------------------------------------------------------------
 
 const KEEP_XREF_DBS = new Set([
   'HGNC',
@@ -90,19 +63,11 @@ const KEEP_XREF_DBS = new Set([
   'InterPro',
 ]);
 
-// ---------------------------------------------------------------------------
-// Feature types to keep
-// ---------------------------------------------------------------------------
-
 const KEEP_FEATURE_TYPES = new Set([
   'Domain',
   'Zinc finger',
   'Region',
 ]);
-
-// ---------------------------------------------------------------------------
-// Comment types to always keep
-// ---------------------------------------------------------------------------
 
 const KEEP_COMMENT_TYPES = new Set([
   'FUNCTION',
@@ -116,31 +81,21 @@ const KEEP_COMMENT_TYPES = new Set([
   'PTM',
 ]);
 
-// ---------------------------------------------------------------------------
-// Pick the best entry from results
-// ---------------------------------------------------------------------------
-
 export function pickBestEntry(
   results: any[],
 ): any | undefined {
   if (!results || results.length === 0) return undefined;
 
-  // Prefer Swiss-Prot reviewed entries
   const reviewed = results.filter(
     (r: any) =>
       typeof r.entryType === 'string' && r.entryType.includes('reviewed'),
   );
   const pool = reviewed.length > 0 ? reviewed : results;
 
-  // Highest annotation score wins
   return pool.reduce((best: any, curr: any) =>
     (curr.annotationScore ?? 0) > (best.annotationScore ?? 0) ? curr : best,
   );
 }
-
-// ---------------------------------------------------------------------------
-// Extract a single entry
-// ---------------------------------------------------------------------------
 
 export interface ExtractedEntry {
   accession: string;
@@ -229,49 +184,39 @@ export function extractEntry(entry: any): ExtractedEntry {
   const xrefs = entry.uniProtKBCrossReferences ?? [];
   const grouped = groupComments(comments);
 
-  // Gene info
   const geneBlock = entry.genes?.[0];
   const geneName = geneBlock?.geneName?.value ?? null;
   const geneSynonyms: string[] = (geneBlock?.synonyms ?? []).map(
     (s: any) => s.value,
   );
 
-  // Protein name
   const proteinName =
     entry.proteinDescription?.recommendedName?.fullName?.value ??
     entry.proteinDescription?.submissionNames?.[0]?.fullName?.value ??
     entry.uniProtkbId ??
     entry.primaryAccession;
 
-  // Function
   const functionText = textFromComment(grouped['FUNCTION']?.[0]);
 
-  // Subunit
   const subunitText = textFromComment(grouped['SUBUNIT']?.[0]);
 
-  // Pathway
   const pathwayText = textFromComment(grouped['PATHWAY']?.[0]);
 
-  // Tissue specificity
   const tissueText = textFromComment(grouped['TISSUE SPECIFICITY']?.[0]);
 
-  // Catalytic activity
   const catalyticComment = grouped['CATALYTIC ACTIVITY']?.[0];
   const catalyticActivity = catalyticComment?.reaction?.name ?? null;
 
-  // PTM
   const ptmTexts: string[] = (grouped['PTM'] ?? [])
     .map((c: any) => textFromComment(c))
     .filter(Boolean) as string[];
 
-  // Diseases
   const diseases = (grouped['DISEASE'] ?? []).map((c: any) => ({
     name: c.disease?.diseaseId ?? 'Unknown',
     description: c.disease?.description,
     note: c.note?.texts?.[0]?.value,
   }));
 
-  // Subcellular locations (deduplicated)
   const locationSet = new Set<string>();
   for (const c of grouped['SUBCELLULAR LOCATION'] ?? []) {
     for (const loc of c.subcellularLocations ?? []) {
@@ -280,7 +225,6 @@ export function extractEntry(entry: any): ExtractedEntry {
     }
   }
 
-  // Interactions -- sorted by experiment count, top 20
   const interactions: Array<{ gene: string; n_experiments: number }> = [];
   for (const c of grouped['INTERACTION'] ?? []) {
     for (const i of c.interactions ?? []) {
@@ -296,7 +240,6 @@ export function extractEntry(entry: any): ExtractedEntry {
   interactions.sort((a, b) => b.n_experiments - a.n_experiments);
   const topInteractions = interactions.slice(0, 20);
 
-  // Domains & structural features
   const domains = features
     .filter((f: any) => KEEP_FEATURE_TYPES.has(f.type))
     .map((f: any) => ({
@@ -306,7 +249,6 @@ export function extractEntry(entry: any): ExtractedEntry {
       end: f.location?.end?.value ?? 0,
     }));
 
-  // Natural variants -- all counted, only pathogenic extracted
   const allVariants = features.filter(
     (f: any) => f.type === 'Natural variant',
   );
@@ -328,10 +270,8 @@ export function extractEntry(entry: any): ExtractedEntry {
       };
     });
 
-  // Keywords -- just names
   const keywords = (entry.keywords ?? []).map((k: any) => k.name);
 
-  // Cross-references -- selective
   const filteredXrefs = xrefs.filter((x: any) =>
     KEEP_XREF_DBS.has(x.database),
   );
@@ -400,10 +340,6 @@ export function extractEntry(entry: any): ExtractedEntry {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Full pipeline: filter species -> pick best -> extract
-// ---------------------------------------------------------------------------
-
 export interface ExtractionResult {
   gene_query: string;
   species_filter: string[];
@@ -424,15 +360,12 @@ export function extractSearchByGeneResponse(
 ): ExtractionResult {
   const results: any[] = rawResponse?.results ?? [];
 
-  // Determine which taxon IDs we're interested in
   const wantedTaxons = resolveWantedTaxons(species);
 
-  // Filter results to wanted species
   const filtered = wantedTaxons
     ? results.filter((r: any) => wantedTaxons.has(r.organism?.taxonId))
     : results;
 
-  // Group by taxon ID
   const byTaxon = new Map<number, any[]>();
   for (const r of filtered) {
     const tid = r.organism?.taxonId ?? 0;
@@ -441,7 +374,6 @@ export function extractSearchByGeneResponse(
     byTaxon.set(tid, arr);
   }
 
-  // Pick best per taxon and extract
   const entries: ExtractedEntry[] = [];
   for (const [, group] of byTaxon) {
     const best = pickBestEntry(group);
@@ -460,7 +392,7 @@ export function extractSearchByGeneResponse(
 
 function resolveWantedTaxons(species?: string[]): Set<number> | null {
   if (!species || species.length === 0) {
-    return new Set([9606]); // human default
+    return new Set([9606]);
   }
   const ids = new Set<number>();
   for (const s of species) {
@@ -472,8 +404,6 @@ function resolveWantedTaxons(species?: string[]): Set<number> | null {
       if (tid) {
         ids.add(tid);
       }
-      // If not in map, we can't filter by taxon ID -- include all results
-      // and let the organism_name query filter on the API side
     }
   }
   return ids.size > 0 ? ids : null;

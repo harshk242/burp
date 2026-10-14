@@ -1,7 +1,3 @@
-/**
- * The item evaluators the runner applies, in score order. Each is a pure
- * function of `(taskOutput, item)`; `evaluateItem` runs them all.
- */
 import { checkpointRecall } from "./checkpoint-recall";
 import { idGrounding } from "./id-grounding";
 import { toolCoverage } from "./tool-coverage";

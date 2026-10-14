@@ -24,7 +24,6 @@ const tempDir = () => {
 const hash = (path: string) => (existsSync(path) ? createHash("sha256").update(readFileSync(path)).digest("hex") : null);
 const fileHashes = (path: string) => ({ db: hash(path), wal: hash(`${path}-wal`), shm: hash(`${path}-shm`) });
 
-/** A closed legacy file DB (old-prod fixture unless `schemaSql` is given). */
 function legacyFile(schemaSql?: string, mutate?: (db: Database) => void): string {
   const path = join(tempDir(), "prod-copy.db");
   const sqlite = openDatabase(path);
@@ -43,7 +42,6 @@ describe("db:snapshot", () => {
     buildLegacyDb(writer, "current");
     writer.run("INSERT INTO users (id, clerk_id, email) VALUES ('late', 'clerk_late', 'late@example.com')");
 
-    // The rows really are only in the WAL: the main file alone doesn't have them.
     expect(statSync(`${source}-wal`).size).toBeGreaterThan(0);
     const mainOnlyPath = join(dir, "main-only.db");
     copyFileSync(source, mainOnlyPath);
@@ -93,7 +91,7 @@ describe("db:verify", () => {
     });
     expect(report.pending).toHaveLength(15);
     expect(report.transactionMs).toBeGreaterThan(0);
-    expect(existsSync(report.copy)).toBe(false); // scratch copy cleaned up
+    expect(existsSync(report.copy)).toBe(false);
     expect(verifyPassed(report)).toBe(true);
 
     const text = formatVerifyReport(report);

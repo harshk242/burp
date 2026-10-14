@@ -1,13 +1,3 @@
-/**
- * Comparison arms (plan 2.4): one Anthropic setup (model + effort, optional
- * max_output_tokens) per experiment. Arms come from git-tracked matrix files
- * (`app/evals/matrices/<name>.yaml`) and/or repeatable `--arm
- * <model>:<effort>[:<max_output_tokens>]`. No arm = the production config.
- *
- * Pure (fs + YAML only): args.ts parses `--arm` before run.ts sets up the
- * environment. Whether a model exists and takes the effort level is checked
- * later against the Models API (capabilities.ts), never from a local table.
- */
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
@@ -110,7 +100,6 @@ export interface ResolvedArm {
   effort: Effort;
   note: string | null;
   maxOutputTokens: number;
-  /** Where max_output_tokens came from. */
   maxOutputTokensSource: "arm" | "default" | "config";
   thinkingDisplay: LLMConfig["thinkingDisplay"];
   /** Same for every arm: the history budget must not confound the comparison. */

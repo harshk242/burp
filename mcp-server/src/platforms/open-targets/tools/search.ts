@@ -1,5 +1,3 @@
-// Search API Tools
-
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
 import { mapIds } from './meta.js';
@@ -8,18 +6,13 @@ import {
   SEARCH_ENTITIES_OPERATION,
 } from './operations.js';
 
-// Optional fuzzy matching support
 let fuzzball: any = null;
 try {
-  // fuzzball exports named exports (extract, ratio, etc.), not a default export
   fuzzball = await import('fuzzball');
 } catch {
   console.warn("'fuzzball' library not found. Suggestions will not work.");
 }
 
-/**
- * Internal helper for direct search.
- */
 async function searchDirect(
   queryString: string,
   entityNames?: string[],
@@ -69,22 +62,17 @@ interface MapIdsResult {
   };
 }
 
-/**
- * Search Open Targets entities and resolve synonyms to canonical IDs.
- */
 export async function searchEntities(
   queryString: string,
   entityNames?: string[],
   pageIndex: number = 0,
   pageSize: number = 10
 ): Promise<unknown> {
-  // Run direct search and ID mapping in parallel
   const [directResults, mappedResults] = await Promise.all([
     searchDirect(queryString, entityNames, pageIndex, pageSize) as Promise<SearchResult>,
     mapIds([queryString], entityNames) as Promise<MapIdsResult>,
   ]);
 
-  // Find best mapped hit
   let bestMappedHit: { id: string; name?: string; score?: number } | null = null;
   const mappings = mappedResults?.mapIds?.mappings || [];
   if (mappings.length > 0 && mappings[0]?.hits?.length) {
@@ -96,10 +84,6 @@ export async function searchEntities(
 
   const directTopHitId = directResults?.search?.hits?.[0]?.id;
 
-  // Only re-search if:
-  // 1. We have a mapped hit with a different ID
-  // 2. The mapped hit has a perfect score (1.0)
-  // 3. The direct search returned results (to avoid breaking on empty results)
   if (bestMappedHit &&
       bestMappedHit.id !== directTopHitId &&
       bestMappedHit.score === 1.0 &&
@@ -108,9 +92,7 @@ export async function searchEntities(
       `Resolving '${queryString}' to canonical match: '${bestMappedHit.name}' (${bestMappedHit.id})`
     );
     try {
-      // Try to re-search with the canonical ID
       const canonicalResults = await searchDirect(bestMappedHit.id, entityNames, pageIndex, pageSize) as SearchResult;
-      // Only use the canonical results if they actually returned data
       if (canonicalResults?.search?.hits?.length) {
         return canonicalResults;
       }
@@ -127,9 +109,6 @@ interface FuzzyChoice {
   entity: string;
 }
 
-/**
- * Return autocomplete suggestions for partially typed queries.
- */
 export async function searchSuggestions(
   queryPrefix: string,
   entityNames?: string[],
@@ -149,7 +128,6 @@ export async function searchSuggestions(
     return { suggestions: [] };
   }
 
-  // Build choices map
   const choices: Record<string, FuzzyChoice> = {};
   for (const hit of candidatesResult.search.hits) {
     const name = hit.name;
@@ -162,7 +140,6 @@ export async function searchSuggestions(
     }
   }
 
-  // Fuzzy match
   const choiceKeys = Object.keys(choices);
   const extracted = fuzzball.extract(queryPrefix, choiceKeys, {
     scorer: fuzzball.ratio,
@@ -180,9 +157,6 @@ export async function searchSuggestions(
   return { suggestions };
 }
 
-/**
- * Identify targets with similar association profiles to the seed target.
- */
 export async function getSimilarTargets(
   entityId: string,
   threshold: number = 0.5,
@@ -207,9 +181,6 @@ export async function getSimilarTargets(
   return client.query(query, { entityId, threshold, size });
 }
 
-/**
- * Return facet counts to help filter search results.
- */
 export async function searchFacets(
   queryString?: string,
   categoryId?: string,

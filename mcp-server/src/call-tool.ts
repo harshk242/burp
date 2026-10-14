@@ -1,7 +1,3 @@
-// CallTool handler: runs a tool inside a tool-call context (deadline + caller
-// cancellation), formats upstream failures as structured JSON and attaches the
-// aggregated `_meta.retry` (see plans/shared-http-retry-plan.md, steps 2 and 4).
-
 import type { CallToolRequest, CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import { UpstreamError } from './shared/exceptions.js';
@@ -9,25 +5,11 @@ import { REASON_TO_KIND, type UpstreamReason } from './shared/http-retry-classif
 import { resolveToolCallTimeoutMs, runWithToolCallContext } from './shared/tool-call-context.js';
 import type { ToolHandler } from './types.js';
 
-// ── Layer 1 of 3: Prevent process death (5MB) ──────────────────────
-//
-// Tool output flows through three size guardrails, each with a distinct job:
-//
-//   MCP server  (5MB)  → prevent process death / stdio pressure
-//       ↓
-//   App manager (1MB)  → prevent LLM context blow-up
-//       ↓
-//   handleLargeOutput (15K) → noise reduce, then artifact if still big
-//
-// This layer is the coarsest — set high so it only fires on genuinely
-// pathological responses (e.g. size=10000). No silent truncation: data
-// is either sent intact or explicitly rejected with a structured error.
 const SERVER_HARD_CAP_BYTES = parseInt(
   process.env.MCP_SERVER_HARD_CAP_BYTES ?? '5242880',
   10,
 );
 
-/** The parts of the SDK's `RequestHandlerExtra` the handler uses. */
 export interface CallToolExtra {
   signal: AbortSignal;
 }
@@ -77,9 +59,6 @@ async function runTool(name: string, handler: ToolHandler, args: Record<string, 
     const serialized = JSON.stringify(result, null, 2);
     const sizeBytes = Buffer.byteLength(serialized, 'utf-8');
 
-    // Crash-prevention guard: reject before sending over stdio.
-    // This prevents multi-MB payloads from pressuring transport/memory.
-    // NOT silent truncation — returns an explicit error with diagnostics.
     if (sizeBytes > SERVER_HARD_CAP_BYTES) {
       const actualMB = (sizeBytes / 1024 / 1024).toFixed(2);
       const capMB = (SERVER_HARD_CAP_BYTES / 1024 / 1024).toFixed(1);

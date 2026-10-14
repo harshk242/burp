@@ -1,5 +1,3 @@
-/** Complete GraphQL operations shared by tools and live API contracts. */
-
 export const DISEASE_INFO_OPERATION = `
   query DiseaseInfo($efoId: String!) {
     disease(efoId: $efoId) {

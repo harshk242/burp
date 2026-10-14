@@ -1,14 +1,3 @@
-/**
- * GraphQL nullability for schema contract tests.
- *
- * Sampled snapshots cannot tell a nullable field apart from one that happened
- * to be populated at capture time. For GraphQL APIs the schema states this
- * explicitly, so we derive the set of response paths that may legitimately be
- * `null` and let the schema validator tolerate null drift on exactly those.
- *
- * Paths use the schema-validator format: `$.search.hits[].description`.
- */
-
 import type { AxiosInstance } from 'axios';
 import {
   buildClientSchema,
@@ -95,7 +84,6 @@ function walkSelectionSet(
   for (const selection of selectionSet.selections) {
     if (selection.kind === Kind.FIELD) {
       const fieldName = selection.name.value;
-      // __typename is always a non-null String
       if (fieldName === '__typename') continue;
       if (!isObjectType(parentType) && !isInterfaceType(parentType)) continue;
 

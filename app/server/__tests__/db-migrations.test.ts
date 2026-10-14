@@ -17,7 +17,6 @@ const TABLES = ["access_requests", "chat_sessions", "daily_usage", "messages", "
 type ColumnInfo = { name: string; type: string; notnull: number; dflt_value: string | null; pk: number };
 type FkInfo = { table: string; from: string; to: string; on_delete: string; on_update: string };
 
-/** Representation-agnostic view of one table, enough to prove the baseline is a 1:1 port. */
 function describeTable(sqlite: Database, table: string) {
   const columns = sqlite
     .query<ColumnInfo, []>(`PRAGMA table_info(${table})`)
@@ -46,7 +45,6 @@ function describeTable(sqlite: Database, table: string) {
         .all()
         .map((c) => c.name)
         .join(",");
-      // Unique sets compare by columns (legacy ones are anonymous autoindexes); ordinary indexes by name.
       return i.unique ? `unique(${cols})` : `${i.name}(${cols}) partial=${i.partial}`;
     })
     .sort();
@@ -163,7 +161,6 @@ describe("fresh database migrations", () => {
     sqlite.run(
       "INSERT INTO tool_search_fts (full_name, server, tool_name, description) VALUES ('s.t', 's', 't', 'searching proteins')",
     );
-    // porter stemmer: "protein" matches "proteins"
     expect(sqlite.query("SELECT full_name FROM tool_search_fts WHERE tool_search_fts MATCH 'protein'").all()).toEqual([
       { full_name: "s.t" },
     ]);
@@ -199,9 +196,8 @@ describe("executor compatibility with drizzle-orm migrate()", () => {
     expect(pendingMigrations(sqlite, loadMigrations(MIGRATIONS_FOLDER))).toEqual([]);
     expect(runMigrations(sqlite).applied).toEqual([]);
 
-    // Both paths produce the same schema and the same history rows.
     const ours = createTestDb().sqlite;
-    const skip = ["__drizzle_migrations"]; // DDL text differs only in whitespace
+    const skip = ["__drizzle_migrations"];
     expect(schemaSnapshot(sqlite, skip)).toEqual(schemaSnapshot(ours, skip));
     expect(historyRows(sqlite)).toEqual(historyRows(ours));
     expect(ours.query("SELECT * FROM rate_limits ORDER BY role").all()).toHaveLength(2);

@@ -1,11 +1,3 @@
-/**
- * Minimal SQLite tokenizer for schema introspection (introspect.ts).
- *
- * Only what is needed to read DDL out of `sqlite_master.sql` reliably: comments
- * are dropped, string literals and quoted identifiers are kept intact, so a
- * keyword inside a string or a `"check"` column never looks like a constraint.
- */
-
 export type TokenKind = "string" | "ident" | "number" | "punct";
 
 export interface Token {
@@ -62,7 +54,6 @@ export function tokenize(sql: string): Token[] {
   return tokens;
 }
 
-/** Index of the closing quote, honouring doubled-quote escapes. */
 function closingQuote(sql: string, start: number, quote: string): number {
   let i = start + 1;
   while (i < sql.length) {
@@ -101,7 +92,6 @@ export function balancedParens(tokens: Token[], open: number): [Token[], number]
 export function normalizeExpression(input: Token[] | string): string {
   let tokens = typeof input === "string" ? tokenize(input) : input;
   tokens = tokens.filter((t, i) => {
-    // Drop `qualifier .` when followed by another identifier (`users.role` → `role`).
     const next = tokens[i + 1];
     const after = tokens[i + 2];
     return !(t.kind === "ident" && next?.kind === "punct" && next.text === "." && after?.kind === "ident") &&

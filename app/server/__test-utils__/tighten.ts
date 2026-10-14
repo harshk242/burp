@@ -1,9 +1,3 @@
-/**
- * Rows for the `0003_tighten_not_null` tests: NULLs that 0003 backfills, and
- * NULL text PKs that must make it fail. Insert into a pre-0003 DB (legacy
- * fixture or one migrated through 0002) that already has the fixture rows
- * `u-user` / `c-1` (see ./legacy.ts) or the ones seeded by `seedNullableRows`.
- */
 import type { Database } from "bun:sqlite";
 
 /** One row per tightened table with every backfillable column NULL. */

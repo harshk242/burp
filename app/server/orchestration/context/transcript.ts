@@ -1,20 +1,3 @@
-/**
- * Model transcript write path (plan Phase 4b.1): every `ModelMessage` the chat
- * loop sends is appended to `model_transcript` once, in send order, tagged with
- * its turn and a compatibility tag. Replay parses successful turns as-is,
- * falling back to UI text only for turns without transcript rows.
- *
- * Rules:
- * - R1, append-only: rows are inserted once and never updated (the queries
- *   have no update method; a trigger rejects UPDATEs).
- * - R2, no cache markers: `applyCacheMarkers` marks a per-call copy, so the
- *   loop's messages carry none; `stripCacheMarkers` removes any that would get
- *   through anyway, leaving every other byte as it was.
- * - R3, what the model saw: the loop's own messages (tool output after
- *   handleLargeOutput, with its `fetched_at` line; reasoning parts with their
- *   signatures / redacted data, as the SDK returned them).
- */
-
 import type { ModelMessage } from "ai";
 import { chatTurnQueries, messageQueries, modelTranscriptQueries, type DbTranscriptRow, type NewTranscriptRow } from "../../db";
 import { shortHash } from "../usage-meter";
@@ -38,10 +21,6 @@ export function contextVersion(systemPrompt: string, providerOptions: unknown): 
 type ProviderOptions = Record<string, Record<string, unknown> | undefined>;
 const CACHE_KEYS = ["cacheControl", "cache_control"] as const;
 
-/**
- * `providerOptions` without Anthropic cache markers, or the same object when it
- * has none (so unmarked messages are stored untouched).
- */
 function withoutCacheMarkers<T extends ProviderOptions | undefined>(options: T): T | undefined {
   const anthropic = options?.anthropic;
   if (!anthropic || !CACHE_KEYS.some((key) => key in anthropic)) return options;
@@ -51,7 +30,6 @@ function withoutCacheMarkers<T extends ProviderOptions | undefined>(options: T):
   return (Object.keys(result).length > 0 ? result : undefined) as T | undefined;
 }
 
-/** Sets or drops `providerOptions` on an object (a message or a content part). */
 function replaceOptions<T extends { providerOptions?: unknown }>(item: T, options: unknown): T {
   const { providerOptions: _old, ...rest } = item;
   return (options === undefined ? rest : { ...rest, providerOptions: options }) as T;
@@ -98,7 +76,6 @@ export function transcriptToolNames(message: ModelMessage): string[] {
   return [...names].sort();
 }
 
-/** The row stored for one message (seq is assigned on insert). */
 export function toTranscriptRow(turnId: string, message: ModelMessage, tag: TranscriptTag): NewTranscriptRow {
   const stored = stripCacheMarkers(message);
   return {
@@ -147,7 +124,6 @@ export type TranscriptDegradedReason =
   | { reason: "provider" | "model" | "context_version" | "system_message" }
   | { reason: "missing_tools"; missing_tools: string[] };
 
-/** Check every row: a late tool search or provider change invalidates the turn. */
 function incompatibility(rows: DbTranscriptRow[], current: TranscriptCompatibility): TranscriptDegradedReason | undefined {
   if (rows.some((row) => row.provider !== current.provider)) return { reason: "provider" };
   if (rows.some((row) => row.model !== current.model)) return { reason: "model" };
@@ -183,8 +159,6 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
   for (const row of rows) {
     if (!okIds.has(row.turn_id)) continue;
     const message = JSON.parse(row.content_json) as ModelMessage;
-    // Server-written tool-change system messages are not implemented yet, so
-    // any system row is untrusted: its turn replays as text (below).
     if (row.role === "system" || message.role === "system") untrusted.add(row.turn_id);
     const messages = byTurn.get(row.turn_id) ?? [];
     messages.push(message);
@@ -219,8 +193,6 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
         if (msg.id !== turn.user_message_id) continue;
         const offset = context.messages.length;
         context.messages.push(...replay);
-        // All trailing assistant messages belong to the final response, which
-        // was not part of that call's input. The preceding message was cached.
         let endpoint = replay.length - 1;
         while (endpoint >= 0 && replay[endpoint]!.role === "assistant") endpoint--;
         context.previousLastIndex = endpoint >= 0 ? offset + endpoint : undefined;

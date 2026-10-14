@@ -1,16 +1,12 @@
-// TypeScript interfaces for PubMed platform module
-
 import type { AxiosAdapter } from 'axios';
 import type { RetryDeps } from '../../shared/http-retry.js';
 import type { TokenBucketRateLimiter } from '../../shared/rate-limiter.js';
 
-// Cache entry type
 export interface CacheEntry {
   data: unknown;
   timestamp: number;
 }
 
-// ESearch response types
 export interface ESearchResult {
   count: number;
   retmax: number;
@@ -33,7 +29,6 @@ export interface TranslationStack {
   explode: string;
 }
 
-// ESummary response types
 export interface ArticleSummary {
   uid: string;
   pubdate: string;
@@ -96,7 +91,6 @@ export interface HistoryEntry {
   date: string;
 }
 
-// EFetch (full article) response types
 export interface PubMedArticle {
   pmid: string;
   title: string;
@@ -147,7 +141,6 @@ export interface Grant {
   country?: string;
 }
 
-// ELink response types
 export interface LinkResult {
   dbFrom: string;
   idList: string[];
@@ -172,10 +165,9 @@ export interface LinkItem {
   score?: number;
 }
 
-// Search filter options
 export interface SearchFilters {
   dateRange?: {
-    start: string; // YYYY/MM/DD
+    start: string;
     end: string;
   };
   publicationType?: string[];
@@ -186,7 +178,6 @@ export interface SearchFilters {
   journalList?: string[];
 }
 
-// Tool response types
 export interface SearchResponse {
   count: number;
   pmids: string[];
@@ -237,7 +228,6 @@ export interface FormattedCitation {
   style: string;
 }
 
-// Client options
 export interface PubMedClientOptions {
   apiKey?: string;
   cacheTtl?: number;

@@ -88,13 +88,9 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
   } = useChatStore();
   const { sessions, activeSessionId, addSession, setActiveSession, updateSession } = useSessionStore();
 
-  // Resolve the title of the active session for PDF export filenames
   const sessionTitle =
     sessions.find((s) => s.id === currentSessionId)?.title ?? "Chat";
 
-  // Sync session store → local state when sidebar changes the active session.
-  // Uses a ref to skip the initial mount (where activeSessionId may be null
-  // while currentSessionId is already set from the URL).
   const prevActiveRef = useRef(activeSessionId);
   useEffect(() => {
     if (prevActiveRef.current !== activeSessionId) {
@@ -103,7 +99,6 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     }
   }, [activeSessionId]);
 
-  // Handle browser back/forward navigation
   useEffect(() => {
     const handlePopState = () => {
       const sessionId = extractSessionIdFromLocation(window.location);
@@ -114,16 +109,14 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     return () => window.removeEventListener("popstate", handlePopState);
   }, [setActiveSession]);
 
-  // Load session messages when session ID changes
   useEffect(() => {
-    // When switching to "New Chat" (null), just clear messages
     if (!currentSessionId) {
       reset();
       return;
     }
 
     setActiveSession(currentSessionId);
-    reset(); // Clear previous session's messages
+    reset();
 
     async function loadMessages() {
       try {
@@ -131,7 +124,6 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
           `/sessions/${currentSessionId}`
         );
 
-        // Convert DB messages to frontend format
         const convertedMessages: Message[] = data.messages.map(dbMessageToMessage);
 
         setMessages(convertedMessages);
@@ -148,7 +140,6 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     async (content: string) => {
       let sessionId = currentSessionId;
 
-      // Lazily create session on first message
       if (!sessionId) {
         try {
           const data = await post<{ id: string; title: string }>("/sessions", {});
@@ -170,7 +161,6 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
         }
       }
 
-      // Add user message immediately
       addMessage({
         id: generateId(),
         role: "user",

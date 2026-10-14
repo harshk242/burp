@@ -9,12 +9,7 @@ import type { AppEnv } from "../types";
 
 const tools = new OpenAPIHono<AppEnv>();
 
-// Apply Clerk auth and user role check to all tool routes
 tools.use("*", clerkAuth, requireDbUser, requireUser);
-
-// ============================================
-// GET /api/tools - List all available tools
-// ============================================
 
 const listToolsRoute = createRoute({
   method: "get",
@@ -52,16 +47,12 @@ const listToolsRoute = createRoute({
 });
 
 tools.openapi(listToolsRoute, async (c) => {
-  const allTools = toolRegistry.getAll(true); // Include unavailable tools
+  const allTools = toolRegistry.getAll(true);
   return c.json({
     tools: allTools,
     count: allTools.length,
   }, 200);
 });
-
-// ============================================
-// GET /api/tools/config - Verify tool loading configuration
-// ============================================
 
 const toolConfigRoute = createRoute({
   method: "get",
@@ -109,7 +100,7 @@ const toolConfigRoute = createRoute({
 });
 
 tools.openapi(toolConfigRoute, async (c) => {
-  const allTools = toolRegistry.getAll(false); // only available
+  const allTools = toolRegistry.getAll(false);
   const expectedCoreNames = new Set(toolRegistry.getAlwaysLoadedTools());
   const alwaysLoaded = allTools.filter((t) => expectedCoreNames.has(`${t.server}__${t.name}`));
   const deferred = allTools.filter((t) => !expectedCoreNames.has(`${t.server}__${t.name}`));
@@ -126,10 +117,6 @@ tools.openapi(toolConfigRoute, async (c) => {
     expectedAlwaysLoaded: toolRegistry.getAlwaysLoadedTools(),
   }, 200);
 });
-
-// ============================================
-// GET /api/tools/search - Search tools by name/description
-// ============================================
 
 const searchToolsRoute = createRoute({
   method: "get",
@@ -180,16 +167,12 @@ const searchToolsRoute = createRoute({
 tools.openapi(searchToolsRoute, async (c) => {
   const { q } = c.req.valid("query");
 
-  const results = toolRegistry.search(q, true); // Include unavailable tools
+  const results = toolRegistry.search(q, true);
   return c.json({
     tools: results,
     count: results.length,
   }, 200);
 });
-
-// ============================================
-// GET /api/tools/hybrid-search - Hybrid search (BM25 + semantic)
-// ============================================
 
 const hybridSearchRoute = createRoute({
   method: "get",
@@ -245,10 +228,6 @@ tools.openapi(hybridSearchRoute, async (c) => {
   });
   return c.json({ results, count: results.length, query: q }, 200);
 });
-
-// ============================================
-// POST /api/tools/:server/:name - Direct tool call
-// ============================================
 
 const callToolRoute = createRoute({
   method: "post",

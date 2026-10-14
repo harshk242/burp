@@ -1,7 +1,6 @@
 import { appConfig, type AppConfig, type ModelPricing } from "./config";
 
 export const MICROUSD_PER_USD = 1_000_000;
-/** tokens × µUSD-per-MTok is an exact count of pico-USD (1e-12 USD). */
 const PICOUSD_PER_MICROUSD = 1_000_000;
 
 export class PricingConfigError extends Error {
@@ -83,11 +82,6 @@ export function getNextUtcMonthStart(date = new Date()): number {
   return Math.floor(resetDate.getTime() / 1000);
 }
 
-// ── Cost engine ──────────────────────────────────────────────────────────────
-// Each LLM call is priced on its own (the long-context tier depends on one
-// request's prompt size), in exact pico-USD integers. A turn sums its calls and
-// rounds up to µUSD once.
-
 /** One rate set in µUSD per MTok, cache fallbacks already applied. */
 export interface Rates {
   input: number;
@@ -104,7 +98,6 @@ export interface ResolvedPricing {
   entry: ModelPricing;
 }
 
-/** One streamText call. */
 export interface CallUsage {
   noCacheTokens: number;
   cacheReadTokens: number;
@@ -150,7 +143,6 @@ export interface ChatCost {
   costMicrousd: number;
 }
 
-/** Throws instead of letting a cost lose precision past 2^53. */
 function safe(value: number, what: string): number {
   if (!Number.isSafeInteger(value)) {
     throw new RangeError(`Cost overflow: ${what} = ${value} is not a safe integer`);
@@ -165,10 +157,7 @@ function toRates(set: {
   cache_write_5m_usd_per_mtok?: number;
   cache_write_1h_usd_per_mtok?: number;
 }): Rates {
-  // Exact: config.ts only accepts whole µUSD per MTok, so nothing is rounded off.
   const input = usdToMicrousd(set.input_usd_per_mtok);
-  // Fallbacks never undercharge: reads at the full input rate, writes at the
-  // 1.25x / 2x multipliers documented for every Anthropic model.
   return {
     input,
     output: usdToMicrousd(set.output_usd_per_mtok),
@@ -221,7 +210,6 @@ export function priceCall(
   const outputTokens = tokenCount(usage.outputTokens, "outputTokens");
   const promptTokens = safe(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "promptTokens");
 
-  // The tier applies to the whole request, output included.
   const lc = pricing.longContext;
   const tier: PricingTier = lc && promptTokens > lc.aboveInputTokens ? "long_context" : "base";
   const rates = tier === "long_context" && lc ? lc : pricing.base;
@@ -251,7 +239,6 @@ export function priceCall(
   };
 }
 
-/** Integer division on the remainder, so no float rounding can creep in. */
 function picoToMicrousdFloor(pico: number): number {
   return (pico - (pico % PICOUSD_PER_MICROUSD)) / PICOUSD_PER_MICROUSD;
 }
@@ -280,7 +267,6 @@ export function summarizeTurnCost(calls: readonly CallCost[]): ChatCost {
     cacheWriteCostMicrousd: picoToMicrousdFloor(sum((c) => c.cacheWriteCostPicoUsd, "cache write cost")),
     outputCostMicrousd: picoToMicrousdFloor(sum((c) => c.outputCostPicoUsd, "output cost")),
     costPicoUsd,
-    // The only rounding step of the turn.
     costMicrousd: picoToMicrousdFloor(costPicoUsd) + (costPicoUsd % PICOUSD_PER_MICROUSD === 0 ? 0 : 1),
   };
 }

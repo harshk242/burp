@@ -14,7 +14,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-/** Settles `promise` after advancing fake time by `ms`; returns the error and the fake time it took. */
 async function rejectionAfter(promise: Promise<unknown>, ms: number): Promise<{ error: any; elapsed: number | undefined }> {
   const started = Date.now();
   let elapsed: number | undefined;
@@ -73,7 +72,7 @@ describe('active deadlines and cancellation', () => {
     let seen: AbortSignal | undefined;
     const beforeAttempt = (signal: AbortSignal) => {
       seen = signal;
-      return new Promise<void>(() => {}); // a limiter that ignores the signal
+      return new Promise<void>(() => {});
     };
     const { client, calls } = stubClient([200], { beforeAttempt, totalBudgetMs: 50 });
     const { error, elapsed } = await rejectionAfter(client.get('/x'), 50);
@@ -182,7 +181,7 @@ describe('uncooperative attempts (ignore the abort signal)', () => {
   it('withRetry: a result that resolves after the caller aborted is not a success', async () => {
     const controller = new AbortController();
     const fn = vi.fn(async () => {
-      controller.abort(); // cancellation lands while the response is in flight
+      controller.abort();
       return 'late';
     });
     const error = await rejection(withRetry(fn, basePolicy, { platform: 'p', signal: controller.signal }));
@@ -258,7 +257,6 @@ describe('adapter wrapper', () => {
 });
 
 describe('error response bodies', () => {
-  /** A client whose transport fails once with `status` and a raw string `body`, as real adapters do. */
   function failingClient(body: string, contentType: string) {
     const adapter: AxiosAdapter = async (config) => {
       const response = {
@@ -288,7 +286,6 @@ describe('error response bodies', () => {
   });
 
   it('keeps the raw body and the UpstreamError when the transform throws', async () => {
-    // responseType json + strict parsing makes Axios's transform throw on bad JSON.
     const adapter: AxiosAdapter = async (config) => {
       const response = { data: '{not json', status: 400, statusText: 'Bad Request', headers: {}, config };
       throw new AxiosError('Request failed with status code 400', AxiosError.ERR_BAD_REQUEST, config, null, response);

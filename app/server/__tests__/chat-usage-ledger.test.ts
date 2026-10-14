@@ -1,11 +1,3 @@
-/**
- * Usage ledger: processChat meters every LLM call of a turn and writes one
- * usage_events row with the cache split taken from the SDK usage and the
- * provider metadata.
- *
- * processChat runs against an in-memory DB and a mock language model (same
- * harness as chat-abort.test.ts).
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { MockLanguageModelV4 } from "ai/test";
 import { createTestDb } from "../__test-utils__/db";
@@ -58,7 +50,6 @@ function finish(
   };
 }
 
-/** Call N streams calls[N]; a call past the end fails before any response. */
 function scriptedModel(calls: LanguageModelV4StreamPart[][]) {
   let n = 0;
   return new MockLanguageModelV4({
@@ -117,7 +108,6 @@ describe("processChat usage ledger", () => {
     const sessionId = crypto.randomUUID();
     const events = await collect(processChat(sessionId, USER_ID, "hi"));
 
-    // The SSE usage event keeps its shape: total input across categories.
     expect(events.find((e) => e.type === "usage")?.data).toEqual({ inputTokens: 6300, outputTokens: 100 });
 
     const rows = t.sqlite.query<Record<string, unknown>, []>("SELECT * FROM usage_events").all();
@@ -145,7 +135,6 @@ describe("processChat usage ledger", () => {
     spyOn(mcpManager, "callTool").mockResolvedValue({ content: "ok", isError: false });
     const input1 = { noCache: 1000, cacheRead: 0, cacheWrite: 0 };
     const input2 = { noCache: 200, cacheRead: 1000, cacheWrite: 0 };
-    // Call 3 fails before the request is accepted: billed for calls 1 and 2 only.
     model = scriptedModel([
       [toolCallPart("c1"), finish("tool-calls", input1)],
       [toolCallPart("c2"), finish("tool-calls", input2)],
@@ -177,10 +166,8 @@ describe("processChat usage ledger", () => {
       session_id: sessionId,
       message_id: null,
     });
-    // Budgets read usage_events; daily token totals follow the ledger.
     expect(q.usageEventQueries.getTotalsForDate(USER_ID).cost_microusd).toBe(expected.costMicrousd);
     expect(q.dailyUsageQueries.getTodayFull(USER_ID)).toMatchObject({ query_count: 0, input_tokens: 2200, output_tokens: 100 });
-    // Assistant message only on success.
     expect(q.messageQueries.findByChatId(sessionId).map((m) => m.role)).toEqual(["user"]);
   });
 
@@ -218,7 +205,6 @@ describe("processChat usage ledger", () => {
 
     expect(events.filter((e) => e.type === "error")).toHaveLength(1);
     expect(t.sqlite.query("SELECT count(*) AS n FROM usage_events").get()).toEqual({ n: 0 });
-    // The transaction rolled back the daily token increment too.
     expect(q.dailyUsageQueries.getTodayFull(USER_ID)).toMatchObject({ input_tokens: 0, output_tokens: 0 });
   });
 });

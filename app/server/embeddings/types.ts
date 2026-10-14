@@ -1,8 +1,3 @@
-/**
- * Provider-neutral embedding types. Kept free of runtime imports so config.ts
- * can use the provider list without pulling in the AI SDK.
- */
-
 export const EMBEDDING_PROVIDERS = ["openai", "google"] as const;
 export type EmbeddingProviderName = (typeof EMBEDDING_PROVIDERS)[number];
 
@@ -23,7 +18,6 @@ export interface Embedder {
   embedDocuments(texts: string[], signal?: AbortSignal): Promise<Float32Array[]>;
 }
 
-/** The part of an Embedder that query-time search needs. */
 export type QueryEmbedder = Pick<Embedder, "id" | "embedQuery">;
 
 /** The provider returned vectors of the wrong count, length, or with non-finite values. */

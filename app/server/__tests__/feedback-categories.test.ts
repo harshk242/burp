@@ -1,8 +1,3 @@
-/**
- * Pins the feedback category ids. They are stored in the DB and used as
- * Langfuse score names; web/lib/feedback-categories.ts mirrors this list and
- * has the same pin, so a change here must be made there too.
- */
 import { describe, expect, it } from "bun:test";
 import {
   ALL_CATEGORY_IDS,

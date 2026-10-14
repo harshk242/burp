@@ -1,8 +1,3 @@
-/**
- * Pre-deploy dry run (plans/drizzle-orm-migration.md §6): copy a DB, run the
- * full adoption + migration transaction on the copy, and report what happened.
- * The input file is only ever read.
- */
 import type { Database } from "bun:sqlite";
 import { copyFileSync, existsSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
@@ -110,7 +105,6 @@ export function verifyDatabase(input: string, options: VerifyOptions = {}): Veri
   }
 }
 
-/** Catch-up, then baseline compare + 0003 preview, inside a transaction that is always rolled back. */
 function inspectAfterCatchUp(
   sqlite: Database,
   baseline: Parameters<typeof baselineDiffs>[1],

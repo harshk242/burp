@@ -1,9 +1,3 @@
-/**
- * MCP executors: executeMcpTool returns `isError` results with the server's
- * `_meta` (throws only for transport errors, timeouts and aborts), the SDK
- * string executor keeps returning and throwing plain strings, and the
- * upstream retry summary becomes trace span metadata.
- */
 import { afterEach, describe, expect, it, spyOn, mock } from "bun:test";
 import { mcpManager } from "../mcp/manager";
 import {

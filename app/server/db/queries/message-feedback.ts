@@ -1,9 +1,3 @@
-/**
- * message_feedback: one row per (assistant message, user). Every write bumps
- * `revision` and sets `sync_pending`; observability/feedback-sync.ts clears it
- * with a compare-and-set on the revision it pushed. `delete_unconfirmed` is
- * sync bookkeeping only (see feedback-sync.ts).
- */
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type { FeedbackCategory } from "../../schemas/feedback-categories";

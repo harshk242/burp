@@ -1,5 +1,3 @@
-/** Complete GraphQL operations shared by drug tools and live API contracts. */
-
 export const DRUG_INFO_OPERATION = `
   query DrugInfo($chemblId: String!) {
     drug(chemblId: $chemblId) {

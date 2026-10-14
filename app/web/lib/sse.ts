@@ -10,7 +10,6 @@ export async function streamChat(
   onTitle?: (title: string) => void
 ): Promise<void> {
   const store = useChatStore.getState();
-  // Only reset streaming state, NOT messages (keep conversation history)
   store.resetStreamingState();
   store.setStreaming(true);
 
@@ -56,7 +55,6 @@ export async function streamChat(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  // SSE spec: accumulate data lines per event, dispatch on empty line boundary
   let currentEventType: string | null = null;
   let dataLines: string[] = [];
 
@@ -73,11 +71,9 @@ export async function streamChat(
     if (line.startsWith("event: ")) {
       currentEventType = line.slice(7).trim();
     } else if (line.startsWith("data:")) {
-      // "data: content" (with space) or "data:" (empty / no space)
       const payload = line.startsWith("data: ") ? line.slice(6) : line.slice(5);
       dataLines.push(payload);
     } else if (line === "") {
-      // Empty line = end of event block per SSE spec
       dispatchEvent();
     }
   }
@@ -96,14 +92,11 @@ export async function streamChat(
       }
     }
 
-    // Drain any remaining data in the buffer after the stream closes.
-    // This ensures the last SSE event (e.g., title) is never lost.
     if (buffer.trim()) {
       for (const line of buffer.split("\n")) {
         processLine(line);
       }
     }
-    // Flush any pending event that wasn't terminated by an empty line
     dispatchEvent();
   } finally {
     reader.releaseLock();
@@ -125,11 +118,6 @@ export function decodeSSEData(eventType: string, payload: string): unknown {
   }
 }
 
-/**
- * Handle a single SSE event.
- * @param eventType - The event type from the `event:` line
- * @param data - The parsed payload from the `data:` line
- */
 function handleSSEEvent(
   eventType: string,
   data: unknown,
@@ -143,7 +131,6 @@ function handleSSEEvent(
       break;
 
     case "text":
-      // A JSON string, whatever it contains ("42", "true", " ").
       if (typeof data === "string") store.appendStreamingContent(data);
       break;
 
@@ -196,22 +183,18 @@ function handleSSEEvent(
     }
 
     case "reasoning": {
-      // Thinking deltas (summarized on Anthropic); rendered by the ReasoningBlock.
       const { text, newBlock } = data as { text?: string; newBlock?: boolean };
       if (typeof text === "string") store.appendReasoning(text, newBlock === true);
       break;
     }
 
     case "done": {
-      // The server's id for the saved assistant message (feedback is keyed by it).
       const { messageId } = (data ?? {}) as { messageId?: unknown };
       store.finalizeAssistantMessage(typeof messageId === "string" ? messageId : undefined);
       break;
     }
 
     case "usage": {
-      // Arrives after "done" — finalizeAssistantMessage() has already committed
-      // the assistant message to state.messages, so patching tokenUsage is safe.
       const { inputTokens, outputTokens } = data as { inputTokens: number; outputTokens: number };
       store.setLastMessageTokens(inputTokens, outputTokens);
       break;

@@ -4,7 +4,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: false,
-    // Unit tests only — contract tests use vitest.contracts.config.ts
     include: ['src/**/*.test.ts'],
     exclude: ['node_modules/**', 'dist/**'],
     testTimeout: 10_000,

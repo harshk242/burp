@@ -1,9 +1,3 @@
-/**
- * Chat SSE wire format: payloads go through Hono's real `streamSSE` writer and
- * are decoded per the SSE spec plus JSON.parse, as app/web/lib/sse.ts does.
- * Bare-string text chunks used to decode to numbers/booleans/null ("42",
- * "true", "null") or lose "\r" to Hono's line splitting.
- */
 import { describe, expect, it } from "bun:test";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";

@@ -1,7 +1,3 @@
-// Ensembl on the shared HTTP retry: production policy wiring, error
-// translation in search_genes and the deadline in batch_sequence_fetch.
-// Stub adapter only, no network.
-
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
@@ -11,9 +7,6 @@ import { fakeClock, stubAdapter, type FakeClock, type Step } from '../../../shar
 import { ENSEMBL_POLICY, cleanup, init } from '../client.js';
 import { handlers } from '../tools/index.js';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Initialises the Ensembl client on a stub transport; backoff sleeps are skipped. */
 function stubEnsembl(steps: Step[], clock?: FakeClock) {
   const { adapter, calls } = stubAdapter(steps, clock);
   init({}, { adapter, retryDeps: { sleep: async () => {}, ...(clock ? { now: clock.now } : {}) } });
@@ -38,8 +31,6 @@ afterEach(() => {
   cleanup();
 });
 
-// ── Policy ────────────────────────────────────────────────────────────────────
-
 describe('ENSEMBL_POLICY', () => {
   it('matches the plan: 3 attempts, 1s/3s ±25%, 30s attempts, 40s budget, 429 waits', () => {
     expect(ENSEMBL_POLICY).toMatchObject({
@@ -52,8 +43,6 @@ describe('ENSEMBL_POLICY', () => {
     });
   });
 });
-
-// ── Retry through a real Ensembl tool ─────────────────────────────────────────
 
 describe('Ensembl tools on the shared retry', () => {
   it('recovers from 500, 500, 200 and reports _meta.retry.outcome = recovered', async () => {
@@ -68,8 +57,6 @@ describe('Ensembl tools on the shared retry', () => {
     expect(retry.requests[0]).toMatchObject({ path: '/lookup/id/ENSG00000139618', statuses: [500, 500, 200] });
   });
 });
-
-// ── search_genes error translation ────────────────────────────────────────────
 
 describe('search_genes', () => {
   it('returns the structured upstream_unavailable error on a 5xx, not "No gene found"', async () => {
@@ -106,12 +93,9 @@ describe('search_genes', () => {
   });
 });
 
-// ── batch_sequence_fetch deadline ─────────────────────────────────────────────
-
 describe('batch_sequence_fetch', () => {
   it('marks the remaining regions skipped: deadline once the tool-call deadline is gone', async () => {
     const clock = fakeClock();
-    // The first region succeeds but uses up the whole tool-call deadline.
     const calls = stubEnsembl([{ status: 200, advanceMs: 20_000 }], clock);
 
     const result = await runWithToolCallContext({ timeoutMs: 10_000, now: clock.now }, () =>

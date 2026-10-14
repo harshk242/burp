@@ -1,11 +1,3 @@
-/**
- * Canonical JSON + sha256, shared by sync.ts and (Phase 2) the experiment runner.
- *
- * Canonical form: object keys sorted, no whitespace, `undefined` dropped (object
- * members) and `null` kept. Arrays keep their order; `undefined` array elements
- * become `null`, as in JSON.stringify. Non-finite numbers are rejected rather than
- * silently turned into `null`.
- */
 import { createHash } from "node:crypto";
 
 export function canonicalJson(value: unknown): string {

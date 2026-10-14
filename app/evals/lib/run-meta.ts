@@ -1,8 +1,3 @@
-/**
- * Experiment naming and run metadata: what produced a run (model, effort,
- * context version, code), what it ran on (pinned dataset version and hash)
- * and how it was scored (evaluator, metrics and rubric hashes).
- */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { sha256Hex } from "./hash";
@@ -87,7 +82,6 @@ export interface RunMetadataInput {
   effort: string;
   thinkingDisplay: string;
   maxOutputTokens: number;
-  /** arm | default (raised arm default) | config. */
   maxOutputTokensSource: string;
   maxContextTokens: number;
   /** Shared by every arm (experiment) of one invocation. */

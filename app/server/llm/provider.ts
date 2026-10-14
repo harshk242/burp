@@ -1,8 +1,3 @@
-/**
- * Model factory — returns Vercel AI SDK model instances
- * based on the configured LLM provider.
- */
-
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogle } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";

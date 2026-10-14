@@ -1,8 +1,3 @@
-/**
- * Feedback routes: ownership, upsert, categories, clear, clear → re-create
- * keeping the score id, Langfuse failures not failing requests, and feedback
- * in the session history. Auth is stubbed: `x-test-user` is the signed-in user.
- */
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { Hono, type Context, type Next } from "hono";
 import { createTestDb } from "../__test-utils__/db";
@@ -84,12 +79,10 @@ describe("feedback routes", () => {
     expect(await res.json()).toEqual({ feedback: { value: 1, comment: null, categories: ["accurate", "well_sourced"] } });
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ categories: ["accurate", "well_sourced"], revision: 1 });
 
-    // Changing only the categories is a write like any other (revision bump → re-sync).
     await send("PUT", ids.assistantMessage, ids.user, { value: 1, categories: ["clear"] });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ categories: ["clear"], revision: 2, synced_revision: 2 });
 
-    // Omitted categories default to [] (a thumb click never keeps old ones).
     await send("PUT", ids.assistantMessage, ids.user, { value: 0 });
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: 0, categories: [] });
   });
@@ -111,8 +104,7 @@ describe("feedback routes", () => {
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: null, categories: [], revision: 2, sync_pending: 0 });
     expect(writer.remote.has(feedbackScoreId(key))).toBe(false);
-    expect([...writer.remote.values()].map((s) => s.value)).toEqual(Array(10).fill(0)); // category scores stay, as false
-    // Clearing again (or without feedback) writes nothing.
+    expect([...writer.remote.values()].map((s) => s.value)).toEqual(Array(10).fill(0));
     expect((await send("DELETE", ids.assistantMessage)).status).toBe(200);
     expect(q.messageFeedbackQueries.find(key)?.revision).toBe(2);
   });

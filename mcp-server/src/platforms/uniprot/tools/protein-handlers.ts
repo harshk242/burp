@@ -1,17 +1,6 @@
-/**
- * Handlers for UniProt single-protein, comparative, batch, and utility tools.
- *
- * Each handler receives raw `args`, calls the UniProt REST API,
- * and returns a plain result object (the unified server wraps it).
- */
-
 import type { ToolHandler } from '../../../types.js';
 import { isRejectedLookup } from '../../../shared/exceptions.js';
 import { getClient } from '../client.js';
-
-// ---------------------------------------------------------------------------
-// Validation helpers
-// ---------------------------------------------------------------------------
 
 function requireString(args: Record<string, unknown>, key: string, label: string): string {
   const v = args[key];
@@ -31,17 +20,12 @@ function optNumber(args: Record<string, unknown>, key: string): number | undefin
   return typeof v === 'number' ? v : undefined;
 }
 
-/** Fetch a protein entry by accession in JSON format. */
 async function fetchProtein(accession: string, format = 'json') {
   const response = await getClient().get(`/uniprotkb/${accession}`, {
     params: { format },
   });
   return response.data;
 }
-
-// ---------------------------------------------------------------------------
-// get_protein_info
-// ---------------------------------------------------------------------------
 
 const handleGetProteinInfo: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_info');
@@ -50,20 +34,12 @@ const handleGetProteinInfo: ToolHandler = async (args) => {
   return typeof data === 'object' ? data : String(data);
 };
 
-// ---------------------------------------------------------------------------
-// get_protein_sequence
-// ---------------------------------------------------------------------------
-
 const handleGetProteinSequence: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_sequence');
   const format = optString(args, 'format') ?? 'fasta';
   const data = await fetchProtein(accession, format);
   return typeof data === 'object' ? data : String(data);
 };
-
-// ---------------------------------------------------------------------------
-// get_protein_features
-// ---------------------------------------------------------------------------
 
 const handleGetProteinFeatures: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_features');
@@ -80,10 +56,6 @@ const handleGetProteinFeatures: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// get_protein_structure
-// ---------------------------------------------------------------------------
-
 const handleGetProteinStructure: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_structure');
   const protein = await fetchProtein(accession);
@@ -97,10 +69,6 @@ const handleGetProteinStructure: ToolHandler = async (args) => {
     structuralComments: protein.comments?.filter((c: any) => c.commentType === 'SUBUNIT') || [],
   };
 };
-
-// ---------------------------------------------------------------------------
-// get_protein_domains_detailed
-// ---------------------------------------------------------------------------
 
 const handleGetProteinDomainsDetailed: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_domains_detailed');
@@ -116,10 +84,6 @@ const handleGetProteinDomainsDetailed: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// get_protein_variants
-// ---------------------------------------------------------------------------
-
 const handleGetProteinVariants: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_variants');
   const protein = await fetchProtein(accession);
@@ -132,10 +96,6 @@ const handleGetProteinVariants: ToolHandler = async (args) => {
     polymorphisms: protein.comments?.filter((c: any) => c.commentType === 'POLYMORPHISM') || [],
   };
 };
-
-// ---------------------------------------------------------------------------
-// analyze_sequence_composition
-// ---------------------------------------------------------------------------
 
 const handleAnalyzeSequenceComposition: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'analyze_sequence_composition');
@@ -166,10 +126,6 @@ const handleAnalyzeSequenceComposition: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// get_protein_pathways
-// ---------------------------------------------------------------------------
-
 const handleGetProteinPathways: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_pathways');
   const protein = await fetchProtein(accession);
@@ -182,10 +138,6 @@ const handleGetProteinPathways: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// get_protein_interactions
-// ---------------------------------------------------------------------------
-
 const handleGetProteinInteractions: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_interactions');
   const protein = await fetchProtein(accession);
@@ -197,10 +149,6 @@ const handleGetProteinInteractions: ToolHandler = async (args) => {
     subunitComments: protein.comments?.filter((c: any) => c.commentType === 'SUBUNIT') || [],
   };
 };
-
-// ---------------------------------------------------------------------------
-// compare_proteins
-// ---------------------------------------------------------------------------
 
 const handleCompareProteins: ToolHandler = async (args) => {
   const accessions = args.accessions;
@@ -229,10 +177,6 @@ const handleCompareProteins: ToolHandler = async (args) => {
   return { comparison: comparisons };
 };
 
-// ---------------------------------------------------------------------------
-// get_protein_homologs
-// ---------------------------------------------------------------------------
-
 const handleGetProteinHomologs: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_homologs');
   const organism = optString(args, 'organism');
@@ -252,10 +196,6 @@ const handleGetProteinHomologs: ToolHandler = async (args) => {
   });
   return response.data;
 };
-
-// ---------------------------------------------------------------------------
-// get_protein_orthologs
-// ---------------------------------------------------------------------------
 
 const handleGetProteinOrthologs: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_orthologs');
@@ -277,10 +217,6 @@ const handleGetProteinOrthologs: ToolHandler = async (args) => {
   return response.data;
 };
 
-// ---------------------------------------------------------------------------
-// get_phylogenetic_info
-// ---------------------------------------------------------------------------
-
 const handleGetPhylogeneticInfo: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_phylogenetic_info');
   const protein = await fetchProtein(accession);
@@ -292,10 +228,6 @@ const handleGetPhylogeneticInfo: ToolHandler = async (args) => {
     phylogeneticRange: protein.comments?.filter((c: any) => c.commentType === 'PHYLOGENETIC RANGE') || [],
   };
 };
-
-// ---------------------------------------------------------------------------
-// batch_protein_lookup
-// ---------------------------------------------------------------------------
 
 const handleBatchProteinLookup: ToolHandler = async (args) => {
   const accessions = args.accessions;
@@ -332,10 +264,6 @@ const handleBatchProteinLookup: ToolHandler = async (args) => {
   return { batchResults: results };
 };
 
-// ---------------------------------------------------------------------------
-// get_external_references
-// ---------------------------------------------------------------------------
-
 const handleGetExternalReferences: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_external_references');
   const protein = await fetchProtein(accession);
@@ -351,10 +279,6 @@ const handleGetExternalReferences: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// get_literature_references
-// ---------------------------------------------------------------------------
-
 const handleGetLiteratureReferences: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_literature_references');
   const protein = await fetchProtein(accession);
@@ -365,10 +289,6 @@ const handleGetLiteratureReferences: ToolHandler = async (args) => {
     citationCount: protein.references?.length || 0,
   };
 };
-
-// ---------------------------------------------------------------------------
-// get_annotation_confidence
-// ---------------------------------------------------------------------------
 
 const handleGetAnnotationConfidence: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_annotation_confidence');
@@ -384,20 +304,12 @@ const handleGetAnnotationConfidence: ToolHandler = async (args) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// export_protein_data
-// ---------------------------------------------------------------------------
-
 const handleExportProteinData: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'export_protein_data');
   const format = requireString(args, 'format', 'export_protein_data');
   const data = await fetchProtein(accession, format);
   return String(data);
 };
-
-// ---------------------------------------------------------------------------
-// validate_accession
-// ---------------------------------------------------------------------------
 
 const handleValidateAccession: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'validate_accession');
@@ -411,9 +323,6 @@ const handleValidateAccession: ToolHandler = async (args) => {
       exists: true,
     };
   } catch (error) {
-    // Only a rejected accession (404, or 400 for a malformed one) is "not
-    // valid". Outages, timeouts and rate limits must reach the agent as
-    // structured upstream errors instead.
     if (!isRejectedLookup(error)) throw error;
     return {
       accession,
@@ -422,10 +331,6 @@ const handleValidateAccession: ToolHandler = async (args) => {
     };
   }
 };
-
-// ---------------------------------------------------------------------------
-// get_taxonomy_info
-// ---------------------------------------------------------------------------
 
 const handleGetTaxonomyInfo: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_taxonomy_info');
@@ -440,10 +345,6 @@ const handleGetTaxonomyInfo: ToolHandler = async (args) => {
     taxonomicDivision: protein.organism?.lineage?.[0] || 'Unknown',
   };
 };
-
-// ---------------------------------------------------------------------------
-// Export map
-// ---------------------------------------------------------------------------
 
 export const proteinHandlers: Record<string, ToolHandler> = {
   get_protein_info: handleGetProteinInfo,

@@ -1,5 +1,3 @@
-/** Pure helpers for the 👍/👎 feedback dialog (kept DOM-free so they can be unit tested). */
-
 export const FEEDBACK_COMMENT_MAX = 2000;
 /** Show the character counter once this few characters remain. */
 export const FEEDBACK_COUNTER_THRESHOLD = 200;
@@ -13,7 +11,6 @@ export function canSendFeedback(comment: string, categoryCount: number, saving: 
   return !saving && (categoryCount > 0 || comment.trim().length > 0);
 }
 
-/** Skip / Esc / overlay / ✕ can't close the dialog mid-Send: the thumb is disabled until the save settles, so focus couldn't return to it. */
 export function canDismissFeedback(saving: boolean): boolean {
   return !saving;
 }

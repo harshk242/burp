@@ -1,5 +1,3 @@
-// PharmGKB API Client for ClinPGx platform module
-
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { NotFoundError } from './exceptions.js';
 import { UpstreamError } from '../../shared/exceptions.js';
@@ -27,16 +25,12 @@ import type {
 } from './types.js';
 
 export const PHARMGKB_BASE_URL = 'https://api.clinpgx.org/v1';
-const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
+const DEFAULT_CACHE_TTL = 3600 * 1000;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 1000;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObject = Record<string, any>;
 
-// ── Retry policy ────────────────────────────────────────────────────────────
-
-/** Waits of `2^n × baseMs` before retry n+1 (1s, 2s with the default base). */
 function exponentialBackoff(baseMs: number): (attempt: number) => number {
   return (attempt) => 2 ** (attempt - 1) * baseMs;
 }
@@ -66,7 +60,6 @@ export interface ClinPGxHttpOptions {
   retryDeps?: RetryDeps;
 }
 
-/** A ClinPGx (PharmGKB) Axios instance with the shared retry attached. */
 export function createClinPGxHttp(options: ClinPGxHttpOptions = {}): AxiosInstance {
   const instance = axios.create({
     baseURL: PHARMGKB_BASE_URL,
@@ -103,10 +96,6 @@ export class PharmGKBClient {
     });
   }
 
-  /**
-   * Execute a request with caching; retries run in the shared retry adapter.
-   * A 404 becomes `NotFoundError`, which callers turn into empty results.
-   */
   private async request<T>(
     endpoint: string,
     params?: Record<string, unknown>
@@ -140,8 +129,6 @@ export class PharmGKBClient {
     return data as T;
   }
 
-  // =============== Gene Methods ===============
-
   /**
    * Search for genes by symbol
    * PharmGKB API uses 'symbol' parameter for gene search
@@ -149,8 +136,6 @@ export class PharmGKBClient {
    */
   async searchGenes(query: string, maxResults: number = 20): Promise<SearchResult<GeneInfo>> {
     try {
-      // PharmGKB API requires at least one search parameter
-      // If empty query, use cpicGene=true to get pharmacogenes
       const params: Record<string, unknown> = query && query.trim()
         ? { symbol: query }
         : { cpicGene: true };
@@ -166,7 +151,6 @@ export class PharmGKBClient {
         query: query || 'CPIC pharmacogenes',
       };
     } catch (error) {
-      // If 404 (no results), return empty result instead of throwing
       if (error instanceof NotFoundError) {
         return {
           totalCount: 0,
@@ -184,13 +168,11 @@ export class PharmGKBClient {
    */
   async getGeneInfo(idOrSymbol: string): Promise<GeneInfo | null> {
     try {
-      // If it's a PharmGKB accession ID (starts with PA), use direct lookup
       if (idOrSymbol.startsWith('PA')) {
         const response = await this.request<AnyObject>(`/data/gene/${encodeURIComponent(idOrSymbol)}`);
         return this.parseGeneInfo(response.data);
       }
 
-      // For gene symbols, use search endpoint with symbol parameter
       const response = await this.request<AnyObject>('/data/gene', {
         symbol: idOrSymbol,
       });
@@ -229,15 +211,8 @@ export class PharmGKBClient {
     };
   }
 
-  // =============== Drug Methods ===============
-
-  /**
-   * Search for drugs by name
-   * PharmGKB API uses 'name' parameter for chemical/drug search
-   */
   async searchDrugs(query: string, maxResults: number = 20): Promise<SearchResult<DrugInfo>> {
     try {
-      // PharmGKB API requires at least one search parameter
       if (!query || !query.trim()) {
         return {
           totalCount: 0,
@@ -259,7 +234,6 @@ export class PharmGKBClient {
         query,
       };
     } catch (error) {
-      // If 404 (no results), return empty result instead of throwing
       if (error instanceof NotFoundError) {
         return {
           totalCount: 0,
@@ -276,13 +250,11 @@ export class PharmGKBClient {
    */
   async getDrugInfo(idOrName: string): Promise<DrugInfo | null> {
     try {
-      // If it's a PharmGKB accession ID (starts with PA), use direct lookup
       if (idOrName.startsWith('PA')) {
         const response = await this.request<AnyObject>(`/data/chemical/${encodeURIComponent(idOrName)}`);
         return this.parseDrugInfo(response.data);
       }
 
-      // For drug names, use search endpoint with name parameter
       const response = await this.request<AnyObject>('/data/chemical', {
         name: idOrName,
       });
@@ -322,15 +294,12 @@ export class PharmGKBClient {
     };
   }
 
-  // =============== Variant Methods ===============
-
   /**
    * Search for variants by rsID or symbol
    * PharmGKB API uses 'symbol' parameter for variant search
    */
   async searchVariants(query: string, maxResults: number = 20): Promise<SearchResult<VariantInfo>> {
     try {
-      // PharmGKB API requires at least one search parameter
       if (!query || !query.trim()) {
         return {
           totalCount: 0,
@@ -352,7 +321,6 @@ export class PharmGKBClient {
         query,
       };
     } catch (error) {
-      // If 404 (no results), return empty result instead of throwing
       if (error instanceof NotFoundError) {
         return {
           totalCount: 0,
@@ -369,13 +337,11 @@ export class PharmGKBClient {
    */
   async getVariantInfo(idOrRsId: string): Promise<VariantInfo | null> {
     try {
-      // If it's a PharmGKB accession ID (starts with PA), use direct lookup
       if (idOrRsId.startsWith('PA')) {
         const response = await this.request<AnyObject>(`/data/variant/${encodeURIComponent(idOrRsId)}`);
         return this.parseVariantInfo(response.data);
       }
 
-      // For rsIDs, use search endpoint with symbol parameter
       const response = await this.request<AnyObject>('/data/variant', {
         symbol: idOrRsId,
       });
@@ -412,12 +378,6 @@ export class PharmGKBClient {
     };
   }
 
-  // =============== Clinical Annotation Methods ===============
-
-  /**
-   * Get clinical annotations for a gene
-   * PharmGKB API uses 'location.genes.symbol' parameter
-   */
   async getClinicalAnnotationsForGene(gene: string): Promise<ClinicalAnnotation[]> {
     try {
       const response = await this.request<AnyObject>('/data/clinicalAnnotation', {
@@ -434,10 +394,6 @@ export class PharmGKBClient {
     }
   }
 
-  /**
-   * Get clinical annotations for a drug
-   * PharmGKB API uses 'relatedChemicals.name' parameter
-   */
   async getClinicalAnnotationsForDrug(drug: string): Promise<ClinicalAnnotation[]> {
     try {
       const response = await this.request<AnyObject>('/data/clinicalAnnotation', {
@@ -454,9 +410,6 @@ export class PharmGKBClient {
     }
   }
 
-  /**
-   * Get clinical annotations for a drug-gene pair
-   */
   async getDrugGeneAnnotations(drug: string, gene: string): Promise<ClinicalAnnotation[]> {
     try {
       const response = await this.request<AnyObject>('/data/clinicalAnnotation', {
@@ -475,21 +428,17 @@ export class PharmGKBClient {
   }
 
   private parseClinicalAnnotation(data: AnyObject): ClinicalAnnotation {
-    // Extract level of evidence - can be an object with 'term' property or a string
     const levelOfEvidence = data.levelOfEvidence;
     const evidenceLevel = typeof levelOfEvidence === 'object' && levelOfEvidence !== null
       ? levelOfEvidence.term
       : levelOfEvidence;
 
-    // Extract genes from location.genes
     const genes = data.location?.genes || data.genes || [];
     const geneSymbol = genes[0]?.symbol;
 
-    // Extract chemicals from relatedChemicals
     const chemicals = data.relatedChemicals || data.chemicals || [];
     const drugName = chemicals[0]?.name;
 
-    // Extract phenotype category from types array (not phenotypeCategory which doesn't exist)
     const types = data.types || [];
     const phenotypeCategory = types[0] || 'Unknown';
 
@@ -510,12 +459,6 @@ export class PharmGKBClient {
     };
   }
 
-  // =============== Dosing Guideline Methods ===============
-
-  /**
-   * Get dosing guidelines for a gene
-   * PharmGKB API uses 'relatedGenes.symbol' parameter for guidelineAnnotation
-   */
   async getDosingGuidelinesForGene(gene: string): Promise<DosingGuideline[]> {
     try {
       const response = await this.request<AnyObject>('/data/guidelineAnnotation', {
@@ -532,10 +475,6 @@ export class PharmGKBClient {
     }
   }
 
-  /**
-   * Get dosing guidelines for a drug
-   * PharmGKB API uses 'relatedChemicals.name' parameter for guidelineAnnotation
-   */
   async getDosingGuidelinesForDrug(drug: string): Promise<DosingGuideline[]> {
     try {
       const response = await this.request<AnyObject>('/data/guidelineAnnotation', {
@@ -569,12 +508,6 @@ export class PharmGKBClient {
     };
   }
 
-  // =============== Drug Label Methods ===============
-
-  /**
-   * Get drug labels for a drug
-   * PharmGKB API uses 'relatedChemicals.name' parameter for labelAnnotation
-   */
   async getDrugLabels(drug: string): Promise<DrugLabel[]> {
     try {
       const response = await this.request<AnyObject>('/data/labelAnnotation', {
@@ -607,15 +540,8 @@ export class PharmGKBClient {
     };
   }
 
-  // =============== Pathway Methods ===============
-
-  /**
-   * Get pathways by gene symbol
-   * PharmGKB API uses 'genes.symbol' parameter
-   */
   async getPathways(query?: string): Promise<Pathway[]> {
     try {
-      // If query provided, search by gene symbol; otherwise get CPIC gene pathways
       const params = query ? { 'genes.symbol': query } : { cpicGene: true };
       const response = await this.request<AnyObject>('/data/pathway', params);
 
@@ -637,10 +563,6 @@ export class PharmGKBClient {
     }
   }
 
-  /**
-   * Get pathways for a gene
-   * PharmGKB API uses 'genes.symbol' parameter
-   */
   async getGenePathways(gene: string): Promise<Pathway[]> {
     try {
       const response = await this.request<AnyObject>('/data/pathway', {
@@ -665,16 +587,10 @@ export class PharmGKBClient {
     }
   }
 
-  // =============== Drug-Gene Interaction Methods ===============
-
-  /**
-   * Get all drug-gene interactions for a gene
-   */
   async getDrugGeneInteractions(gene: string): Promise<DrugGeneInteraction[]> {
     const annotations = await this.getClinicalAnnotationsForGene(gene);
     const guidelines = await this.getDosingGuidelinesForGene(gene);
 
-    // Aggregate interactions
     const interactionMap = new Map<string, DrugGeneInteraction>();
 
     for (const annotation of annotations) {
@@ -709,13 +625,6 @@ export class PharmGKBClient {
     return Array.from(interactionMap.values());
   }
 
-  // =============== Database Stats ===============
-
-  /**
-   * Get database statistics
-   * Note: PharmGKB doesn't have a direct stats endpoint.
-   * We query using CPIC gene filter to get representative pharmacogenomic data.
-   */
   async getDatabaseStats(): Promise<{
     genes: number;
     drugs: number;
@@ -737,7 +646,6 @@ export class PharmGKBClient {
       note: 'Counts represent CPIC pharmacogenes and CYP2D6-related data as representative samples',
     };
 
-    // Query using cpicGene=true for genes and pathways
     try {
       const [genesResult, pathwaysResult] = await Promise.all([
         this.request<AnyObject>('/data/gene', { cpicGene: true }).catch(() => ({ data: [] })),
@@ -746,10 +654,8 @@ export class PharmGKBClient {
       stats.genes = genesResult.data?.length || 0;
       stats.pathways = pathwaysResult.data?.length || 0;
     } catch {
-      // Continue with zeros
     }
 
-    // For other stats, query with a known pharmacogene (CYP2D6)
     try {
       const [annotationsResult, guidelinesResult, labelsResult] = await Promise.all([
         this.request<AnyObject>('/data/clinicalAnnotation', { 'location.genes.symbol': 'CYP2D6' }).catch(() => ({ data: [] })),
@@ -760,7 +666,6 @@ export class PharmGKBClient {
       stats.guidelines = guidelinesResult.data?.length || 0;
       stats.labels = labelsResult.data?.length || 0;
     } catch {
-      // Continue with zeros
     }
 
     return stats;
@@ -778,7 +683,6 @@ export class PharmGKBClient {
   }
 }
 
-// Global client instance
 let _client: PharmGKBClient | null = null;
 
 export function initializeClient(options?: PharmGKBClientOptions): PharmGKBClient {

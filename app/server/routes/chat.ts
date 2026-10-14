@@ -14,12 +14,7 @@ import type { AppEnv } from "../types";
 
 const chat = new OpenAPIHono<AppEnv>();
 
-// Apply Clerk auth and user role check to all chat routes
 chat.use("*", clerkAuth, requireDbUser, requireUser, rateLimitMiddleware);
-
-// ============================================
-// POST /api/chat - Chat with SSE streaming
-// ============================================
 
 const chatRoute = createRoute({
   method: "post",
@@ -130,7 +125,6 @@ chat.openapi(chatRoute, async (c) => {
     );
   }
 
-  // Generate session ID if not provided
   const sessionId = providedSessionId || uuidv4();
 
   const existingSession = chatSessionQueries.findById(sessionId);
@@ -147,14 +141,10 @@ chat.openapi(chatRoute, async (c) => {
     (existingMessages.length === 0 || Boolean(firstUserMessage));
 
   return streamSSE(c, async (stream) => {
-    // A closed tab / dropped connection cancels the running turn.
     const abortController = new AbortController();
     stream.onAbort(() => abortController.abort());
 
     try {
-      // Fire title generation in parallel with chat processing.
-      // The title only depends on the user's question, not the response,
-      // so we don't need to wait for chat completion.
       const titlePromise = shouldGenerateTitle
         ? generateSessionTitle(sessionId, firstUserMessage || message).catch(
             (err) => {
@@ -164,13 +154,10 @@ chat.openapi(chatRoute, async (c) => {
           )
         : null;
 
-      // Process chat through Claude with tool calling
       for await (const event of processChat(sessionId, userId, message, abortController.signal)) {
         await stream.writeSSE(encodeSSE(event.type, event.data));
       }
 
-      // Emit the title after streaming completes.
-      // The API call likely finished long ago; this just awaits the stored result.
       if (titlePromise && !abortController.signal.aborted) {
         const title = await titlePromise;
         if (title) {

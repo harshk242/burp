@@ -1,5 +1,3 @@
-// Utility functions for Open Targets MCP
-
 import { createHash } from 'crypto';
 
 /**
@@ -33,16 +31,10 @@ export function generateCacheKey(
   return createHash('sha256').update(content).digest('hex');
 }
 
-/**
- * Formats an Ensembl gene ID
- */
 export function formatEnsemblId(id: string): string {
   return id.toUpperCase().startsWith('ENSG') ? id : `ENSG${id}`;
 }
 
-/**
- * Formats an EFO disease ID
- */
 export function formatEfoId(id: string): string {
   if (id.toUpperCase().startsWith('EFO_')) {
     return id;
@@ -53,9 +45,6 @@ export function formatEfoId(id: string): string {
   return `EFO_${id}`;
 }
 
-/**
- * Formats a ChEMBL drug ID
- */
 export function formatChemblId(id: string): string {
   if (id.toUpperCase().startsWith('CHEMBL')) {
     return id.toUpperCase();
@@ -63,9 +52,6 @@ export function formatChemblId(id: string): string {
   return `CHEMBL${id}`;
 }
 
-/**
- * Truncates an array with a size limit
- */
 export function truncateArray<T>(arr: T[], size: number): T[] {
   if (size <= 0) {
     return arr;

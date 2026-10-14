@@ -1,13 +1,3 @@
-/**
- * Langfuse tracer setup: an isolated OpenTelemetry provider whose spans go to
- * Langfuse (nothing is registered globally unless `registerGlobal` asks for
- * it), the shared LangfuseClient for scores, and a bounded, idempotent
- * shutdown that flushes both.
- *
- * Tracing is on only when `observability.langfuse.enabled` is true and both
- * keys are set; otherwise `initTracing` does nothing and TurnTrace is a no-op.
- */
-
 import { LangfuseClient } from "@langfuse/client";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
 import { context, trace } from "@opentelemetry/api";
@@ -46,7 +36,6 @@ export const tracingEnvironment = langfuseConfig.environment;
 
 export const SERVICE_NAME = "burp";
 
-/** OTel resource for every span; without it traces show `unknown_service:bun`. */
 export function tracingResource(release: string): Resource {
   return defaultResource().merge(resourceFromAttributes({ "service.name": SERVICE_NAME, "service.version": release }));
 }

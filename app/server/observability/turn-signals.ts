@@ -1,15 +1,3 @@
-/**
- * Turn signals: the online code scores of a finished turn (`turn_outcome`,
- * `answer_truncated`, `tool_error_count`, see app/evals/metrics.yaml).
- *
- * Computed from the persisted chat_turns row only, so the offline eval runner
- * gets identical values from its own DB without depending on Langfuse
- * ingestion. Writing them to the turn's trace never throws.
- *
- * A turn stopped by a shared cost budget (`budget_exceeded`, eval runner) has
- * no signals: it says nothing about the agent, so it is never scored.
- */
-
 import type { LangfuseClient } from "@langfuse/client";
 import { logger, type LogContext } from "../logger";
 import { getScoreClient, tracingEnvironment } from "./langfuse";
@@ -27,7 +15,6 @@ export const TURN_OUTCOMES = [
 ] as const;
 export type TurnOutcome = (typeof TURN_OUTCOMES)[number];
 
-/** The chat_turns columns the signals read. */
 export interface TurnSignalRow {
   status: string;
   error_code: string | null;
@@ -43,7 +30,6 @@ export interface TurnSignals {
 
 function outcomeOf(row: TurnSignalRow): TurnOutcome {
   if (row.status === "ok") return "ok";
-  // A consumer that stopped reading ("closed") is an abort as far as the turn goes.
   if (row.status === "aborted" || row.error_code === "closed") return "aborted";
   return (TURN_OUTCOMES as readonly string[]).includes(row.error_code ?? "")
     ? (row.error_code as TurnOutcome)

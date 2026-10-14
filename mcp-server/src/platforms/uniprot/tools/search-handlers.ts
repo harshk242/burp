@@ -1,18 +1,6 @@
-/**
- * Handlers for UniProt search-oriented tools.
- *
- * Each handler receives raw `args` from the MCP dispatch, calls the
- * UniProt REST API, and returns a plain result object (the unified
- * server handles MCP content wrapping).
- */
-
 import type { ToolHandler } from '../../../types.js';
 import { getClient } from '../client.js';
 import { resolveSpeciesFilter } from '../extractors.js';
-
-// ---------------------------------------------------------------------------
-// Validation helpers
-// ---------------------------------------------------------------------------
 
 function requireString(args: Record<string, unknown>, key: string, label: string): string {
   const v = args[key];
@@ -37,10 +25,6 @@ function optStringArray(args: Record<string, unknown>, key: string): string[] | 
   return Array.isArray(v) ? (v as string[]) : undefined;
 }
 
-// ---------------------------------------------------------------------------
-// search_proteins
-// ---------------------------------------------------------------------------
-
 const handleSearchProteins: ToolHandler = async (args) => {
   const query_base = requireString(args, 'query', 'search_proteins');
   const organism = optString(args, 'organism');
@@ -61,10 +45,6 @@ const handleSearchProteins: ToolHandler = async (args) => {
     : String(response.data);
 };
 
-// ---------------------------------------------------------------------------
-// search_by_gene
-// ---------------------------------------------------------------------------
-
 const handleSearchByGene: ToolHandler = async (args) => {
   const gene = requireString(args, 'gene', 'search_by_gene');
   const species = optStringArray(args, 'species');
@@ -82,10 +62,6 @@ const handleSearchByGene: ToolHandler = async (args) => {
 
   return response.data;
 };
-
-// ---------------------------------------------------------------------------
-// search_by_function
-// ---------------------------------------------------------------------------
 
 const handleSearchByFunction: ToolHandler = async (args) => {
   const goTerm = optString(args, 'goTerm');
@@ -108,10 +84,6 @@ const handleSearchByFunction: ToolHandler = async (args) => {
   return response.data;
 };
 
-// ---------------------------------------------------------------------------
-// search_by_localization
-// ---------------------------------------------------------------------------
-
 const handleSearchByLocalization: ToolHandler = async (args) => {
   const localization = requireString(args, 'localization', 'search_by_localization');
   const organism = optString(args, 'organism');
@@ -125,10 +97,6 @@ const handleSearchByLocalization: ToolHandler = async (args) => {
   });
   return response.data;
 };
-
-// ---------------------------------------------------------------------------
-// search_by_taxonomy
-// ---------------------------------------------------------------------------
 
 const handleSearchByTaxonomy: ToolHandler = async (args) => {
   const taxonomyId = optNumber(args, 'taxonomyId');
@@ -148,10 +116,6 @@ const handleSearchByTaxonomy: ToolHandler = async (args) => {
   });
   return response.data;
 };
-
-// ---------------------------------------------------------------------------
-// advanced_search
-// ---------------------------------------------------------------------------
 
 const handleAdvancedSearch: ToolHandler = async (args) => {
   const baseQuery = optString(args, 'query');
@@ -188,10 +152,6 @@ const handleAdvancedSearch: ToolHandler = async (args) => {
   });
   return response.data;
 };
-
-// ---------------------------------------------------------------------------
-// Export map
-// ---------------------------------------------------------------------------
 
 export const searchHandlers: Record<string, ToolHandler> = {
   search_proteins: handleSearchProteins,

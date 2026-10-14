@@ -20,7 +20,6 @@ export function createRateLimitQueries(db: DrizzleDb) {
     update(role: string, dailyLimit: number) {
       return db
         .insert(rateLimits)
-        // The CHECK constraint rejects anything outside the enum.
         .values({ role: role as RateLimitRole, daily_limit: dailyLimit, updated_at: sql`(unixepoch())` })
         .onConflictDoUpdate({
           target: rateLimits.role,

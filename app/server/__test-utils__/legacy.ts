@@ -1,14 +1,3 @@
-/**
- * Legacy (pre-Drizzle) database fixtures for adoption tests (plans §10).
- *
- * - "current":   the frozen copy of the last schema.sql (trashed in the Drizzle cutover), as a fresh install built it.
- * - "old prod":  the frozen pre-ALTER schema.sql + rows, then the old boot's ALTER
- *                list — ALTER-appended columns land after table constraints in the DDL.
- * - "reordered": current schema with `users`/`messages` columns declared in a
- *                different order, to prove the rebuild copies columns by name.
- *
- * All contain inline (anonymous) UNIQUEs, an FTS5 table and seeded rows.
- */
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -51,14 +40,12 @@ const REORDERED_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   input_tokens INTEGER DEFAULT 0
 );`;
 
-/** The `CREATE TABLE IF NOT EXISTS <table> (...);` block of a schema script. */
 function tableBlock(schemaSql: string, table: string): string {
   const block = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\);`).exec(schemaSql)?.[0];
   if (!block) throw new Error(`table ${table} not found in fixture schema`);
   return block;
 }
 
-/** Replace one table's CREATE block of a schema script. */
 export function replaceTable(schemaSql: string, table: string, ddl: string): string {
   return schemaSql.replace(tableBlock(schemaSql, table), ddl);
 }
@@ -83,12 +70,10 @@ export function buildLegacyDb(sqlite: Database, fixture: LegacyFixture, options:
   if (fixture === "old-prod") {
     sqlite.exec(schemaSql ?? OLD_PROD_LEGACY_SQL);
     if (seed) seedCoreRows(sqlite);
-    // The old boot: try/catch ALTER list (every error swallowed, as it was).
     for (const statement of LEGACY_CATCH_UP) {
       try {
         sqlite.run(statement);
       } catch {
-        // duplicate column — ignored by the old code
       }
     }
   } else {
@@ -102,7 +87,6 @@ export function buildLegacyDb(sqlite: Database, fixture: LegacyFixture, options:
   if (seed) seedLaterRows(sqlite);
 }
 
-/** Rows that fit the pre-ALTER schema too. */
 function seedCoreRows(sqlite: Database): void {
   sqlite.run(`INSERT INTO users (id, clerk_id, email, name, role, total_queries, created_at) VALUES
     ('u-admin', 'clerk_admin', 'admin@example.com', 'Admin', 'admin', 7, 1700000000),
@@ -119,14 +103,12 @@ function seedCoreRows(sqlite: Database): void {
     ('m-3', 'c-2', 'user', 'hi', NULL, 1700000400)`);
   sqlite.run(`INSERT INTO daily_usage (user_id, date, query_count) VALUES
     ('u-user', '2026-01-01', 2), ('u-user', '2026-01-02', 1), ('u-admin', '2026-01-02', 5)`);
-  // Leave an AUTOINCREMENT gap: sqlite_sequence (3) is now above max(id) (2).
   sqlite.run("DELETE FROM daily_usage WHERE user_id = 'u-admin'");
   sqlite.run(
     "INSERT INTO tool_search_fts (full_name, server, tool_name, description) VALUES ('s.t', 's', 't', 'searching proteins')",
   );
 }
 
-/** Rows that need the ALTER-added columns / usage_events. */
 function seedLaterRows(sqlite: Database): void {
   sqlite.run(`INSERT INTO users (id, clerk_id, email, role, daily_cost_limit_microusd, created_at) VALUES
     ('u-wait', 'clerk_wait', 'wait@example.com', 'waitlist', 5000000, 1700000500)`);

@@ -1,9 +1,3 @@
-/**
- * 👍/👎 feedback categories: a mirror of the server's list
- * (server/schemas/feedback-categories.ts, the source of truth for ids) plus
- * UI labels and hints. A test on each side pins the ids, so keep them in sync.
- */
-
 export const NEGATIVE_FEEDBACK_CATEGORIES = [
   { id: "factually_incorrect", label: "Factually incorrect", hint: "Wrong gene, variant, drug or mechanism details" },
   {

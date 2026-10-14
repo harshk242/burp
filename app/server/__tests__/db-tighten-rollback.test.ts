@@ -1,7 +1,3 @@
-/**
- * 0003_tighten_not_null failure path and the db:verify tightening report
- * (plans/drizzle-orm-migration.md §5, §6, §10).
- */
 import type { Database } from "bun:sqlite";
 import { afterAll, describe, expect, it } from "bun:test";
 import { rmSync } from "fs";
@@ -28,7 +24,6 @@ function legacyDb(fixture: LegacyFixture = "current", mutate?: (db: Database) =>
   return sqlite;
 }
 
-/** A closed legacy file DB, for db:verify. */
 function legacyFile(mutate?: (db: Database) => void): string {
   const dir = makeTempDir("burp-tighten-verify-");
   tempDirs.push(dir);
@@ -48,7 +43,7 @@ describe("0003_tighten_not_null — NULL text PK rolls everything back", () => {
     it(`NULL ${table}.${column} in a legacy DB: migration fails, adoption is undone`, () => {
       const sqlite = legacyDb("current", (db) => db.run(NULL_PK_INSERTS[table]!));
       const before = { schema: schemaSnapshot(sqlite), rows: dumpRows(sqlite), autoindexes: autoindexes(sqlite) };
-      expect(before.autoindexes).toContain("sqlite_autoindex_users_2"); // legacy inline UNIQUE(clerk_id)
+      expect(before.autoindexes).toContain("sqlite_autoindex_users_2");
 
       expect(() => runMigrations(sqlite)).toThrow(`NOT NULL constraint failed: __new_${table}.${column}`);
 
@@ -79,7 +74,6 @@ describe("previewTightening", () => {
     const preview = previewTightening(sqlite);
     const counts = Object.fromEntries(preview.backfills.map((b) => [`${b.table}.${b.column}`, b.rows]));
     expect(Object.keys(counts)).toHaveLength(TIGHTEN_BACKFILLS.length);
-    // seedNullableRows leaves one NULL per backfilled column (the NULL-PK rows only take defaults).
     for (const [column, rows] of Object.entries(counts)) expect({ column, rows }).toEqual({ column, rows: 1 });
     expect(preview.nullRoleUsers).toEqual([{ id: "u-null", email: "null@example.com", created_at: null }]);
     expect(preview.nullPrimaryKeys.map((p) => `${p.table}.${p.column}`)).toEqual(["users.id", "rate_limits.role"]);

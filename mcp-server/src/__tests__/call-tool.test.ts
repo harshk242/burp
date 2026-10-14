@@ -9,8 +9,6 @@ import { getToolCallContext, type RetryMeta } from '../shared/tool-call-context.
 import { stubClient, type Step } from '../shared/__tests__/retry-test-utils.js';
 import type { ToolHandler } from '../types.js';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 const ERROR_KEYS = [
   'error',
   'reason',
@@ -44,7 +42,6 @@ function retryMeta(result: CallToolResult): RetryMeta | undefined {
   return result._meta?.retry as RetryMeta | undefined;
 }
 
-/** A test tool that GETs `paths` in order from a stubbed upstream. */
 function upstreamTool(steps: Step[], policy: Partial<RetryPolicy> = {}, paths = ['/lookup/id/X']) {
   const { client, calls } = stubClient(steps, policy, { deps: { sleep: abortableSleep } });
   const tool: ToolHandler = async () => {
@@ -68,8 +65,6 @@ function upstreamError(reason: UpstreamReason): UpstreamError {
 afterEach(() => {
   vi.useRealTimers();
 });
-
-// ── Structured upstream errors ────────────────────────────────────────────────
 
 describe('UpstreamError formatting', () => {
   it.each(Object.entries(REASON_TO_KIND) as [UpstreamReason, (typeof REASON_TO_KIND)[UpstreamReason]][])(
@@ -119,8 +114,6 @@ describe('UpstreamError formatting', () => {
     expect(result).toEqual({ content: [{ type: 'text', text: 'Error: boom' }], isError: true });
   });
 });
-
-// ── Deadline ──────────────────────────────────────────────────────────────────
 
 describe('tool-call deadline', () => {
   it('is taken from _meta.deadline_ms minus the 5s margin', async () => {
@@ -184,8 +177,6 @@ describe('tool-call deadline', () => {
   });
 });
 
-// ── Cancellation ──────────────────────────────────────────────────────────────
-
 describe('extra.signal cancellation', () => {
   it('abort during backoff → cancelled, no further requests', async () => {
     vi.useFakeTimers();
@@ -220,8 +211,6 @@ describe('extra.signal cancellation', () => {
     expect(retryMeta(result)).toMatchObject({ outcome: 'cancelled', request_count: 2 });
   });
 });
-
-// ── _meta.retry ───────────────────────────────────────────────────────────────
 
 describe('_meta.retry', () => {
   it('is attached to a success result', async () => {

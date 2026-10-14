@@ -1,8 +1,3 @@
-/**
- * model_transcript: append-only (orchestration/context/transcript.ts owns the
- * write path). Insert and read only: there is deliberately no update method,
- * and an UPDATE trigger rejects changes made any other way.
- */
 import { asc, eq, sql } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { modelTranscript } from "../schema";

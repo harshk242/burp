@@ -1,9 +1,3 @@
-/**
- * processChat options used by the eval runner: the shared cost budget (checked
- * before each model call, charged per priced call, reconciled once in
- * `finally`) and `traceParent` nesting (the turn root under an existing span,
- * online scores on the turn's own observation).
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { MockLanguageModelV4 } from "ai/test";
 import { createTestDb } from "../__test-utils__/db";
@@ -72,7 +66,6 @@ function scriptedModel(calls: StreamFactory[]) {
   });
 }
 const toolTurn: StreamFactory = () => streamOf([{ type: "tool-call", toolCallId: "c1", toolName: TOOL_KEY, input: "{}" }, finish("tool-calls")]);
-/** Streams some text, then hangs until aborted. */
 const hanging = (onStarted: () => void): StreamFactory => (signal) =>
   new ReadableStream({
     start(controller) {
@@ -89,7 +82,6 @@ async function collect(gen: AsyncGenerator<StreamEvent>): Promise<StreamEvent[]>
   return events;
 }
 
-/** Records every charge; never runs out unless `limitPico` is set. */
 function recordingBudget(limitPico = Number.MAX_SAFE_INTEGER) {
   const shared = new SharedCostBudget(limitPico);
   const charges: number[] = [];
@@ -155,7 +147,6 @@ describe("cost budget", () => {
     model = scriptedModel([toolTurn, hanging(() => turn.abort())]);
     await collect(processChat(crypto.randomUUID(), USER_ID, "hi", turn.signal, { costBudget: budget }));
 
-    // Call 1 per call; the cut-off call 2 once, from finally (it never reached meter.record).
     expect(charges).toHaveLength(2);
     expect(charges[1]!).toBeGreaterThan(0);
     const ledger = t.sqlite.query<{ cost_microusd: number; usage_estimated: number }, []>("SELECT cost_microusd, usage_estimated FROM usage_events").get()!;
@@ -179,7 +170,6 @@ describe("cost budget", () => {
   });
 
   it("a budget used up mid-turn stops before the next call; what ran is billed", async () => {
-    // Call 1 alone exceeds 1 picoUSD; the check before call 2 throws.
     const { budget, charges, shared } = recordingBudget(1);
     model = scriptedModel([toolTurn]);
     const sessionId = crypto.randomUUID();
@@ -203,7 +193,6 @@ describe("traceParent", () => {
     const root = one(mem.spans(), "chat-turn");
     expect(root.spanContext().traceId).toBe(parent.traceId);
     expect(root.parentSpanContext?.spanId).toBe(parent.spanId);
-    // The trace name belongs to the parent (experiment item), not the turn.
     expect(root.attributes["langfuse.trace.name"]).toBeUndefined();
     for (const span of mem.spans()) expect(span.spanContext().traceId).toBe(parent.traceId);
     expect(turnRow(sessionId).trace_id).toBe(parent.traceId);

@@ -1,8 +1,3 @@
-/**
- * TurnTrace in isolation: span tree, stamped trace attributes, levels when the
- * turn ends with children still open, the disabled path, and that tracer
- * failures never reach the caller. Plus the bounded, idempotent shutdown.
- */
 import { afterAll, afterEach, describe, expect, it, spyOn } from "bun:test";
 import { createTraceId } from "@langfuse/tracing";
 import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
@@ -119,7 +114,6 @@ describe("TurnTrace", () => {
     const gen = trace.generation({ iteration: 1, model: START.model, input: [] });
     const tool = trace.tool({ name: "uniprot__search", input: {}, asType: "tool" });
     trace.end({ status, errorCode: status, message: `turn ${status}` });
-    // Late ends after the root ended change nothing.
     gen.finish(RESULT);
     tool.fail({ output: "x" }, "late");
     trace.end({ status: "ok" });
@@ -153,7 +147,6 @@ describe("TurnTrace", () => {
     trace.generation({ iteration: 1, model: "m", input: [] }).finish(RESULT);
     trace.tool({ name: "t", input: {}, asType: "tool" }).fail({ output: "x" }, "x");
     trace.end({ status: "ok" });
-    // A later-enabled tracer sees nothing from it.
     const mem = installMemoryTracing();
     TurnTrace.disabled.end({ status: "error" });
     expect(mem.spans()).toEqual([]);
@@ -180,7 +173,6 @@ describe("TurnTrace", () => {
       trace.end({ status: "ok" });
     }).not.toThrow();
     expect(warn.mock.calls.filter(([cat]) => cat === "TRACE").length).toBeGreaterThan(0);
-    // Both spans still ended.
     expect(mem.openSpans()).toEqual([]);
     warn.mockRestore();
   });

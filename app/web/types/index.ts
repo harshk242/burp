@@ -1,9 +1,5 @@
 import type { FeedbackCategoryId } from "@/lib/feedback-categories";
 
-// ============================================
-// User Types
-// ============================================
-
 export interface User {
   id: string;
   clerk_id: string;
@@ -22,10 +18,6 @@ export interface User {
   monthly_cost_limit_microusd?: number | null;
 }
 
-// ============================================
-// Session Types
-// ============================================
-
 export interface Session {
   id: string;
   user_id: string;
@@ -33,10 +25,6 @@ export interface Session {
   created_at: number;
   updated_at: number | null;
 }
-
-// ============================================
-// Message Types
-// ============================================
 
 export interface ToolCall {
   id: string;
@@ -86,15 +74,10 @@ export interface DbMessage {
   output_tokens?: number;
   /** Main chat model cost stored in microdollars */
   cost_microusd?: number;
-  /** Pre-tool-call reasoning text stored separately to avoid model context contamination */
   reasoning?: string | null;
   /** The current user's feedback (assistant messages only) */
   feedback?: Feedback | null;
 }
-
-// ============================================
-// Tool Types
-// ============================================
 
 export interface Tool {
   name: string;
@@ -103,10 +86,6 @@ export interface Tool {
   inputSchema: Record<string, unknown>;
   available: boolean;
 }
-
-// ============================================
-// API Response Types
-// ============================================
 
 export interface SessionListResponse {
   sessions: Session[];
@@ -126,10 +105,6 @@ export interface UserResponse {
   user: User;
 }
 
-// ============================================
-// Rate Limit Types
-// ============================================
-
 export class RateLimitError extends Error {
   constructor(
     message: string,
@@ -143,10 +118,6 @@ export class RateLimitError extends Error {
     this.name = "RateLimitError";
   }
 }
-
-// ============================================
-// SSE Event Types
-// ============================================
 
 export type SSEEventType =
   | "start"

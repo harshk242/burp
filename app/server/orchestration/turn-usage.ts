@@ -1,11 +1,3 @@
-/**
- * Usage of failed and aborted turns. Calls that finished before a turn threw or
- * was aborted were billed by the provider, so they still get a usage_events row
- * (`status: "error"`) and budgets never undercount. A call cut off mid-stream
- * has no final usage; it is recorded as an estimate and the row is flagged
- * `usage_estimated = 1`.
- */
-
 import type { LanguageModelCallStartEvent, TextStreamPart, ToolSet } from "ai";
 import { v4 as uuidv4 } from "uuid";
 import { db, chatSessionQueries, chatTurnQueries, dailyUsageQueries, messageQueries, usageEventQueries, userQueries } from "../db";
@@ -17,30 +9,15 @@ import type { UsageMeter } from "./usage-meter";
 
 interface CallInFlight {
   iteration: number;
-  /**
-   * The request left and the provider accepted it: the HTTP response came back
-   * with a 2xx status. Set at the transport boundary (see `fetch`), not when the
-   * model's `doStream` resolves or on the SDK's `start-step` part: providers
-   * (the Anthropic adapter) wait for the first SSE data before resolving
-   * `doStream`, so a call cut off after the 200 but before any data would be
-   * missed. A call cut off before (connect error, abort while sending) or
-   * rejected (429/529, also retried attempts) is not billed and gets no
-   * estimate.
-   */
   sent: boolean;
-  /** Output streamed so far: text, reasoning and tool-call input. */
   streamedChars: number;
-  /** The prompt as the SDK was about to send it. */
   request?: LanguageModelCallStartEvent;
 }
 
-/** What the last finished call's prompt was made of, to size the next call's growth. */
 interface PreviousCall {
   promptTokens: number;
   messageCount: number;
-  /** Serialized instructions as sent. */
   instructions: string;
-  /** Serialized tool definitions in context (see `loadedTools`). */
   tools: Set<string>;
 }
 
@@ -49,12 +26,6 @@ type PreparedTool = Record<string, unknown> & {
   providerOptions?: { anthropic?: { deferLoading?: unknown } };
 };
 
-/**
- * Serialized definitions of the tools whose definition is in the prompt: every
- * declared tool except deferred ones (Anthropic), plus the deferred tools a
- * tool search referenced so far, whose definitions the provider expands at the
- * reference. An undiscovered deferred tool costs (almost) nothing.
- */
 function loadedTools(request: LanguageModelCallStartEvent | undefined): string[] {
   if (!request) return [];
   const referenced = referencedToolNames(request.messages);
@@ -66,7 +37,6 @@ function loadedTools(request: LanguageModelCallStartEvent | undefined): string[]
     .map((tool) => JSON.stringify(tool));
 }
 
-/** Names in `tool-reference` parts of tool results (search_available_tools on Anthropic). */
 function referencedToolNames(messages: LanguageModelCallStartEvent["messages"]): Set<string> {
   const names = new Set<string>();
   for (const message of messages) {
@@ -82,11 +52,9 @@ function referencedToolNames(messages: LanguageModelCallStartEvent["messages"]):
   return names;
 }
 
-/** Follows the in-flight LLM call so a cut-off one can be estimated. */
 export class CallTracker {
   private current: CallInFlight | null = null;
   private previous: PreviousCall | null = null;
-  /** The preceding turn's last call, measured: its prompt was the first `messageCount` replayed messages. */
   private carried: { promptTokens: number; messageCount: number } | null = null;
 
   constructor(private readonly maxContextTokens = Infinity) {}
@@ -102,12 +70,10 @@ export class CallTracker {
     this.carried = { promptTokens, messageCount };
   }
 
-  /** Measured prompt of the last finished call in this turn. */
   get lastPromptTokens(): number | undefined {
     return this.previous?.promptTokens;
   }
 
-  /** Call right before `streamText`. */
   begin(iteration: number): void {
     this.current = { iteration, sent: false, streamedChars: 0 };
   }
@@ -126,7 +92,6 @@ export class CallTracker {
     { preconnect: (...args: Parameters<typeof fetch.preconnect>) => globalThis.fetch.preconnect(...args) }
   );
 
-  /** `streamText({ onLanguageModelCallStart })`. */
   readonly onRequest = (event: LanguageModelCallStartEvent): void => {
     if (this.current) this.current.request = event;
   };
@@ -139,7 +104,6 @@ export class CallTracker {
     }
   }
 
-  /** Prepared input, including instructions and definitions actually loaded. */
   estimateInputTokens(request: LanguageModelCallStartEvent): number {
     const previous = this.previous ?? this.carriedCall(request);
     return previous
@@ -147,7 +111,6 @@ export class CallTracker {
       : estimateTokens(JSON.stringify({ instructions: request.instructions, messages: request.messages })) + estimateToolTokens(loadedTools(request));
   }
 
-  /** `streamText({ onChunk })`. */
   readonly onChunk = ({ chunk }: { chunk: TextStreamPart<ToolSet> }): void => {
     const call = this.current;
     if (!call) return;
@@ -207,12 +170,6 @@ export class CallTracker {
     };
   }
 
-  /**
-   * The carried-over call as a PreviousCall. Instructions are taken as
-   * unchanged (a changed system prompt changes context_version, which degrades
-   * the turn and drops the carry-over); its loaded tools are the ones the
-   * replayed prefix references, with today's definitions.
-   */
   private carriedCall(request: LanguageModelCallStartEvent): PreviousCall | null {
     const carried = this.carried;
     if (!carried || carried.messageCount > request.messages.length) return null;
@@ -266,7 +223,6 @@ export function recordFailedTurn(turn: FailedTurn): CallCost | undefined {
   const { meter, ctx, errorCode } = turn;
   let estimate: CallCost | undefined;
   try {
-    // Anthropic turns request prompt caching (chat-v2), so new input may be cache-written.
     const cutOff = turn.tracker.estimateCutOffCall(turn.provider === "anthropic");
     if (cutOff) {
       const call = meter.add(cutOff.usage, { estimated: true });
@@ -351,8 +307,6 @@ export interface OkTurn {
 export function recordOkTurn(turn: OkTurn): string {
   const { cost } = turn;
   const assistantMsgId = uuidv4();
-  // Sync transaction on the shared connection: the *Queries calls below use the
-  // global `db`, so they run inside it without needing the `tx` handle.
   db.transaction(() => {
     messageQueries.create(
       assistantMsgId,
@@ -392,7 +346,6 @@ export function recordOkTurn(turn: OkTurn): string {
 
     chatSessionQueries.touch(turn.sessionId);
     userQueries.incrementQueries(turn.userId);
-    // Increment daily token totals (best-effort: done post-response; next request checks these)
     dailyUsageQueries.incrementTokens(turn.userId, cost.inputTokens, cost.outputTokens);
   });
   return assistantMsgId;

@@ -1,9 +1,3 @@
-/**
- * The runner refuses to launch items unless tool search works the way it does
- * in production: tools available, search indexed, and a probe query that hits.
- * Without that, `search_available_tools` would return nothing and every item
- * would measure a broken agent.
- */
 import type { ToolsReport } from "../../server/boot/tools";
 import type { SearchState } from "./run-meta";
 

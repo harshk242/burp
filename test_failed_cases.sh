@@ -1,6 +1,4 @@
 #!/bin/bash
-# Test Failed API Cases
-# Usage: ./test_failed_cases.sh
 
 echo "=========================================="
 echo "Testing Failed API Cases"
@@ -8,13 +6,11 @@ echo "Date: $(date)"
 echo "=========================================="
 echo ""
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Test 1: ChEMBL availability
 echo "1. Testing ChEMBL REST API..."
 result=$(curl -s "https://www.ebi.ac.uk/chembl/api/data/molecule/CHEMBL25.json" 2>/dev/null)
 if echo "$result" | jq -e '.molecule_chembl_id' > /dev/null 2>&1; then
@@ -27,7 +23,6 @@ else
 fi
 echo ""
 
-# Test 2: UniProt availability
 echo "2. Testing UniProt REST API..."
 result=$(curl -s "https://rest.uniprot.org/uniprotkb/P04637.json" 2>/dev/null)
 if echo "$result" | jq -e '.primaryAccession' > /dev/null 2>&1; then
@@ -40,7 +35,6 @@ else
 fi
 echo ""
 
-# Test 3: Reactome availability
 echo "3. Testing Reactome REST API..."
 result=$(curl -s "https://reactome.org/ContentService/data/query/TP53/pathways" 2>/dev/null)
 if echo "$result" | jq -e '.[0].displayName' > /dev/null 2>&1; then
@@ -54,7 +48,6 @@ else
 fi
 echo ""
 
-# Test 4: PharmGKB availability
 echo "4. Testing PharmGKB API..."
 result=$(curl -s -w "\n%{http_code}" "https://api.clinpgx.org/v1/data/gene?symbol=CYP2D6" 2>/dev/null)
 http_code=$(echo "$result" | tail -n1)
@@ -73,7 +66,6 @@ else
 fi
 echo ""
 
-# Test 5: Open Targets GraphQL
 echo "5. Testing Open Targets GraphQL..."
 result=$(curl -s -X POST https://api.platform.opentargets.org/api/v4/graphql \
   -H "Content-Type: application/json" \
@@ -82,7 +74,6 @@ if echo "$result" | jq -e '.data.target.approvedSymbol' > /dev/null 2>&1; then
     symbol=$(echo "$result" | jq -r '.data.target.approvedSymbol')
     echo -e "   ${GREEN}✓${NC} Open Targets API accessible: $symbol"
 
-    # Test search query
     search_result=$(curl -s -X POST https://api.platform.opentargets.org/api/v4/graphql \
       -H "Content-Type: application/json" \
       -d '{"query":"{ search(queryString: \"TP53\", entityNames: [\"target\"]) { total } }"}' 2>/dev/null)
@@ -100,11 +91,8 @@ else
 fi
 echo ""
 
-# Test 6: Ensembl REST API
 echo "6. Testing Ensembl REST API..."
-# Test with Ensembl ID
 result1=$(curl -s "https://rest.ensembl.org/lookup/id/ENSG00000141510?content-type=application/json" 2>/dev/null)
-# Test with gene symbol
 result2=$(curl -s "https://rest.ensembl.org/lookup/symbol/homo_sapiens/TP53?content-type=application/json" 2>/dev/null)
 
 if echo "$result1" | jq -e '.display_name' > /dev/null 2>&1; then
@@ -121,14 +109,12 @@ else
 fi
 echo ""
 
-# Test 7: PubChem external refs
 echo "7. Testing PubChem APIs..."
 result=$(curl -s "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/2244/xrefs/RegistryID/JSON" 2>/dev/null)
 if echo "$result" | jq -e '.InformationList.Information[0].CID' > /dev/null 2>&1; then
     cid=$(echo "$result" | jq -r '.InformationList.Information[0].CID')
     echo -e "   ${GREEN}✓${NC} PubChem xrefs API accessible: CID $cid"
 
-    # Test similarity search
     sim_result=$(curl -s "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/fastsimilarity_2d/cid/2244/cids/JSON?Threshold=95&MaxRecords=3" 2>/dev/null)
     if echo "$sim_result" | jq -e '.IdentifierList.CID' > /dev/null 2>&1; then
         echo -e "   ${GREEN}✓${NC} PubChem similarity search works"
@@ -143,7 +129,6 @@ else
 fi
 echo ""
 
-# Summary
 echo "=========================================="
 echo "Summary"
 echo "=========================================="
@@ -157,7 +142,6 @@ echo -e "PubChem:       $PUBCHEM_STATUS"
 echo "=========================================="
 echo ""
 
-# Count results
 PASS_COUNT=0
 [ "$CHEMBL_STATUS" = "PASS" ] && PASS_COUNT=$((PASS_COUNT+1))
 [ "$UNIPROT_STATUS" = "PASS" ] && PASS_COUNT=$((PASS_COUNT+1))
@@ -170,7 +154,6 @@ PASS_COUNT=0
 echo "Total: $PASS_COUNT/7 platforms fully accessible"
 echo ""
 
-# Save results to file
 REPORT_FILE="api_test_results_$(date +%Y%m%d_%H%M%S).txt"
 {
     echo "API Test Results - $(date)"

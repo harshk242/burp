@@ -1,4 +1,3 @@
-/** Console output of the runner: per-item scores, run aggregates, variance across repeats. */
 import type { ExperimentOutcome } from "./experiment";
 import type { Spread } from "./aggregate";
 

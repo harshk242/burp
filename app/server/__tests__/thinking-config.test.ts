@@ -1,9 +1,3 @@
-/**
- * Thinking config (Anthropic): adaptive thinking with summarized display and an
- * explicit effort, sent as provider options on every chat call. No sampling
- * parameters (temperature / top_p / top_k) and no top-level `reasoning` option.
- * Google gets no provider options.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
@@ -97,7 +91,6 @@ describe("Anthropic request body", () => {
 describe("processChat thinking options", () => {
   beforeEach(() => {
     q.userQueries.create(USER_ID, "clerk_thinking", "thinking@example.com", null, null, "user", null, null);
-    // With no tools available the turn fails before any LLM call.
     const { server, name } = toolRegistry.parseToolName([...ALWAYS_LOADED_TOOLS][0]!);
     toolRegistry.register(server, { name, description: "test tool", inputSchema: { type: "object", properties: {} } });
   });
@@ -147,7 +140,6 @@ describe("processChat thinking options", () => {
     expect(call.temperature).toBeUndefined();
     expect(call.topP).toBeUndefined();
     expect(call.topK).toBeUndefined();
-    // Effort comes only from provider options, never the top-level option.
     expect(call.reasoning).toBeUndefined();
   });
 });

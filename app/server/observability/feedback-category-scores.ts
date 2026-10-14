@@ -1,16 +1,3 @@
-/**
- * Feedback category scores: one BOOLEAN score per category id (both
- * polarities, 10 in total) on the turn's trace, so traces can be filtered on
- * `scores.feedback_<id>:true` (Langfuse filters by score name + value, not by
- * metadata).
- *
- * - Id `fbc-` + sha256(`message_id:user_id:<id>`), stable per category, so a
- *   write overwrites the previous one.
- * - Never deleted: deselect, polarity flip and clear all upsert 0. Only
- *   upserts ever exist for `fbc-*` ids, so they stay out of the main score's
- *   delete-ordering protocol and the last write wins.
- */
-
 import { createHash } from "node:crypto";
 import type { FeedbackKey } from "../db/queries";
 import { logger } from "../logger";
@@ -52,11 +39,6 @@ export function categoryScoreUpserts(
   });
 }
 
-/**
- * Sends every upsert and waits for all of them to settle (allSettled, never
- * all: a push must not end while a sibling request is still in flight, or a
- * later push's write could land before it). True only if all succeeded.
- */
 export async function writeCategoryScores(writer: ScoreWriter, scores: ScoreUpsert[]): Promise<boolean> {
   const results = await Promise.allSettled(scores.map((score) => writer.upsert(score)));
   let ok = true;

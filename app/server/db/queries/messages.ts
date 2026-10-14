@@ -21,7 +21,6 @@ export function createMessageQueries(db: DrizzleDb) {
         .values({
           id,
           chat_id: chatId,
-          // The CHECK constraint rejects anything outside the enum.
           role: role as DbMessageRow["role"],
           content,
           tool_calls: toolCalls,

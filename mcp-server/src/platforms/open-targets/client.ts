@@ -1,5 +1,3 @@
-// Open Targets GraphQL Client with caching; retries run in the shared HTTP retry
-
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { GraphQLError, OpenTargetsAPIError } from './exceptions.js';
 import { filterNoneValues, generateCacheKey } from './utils.js';
@@ -8,13 +6,10 @@ import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import type { CacheEntry, GraphQLResponse, GraphQLError as GraphQLErrorType } from './types.js';
 
 export const OPEN_TARGETS_GRAPHQL_URL = 'https://api.platform.opentargets.org/api/v4/graphql';
-const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour in milliseconds
+const DEFAULT_CACHE_TTL = 3600 * 1000;
 const DEFAULT_MAX_RETRIES = 3;
-const DEFAULT_RETRY_DELAY = 1000; // 1 second
+const DEFAULT_RETRY_DELAY = 1000;
 
-// ── Retry policy ────────────────────────────────────────────────────────────
-
-/** Waits of `2^n × baseMs` before retry n+1 (1s, 2s with the default base). */
 function exponentialBackoff(baseMs: number): (attempt: number) => number {
   return (attempt) => 2 ** (attempt - 1) * baseMs;
 }
@@ -55,7 +50,7 @@ export function createOpenTargetsHttp(options: OpenTargetsHttpOptions = {}): Axi
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
-    timeout: 30000, // 30 seconds
+    timeout: 30000,
     ...(options.adapter ? { adapter: options.adapter } : {}),
   });
   return attachRetry(instance, options.policy ?? OPEN_TARGETS_POLICY, 'open-targets', options.retryDeps);
@@ -109,10 +104,8 @@ export class OpenTargetsClient {
     query: string,
     variables?: Record<string, unknown>
   ): Promise<T> {
-    // Filter out null/undefined values
     const cleanVariables = variables ? filterNoneValues(variables) : undefined;
 
-    // Check cache
     const cacheKey = generateCacheKey(query, cleanVariables);
     const cachedEntry = this.cache.get(cacheKey);
 
@@ -130,9 +123,7 @@ export class OpenTargetsClient {
 
     const { data, errors } = response.data;
 
-    // Handle GraphQL errors
     if (errors && errors.length > 0) {
-      // If we have partial data, log the warning but continue
       if (data) {
         console.warn('GraphQL returned partial data with errors:', errors);
       } else {
@@ -147,7 +138,6 @@ export class OpenTargetsClient {
       throw new OpenTargetsAPIError('No data returned from GraphQL query');
     }
 
-    // Cache the result
     this.cache.set(cacheKey, {
       data,
       timestamp: Date.now(),
@@ -156,16 +146,10 @@ export class OpenTargetsClient {
     return data as T;
   }
 
-  /**
-   * Clear the cache
-   */
   clearCache(): void {
     this.cache.clear();
   }
 
-  /**
-   * Get cache statistics
-   */
   getCacheStats(): { size: number; entries: number } {
     return {
       size: this.cache.size,
@@ -174,20 +158,13 @@ export class OpenTargetsClient {
   }
 }
 
-// Global client instance
 let _client: OpenTargetsClient | null = null;
 
-/**
- * Initialize the global client
- */
 export function initializeClient(options?: OpenTargetsClientOptions): OpenTargetsClient {
   _client = new OpenTargetsClient(options);
   return _client;
 }
 
-/**
- * Get the global client instance
- */
 export function getClient(): OpenTargetsClient {
   if (!_client) {
     throw new Error(
@@ -197,9 +174,6 @@ export function getClient(): OpenTargetsClient {
   return _client;
 }
 
-/**
- * Close the global client (cleanup)
- */
 export function closeClient(): void {
   if (_client) {
     _client.clearCache();

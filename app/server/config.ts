@@ -1,27 +1,9 @@
-/**
- * Central application configuration.
- *
- * Source priority (highest wins):
- *   1. Environment variables
- *   2. app/config.yaml (resolved relative to this module, not cwd)
- *   3. Built-in defaults (defined in Zod schema)
- *
- * Relative `log_dir` / `mcp_servers_base` / `tool_search.embeddings_path` resolve
- * against app/ (not cwd), so the server and scripts behave the same wherever
- * they are launched from. `database_url` resolves
- * against the repo root (see db/paths.ts).
- *
- * Secrets (API keys, Clerk) are never stored here — they stay in .env.
- */
-
 import { readFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { EMBEDDING_PROVIDERS } from "./embeddings/types";
-
-// ── Schema ────────────────────────────────────────────────────────────────────
 
 const PlatformSchema = z.object({
   enabled: z.boolean().default(true),
@@ -38,7 +20,6 @@ const ArtifactConfigSchema = z.object({
   hard_cap_bytes: z.number().int().default(1_048_576),
   ttl_minutes: z.number().default(5),
   db_ttl_hours: z.number().default(24),
-  // Per-session budget over noise-reduced JSON size (chars ≈ bytes); oldest evicted first.
   max_session_bytes: z.number().int().default(20_971_520),
   preview_sample_items: z.number().int().default(2),
   preview_max_chars_per_value: z.number().int().default(150),
@@ -54,11 +35,6 @@ const ArtifactConfigSchema = z.object({
     .default({}),
 });
 
-/**
- * A per-MTok rate in USD. Pricing works in integer µUSD per MTok, so a rate must
- * be a whole number of µUSD (at most 6 decimals): rounding a finer one could
- * undercharge. The tolerance only absorbs float representation error.
- */
 function usdPerMtok() {
   return z
     .number()
@@ -68,10 +44,6 @@ function usdPerMtok() {
     });
 }
 
-/**
- * One set of per-MTok rates. Missing cache rates fall back to the overcharge
- * side in `usage.ts`: reads at the input rate, 5m/1h writes at 1.25x/2x input.
- */
 const RateSetSchema = z.object({
   input_usd_per_mtok: usdPerMtok(),
   output_usd_per_mtok: usdPerMtok(),
@@ -80,11 +52,6 @@ const RateSetSchema = z.object({
   cache_write_1h_usd_per_mtok: usdPerMtok().optional(),
 });
 
-/**
- * A request whose prompt (all input incl. cache reads/writes) is strictly above
- * `above_input_tokens` pays these rates for every category, output included.
- * Every field is required so a typo can't fall back to the cheaper base rates.
- */
 const LongContextSchema = RateSetSchema.required().extend({
   above_input_tokens: z.number().int().positive(),
 });
@@ -93,7 +60,6 @@ const ModelPricingSchema = RateSetSchema.extend({
   long_context: LongContextSchema.optional(),
 });
 
-/** Semantic tool search embeddings. Independent of the chat `llm` provider. */
 const EmbeddingConfigSchema = z.object({
   provider: z.enum(EMBEDDING_PROVIDERS).default("openai"),
   model: z.string().min(1).default("text-embedding-3-small"),
@@ -107,7 +73,6 @@ const EmbeddingConfigSchema = z.object({
   sync_timeout_ms: z.number().int().positive().default(120_000),
 });
 
-/** Langfuse tracing. Also needs LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY; a no-op without them. */
 const LangfuseConfigSchema = z.object({
   enabled: z.boolean().default(true),
   /** Langfuse environment of traces and scores (dev | prod; eval runs set their own). */
@@ -125,7 +90,6 @@ const AppConfigSchema = z.object({
     /** Default dollar budgets for 'user' role. -1 = unlimited. Admin always unlimited. */
     default_daily_cost_limit_usd: z.number().default(0.25),
     default_monthly_cost_limit_usd: z.number().default(3),
-    /** Bounds worst-case overshoot because final usage is only known post-stream. */
     max_chat_input_chars: z.number().int().positive().default(20_000),
     pricing: z.record(z.string(), z.record(z.string(), ModelPricingSchema)).default({
       anthropic: {
@@ -184,7 +148,6 @@ const AppConfigSchema = z.object({
     max_context_tokens: z.number().int().positive().default(180000),
     /** Anthropic adaptive thinking: "summarized" returns readable thinking text, "omitted" returns empty blocks. */
     thinking_display: z.enum(["omitted", "summarized", "updates"]).default("summarized"),
-    /** Anthropic effort. Required: the API default (high on Sonnet 5.5) must never apply silently. */
     effort: z.enum(["low", "medium", "high", "xhigh", "max"]),
     max_tool_iterations: z.number().int().positive().default(6),
   }),
@@ -221,9 +184,6 @@ export type PlatformConfig = z.infer<typeof PlatformSchema>;
 export type EmbeddingConfig = z.infer<typeof EmbeddingConfigSchema>;
 export type ModelPricing = z.infer<typeof ModelPricingSchema>;
 
-// ── Loader ────────────────────────────────────────────────────────────────────
-
-/** The app/ folder, located from this module so nothing depends on cwd. */
 export const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG_PATH = join(APP_DIR, "config.yaml");
 
@@ -246,11 +206,6 @@ export function parseBooleanEnv(name: string, value: string): boolean {
   throw new Error(`Invalid ${name}=${JSON.stringify(value)}: expected "true", "false", "1" or "0"`);
 }
 
-/**
- * Embedding env overrides. Provider and model must change together: a
- * provider alone would pair, say, Google with an OpenAI model name.
- * `EMBEDDING_DIMENSIONS=native` clears a configured size.
- */
 function applyEmbeddingEnv(cfg: AppConfig, e: Env): void {
   const emb: Record<string, unknown> = { ...cfg.embedding };
   if (Boolean(e.EMBEDDING_PROVIDER) !== Boolean(e.EMBEDDING_MODEL)) {
@@ -262,11 +217,9 @@ function applyEmbeddingEnv(cfg: AppConfig, e: Env): void {
     emb.dimensions = e.EMBEDDING_DIMENSIONS === "native" ? undefined : Number(e.EMBEDDING_DIMENSIONS);
   }
   if (e.EMBEDDING_QUERY_TIMEOUT_MS) emb.query_timeout_ms = Number(e.EMBEDDING_QUERY_TIMEOUT_MS);
-  // Any set value is parsed, so an empty one fails instead of silently keeping the default.
   if (e.EMBEDDING_SYNC_ON_BOOT !== undefined) emb.sync_on_boot = parseBooleanEnv("EMBEDDING_SYNC_ON_BOOT", e.EMBEDDING_SYNC_ON_BOOT);
   if (e.EMBEDDING_SYNC_TIMEOUT_MS) emb.sync_timeout_ms = Number(e.EMBEDDING_SYNC_TIMEOUT_MS);
 
-  // Validate again after overrides so a bad provider or size fails at startup.
   const parsed = EmbeddingConfigSchema.safeParse(emb);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
@@ -276,7 +229,6 @@ function applyEmbeddingEnv(cfg: AppConfig, e: Env): void {
 }
 
 function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
-  // LLM
   if (e.LLM_PROVIDER) cfg.llm.provider = e.LLM_PROVIDER as AppConfig["llm"]["provider"];
   if (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL) cfg.llm.chat_model = (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL)!;
   if (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL) cfg.llm.title_model = (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL)!;
@@ -288,12 +240,10 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   }
   if (e.LLM_MAX_TOOL_ITERATIONS) cfg.llm.max_tool_iterations = parseInt(e.LLM_MAX_TOOL_ITERATIONS, 10);
 
-  // Usage / cost limits
   if (e.DEFAULT_DAILY_COST_LIMIT_USD) cfg.usage.default_daily_cost_limit_usd = parseFloat(e.DEFAULT_DAILY_COST_LIMIT_USD);
   if (e.DEFAULT_MONTHLY_COST_LIMIT_USD) cfg.usage.default_monthly_cost_limit_usd = parseFloat(e.DEFAULT_MONTHLY_COST_LIMIT_USD);
   if (e.MAX_CHAT_INPUT_CHARS) cfg.usage.max_chat_input_chars = parseInt(e.MAX_CHAT_INPUT_CHARS, 10);
 
-  // Server
   if (e.PORT) cfg.server.port = parseInt(e.PORT, 10);
   if (e.DATABASE_URL) cfg.server.database_url = e.DATABASE_URL;
   if (e.MCP_SERVERS_BASE) cfg.server.mcp_servers_base = e.MCP_SERVERS_BASE;
@@ -304,7 +254,6 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   if (e.LOG_DIR) cfg.server.log_dir = e.LOG_DIR;
   if (e.LOG_LEVEL) cfg.server.log_level = e.LOG_LEVEL as AppConfig["server"]["log_level"];
 
-  // Tool search
   if (e.TOOL_SEARCH_BM25_WEIGHT) cfg.tool_search.bm25_weight = parseFloat(e.TOOL_SEARCH_BM25_WEIGHT);
   if (e.TOOL_SEARCH_SEMANTIC_WEIGHT) cfg.tool_search.semantic_weight = parseFloat(e.TOOL_SEARCH_SEMANTIC_WEIGHT);
   if (e.TOOL_SEARCH_SHORT_QUERY_THRESHOLD) cfg.tool_search.short_query_threshold = parseInt(e.TOOL_SEARCH_SHORT_QUERY_THRESHOLD, 10);
@@ -315,7 +264,6 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
 
   applyEmbeddingEnv(cfg, e);
 
-  // Observability
   const lf = cfg.observability.langfuse;
   if (e.LANGFUSE_ENABLED !== undefined) lf.enabled = parseBooleanEnv("LANGFUSE_ENABLED", e.LANGFUSE_ENABLED);
   if (e.LANGFUSE_TRACING_ENVIRONMENT) lf.environment = e.LANGFUSE_TRACING_ENVIRONMENT;
@@ -326,7 +274,6 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   return cfg;
 }
 
-/** Build the config from YAML + env. Exported for tests; the app uses `appConfig`. */
 export function loadConfig(env: Env = process.env, raw: Record<string, unknown> = loadYamlFile()): AppConfig {
   const cfg = applyEnvOverrides(AppConfigSchema.parse(raw), env);
   cfg.server.log_dir = resolve(APP_DIR, cfg.server.log_dir);

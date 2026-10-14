@@ -1,10 +1,5 @@
-// Target Safety API Tools
-
 import { getClient } from '../../client.js';
 
-/**
- * Retrieve documented safety liabilities for a target.
- */
 export async function getTargetSafetyInformation(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -27,9 +22,6 @@ export async function getTargetSafetyInformation(ensemblId: string): Promise<unk
   return client.query(query, { ensemblId });
 }
 
-/**
- * Return tractability assessments across modalities for a target.
- */
 export async function getTargetTractability(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -48,9 +40,6 @@ export async function getTargetTractability(ensemblId: string): Promise<unknown>
   return client.query(query, { ensemblId });
 }
 
-/**
- * List available chemical probes and their quality metrics.
- */
 export async function getTargetChemicalProbes(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -78,9 +67,6 @@ export async function getTargetChemicalProbes(ensemblId: string): Promise<unknow
   return client.query(query, { ensemblId });
 }
 
-/**
- * Fetch Target Enabling Package (TEP) information for a gene.
- */
 export async function getTargetTep(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -99,9 +85,6 @@ export async function getTargetTep(ensemblId: string): Promise<unknown> {
   return client.query(query, { ensemblId });
 }
 
-/**
- * Return target prioritisation scores compiled across data sources.
- */
 export async function getTargetPrioritization(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `

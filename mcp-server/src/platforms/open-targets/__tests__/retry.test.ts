@@ -1,6 +1,3 @@
-// Open Targets on the shared HTTP retry: policy wiring, 429 backoff, GraphQL
-// errors kept outside the retry and constructor overrides. Stub adapter only, no network.
-
 import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -13,7 +10,6 @@ const QUERY = 'query { meta { apiVersion { x } } }';
 const DATA = { meta: { apiVersion: { x: '25' } } };
 const GRAPHQL_ERRORS = { data: null, errors: [{ message: 'Cannot query field "nope"', path: ['meta'] }] };
 
-/** An Open Targets client on a stub transport whose 200s carry `body` (default: data). */
 function stubOpenTargets(steps: Step[], options: OpenTargetsClientOptions = {}, body: unknown = { data: DATA }) {
   const { adapter: base, calls } = stubAdapter(steps);
   const adapter: AxiosAdapter = async (config) => ({ ...(await base(config)), data: body });

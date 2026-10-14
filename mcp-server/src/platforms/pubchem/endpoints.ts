@@ -4,7 +4,6 @@ type Cid = number | string;
 
 const encodeCid = (cid: Cid): string => encodeURIComponent(String(cid));
 
-/** Build the PubChem PUG REST URL for a compound record. */
 export const compoundRecord = (cid: Cid, format = 'JSON'): string =>
   `${PUBCHEM_PUG_REST_BASE_URL}/compound/cid/${encodeCid(cid)}/${format}`;
 

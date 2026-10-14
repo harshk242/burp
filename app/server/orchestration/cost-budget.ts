@@ -1,18 +1,3 @@
-/**
- * A cost cap shared by concurrent turns (the eval runner passes one to every
- * processChat). usage_events rows land only at turn end, so the cap is checked
- * between model calls instead:
- *
- * - `check()` runs before each model call and throws a `budget_exceeded`
- *   TurnError once the cap is reached;
- * - each metered call is charged right after it is priced, and the turn's
- *   `finally` charges whatever the meter holds beyond that (the cut-off
- *   estimate of a failed turn), so every priced call reaches the budget once.
- *
- * Calls already streaming finish, so the cap can be overshot by about one model
- * call per concurrent turn. Amounts are in picoUSD (exact integers).
- */
-
 import { TurnError } from "./chat-turn";
 
 export const PICO_USD_PER_USD = 1e12;
@@ -68,7 +53,6 @@ export class TurnBudget {
     this.budget?.check();
   }
 
-  /** Charges one metered call. */
   chargeCall(picoUsd: number): void {
     this.charged += picoUsd;
     this.budget?.charge(picoUsd);

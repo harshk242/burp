@@ -1,8 +1,6 @@
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 
-// ── Ensembl API interfaces ──────────────────────────────────────────────────
-
 export interface EnsemblGene {
   id: string;
   display_name: string;
@@ -141,14 +139,6 @@ export interface EnsemblAssemblyInfo {
   karyotype: string[];
 }
 
-// ── Retry policy ────────────────────────────────────────────────────────────
-
-/**
- * Production retry policy, from Ensembl's live behaviour (see
- * plans/shared-http-retry-plan.md, "Ensembl live evidence"): short bursts of
- * fast proxy 500s are absorbed; slow failures are capped by the 40s budget.
- * 429 waits for Retry-After / x-ratelimit-reset only if it fits the budget.
- */
 export const ENSEMBL_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: 3,
   backoffMs: [1_000, 3_000],
@@ -184,8 +174,6 @@ export function createEnsemblClient(options: EnsemblClientOptions = {}): AxiosIn
   return attachRetry(client, options.policy ?? ENSEMBL_POLICY, 'ensembl', options.retryDeps);
 }
 
-// ── Singleton axios client ──────────────────────────────────────────────────
-
 let apiClient: AxiosInstance | null = null;
 
 export function getClient(): AxiosInstance {
@@ -203,14 +191,11 @@ export function cleanup(): void {
   apiClient = null;
 }
 
-// ── Shared utility helpers ──────────────────────────────────────────────────
-
 export function getDefaultSpecies(species?: string): string {
   return species || 'homo_sapiens';
 }
 
 export function formatGenomicRegion(region: string): string {
-  // Support formats: chr1:1000-2000, 1:1000-2000, ENSG00000139618
   if (region.includes(':') && region.includes('-')) {
     return region;
   } else if (region.startsWith('ENS')) {

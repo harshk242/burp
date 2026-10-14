@@ -1,7 +1,3 @@
-/**
- * Query-layer tests for daily usage, the usage-event ledger, rate limits and
- * FTS5 tool search, run against createTestDb().
- */
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createTestDb, type TestDb } from "../__test-utils__/db";
 import { createQueries, type Queries } from "../db/queries";

@@ -13,7 +13,6 @@ export const MEMORY_DB_PATH = ":memory:";
 /** Repo root (app/server/db → ../../..). Relative DATABASE_URLs resolve against it. */
 export const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-/** Folder holding drizzle-kit output (SQL files + meta/_journal.json). */
 export const MIGRATIONS_FOLDER = join(dirname(fileURLToPath(import.meta.url)), "migrations");
 
 export function isMemoryDbPath(path: string): boolean {

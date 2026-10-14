@@ -1,14 +1,3 @@
-/**
- * Noise Reduction Runner (Tier 1)
- *
- * Applies the resolved 3-layer jq filter chain to tool output.
- * Deterministic, no LLM — strips obvious noise (nulls, sequences,
- * evidence arrays, caps result counts) based on policy config.
- *
- * Each filter is applied sequentially. If any filter errors, it's
- * skipped and the data passes through unchanged for that step.
- */
-
 import { logger } from "../../logger";
 import { resolveFilterChain } from "./policy-resolver";
 import { executeJq } from "./jq-engine";
@@ -42,10 +31,6 @@ export async function applyNoiseReduction(
   let filtersSkipped = 0;
 
   for (const filter of filters) {
-    // Noise reduction filters are curated config — they shrink data.
-    // Disable the output cap here so filters always produce complete,
-    // valid JSON. The cap only matters for inspect_artifact where
-    // LLM-written jq filters could produce unbounded output.
     const result = await executeJq(current, filter, {
       maxOutputChars: Infinity,
     });

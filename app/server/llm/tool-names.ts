@@ -1,8 +1,3 @@
-/**
- * Bidirectional tool name sanitization for providers with naming restrictions.
- * Gemini rejects hyphens in function/tool names.
- */
-
 import { enabledPlatforms } from "../mcp/platforms.config";
 import type { LLMProviderName } from "./config";
 
@@ -22,10 +17,6 @@ export function sanitizeToolName(name: string, provider: LLMProviderName): strin
   return name.replace(/-/g, "_");
 }
 
-/**
- * Reverse sanitization to recover the original tool name.
- * Uses HYPHENATED_PLATFORMS as the source of truth.
- */
 export function desanitizeToolName(sanitized: string, provider: LLMProviderName): string {
   if (provider !== "google") return sanitized;
 

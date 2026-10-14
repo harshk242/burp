@@ -1,5 +1,3 @@
-// Disease API Tools
-
 import { getClient } from '../client.js';
 import { DISEASE_INFO_OPERATION } from './operations.js';
 
@@ -12,7 +10,6 @@ export async function getDiseaseInfo(efoId: string): Promise<unknown> {
   const client = getClient();
   const result = await client.query(DISEASE_INFO_OPERATION, { efoId });
 
-  // Check if disease was found and provide helpful error
   if (result && typeof result === 'object' && 'disease' in result && result.disease === null) {
     throw new Error(
       `Disease ID '${efoId}' not found. ` +
@@ -61,7 +58,6 @@ export async function getDiseaseAssociatedTargets(
   `;
   const result = await client.query(query, { efoId, pageIndex, pageSize });
 
-  // Check if disease was found and provide helpful error
   if (result && typeof result === 'object' && 'disease' in result && result.disease === null) {
     throw new Error(
       `Disease ID '${efoId}' not found. ` +
@@ -122,7 +118,6 @@ export async function getDiseasePhenotypes(
   `;
   const result = await client.query(query, { efoId, pageIndex, pageSize });
 
-  // Check if disease was found and provide helpful error
   if (result && typeof result === 'object' && 'disease' in result && result.disease === null) {
     throw new Error(
       `Disease ID '${efoId}' not found. ` +
@@ -158,7 +153,6 @@ export async function getDiseaseOtarProjects(efoId: string): Promise<unknown> {
   `;
   const result = await client.query(query, { efoId });
 
-  // Check if disease was found and provide helpful error
   if (result && typeof result === 'object' && 'disease' in result && result.disease === null) {
     throw new Error(
       `Disease ID '${efoId}' not found. ` +

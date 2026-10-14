@@ -1,11 +1,6 @@
-// Target Biology API Tools
-
 import { getClient } from '../../client.js';
 import { filterNoneValues } from '../../utils.js';
 
-/**
- * Return RNA and protein expression profiles for a target across tissues.
- */
 export async function getTargetExpression(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -24,9 +19,6 @@ export async function getTargetExpression(ensemblId: string): Promise<unknown> {
   return client.query(query, { ensemblId });
 }
 
-/**
- * List pathway memberships and Gene Ontology annotations for a target.
- */
 export async function getTargetPathwaysAndGoTerms(
   ensemblId: string,
   _pageIndex: number = 0,
@@ -59,9 +51,6 @@ export async function getTargetPathwaysAndGoTerms(
   return client.query(query, { ensemblId });
 }
 
-/**
- * Retrieve cross-species homologues for a target gene.
- */
 export async function getTargetHomologues(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -85,9 +74,6 @@ export async function getTargetHomologues(ensemblId: string): Promise<unknown> {
   return client.query(query, { ensemblId });
 }
 
-/**
- * Return subcellular localisation annotations for a target.
- */
 export async function getTargetSubcellularLocations(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -107,9 +93,6 @@ export async function getTargetSubcellularLocations(ensemblId: string): Promise<
   return client.query(query, { ensemblId });
 }
 
-/**
- * Fetch genetic constraint metrics (gnomAD) for a target.
- */
 export async function getTargetGeneticConstraint(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -135,9 +118,6 @@ export async function getTargetGeneticConstraint(ensemblId: string): Promise<unk
   return client.query(query, { ensemblId });
 }
 
-/**
- * Retrieve mouse knockout phenotypes associated with a target.
- */
 export async function getTargetMousePhenotypes(
   ensemblId: string,
   _pageIndex: number = 0,
@@ -168,9 +148,6 @@ export async function getTargetMousePhenotypes(
   return client.query(query, { ensemblId });
 }
 
-/**
- * Return cancer hallmark annotations associated with a target.
- */
 export async function getTargetHallmarks(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -197,9 +174,6 @@ export async function getTargetHallmarks(ensemblId: string): Promise<unknown> {
   return client.query(query, { ensemblId });
 }
 
-/**
- * Fetch DepMap CRISPR essentiality scores across cell lines.
- */
 export async function getTargetDepmapEssentiality(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -227,9 +201,6 @@ export async function getTargetDepmapEssentiality(ensemblId: string): Promise<un
   return client.query(query, { ensemblId });
 }
 
-/**
- * Retrieve protein interaction partners for a target from curated databases.
- */
 export async function getTargetInteractions(
   ensemblId: string,
   sourceDatabase?: string,

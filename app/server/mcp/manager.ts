@@ -1,8 +1,3 @@
-/**
- * MCP Server Manager
- * Manages lifecycle of MCP server child processes using MCP SDK Client
- */
-
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -11,9 +6,6 @@ import { enabledPlatforms } from "./platforms.config";
 import { logger, startTimer, estimateTokens } from "../logger";
 import { appConfig } from "../config";
 
-// Environment-aware base path for the unified MCP server
-// Default: "../mcp-server" because app runs from app/ directory, server is at project root in mcp-server/
-// In container: "/app/mcp-server" where Dockerfile copies it
 const MCP_SERVERS_BASE = appConfig.server.mcp_servers_base;
 
 export interface MCPServerConfig {
@@ -24,17 +16,13 @@ export interface MCPServerConfig {
   env?: Record<string, string | undefined>;
 }
 
-// Collect env vars from all enabled platforms for the unified server
 const unifiedEnv: Record<string, string | undefined> = {};
 for (const p of enabledPlatforms) {
   if (p.env) Object.assign(unifiedEnv, p.env);
 }
 
-// Tell the MCP server which platforms to actually register.
-// Disabled platforms won't be initialized or have tools exposed.
 unifiedEnv.ENABLED_PLATFORMS = enabledPlatforms.map((p) => p.name).join(",");
 
-// Single unified MCP server replaces the 10 individual servers
 export const MCP_SERVERS: MCPServerConfig[] = [
   {
     name: "unified",
@@ -44,7 +32,6 @@ export const MCP_SERVERS: MCPServerConfig[] = [
   },
 ];
 
-/** The MCP client's own deadline for a request sent with `timeout: timeoutMs`. */
 function isRequestTimeout(error: unknown, timeoutMs: number): boolean {
   return (
     error instanceof McpError &&
@@ -78,7 +65,6 @@ export interface ToolResult {
   meta?: Record<string, unknown>;
 }
 
-// Retry configuration
 const INITIAL_RETRY_DELAY_MS = 5000;
 const MAX_RETRY_DELAY_MS = 60000;
 const RETRY_BACKOFF_MULTIPLIER = 2;
@@ -94,9 +80,6 @@ export class MCPManager {
    */
   onToolsChanged: (() => void) | null = null;
 
-  /**
-   * Register an MCP server configuration
-   */
   register(config: MCPServerConfig): void {
     this.servers.set(config.name, {
       config,
@@ -107,18 +90,12 @@ export class MCPManager {
     });
   }
 
-  /**
-   * Register all predefined MCP servers
-   */
   registerAll(): void {
     for (const config of MCP_SERVERS) {
       this.register(config);
     }
   }
 
-  /**
-   * Start an MCP server and establish client connection
-   */
   async start(name: string): Promise<void> {
     const server = this.servers.get(name);
     if (!server) {
@@ -190,15 +167,10 @@ export class MCPManager {
     }
   }
 
-  /**
-   * Schedule a retry for a failed server
-   */
   private scheduleRetry(name: string): void {
     const server = this.servers.get(name);
     if (!server) return;
 
-    // Unified server: mark all platforms unavailable. Only the first failure
-    // changes anything; repeated failed retries don't re-notify.
     if (toolRegistry.setAllAvailability(false)) this.notifyToolsChanged(name);
 
     const delay = Math.min(
@@ -214,12 +186,10 @@ export class MCPManager {
     });
   }
 
-  /** Stop an MCP server */
   async stop(name: string): Promise<void> {
     const server = this.servers.get(name);
     if (!server) return;
 
-    // Prevent onclose from triggering retry
     const wasRunning = server.status === "running";
     server.status = "stopped";
 
@@ -228,7 +198,6 @@ export class MCPManager {
         await server.transport.close();
       }
     } catch (error) {
-      // Ignore close errors
     }
 
     try {
@@ -236,7 +205,6 @@ export class MCPManager {
         await server.client.close();
       }
     } catch (error) {
-      // Ignore close errors
     }
 
     server.client = null;
@@ -279,9 +247,6 @@ export class MCPManager {
     return { succeeded, failed };
   }
 
-  /**
-   * Stop all running servers
-   */
   async stopAll(): Promise<void> {
     this.stopRetryLoop();
 
@@ -292,7 +257,6 @@ export class MCPManager {
     logger.info("MCP", "all_servers_stopped");
   }
 
-  /** Start background retry loop for failed servers */
   private startRetryLoop(): void {
     if (this.retryIntervalId) return;
 
@@ -327,7 +291,6 @@ export class MCPManager {
     }
   }
 
-  /** Fire onToolsChanged; a failing callback is logged, never thrown. */
   private notifyToolsChanged(server: string): void {
     try {
       this.onToolsChanged?.();
@@ -336,7 +299,6 @@ export class MCPManager {
     }
   }
 
-  /** Stop the background retry loop */
   private stopRetryLoop(): void {
     if (this.retryIntervalId) {
       clearInterval(this.retryIntervalId);
@@ -344,9 +306,6 @@ export class MCPManager {
     }
   }
 
-  /**
-   * List tools from an MCP server
-   */
   async listTools(name: string): Promise<ToolDefinition[]> {
     const server = this.servers.get(name);
     if (!server) {
@@ -366,9 +325,6 @@ export class MCPManager {
     }));
   }
 
-  /**
-   * Call a tool on an MCP server
-   */
   async callTool(
     serverName: string,
     toolName: string,
@@ -376,7 +332,6 @@ export class MCPManager {
     timeoutMs = appConfig.server.mcp_tool_timeout_ms,
     signal?: AbortSignal
   ): Promise<ToolResult> {
-    // Route all calls through the unified server with prefixed tool name
     const server = this.servers.get("unified");
     if (!server) {
       logger.error("MCP", "tool_call_server_not_registered", { data: { server: serverName, tool: toolName } });
@@ -415,7 +370,6 @@ export class MCPManager {
       throw error;
     }
 
-    // Extract text content from result
     let content: unknown = result.content;
     let rawText = "";
     if (Array.isArray(result.content)) {
@@ -445,15 +399,6 @@ export class MCPManager {
     const outputTokens = estimateTokens(rawText);
     const outputBytes = Buffer.byteLength(rawText, "utf8");
 
-    // ── Layer 2 of 3: Prevent LLM context blow-up (1MB) ─────────────
-    //
-    //   MCP server  (5MB)  → prevent process death / stdio pressure
-    //   App manager (1MB)  → prevent LLM context blow-up  ← YOU ARE HERE
-    //   handleLargeOutput (15K) → noise reduce, then artifact if still big
-    //
-    // Measured in real bytes (not chars) to match config semantics.
-    // No silent truncation: returns an explicit error so the user can
-    // narrow their query parameters.
     const hardCapBytes = appConfig.artifact?.hard_cap_bytes ?? 1_048_576;
     if (outputBytes > hardCapBytes) {
       const actualMB = (outputBytes / 1024 / 1024).toFixed(2);
@@ -494,12 +439,10 @@ export class MCPManager {
     };
   }
 
-  /** Get server status */
   getStatus(name: string): MCPServer | undefined {
     return this.servers.get(name);
   }
 
-  /** Get all server statuses */
   getAllStatuses(): Record<string, { status: ServerStatus; error?: string }> {
     const statuses: Record<string, { status: ServerStatus; error?: string }> = {};
     for (const [name, server] of this.servers) {
@@ -508,19 +451,16 @@ export class MCPManager {
     return statuses;
   }
 
-  /** Get list of running servers */
   getRunningServers(): string[] {
     return Array.from(this.servers.entries())
       .filter(([_, server]) => server.status === "running")
       .map(([name]) => name);
   }
 
-  /** Check if a server is available */
   isServerAvailable(_name: string): boolean {
     const server = this.servers.get("unified");
     return server?.status === "running" && server.client !== null;
   }
 }
 
-// Singleton instance
 export const mcpManager = new MCPManager();

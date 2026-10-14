@@ -1,5 +1,3 @@
-// Export all tool functions
-
 export {
   searchVariantsByGene,
   getVariantInfo,

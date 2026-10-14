@@ -20,7 +20,6 @@ export const turnSignalScores: ItemEvaluator = (output) => {
       final_finish_reason: t.final_finish_reason,
       tool_error_count: t.tool_error_count,
     });
-    // A budget-stopped turn says nothing about the agent.
     if (!signals) return null;
     perTurn.push({ turn: t.turn, signals });
   }

@@ -4,7 +4,6 @@ services:
     build:
       context: .
       args:
-        # NEXT_PUBLIC_* vars needed at BUILD time for static export
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     ports:
@@ -12,11 +11,9 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      # Runtime env vars (server-side only)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NCBI_API_KEY=${NCBI_API_KEY}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
-      # MCP servers base path (in container, servers are at /app/servers/)
       - MCP_SERVERS_BASE=/app/servers
     restart: unless-stopped

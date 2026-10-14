@@ -1,5 +1,3 @@
-// ClinVar API Client with dual API support (E-utilities + Clinical Tables)
-
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import {
   filterNoneValues,
@@ -26,13 +24,10 @@ import type {
 
 const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const CLINICAL_TABLES_URL = 'https://clinicaltables.nlm.nih.gov/api/variants/v4';
-const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
+const DEFAULT_CACHE_TTL = 3600 * 1000;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 1000;
 
-// ── Retry policies ──────────────────────────────────────────────────────────
-
-/** Waits of `2^n × baseMs` before retry n+1 (1s, 2s with the default base). */
 function exponentialBackoff(baseMs: number): (attempt: number) => number {
   return (attempt) => 2 ** (attempt - 1) * baseMs;
 }
@@ -80,7 +75,6 @@ function createHttp(baseURL: string, defaultPolicy: RetryPolicy, options: ClinVa
   return attachRetry(instance, options.policy ?? defaultPolicy, 'clinvar', options.retryDeps);
 }
 
-/** An NCBI E-utilities Axios instance with the shared retry attached. */
 export function createClinVarNcbiHttp(options: ClinVarHttpOptions = {}): AxiosInstance {
   return createHttp(NCBI_BASE_URL, CLINVAR_NCBI_POLICY, options);
 }
@@ -113,7 +107,6 @@ export class ClinVarClient {
         ...CLINVAR_NCBI_POLICY,
         maxAttempts: this.maxRetries,
         backoffMs: exponentialBackoff(this.retryDelay),
-        // A token before every attempt; the wait counts against the budget.
         beforeAttempt: (signal) => this.rateLimiter.waitForToken(signal),
       },
       adapter: options.adapter,
@@ -126,10 +119,6 @@ export class ClinVarClient {
     });
   }
 
-  /**
-   * Execute NCBI E-utilities request with caching; rate limiting and retries
-   * run in the shared retry adapter.
-   */
   private async ncbiRequest<T>(
     endpoint: string,
     params: Record<string, unknown>,
@@ -163,9 +152,6 @@ export class ClinVarClient {
     return data;
   }
 
-  /**
-   * Execute Clinical Tables API request
-   */
   private async clinicalTablesRequest(
     params: Record<string, unknown>
   ): Promise<ClinicalTablesResult> {
@@ -204,9 +190,6 @@ export class ClinVarClient {
     return result;
   }
 
-  /**
-   * Search ClinVar using E-utilities
-   */
   async search(
     term: string,
     options?: { maxResults?: number; start?: number }
@@ -228,9 +211,6 @@ export class ClinVarClient {
     };
   }
 
-  /**
-   * Search variants by gene name
-   */
   async searchByGene(
     gene: string,
     options?: {
@@ -246,9 +226,6 @@ export class ClinVarClient {
     return this.search(term, { maxResults: options?.maxResults });
   }
 
-  /**
-   * Search variants by condition/disease
-   */
   async searchByCondition(
     condition: string,
     options?: {
@@ -264,9 +241,6 @@ export class ClinVarClient {
     return this.search(term, { maxResults: options?.maxResults });
   }
 
-  /**
-   * Search variants by genomic coordinates
-   */
   async searchByCoordinates(
     chromosome: string,
     start: number,
@@ -280,9 +254,6 @@ export class ClinVarClient {
     return this.search(coordTerm, { maxResults: options?.maxResults });
   }
 
-  /**
-   * Get variant summaries by IDs
-   */
   async getVariantSummaries(ids: string[]): Promise<VariantInfo[]> {
     if (ids.length === 0) return [];
 
@@ -296,9 +267,6 @@ export class ClinVarClient {
     );
   }
 
-  /**
-   * Get full VCV record
-   */
   async getVCVRecord(variationId: string): Promise<VCVRecord | null> {
     const records = await this.ncbiRequest(
       'efetch.fcgi',
@@ -315,9 +283,6 @@ export class ClinVarClient {
     return records.length > 0 ? records[0] : null;
   }
 
-  /**
-   * Get multiple VCV records
-   */
   async getVCVRecords(variationIds: string[]): Promise<VCVRecord[]> {
     if (variationIds.length === 0) return [];
 
@@ -333,9 +298,6 @@ export class ClinVarClient {
     );
   }
 
-  /**
-   * Quick variant lookup using Clinical Tables API
-   */
   async quickLookup(
     query: string,
     maxResults: number = 10
@@ -347,18 +309,11 @@ export class ClinVarClient {
     });
   }
 
-  /**
-   * Search by rsID
-   */
   async searchByRsId(rsId: string): Promise<{ count: number; ids: string[] }> {
     const cleanRsId = rsId.replace(/^rs/i, '');
-    // Search by rsID directly - ClinVar recognizes rs numbers without field qualifier
     return this.search(`rs${cleanRsId}`);
   }
 
-  /**
-   * Search by molecular consequence
-   */
   async searchByMolecularConsequence(
     consequence: string,
     options?: {
@@ -374,9 +329,6 @@ export class ClinVarClient {
     return this.search(term, { maxResults: options?.maxResults });
   }
 
-  /**
-   * Search by review status
-   */
   async searchByReviewStatus(
     reviewStatus: string,
     options?: {
@@ -410,7 +362,6 @@ export class ClinVarClient {
   }
 }
 
-// Global client instance
 let _client: ClinVarClient | null = null;
 
 export function initializeClient(options?: ClinVarClientOptions): ClinVarClient {

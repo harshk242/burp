@@ -1,6 +1,3 @@
-/**
- * chat_turns: one row per user turn (orchestration/chat-turn.ts owns the lifecycle).
- */
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { chatTurns } from "../schema";
@@ -24,12 +21,10 @@ export interface ChatTurnOutcome {
 
 export function createChatTurnQueries(db: DrizzleDb) {
   return {
-    /** Inserts the turn as `running`. */
     start(id: string, sessionId: string, userMessageId: string): void {
       db.insert(chatTurns).values({ id, session_id: sessionId, user_message_id: userMessageId }).run();
     },
 
-    /** Links the turn to its Langfuse trace. */
     setTraceId(id: string, traceId: string): void {
       db.update(chatTurns).set({ trace_id: traceId }).where(eq(chatTurns.id, id)).run();
     },

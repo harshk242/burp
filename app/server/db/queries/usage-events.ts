@@ -1,6 +1,3 @@
-/**
- * Main chat usage cost ledger queries.
- */
 import { and, count, eq, sql, type SQL } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { usageEvents } from "../schema";
@@ -32,7 +29,6 @@ export function createUsageEventQueries(db: DrizzleDb) {
       db.insert(usageEvents).values(event).run();
     },
 
-    /** A turn's ledger rows (one per finished turn; the eval runner reads its cost). */
     findByTurnId(turnId: string): DbUsageEvent[] {
       return db.select().from(usageEvents).where(eq(usageEvents.turn_id, turnId)).all() as DbUsageEvent[];
     },

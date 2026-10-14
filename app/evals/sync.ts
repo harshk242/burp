@@ -1,14 +1,3 @@
-/**
- * Git → Langfuse sync for the eval home (plans/eval-pipeline-langfuse-plan.md, Phase 1b).
- *
- *   bun run eval:sync            dry run: validate YAML, print the diff against Langfuse
- *   bun run eval:sync --apply    create missing score configs (active metrics), upsert
- *                                dataset items by stable id, archive removed items
- *
- * Runs from app/ so app/.env (LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_BASE_URL)
- * loads. Never deletes anything and never edits an existing score config: a changed metric
- * definition is a conflict that needs a new metric name. A second --apply is a no-op.
- */
 import { EvalLoadError, loadEvalHome, EVALS_DIR, type EvalHome } from "./lib/load";
 import { langfuseApiFromEnv, type LangfuseApi } from "./lib/langfuse-api";
 import { orderActions, planSync, type GitInfo, type RemoteState, type SyncAction } from "./lib/plan";

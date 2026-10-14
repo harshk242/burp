@@ -23,7 +23,6 @@ export function ToolCallGroup({ toolCalls }: ToolCallGroupProps) {
 
   if (toolCalls.length === 0) return null;
 
-  // Aggregate stats for the summary header
   const serverCounts = new Map<string, number>();
   let running = 0;
   let errors = 0;
@@ -40,7 +39,6 @@ export function ToolCallGroup({ toolCalls }: ToolCallGroupProps) {
 
   return (
     <div className="tool-call-group border rounded-lg overflow-hidden bg-card text-card-foreground">
-      {/* Clickable summary header */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/50 transition-colors text-left"
@@ -57,7 +55,6 @@ export function ToolCallGroup({ toolCalls }: ToolCallGroupProps) {
           {toolCalls.length} tool call{toolCalls.length !== 1 ? "s" : ""}
         </span>
 
-        {/* Server badges with counts */}
         <div className="flex items-center gap-1 flex-wrap overflow-hidden">
           {Array.from(serverCounts.entries()).map(([label, count]) => (
             <Badge key={label} variant="outline" className="text-xs shrink-0">
@@ -67,7 +64,6 @@ export function ToolCallGroup({ toolCalls }: ToolCallGroupProps) {
           ))}
         </div>
 
-        {/* Status indicator */}
         <div className="ml-auto shrink-0">
           {isInProgress ? (
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -79,7 +75,6 @@ export function ToolCallGroup({ toolCalls }: ToolCallGroupProps) {
         </div>
       </button>
 
-      {/* Expanded: show individual tool call cards */}
       {expanded && (
         <div className="px-3 pb-3 space-y-2 border-t">
           {toolCalls.map((toolCall) => (

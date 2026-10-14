@@ -1,11 +1,5 @@
-/**
- * MCP Tool definitions for ClinicalTrials.gov.
- * Each entry describes a tool's name, description, and JSON-Schema input.
- */
-
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
-// Reusable schema fragments
 const PHASE_PROP = {
   type: 'string' as const,
   description: 'Study phase filter',

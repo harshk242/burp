@@ -1,8 +1,3 @@
-/**
- * Feedback test helpers: a fake ScoreWriter whose calls the test can hold open
- * and resolve or reject one by one, and DB seeding for a session with one
- * traced assistant message.
- */
 import type { Queries } from "../../db/queries";
 import type { ScoreUpsert, ScoreWriter } from "../score-writer";
 

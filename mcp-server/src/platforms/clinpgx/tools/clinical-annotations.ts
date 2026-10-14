@@ -1,11 +1,6 @@
-// Clinical annotation tool implementations for ClinPGx platform module
-
 import { getClient } from '../client.js';
 import type { ClinicalAnnotation, DrugGeneInteraction } from '../types.js';
 
-/**
- * Get clinical annotations for a gene
- */
 export async function getClinicalAnnotationsForGene(
   gene: string
 ): Promise<ClinicalAnnotation[]> {
@@ -13,9 +8,6 @@ export async function getClinicalAnnotationsForGene(
   return client.getClinicalAnnotationsForGene(gene);
 }
 
-/**
- * Get clinical annotations for a drug
- */
 export async function getClinicalAnnotationsForDrug(
   drug: string
 ): Promise<ClinicalAnnotation[]> {
@@ -23,9 +15,6 @@ export async function getClinicalAnnotationsForDrug(
   return client.getClinicalAnnotationsForDrug(drug);
 }
 
-/**
- * Get clinical annotations for a specific drug-gene pair
- */
 export async function getDrugGeneAnnotations(
   drug: string,
   gene: string
@@ -34,9 +23,6 @@ export async function getDrugGeneAnnotations(
   return client.getDrugGeneAnnotations(drug, gene);
 }
 
-/**
- * Get all drug-gene interactions for a gene
- */
 export async function getDrugGeneInteractions(
   gene: string
 ): Promise<DrugGeneInteraction[]> {
@@ -44,9 +30,6 @@ export async function getDrugGeneInteractions(
   return client.getDrugGeneInteractions(gene);
 }
 
-/**
- * Get clinical annotations by evidence level
- */
 export async function getAnnotationsByEvidenceLevel(
   gene: string,
   minLevel: string = '1A'
@@ -68,9 +51,6 @@ export async function getAnnotationsByEvidenceLevel(
   });
 }
 
-/**
- * Get clinical annotations by phenotype category
- */
 export async function getAnnotationsByPhenotype(
   gene: string,
   phenotypeCategory: string

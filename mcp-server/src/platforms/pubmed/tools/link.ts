@@ -1,11 +1,6 @@
-// Link/relationship tools for PubMed platform module
-
 import { getClient } from '../client.js';
 import { formatPmid } from '../utils.js';
 
-/**
- * Find related articles for a given PMID
- */
 export async function findRelatedArticles(
   pmid: string,
   maxResults: number = 20
@@ -18,7 +13,6 @@ export async function findRelatedArticles(
   const formattedId = formatPmid(pmid);
   const relatedIds = await client.findRelatedArticles(formattedId);
 
-  // Limit results
   const limitedIds = relatedIds.slice(0, maxResults);
 
   return {
@@ -28,9 +22,6 @@ export async function findRelatedArticles(
   };
 }
 
-/**
- * Get articles that cite the given article
- */
 export async function getCitations(
   pmid: string,
   maxResults: number = 50
@@ -43,7 +34,6 @@ export async function getCitations(
   const formattedId = formatPmid(pmid);
   const citingIds = await client.getCitingArticles(formattedId);
 
-  // Limit results
   const limitedIds = citingIds.slice(0, maxResults);
 
   return {
@@ -53,9 +43,6 @@ export async function getCitations(
   };
 }
 
-/**
- * Get references (articles cited by the given article)
- */
 export async function getReferences(
   pmid: string,
   maxResults: number = 100
@@ -68,7 +55,6 @@ export async function getReferences(
   const formattedId = formatPmid(pmid);
   const referenceIds = await client.getReferences(formattedId);
 
-  // Limit results
   const limitedIds = referenceIds.slice(0, maxResults);
 
   return {
@@ -78,9 +64,6 @@ export async function getReferences(
   };
 }
 
-/**
- * Get citation metrics for an article
- */
 export async function getCitationMetrics(
   pmid: string
 ): Promise<{
@@ -92,7 +75,6 @@ export async function getCitationMetrics(
   const client = getClient();
   const formattedId = formatPmid(pmid);
 
-  // Fetch all link types in parallel
   const [citingIds, referenceIds, relatedIds] = await Promise.all([
     client.getCitingArticles(formattedId),
     client.getReferences(formattedId),

@@ -1,8 +1,3 @@
-/**
- * Pure sync planner: local eval home + remote Langfuse state → actions, conflicts, warnings.
- * sync.ts fetches the remote state, prints the plan (dry run) and applies it with --apply.
- * Planning against the state left by a full apply yields no actions (idempotent).
- */
 import { canonicalJson, contentHash, datasetHash } from "./hash";
 import type {
   DatasetBody,
@@ -55,7 +50,6 @@ export function scoreConfigBody(m: Metric): ScoreConfigBody {
   };
 }
 
-/** The parts of a config that define what a score means. Description is not one of them. */
 function definition(c: ScoreConfigBody): string {
   return canonicalJson({
     dataType: c.dataType,
@@ -102,7 +96,6 @@ export function datasetBody(loaded: LoadedDataset, git: GitInfo): DatasetBody {
   };
 }
 
-/** Dataset metadata that must match; git_sha/git_dirty only record the last write. */
 function datasetFingerprint(body: DatasetBody | RemoteDataset): string {
   const { git_sha: _sha, git_dirty: _dirty, ...rest } = (body.metadata ?? {}) as Record<string, unknown>;
   return canonicalJson({ description: body.description ?? null, metadata: rest });

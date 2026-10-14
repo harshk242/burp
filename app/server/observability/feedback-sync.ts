@@ -1,33 +1,3 @@
-/**
- * Feedback sync: mirrors message_feedback rows (the source of truth) to
- * Langfuse as `user_feedback` scores on the turn's trace.
- *
- * - One score per (message, user): id `fb-` + sha256(`message_id:user_id`), so
- *   clear → re-create overwrites instead of adding a second score.
- * - Pushes are serialized per score id (an in-process keyed queue shared by
- *   request-triggered syncs and reconciliation; assumes one app process). Each
- *   push reads the current row, makes one acknowledged write (ScoreWriter) and
- *   clears sync_pending only via compare-and-set on the pushed revision, so a
- *   click during the push leaves the row pending for the push queued behind it.
- * - Tombstones (value NULL) delete the score, then confirm it is gone: Langfuse
- *   does not order a create and a delete for one id (a delete sent before the
- *   create was ingested is lost and the score reappears ~10–30 s later), so the
- *   confirm read waits out the ingestion lag and deletes again if needed.
- * - The reverse also holds: a delete is only queued when acknowledged, so it can
- *   land after a later upsert. `delete_unconfirmed` is set before every delete
- *   and cleared only once a read-back confirms the latest state; while it is
- *   set, an upsert counts only if the score is still present through the
- *   confirm deadline, and is re-sent (row stays pending) if a read misses it.
- * - Each push also upserts the 10 category scores (feedback-category-scores.ts;
- *   never deleted, so outside the delete protocol). They are awaited before the
- *   read-back, and all must succeed before the row is marked synced: otherwise
- *   the push fails and the row stays pending for reconciliation.
- * - Rows whose turn has no trace (tracing was off) are marked synced without a
- *   remote write.
- * - Reconciliation retries pending rows on boot and every 5 min, with backoff
- *   per score id. Nothing here throws to callers.
- */
-
 import { createHash } from "node:crypto";
 import type { DbMessageFeedback, FeedbackKey } from "../db/queries";
 import { logger } from "../logger";
@@ -37,7 +7,6 @@ import { scoreConfigId } from "./score-configs";
 
 export const FEEDBACK_SCORE_NAME = "user_feedback";
 
-/** The queries the sync needs (db/queries/message-feedback.ts). */
 export interface FeedbackSyncQueries {
   find(key: FeedbackKey): DbMessageFeedback | null;
   findPending(): DbMessageFeedback[];
@@ -77,13 +46,11 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
   const confirm = options.confirm ?? DEFAULT_CONFIRM;
   const backoff = options.backoff ?? DEFAULT_BACKOFF;
 
-  // Per score id: the tail of its push chain, and whether a push is queued but not started.
   const tails = new Map<string, Promise<PushResult>>();
   const queued = new Set<string>();
   const failures = new Map<string, { count: number; nextAt: number }>();
   let reconciling: Promise<void> | null = null;
 
-  /** Waits `ms` in steps; true as soon as a newer write superseded the pushed revision. */
   async function waitUnlessSuperseded(ms: number, superseded: () => boolean): Promise<boolean> {
     for (let left = ms; left > 0; left -= SUPERSEDE_CHECK_MS) {
       await sleep(Math.min(left, SUPERSEDE_CHECK_MS));
@@ -92,7 +59,6 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     return superseded();
   }
 
-  /** Reads the score back after the ingestion lag: "absent" at the first read that misses it, "present" if every read up to the deadline sees it. */
   async function readBack(scoreId: string, superseded: () => boolean): Promise<"absent" | "present" | "superseded"> {
     if (await waitUnlessSuperseded(confirm.settleMs, superseded)) return "superseded";
     for (let waited = confirm.settleMs; ; waited += confirm.pollMs) {
@@ -110,7 +76,6 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     const synced = (): PushResult => (queries.markSynced(key, revision) ? "synced" : "pending");
     if (!traceId) return synced();
     const superseded = () => queries.find(key)?.revision !== revision;
-    // The latest remote state is confirmed, so no earlier delete can still land.
     const confirmed = (): PushResult => {
       queries.setDeleteUnconfirmed(key, false);
       return synced();
@@ -136,7 +101,6 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
       const outcome = await readBack(scoreId, superseded);
       if (outcome === "present") return confirmed();
       if (outcome === "superseded") return "pending";
-      // A queued delete landed after the upsert: send it again, confirm on a later push.
       await writer.upsert(score);
       logger.warn("TRACE", "feedback_score_deleted_late", { data: { score_id: scoreId, revision } });
       return "failed";
@@ -148,7 +112,6 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     const outcome = await readBack(scoreId, superseded);
     if (outcome === "absent") return confirmed();
     if (outcome === "superseded") return "pending";
-    // An acknowledged upsert was ingested after the delete: delete again, confirm on a later push.
     await writer.remove(scoreId);
     logger.warn("TRACE", "feedback_tombstone_still_present", { data: { score_id: scoreId, revision } });
     return "failed";
@@ -232,8 +195,6 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
 }
 
 export type FeedbackSync = ReturnType<typeof createFeedbackSync>;
-
-// ── App instance ───────────────────────────────────────────────────────────
 
 export const RECONCILE_INTERVAL_MS = 5 * 60_000;
 

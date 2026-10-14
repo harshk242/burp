@@ -1,8 +1,3 @@
-/**
- * LLM configuration — reads from the central appConfig singleton.
- * Supports Anthropic and Google as providers.
- */
-
 import { appConfig, type AppConfig } from "../config";
 
 export type LLMProviderName = "anthropic" | "google";
@@ -60,7 +55,6 @@ export interface TurnLLMOverride {
   max_output_tokens?: number;
 }
 
-/** The app config with a turn's override applied; the config itself when there is none. */
 export function effectiveLLMConfig(base: LLMConfig, override?: TurnLLMOverride): LLMConfig {
   if (!override) return base;
   return {

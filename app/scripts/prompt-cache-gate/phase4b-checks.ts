@@ -1,24 +1,3 @@
-/**
- * Phase 4b.6 gate checks (plans/context-assembly-prompt-caching-plan.md), live against the Anthropic API.
- * Run through phase0-gate.ts: `LOG_LEVEL=ERROR bun run gate:prompt-cache 4b`.
- *
- * Uses the app's chat code path: getChatModel (with a logging fetch, like the loop's CallTracker),
- * buildToolCatalog + toDeclarations, cachedInstructions, applyCacheMarkers, chatProviderOptions.
- * Effort is forced to `high`: at the configured `medium` Sonnet 5.5 often doesn't think (4a.4), and
- * every check here needs thinking blocks. Tool results are stubs (search returns the app's
- * references-only shape), so only catalog discovery needs the built MCP server; no embedding index is needed.
- *
- * Sequence (one nonce, so T1 is a cold write and everything after reads it):
- *   T1 (thinking + tool calls) → stored in SQLite as JSON, read back, JSON.parse → T2 replays it.
- *   1: T2's calls → 200, T2 call 1 cache_read ≥ T1's last cached prompt, thinking actually replayed.
- *   4: sha256 of T1's last request vs T2's first request: tools, system, and the message prefix.
- *   3: T1 up to its last tool result, then a new user message (tool_result + text in one user block).
- *   6: degraded replay (4b.4): 6a T1 as text; 6b T1 as text + T2 lossless; 6c T1 lossless + T2 as text.
- *   2: redacted thinking, live via the documented trigger string (warn if not triggered) and offline
- *      through the provider's stream parser and prompt converter (phase4b-redacted.ts).
- *   5: abort on the first streamed part: request signal aborted, no second request, loop stops.
- */
-
 import { Database } from "bun:sqlite";
 import { streamText, type ModelMessage, type TextStreamPart, type Tool, type ToolSet } from "ai";
 import { chatProviderOptions, getChatModel, loadLLMConfig, sanitizeToolName } from "../../server/llm";
@@ -33,8 +12,6 @@ const config = loadLLMConfig();
 const EFFORT = (process.env.GATE_EFFORT ?? "high") as "high";
 const providerOptions = chatProviderOptions({ ...config, effort: EFFORT });
 
-// ── Logging fetch: every request's exact bytes, status and signal ──────────
-
 interface Req { raw: string; body: any; status: number; errorText?: string; signal?: AbortSignal | null }
 const requests: Req[] = [];
 const loggingFetch = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -46,8 +23,6 @@ const loggingFetch = (async (url: string | URL | Request, init?: RequestInit) =>
   return res;
 }) as typeof fetch;
 const model = getChatModel({ fetch: loggingFetch });
-
-// ── One call / one turn (mirrors the chat-v2 loop) ─────────────────────────
 
 interface Call {
   label: string; status: number; error?: string; req?: Req; aborted?: boolean;
@@ -114,7 +89,6 @@ const cachedPrompt = (c: Call) => (c.cacheRead ?? 0) + (c.cacheWrite ?? 0);
 const status = (c?: Call) => `HTTP ${c?.status}${c?.error ? ` — ${c.error.slice(0, 300)}` : ""}`;
 const THINKING_ERROR = /thinking|signature/i;
 
-// Stub tool results. Search returns the app's Anthropic shape (search-tool.ts modelOutput).
 const HITS = [...MOA_HITS.map((h) => h.name), "chembl__get_target_info"];
 const STUBS: Record<string, unknown> = {
   chembl__get_mechanism_of_action: { molecule_chembl_id: "CHEMBL941", mechanism_of_action: "BCR/ABL, KIT and PDGFR tyrosine kinase inhibitor", action_type: "INHIBITOR", target_chembl_id: "CHEMBL1862" },
@@ -129,10 +103,6 @@ function stubOutput(toolName: string) {
 
 interface Turn { appended: ModelMessage[]; calls: Call[]; aborted: boolean; requestsMade: number }
 
-/**
- * One user turn like chat-v2: call, push the response messages (the final one too, 4b.0 #3), push the
- * tool results, repeat until the model stops calling tools. `prevLast` is 4b.3's cross-turn marker.
- */
 async function runTurn(label: string, tools: Record<string, Tool>, history: ModelMessage[], userText: string, prevLast?: number, opts: CallOpts & { maxIterations?: number } = {}): Promise<Turn> {
   const messages: ModelMessage[] = [...history, { role: "user", content: userText }];
   const turn: Turn = { appended: [messages.at(-1)!], calls: [], aborted: false, requestsMade: 0 };
@@ -160,8 +130,6 @@ async function runTurn(label: string, tools: Record<string, Tool>, history: Mode
   return turn;
 }
 
-// ── Transcript storage (4b.1 R1: JSON.stringify → DB → JSON.parse, no transformation) ──
-
 const db = new Database(":memory:");
 db.run("CREATE TABLE model_transcript (session_id TEXT, seq INTEGER, content_json TEXT, UNIQUE (session_id, seq))");
 function storeAndLoad(sessionId: string, msgs: ModelMessage[]): ModelMessage[] {
@@ -179,7 +147,6 @@ const redacted = (msgs: ModelMessage[]) => thinkingParts(msgs).filter((p) => p.p
 const bodyBlocks = (body: any, type: string) =>
   (body?.messages ?? []).flatMap((m: any) => (Array.isArray(m.content) ? m.content : [])).filter((b: any) => b.type === type);
 
-/** 4b.4 degraded text: today's buildMessages shape for one turn (question + final answer text). */
 function degrade(turn: ModelMessage[]): ModelMessage[] {
   const user = turn[0]!;
   const finalText = assistantParts([turn.at(-1)!]).filter((p) => p.type === "text").map((p) => p.text).join("");
@@ -189,10 +156,6 @@ function degrade(turn: ModelMessage[]): ModelMessage[] {
 const stripCacheControl = (v: unknown): unknown =>
   JSON.parse(JSON.stringify(v), (k, val) => (k === "cache_control" ? undefined : val));
 
-// ── The checks ──────────────────────────────────────────────────────────────
-
-// Adaptive thinking skips easy prompts even at effort high (a plain lookup got 0 thinking tokens), so
-// each tool turn opens with a small puzzle the model has to work out before it calls tools.
 const Q1 =
   "First, without tools: how many positive divisors of 7! are perfect squares? Work it out carefully; call it N. " +
   "Then, using ChEMBL, find the mechanism of action of imatinib (CHEMBL941). You don't have a suitable core tool, " +
@@ -209,14 +172,12 @@ export async function check4b(nonce: string) {
   for (const n of HITS) if (!tools[n]) throw new Error(`${n} is not in the catalog`);
   console.log(`4b: ${Object.keys(tools).length} tools, model ${config.chatModel}, effort ${EFFORT}, display ${config.thinkingDisplay}, nonce ${nonce}`);
 
-  // T1: thinking + tool calls, stored, read back.
   const t1 = await runTurn("T1", tools, [], Q1);
   const t1Last = t1.calls.at(-1)!;
   const stored1 = storeAndLoad("s1", t1.appended);
   const roundTripExact = JSON.stringify(stored1) === JSON.stringify(t1.appended);
   console.log(`T1: ${t1.appended.length} messages, ${thinkingParts(t1.appended).length} reasoning parts (${signed(t1.appended).length} signed), tool calls ${t1.calls.flatMap((c) => c.toolCalls.map((t) => t.toolName)).join(", ")}`);
 
-  // T2 replays the parsed T1. 4b.3: the first call also marks T1's last call's last message.
   const t2 = await runTurn("T2", tools, stored1, Q2, stored1.length - 2);
   const t2First = t2.calls[0]!;
   const replayedThinking = bodyBlocks(t2First.req?.body, "thinking").length;
@@ -232,7 +193,6 @@ export async function check4b(nonce: string) {
   verdict("4b.1 T2 call 1 reads T1's last prompt", "required", (t2First.cacheRead ?? 0) >= cachedPrompt(t1Last),
     `T2 call1 ${tok(t2First)}; T1 last call cached ${cachedPrompt(t1Last)} (inputTokens ${t1Last.inputTokens})`);
 
-  // Check 4: byte-hash of the request prefix, T1's last request vs T2's first.
   const a = t1Last.req?.body, b = t2First.req?.body;
   const k = a?.messages?.length ?? 0;
   const prefixA = a?.messages?.slice(0, k), prefixB = b?.messages?.slice(0, k);
@@ -245,7 +205,6 @@ export async function check4b(nonce: string) {
   verdict("4b.4 message prefix identical incl. cache_control", "warn", strictDiff.length === 0,
     strictDiff.length ? `differs only at messages ${JSON.stringify(strictDiff)} (moved breakpoints)` : "identical");
 
-  // Check 3: tool_result followed by a new user message (merged into one user block).
   const lastTool = stored1.findLastIndex((m) => m.role === "tool");
   const c3 = await call("3 tool_result + new user", tools, [...stored1.slice(0, lastTool + 1), { role: "user", content: Q3 }], lastTool);
   const lastUser = c3.req?.body?.messages?.at(-1);
@@ -254,7 +213,6 @@ export async function check4b(nonce: string) {
   verdict("4b.3 tool_result + user text accepted", "required", ok(c3), status(c3));
   verdict("4b.3 sent as one user message", "warn", !!merged, JSON.stringify(lastUser?.content?.map((x: any) => x.type)));
 
-  // Check 6: degraded replay.
   const c6a = await call("6a T1 degraded", tools, [...degrade(stored1), { role: "user", content: Q3 }]);
   const c6b = await call("6b T1 degraded + T2 lossless", tools, [...degrade(stored1), ...stored2, { role: "user", content: Q3 }]);
   const c6c = await call("6c T1 lossless + T2 degraded", tools, [...stored1, ...degrade(stored2), { role: "user", content: Q3 }]);
@@ -265,9 +223,6 @@ export async function check4b(nonce: string) {
   verdict("4b.6c lossless T1 + degraded T2 → 200", "required", ok(c6c), status(c6c));
   for (const c of [c6a, c6b, c6c]) if (c.error && THINKING_ERROR.test(c.error)) console.log(`  !! ${c.label}: preserved-thinking error → 4b.4 needs a redesign`);
 
-  // Controls: is preserved thinking enforced at all here? (If edits pass too, 6's 200s prove less.)
-  // 6d edits a stored thinking block's text (signature kept); 6e drops T1's thinking parts; 6f flips one
-  // signature character.
   const editThinking = (msgs: ModelMessage[], edit: (p: any) => any) =>
     msgs.map((m) => (m.role === "assistant" && Array.isArray(m.content)
       ? ({ ...m, content: (m.content as any[]).map((p) => (p.type === "reasoning" ? edit(p) : p)).filter(Boolean) } as ModelMessage)
@@ -282,7 +237,6 @@ export async function check4b(nonce: string) {
   verdict("4b.6f control: edited signature → 400", "warn", c6f.status === 400, status(c6f));
   verdict("4b.6e control: thinking removed (info)", "warn", true, status(c6e));
 
-  // Check 2: redacted thinking.
   console.log("\n── 4b.6 check 2 (redacted thinking) ──");
   const r1 = await runTurn("R1", tools, [], `${REDACTED_TRIGGER} Reply with one word.`, undefined, { maxIterations: 1 });
   const rStored = storeAndLoad("r", r1.appended);
@@ -298,7 +252,6 @@ export async function check4b(nonce: string) {
   const off = await checkRedactedOffline();
   verdict("4b.2 offline: provider parses + replays redacted_thinking through JSON", "required", off.pass, off.detail);
 
-  // Check 5: abort mid-stream.
   console.log("\n── 4b.6 check 5 (abort) ──");
   const ac = new AbortController();
   let partsAfterAbort = 0, abortedAt = 0;

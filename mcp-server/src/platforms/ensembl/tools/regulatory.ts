@@ -2,8 +2,6 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
 
-// ── Validation ──────────────────────────────────────────────────────────────
-
 const isValidRegulatoryArgs = (
   args: any,
 ): args is { region: string; species?: string; feature_type?: string; cell_type?: string } => {
@@ -30,8 +28,6 @@ const isValidMotifArgs = (
     (args.binding_matrix === undefined || typeof args.binding_matrix === 'string')
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -69,8 +65,6 @@ export const tools: Tool[] = [
     },
   },
 ];
-
-// ── Handlers ────────────────────────────────────────────────────────────────
 
 async function handleGetRegulatoryFeatures(args: Record<string, unknown>) {
   if (!isValidRegulatoryArgs(args)) {
@@ -126,8 +120,6 @@ async function handleGetMotifFeatures(args: Record<string, unknown>) {
   );
   return response.data;
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   get_regulatory_features: handleGetRegulatoryFeatures,

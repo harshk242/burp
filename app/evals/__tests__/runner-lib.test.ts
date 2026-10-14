@@ -1,8 +1,3 @@
-/**
- * Pure parts of the experiment runner: arguments, dataset drift detection,
- * experiment naming, the search precondition, run aggregates / variance and
- * the task output built from persisted rows.
- */
 import { describe, expect, it } from "bun:test";
 import { contentHash } from "../lib/hash";
 import { itemBody } from "../lib/plan";
@@ -47,7 +42,6 @@ describe("args", () => {
 
 describe("dataset verification", () => {
   const smoke = loadEvalHome().datasets.find((d) => d.dataset.name === "smoke")!.dataset;
-  /** What Langfuse returns after a clean sync. */
   const synced = (): FetchedItem[] => smoke.items.map((i) => itemBody(smoke.name, i));
 
   it("a synced dataset matches; archived remote items are ignored", () => {

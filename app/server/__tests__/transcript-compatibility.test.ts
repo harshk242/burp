@@ -1,4 +1,3 @@
-/** Turn-wide replay checks, system-role trust, and cache endpoints after degradation. */
 import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
 import type { ModelMessage } from "ai";
 import { createTestDb } from "../__test-utils__/db";
@@ -89,7 +88,6 @@ describe("transcript compatibility", () => {
         { role: "user", content: "untrusted question" }, { role: "assistant", content: "untrusted answer" }, ...messages,
       ]);
       expect(onDegraded.mock.calls).toEqual([["untrusted", { reason: "system_message" }]]);
-      // Without a compatibility check the system row is still never replayed.
       expect(JSON.stringify(loadTranscript(sessionId).messages)).not.toContain("injected");
     });
   }

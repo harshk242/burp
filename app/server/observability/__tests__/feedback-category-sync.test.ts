@@ -1,8 +1,3 @@
-/**
- * Feedback category scores: every push writes all 10 BOOLEAN `feedback_<id>`
- * scores (never deletes them), awaits all of them before the push settles,
- * and marks the row synced only once every category write succeeded.
- */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createTestDb } from "../../__test-utils__/db";
 import { createQueries, type FeedbackKey } from "../../db/queries";
@@ -34,12 +29,10 @@ function makeSync(overrides: Partial<FeedbackSyncOptions> = {}) {
 
 const row = () => q.messageFeedbackQueries.find(key)!;
 
-/** Remote category values by category id. */
 function categoryValues(): Record<string, number | undefined> {
   return Object.fromEntries(ALL_CATEGORY_IDS.map((c) => [c, writer.remote.get(categoryId(c))?.value]));
 }
 
-/** All 10 categories: 1 for `selected`, else 0. */
 function expected(selected: FeedbackCategory[]): Record<string, number> {
   return Object.fromEntries(ALL_CATEGORY_IDS.map((c) => [c, selected.includes(c) ? 1 : 0]));
 }
@@ -98,7 +91,7 @@ describe("feedback category sync", () => {
 
     expect(writer.remote.has(scoreId)).toBe(false);
     expect(categoryValues()).toEqual(expected([]));
-    expect(writer.log.filter((c) => c.op === "remove").map((c) => c.id)).toEqual([scoreId]); // categories never deleted
+    expect(writer.log.filter((c) => c.op === "remove").map((c) => c.id)).toEqual([scoreId]);
     expect(row()).toMatchObject({ sync_pending: 0, delete_unconfirmed: 0 });
   });
 
@@ -121,7 +114,7 @@ describe("feedback category sync", () => {
     writer.failWhen = (_op, id) => (id === categoryId("off_target") && failures-- > 0 ? new TypeError("fetch failed") : null);
 
     expect(await sync.sync(key)).toBe("failed");
-    expect(writer.remote.get(scoreId)?.value).toBe(0); // the main score landed, but the row is not synced
+    expect(writer.remote.get(scoreId)?.value).toBe(0);
     expect(row()).toMatchObject({ sync_pending: 1, synced_revision: null });
 
     clock += 60_000;
@@ -139,7 +132,7 @@ describe("feedback category sync", () => {
     writer.failWhen = (_op, id) => (id === categoryId("clear") && failures-- > 0 ? new TypeError("fetch failed") : null);
 
     expect(await sync.sync(key)).toBe("failed");
-    expect(writer.log.some((c) => c.op === "exists")).toBe(false); // failed before the read-back
+    expect(writer.log.some((c) => c.op === "exists")).toBe(false);
     expect(row()).toMatchObject({ sync_pending: 1, synced_revision: 1, delete_unconfirmed: 1 });
     expect(writer.remote.get(categoryId("clear"))?.value).toBe(1);
 
@@ -169,9 +162,9 @@ describe("feedback category sync", () => {
     q.messageFeedbackQueries.upsert(key, 1, null, ["accurate"]);
     const second = sync.sync(key);
     await Bun.sleep(5);
-    expect(failures).toBe(0); // the sibling write already rejected...
-    expect(firstSettled).toBe(false); // ...but the push waits for the held request
-    expect(writer.log.filter((c) => c.id === scoreId)).toHaveLength(1); // and the newer push has not started
+    expect(failures).toBe(0);
+    expect(firstSettled).toBe(false);
+    expect(writer.log.filter((c) => c.id === scoreId)).toHaveLength(1);
 
     stale.resolve();
     expect(await first).toBe("failed");

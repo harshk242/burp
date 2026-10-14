@@ -1,27 +1,3 @@
-/**
- * Rate Limiting Middleware
- * Checks daily query usage and daily/monthly dollar budgets before each request.
- *
- * Priority order for limits:
- *   1. Per-user override (users.daily_query_limit / users.*_cost_limit_microusd)
- *   2. Role-based default from rate_limits table (query count)
- *   3. App config default (dollar budget)
- *
- * Enforcement semantics:
- *   - Query count  = STRICT  — atomic upsert, no race window.
- *   - Cost budget  = BEST-EFFORT — cost is unknown until the response
- *     completes, so spend is checked once, before the turn, against *prior*
- *     requests. A single request can overshoot by its own model cost before
- *     the *next* request is blocked. That overshoot is not small: each LLM
- *     call can produce up to llm.max_output_tokens (16K, thinking included),
- *     about $0.16 of output on Sonnet 5.5 (the schema's default daily budget
- *     is $0.25), and a turn can make up to llm.max_tool_iterations calls
- *     (20 in config.yaml, so ~$3.20 of output alone). Only a cost check
- *     during the turn would really bound it.
- *
- * Must run AFTER clerkAuth + requireDbUser (needs userId, role, dbUser on context).
- */
-
 import type { Context, Next } from "hono";
 import { dailyUsageQueries, rateLimitQueries, usageEventQueries } from "../db";
 import { appConfig } from "../config";
@@ -48,8 +24,6 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
   const monthlyResetAt = getNextUtcMonthStart();
   const todayFull = dailyUsageQueries.getTodayFull(userId);
 
-  // ── 1. Query count — STRICT enforcement ──────────────────────────────────
-  // Priority: user override > role-based default (-1 = unlimited)
   const limits = resolveEffectiveLimits(dbUser, role, rateLimitQueries.getForRole(role));
   const queryLimit = limits.daily_query_limit;
 
@@ -75,8 +49,6 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
     );
   }
 
-  // ── 2. Dollar budget — BEST-EFFORT enforcement ───────────────────────────
-  // Pricing must exist for the active chat model before we spend provider API.
   try {
     assertPricingConfigured(appConfig.llm.provider, appConfig.llm.chat_model);
   } catch (error) {
@@ -147,16 +119,12 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
     );
   }
 
-  // Tokens are still tracked for observability, but dollars are the launch gate.
   const tokenLimit = limits.daily_token_limit;
 
   const todayTokens = todayFull.input_tokens + todayFull.output_tokens;
 
-  // ── Increment query count atomically before processing ───────────────────
-  // Token increment happens inside processChat after the response completes.
   const newCount = dailyUsageQueries.incrementAndGet(userId);
 
-  // Set rate limit headers with post-increment values
   c.header("X-RateLimit-Limit", String(queryLimit));
   c.header(
     "X-RateLimit-Remaining",

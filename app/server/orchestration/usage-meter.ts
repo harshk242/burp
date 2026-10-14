@@ -1,19 +1,9 @@
-/**
- * Per-call usage meter: splits each LLM call's input into cache categories,
- * prices it on its own (usage.ts cost engine), logs it, and turns the calls
- * into the turn's usage_events fields.
- *
- * The meter lives outside the success path of the chat loop, so whatever calls
- * finished can be recorded even when the turn fails or is aborted.
- */
-
 import type { LanguageModelUsage, ProviderMetadata } from "ai";
 import { appConfig, type AppConfig } from "../config";
 import type { DbUsageEvent } from "../types";
 import { logger, type LogContext } from "../logger";
 import { priceCall, resolvePricing, summarizeTurnCost, type CallCost, type CallUsage, type ChatCost } from "../usage";
 
-/** Per-call details that only go to the `llm_response_received` log. */
 export interface CallLogInfo {
   iteration: number;
   durationMs: number;
@@ -23,7 +13,6 @@ export interface CallLogInfo {
   systemPrompt: string;
 }
 
-/** The usage_events columns the meter owns. */
 export type UsageLedgerFields = Pick<
   DbUsageEvent,
   | "input_tokens"
@@ -44,7 +33,6 @@ export type UsageLedgerFields = Pick<
   | "usage_estimated"
 >;
 
-/** Short sha1, enough to spot a changed cache prefix between calls. */
 export function shortHash(text: string): string {
   return new Bun.CryptoHasher("sha1").update(text).digest("hex").slice(0, 8);
 }
@@ -95,7 +83,6 @@ export function splitCallUsage(
   };
 }
 
-/** Exact pico-USD as a decimal µUSD number, for logs only. */
 function picoToMicrousd(pico: number): number {
   return pico / 1_000_000;
 }
@@ -115,7 +102,6 @@ export class UsageMeter {
     return this.calls.length;
   }
 
-  /** Records one finished call from the SDK's usage and provider metadata. */
   record(
     usage: LanguageModelUsage | undefined,
     providerMetadata: ProviderMetadata | undefined,
@@ -186,7 +172,6 @@ export class UsageMeter {
     return summarizeTurnCost(this.calls);
   }
 
-  /** The usage_events columns for every call recorded so far. */
   ledgerFields(cost: ChatCost = this.summary()): UsageLedgerFields {
     const pricing = resolvePricing(this.provider, this.model, this.config);
     return {
@@ -209,7 +194,6 @@ export class UsageMeter {
     };
   }
 
-  /** Turn totals for the `process_complete` log. */
   logFields(cost: ChatCost = this.summary()): Record<string, unknown> {
     return {
       llm_calls: cost.llmCalls,

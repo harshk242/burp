@@ -1,6 +1,3 @@
-// Reactome on the shared HTTP retry: one attempt, 40s budget, tool-call deadline,
-// structured errors and pathway-ID resolution error translation. Stub adapter only, no network.
-
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { callTool, stubAdapter, toolText, type Step } from '../../../shared/__tests__/retry-test-utils.js';
@@ -50,7 +47,6 @@ describe('Reactome tools on the shared retry', () => {
 
   it('clamps the attempt timeout to the tool-call deadline', async () => {
     const calls = stubReactome([200]);
-    // deadline_ms 8s minus the 5s margin leaves a 3s tool call.
     const result = await callTool(handlers, 'search_pathways', { query: 'apoptosis' }, { deadline_ms: 8_000 });
     expect(result.isError).toBeUndefined();
     expect(calls[0].timeout).toBeGreaterThan(0);

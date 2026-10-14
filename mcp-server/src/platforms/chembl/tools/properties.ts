@@ -10,8 +10,6 @@ import {
   getDrugLikenessRecommendation,
 } from '../client.js';
 
-// ── Tool definitions ───────────────────────────────────────────────────────
-
 export const tools: Tool[] = [
   {
     name: 'analyze_admet_properties',
@@ -61,8 +59,6 @@ export const tools: Tool[] = [
     },
   },
 ];
-
-// ── Handlers ───────────────────────────────────────────────────────────────
 
 async function handleAnalyzeAdmetProperties(args: Record<string, unknown>) {
   if (!isValidChemblIdArgs(args)) {

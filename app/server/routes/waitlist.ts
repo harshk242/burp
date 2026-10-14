@@ -14,10 +14,6 @@ import type { AppEnv } from "../types";
 
 const waitlist = new OpenAPIHono<AppEnv>();
 
-// ============================================
-// POST /api/waitlist - Submit access request (public)
-// ============================================
-
 const submitRequestRoute = createRoute({
   method: "post",
   path: "/",
@@ -75,7 +71,6 @@ waitlist.openapi(submitRequestRoute, async (c) => {
     const body = c.req.valid("json");
     const { email, name, institution, research_area, use_case } = body;
 
-    // Check if already exists
     const existing = accessRequestQueries.findByEmail(email);
     if (existing) {
       return c.json({ error: "Access request already submitted" }, 409);
@@ -97,10 +92,6 @@ waitlist.openapi(submitRequestRoute, async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-
-// ============================================
-// GET /api/waitlist - List pending requests (Admin only)
-// ============================================
 
 const listRequestsRoute = createRoute({
   method: "get",
@@ -145,9 +136,7 @@ const listRequestsRoute = createRoute({
   },
 });
 
-// Apply auth middleware to admin routes
 waitlist.use("/", async (c, next) => {
-  // Skip auth for POST (public endpoint)
   if (c.req.method === "POST") {
     return next();
   }
@@ -155,7 +144,6 @@ waitlist.use("/", async (c, next) => {
 });
 
 waitlist.use("/", async (c, next) => {
-  // Skip admin check for POST (public endpoint)
   if (c.req.method === "POST") {
     return next();
   }
@@ -163,7 +151,6 @@ waitlist.use("/", async (c, next) => {
 });
 
 waitlist.use("/", async (c, next) => {
-  // Skip admin check for POST (public endpoint)
   if (c.req.method === "POST") {
     return next();
   }
@@ -179,10 +166,6 @@ waitlist.openapi(listRequestsRoute, async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-
-// ============================================
-// GET /api/waitlist/all - All requests (Admin only)
-// ============================================
 
 const listAllRequestsRoute = createRoute({
   method: "get",
@@ -227,10 +210,6 @@ waitlist.openapi(listAllRequestsRoute, async (c) => {
   }
 });
 
-// ============================================
-// POST /api/waitlist/:id/approve - Approve request (Admin only)
-// ============================================
-
 const approveRequestRoute = createRoute({
   method: "post",
   path: "/{id}/approve",
@@ -271,7 +250,6 @@ const approveRequestRoute = createRoute({
   },
 });
 
-// Apply auth middleware to /:id/* routes
 waitlist.use("/:id/*", clerkAuth, requireDbUser, requireAdmin);
 
 waitlist.openapi(approveRequestRoute, async (c) => {
@@ -284,10 +262,8 @@ waitlist.openapi(approveRequestRoute, async (c) => {
       return c.json({ error: "Request not found" }, 404);
     }
 
-    // Approve the access request
     accessRequestQueries.approve(id, adminUserId);
 
-    // If user already exists with waitlist role, upgrade them to user
     const existingUser = userQueries.findByEmail(request.email);
     if (existingUser && existingUser.role === "waitlist") {
       userQueries.updateRole(existingUser.id, "user");
@@ -299,10 +275,6 @@ waitlist.openapi(approveRequestRoute, async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-
-// ============================================
-// POST /api/waitlist/:id/reject - Reject request (Admin only)
-// ============================================
 
 const rejectRequestRoute = createRoute({
   method: "post",

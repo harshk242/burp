@@ -1,6 +1,3 @@
-// ClinPGx on the shared HTTP retry: policy wiring, 404 → empty results, 429
-// backoff and constructor overrides. Stub adapter only, no network.
-
 import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -11,7 +8,6 @@ import type { PharmGKBClientOptions } from '../types.js';
 
 const GENE_SEARCH = { data: [{ id: 'PA128', symbol: 'CYP2D6', name: 'cytochrome P450 family 2 subfamily D member 6' }] };
 
-/** A ClinPGx client on a stub transport whose successes carry a gene search body. */
 function stubClinPGx(steps: Step[], options: PharmGKBClientOptions = {}) {
   const { adapter: base, calls } = stubAdapter(steps);
   const adapter: AxiosAdapter = async (config) => ({ ...(await base(config)), data: GENE_SEARCH });

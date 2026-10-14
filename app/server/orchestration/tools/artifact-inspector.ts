@@ -1,23 +1,7 @@
-/**
- * inspect_artifact Tool
- *
- * Vercel AI SDK tool that allows the LLM to query stored artifacts
- * using jq filter expressions. Always declared in the tool catalog
- * (context/tool-catalog.ts), so the tool list never changes mid-turn.
- *
- * The sessionId is bound at creation time (closure) so the tool
- * can only access artifacts belonging to the current session.
- */
-
 import { tool } from "ai";
 import { z } from "zod";
 import { artifactStore } from "./artifact-store";
 
-/**
- * Create a session-bound inspect_artifact tool.
- *
- * @param sessionId - The chat session this tool is scoped to
- */
 export function createInspectArtifactTool(sessionId: string) {
   return tool({
     description:
@@ -49,14 +33,12 @@ export function createInspectArtifactTool(sessionId: string) {
         sessionId,
         jq_filter,
       );
-      // jq can't be cancelled mid-run; drop a result that lands after an abort.
       abortSignal?.throwIfAborted();
 
       if (result.error) {
         return JSON.stringify({ error: result.error });
       }
 
-      // Strings are returned as-is; stringifying would quote and escape them.
       const output =
         typeof result.result === "string"
           ? result.result

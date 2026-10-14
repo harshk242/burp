@@ -12,7 +12,6 @@ if (!publishableKey) {
 
 export function ClerkWrapper({ children }: { children: React.ReactNode }) {
   if (!publishableKey) {
-    // Render children without Clerk in development if key is missing
     return <>{children}</>;
   }
 

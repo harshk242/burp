@@ -1,18 +1,3 @@
-/**
- * ScoreWriter: acknowledged score writes for feedback sync, as plain `fetch`
- * calls to the public API (Basic auth from the Langfuse keys, 10 s timeout).
- *
- * Not the SDK: `score.create` only queues the event and its flush swallows
- * errors, and the SDK exposes score delete only under the deprecated
- * `api.legacy.scoreV1` namespace. These endpoints are the public contract:
- * - upsert: POST /api/public/scores (upsert by id)
- * - remove: DELETE /api/public/scores/{id} (404 counts as success)
- * - exists: GET /api/public/v3/scores?id= (the v4 org rejects legacy reads)
- *
- * Every call resolves only on a 2xx; anything else (network, non-2xx,
- * timeout) rejects.
- */
-
 type Env = Record<string, string | undefined>;
 
 export interface ScoreUpsert {

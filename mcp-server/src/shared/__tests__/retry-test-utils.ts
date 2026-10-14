@@ -1,5 +1,3 @@
-// Stub Axios adapter and helpers for the shared HTTP retry unit tests (no network).
-
 import axios, {
   AxiosError,
   AxiosHeaders,
@@ -68,10 +66,6 @@ function waitOrAbort(ms: number, config: InternalAxiosRequestConfig): Promise<vo
   });
 }
 
-/**
- * Adapter that plays `steps` in order (the last step repeats) and records each
- * call's config. Numbers are HTTP statuses; 'hang' waits until aborted.
- */
 export function stubAdapter(steps: Step[], clock?: FakeClock) {
   const calls: InternalAxiosRequestConfig[] = [];
   const adapter: AxiosAdapter = async (config) => {
@@ -109,7 +103,6 @@ export const basePolicy: RetryPolicy = {
   perAttemptTimeoutMs: 5_000,
 };
 
-/** An Axios instance backed by a stub adapter with retry attached. */
 export function stubClient(
   steps: Step[],
   policy: Partial<RetryPolicy> = {},
@@ -125,7 +118,6 @@ export function stubClient(
   return { client, calls };
 }
 
-/** Awaits a rejection and returns the error. */
 export async function rejection(promise: Promise<unknown>): Promise<any> {
   try {
     await promise;
@@ -135,7 +127,6 @@ export async function rejection(promise: Promise<unknown>): Promise<any> {
   throw new Error('expected the promise to reject');
 }
 
-/** Runs a platform tool through the real CallTool handler (tool-call context, structured errors). */
 export function callTool(
   handlers: Record<string, ToolHandler>,
   name: string,
@@ -149,7 +140,6 @@ export function callTool(
   );
 }
 
-/** The text of a tool result's first content item. */
 export function toolText(result: CallToolResult): string {
   const item = result.content[0];
   if (item.type !== 'text') throw new Error('expected text content');

@@ -1,17 +1,4 @@
-/**
- * System prompt for the chat loop.
- *
- * Kept as a module constant (no dates, IDs or per-request data) so it is
- * byte-identical on every request — a prerequisite for prompt caching.
- */
-
-// The `uniprot` platform is disabled in config.yaml (`enabled: false`), so its
-// tools are never registered. The UniProt lines below stay in source but are
-// commented out so they are never sent; restore them if the platform is
-// re-enabled (plan Q1).
-
 const DATABASES = [
-  // "**UniProt** - Protein sequences, structures, and annotations",
   "**ChEMBL** - Drug compounds, bioactivity, and pharmacology data",
   "**PubChem** - Chemical structures, properties, and bioassays",
   "**Ensembl** - Genomic sequences, gene annotations, and variants",
@@ -26,8 +13,6 @@ const DATABASES = [
 const CORE_TOOLS = [
   "- **ensembl__search_genes** - Convert gene symbols (TP53, BRCA1) → Ensembl IDs (ENSG...)",
   "- **open-targets__search_entities** - Find genes/diseases → ENSG/EFO IDs (main hub)",
-  // "- **uniprot__search_by_gene** - Gene symbol → UniProt accession (protein ID)",
-  // "- **uniprot__get_external_references** - UniProt → Ensembl/PDB cross-references",
   "- **ensembl__get_xrefs** - Ensembl → UniProt/HGNC cross-references",
   "- **chembl__search_compounds** - Drug/compound name → ChEMBL ID",
   "- **pubchem__search_by_smiles** - SMILES structure → PubChem CID",
@@ -39,7 +24,6 @@ const CORE_TOOLS = [
 
 const ID_RESOLUTION_PATTERNS = [
   `- Gene symbol → ENSG: Use ensembl__search_genes("TP53")`,
-  // `- Gene → Protein: Use uniprot__search_by_gene("TP53")`,
   `- Drug name → ChEMBL: Use chembl__search_compounds("imatinib")`,
   `- rsID → Gene: Use clinvar__lookup_by_rsid("rs1042522")`,
 ];

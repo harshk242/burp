@@ -1,11 +1,3 @@
-/**
- * Zod schemas for eval datasets and the metrics registry: the single source of truth.
- * The YAML files under app/evals/ are validated against these by load.ts, and sync.ts
- * pushes the parsed objects to Langfuse unchanged (plus content_hash).
- *
- * `input`, `expected_output` and `metadata` stay separate (Langfuse dataset rule):
- * reviewer notes and checkpoints never go in `input`.
- */
 import { z } from "zod";
 
 const slug = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "lower-case kebab-case slug");
@@ -122,7 +114,6 @@ export const DatasetFileSchema = z
   })
   .strict();
 
-/** Langfuse config names: max 35 chars; we further restrict to snake_case. */
 const metricName = z
   .string()
   .max(35)

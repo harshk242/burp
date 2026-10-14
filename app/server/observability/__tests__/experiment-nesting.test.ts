@@ -1,8 +1,3 @@
-/**
- * With `registerGlobal` (eval runner), code inside a Langfuse experiment task
- * sees the task span as active, and a turn started with that span as
- * `traceParent` nests under it.
- */
 import { afterAll, expect, it } from "bun:test";
 import { getActiveSpanId, getActiveTraceId, startActiveObservation } from "@langfuse/tracing";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
@@ -18,7 +13,6 @@ it("the experiment task's active span is readable and the turn nests under it", 
 
   let seen: { traceId?: string; spanId?: string } = {};
   await startActiveObservation("experiment-item-run", async () => {
-    // Like the runner's task: an await before reading the context.
     await Bun.sleep(1);
     seen = { traceId: getActiveTraceId(), spanId: getActiveSpanId() };
     const turn = TurnTrace.start({

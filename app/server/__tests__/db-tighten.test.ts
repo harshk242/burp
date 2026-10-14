@@ -1,8 +1,3 @@
-/**
- * 0003_tighten_not_null: schema shape, drift, backfills, no cascade on recreate
- * (plans/drizzle-orm-migration.md §5, §10). Rollback on NULL PKs and the
- * db:verify report live in db-tighten-rollback.test.ts.
- */
 import type { Database } from "bun:sqlite";
 import { afterAll, describe, expect, it } from "bun:test";
 import { cpSync, readdirSync, rmSync } from "fs";
@@ -35,7 +30,6 @@ afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
 });
 
-/** A non-legacy DB migrated through 0002, i.e. with 0003 still pending. */
 function pre0003Db(): Database {
   const sqlite = openDatabase(":memory:");
   runMigrations(sqlite, { migrationsFolder: migrationsFolderUpTo("0002_seed_and_data_fixes") });
@@ -56,13 +50,11 @@ describe("0003_tighten_not_null — schema", () => {
 
   it("tightens exactly the backfilled columns and the text PKs", () => {
     const baseline = baselineDatabase(migrations[0]!);
-    // Later migrations add NOT NULL columns of their own; stop at 0003.
     const sqlite = openDatabase(":memory:");
     runMigrations(sqlite, { migrationsFolder: migrationsFolderUpTo(TIGHTEN_MIGRATION_TAG) });
     const before = new Set(notNullColumns(baseline, TABLES));
     const tightened = notNullColumns(sqlite, TABLES).filter((c) => !before.has(c));
     expect(tightened).toEqual([...TIGHTEN_BACKFILLS.map(ref), ...TIGHTENED_PRIMARY_KEYS.map(ref)].sort());
-    // Nothing was loosened.
     for (const c of before) expect(notNullColumns(sqlite, TABLES)).toContain(c);
     baseline.close();
   });
@@ -94,7 +86,7 @@ describe("0003_tighten_not_null — schema", () => {
     const dir = makeTempDir("burp-drift-");
     tempDirs.push(dir);
     const out = join(dir, "migrations");
-    cpSync(MIGRATIONS_FOLDER, out, { recursive: true }); // drizzle-kit diffs against the existing history
+    cpSync(MIGRATIONS_FOLDER, out, { recursive: true });
     const files = () => readdirSync(out, { recursive: true }).map(String).sort();
     const before = files();
     const proc = Bun.spawnSync(
@@ -153,7 +145,6 @@ describe("0003_tighten_not_null — backfills", () => {
       expect(result.adopted).toBe(true);
       expect(result.applied.map((m) => m.tag)).toContain(TIGHTEN_MIGRATION_TAG);
       expectBackfilled(sqlite, t0, t1);
-      // Non-NULL values are left alone.
       expect(sqlite.query("SELECT * FROM users WHERE id = 'u-admin'").get()).toEqual(untouched);
     });
   }
@@ -187,7 +178,6 @@ describe("0003_tighten_not_null — table recreation", () => {
     expect(links()).toEqual(before);
     expect(sqlite.query("PRAGMA foreign_key_check").all()).toEqual([]);
     expect(foreignKeysEnabled(sqlite)).toBe(true);
-    // Cascades still work afterwards (FKs point at the recreated tables).
     sqlite.run("DELETE FROM users WHERE id = 'u1'");
     expect(rowCounts(sqlite)).toMatchObject({ users: 0, chat_sessions: 0, messages: 0, daily_usage: 0, usage_events: 0 });
     expect(sqlite.query("SELECT reviewed_by FROM access_requests").get()).toEqual({ reviewed_by: null });

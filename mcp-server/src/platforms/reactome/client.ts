@@ -1,11 +1,6 @@
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 
-/**
- * Production retry policy (plans/shared-http-retry-plan.md, "Platform
- * inventory"): one attempt as before, now with a 40s request budget and the
- * tool-call deadline; failures surface as a structured `UpstreamError`.
- */
 export const REACTOME_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: 1,
   backoffMs: [0],
@@ -56,7 +51,6 @@ export function getClient(): AxiosInstance {
   return client;
 }
 
-/** Tear down the client (cancel pending requests, release references). */
 export function cleanupClient(): void {
   client = null;
 }

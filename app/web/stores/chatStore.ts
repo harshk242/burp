@@ -8,19 +8,11 @@ interface ChatState {
   isStreaming: boolean;
   streamingContent: string;
   pendingToolCalls: ToolCall[];
-  /** Reasoning text blocks accumulated during streaming (thinking + reclassified text) */
   reasoningSegments: string[];
-  /**
-   * Where each run of streamingContent began: `offset` into streamingContent and
-   * `at`, the reasoningSegments index it precedes. Thinking that interleaves the
-   * text splits it into runs, so reclassified text keeps its stream position.
-   */
   textRuns: { at: number; offset: number }[];
-  /** True while text deltas extend the last text run */
   textRunOpen: boolean;
   error: string | null;
 
-  // Actions
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   updateStreamingContent: (content: string) => void;
@@ -45,12 +37,6 @@ interface ChatState {
   finalizeAssistantMessage: (messageId?: string) => void;
   /** Sets (or clears, with null) the user's feedback on a message. */
   setFeedback: (messageId: string, feedback: Feedback | null) => void;
-  /**
-   * Patches tokenUsage onto the last assistant message in state.messages.
-   * Must only be called AFTER finalizeAssistantMessage() (triggered by the
-   * "done" SSE event). The "usage" SSE event arrives after "done", so by the
-   * time this runs the target message is guaranteed to be in state.messages.
-   */
   setLastMessageTokens: (input: number, output: number) => void;
   setError: (error: string | null) => void;
   setStreaming: (isStreaming: boolean) => void;
@@ -100,7 +86,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const { streamingContent: content, textRuns } = state;
       if (!content) return state;
       const runs = textRuns.length > 0 ? textRuns : [{ at: state.reasoningSegments.length, offset: 0 }];
-      // Put each text run back before the thinking that followed it.
       const segments: string[] = [];
       let next = 0;
       const flushRunsAt = (at: number) => {
@@ -165,7 +150,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setLastMessageTokens: (input, output) =>
     set((state) => {
-      // Scan from the end to find the last assistant message
       const idx = [...state.messages].reverse().findIndex((m) => m.role === "assistant");
       if (idx === -1) return state;
       const realIdx = state.messages.length - 1 - idx;
@@ -179,7 +163,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setStreaming: (isStreaming) => set({ isStreaming }),
 
-  // Reset only streaming state (call before each new message send)
   resetStreamingState: () =>
     set({
       streamingContent: "",
@@ -191,7 +174,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       isStreaming: false,
     }),
 
-  // Full reset including messages (call when switching sessions)
   reset: () =>
     set({
       messages: [],

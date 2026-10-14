@@ -1,12 +1,3 @@
-/**
- * MCPManager.callTool deadlines: a timed-out or aborted call is cancelled in
- * the MCP client (the server sees notifications/cancelled and its handler's
- * signal aborts), and a call that answers in time leaves no timer behind. The
- * deadline is sent as `_meta.deadline_ms` and the result's `_meta` is kept.
- *
- * The manager's "unified" server is wired to a real McpServer over the SDK's
- * in-memory transport.
- */
 import { afterEach, describe, expect, it } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -19,7 +10,6 @@ afterEach(async () => {
   cleanup = null;
 });
 
-/** A manager whose unified server has `demo__hang` (never answers until cancelled), `demo__ok` and `demo__meta`. */
 async function connectedManager() {
   const cancelled: AbortSignal[] = [];
   const requestMeta: unknown[] = [];

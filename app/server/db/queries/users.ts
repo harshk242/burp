@@ -35,7 +35,6 @@ export function createUserQueries(db: DrizzleDb) {
           email,
           name,
           image_url: imageUrl,
-          // The CHECK constraint rejects anything outside the enum.
           role: role as DbUser["role"],
           institution,
           research_area: researchArea,
@@ -83,7 +82,6 @@ export function createUserQueries(db: DrizzleDb) {
         .run();
     },
 
-    /** List all users for the admin panel (with limit overrides). */
     listAll(): DbUser[] {
       return db.select().from(users).orderBy(desc(users.created_at)).all();
     },

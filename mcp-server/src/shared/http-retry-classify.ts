@@ -1,9 +1,5 @@
-// Error classification, public error kinds and Retry-After parsing for the
-// shared HTTP retry layer (see plans/shared-http-retry-plan.md).
-
 import axios from 'axios';
 
-/** Internal failure reason. Drives the retry decision and goes in logs and `_meta`. */
 export type RetryReason =
   | 'network'
   | 'attempt_timeout'
@@ -18,7 +14,6 @@ export type RetryReason =
 /** Reasons that become an `UpstreamError`. `unknown` (non-Axios) errors are rethrown as-is. */
 export type UpstreamReason = Exclude<RetryReason, 'unknown'>;
 
-/** Public error kind the agent sees as `error`. */
 export type UpstreamErrorKind =
   | 'upstream_unavailable'
   | 'timeout'
@@ -77,7 +72,6 @@ export const REASON_TO_KIND: Readonly<Record<UpstreamReason, Readonly<UpstreamKi
 });
 
 const TIMEOUT_CODES = new Set(['ECONNABORTED', 'ETIMEDOUT']);
-// Transport failures known to be transient: the request may not have reached the upstream.
 const NETWORK_CODES = new Set([
   'ECONNRESET',
   'ECONNREFUSED',
@@ -91,8 +85,6 @@ const NETWORK_CODES = new Set([
   'ERR_NETWORK',
 ]);
 const NETWORK_MESSAGES = new Set(['Network Error', 'socket hang up']);
-// Axios codes for a request rejected locally (bad URL, protocol or option):
-// nothing reached the upstream and retrying cannot help.
 const CONFIG_CODES = new Set([
   'ERR_BAD_REQUEST',
   'ERR_BAD_OPTION',
@@ -175,7 +167,6 @@ const HTTP_DATE = new RegExp(
   ].map((r) => r.source).join('|'),
 );
 
-/** A finite, non-negative delay in ms, or undefined. */
 function finiteDelay(ms: number): number | undefined {
   return Number.isFinite(ms) ? Math.max(0, ms) : undefined;
 }
@@ -212,7 +203,6 @@ export function getRetryAfterMs(error: unknown, now = Date.now()): number | unde
   );
 }
 
-/** Builds the agent-facing message for a final upstream failure. */
 export function formatUpstreamMessage(details: {
   reason: UpstreamReason;
   platform: string;

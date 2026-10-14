@@ -1,13 +1,3 @@
-/**
- * Tool boot shared by the server, the prompt-cache gate and the eval runner:
- * start the MCP servers, discover their tools, index tool search, and attach
- * embeddings (background sync, or the stored index file when sync is off).
- *
- * The keyword index is rebuilt whenever an MCP server recovers
- * (`mcpManager.onToolsChanged`), so recovered tools are searchable without a
- * restart.
- */
-
 import { appConfig } from "../config";
 import { createEmbedder, ToolEmbeddingSync, type Embedder } from "../embeddings";
 import { logger, startTimer } from "../logger";
@@ -33,7 +23,6 @@ export interface ToolsBoot {
   ready: Promise<ToolsReport>;
 }
 
-/** Current state of tool search (also after the embedding sync attached its vectors). */
 export function toolsReport(embedder: Embedder | null): ToolsReport {
   return {
     toolsAvailable: toolRegistry.availableCount,
@@ -48,8 +37,6 @@ export function toolsReport(embedder: Embedder | null): ToolsReport {
 export function initializeTools(): ToolsBoot {
   const embedder = createEmbedder(appConfig.embedding, { queryTimeoutMs: appConfig.embedding.query_timeout_ms });
 
-  // Keeps the embeddings index in step with the tool set in the background and
-  // attaches its vectors (latest snapshot wins).
   const embeddingSync =
     embedder && appConfig.embedding.sync_on_boot
       ? new ToolEmbeddingSync({
@@ -77,8 +64,6 @@ export function initializeTools(): ToolsBoot {
 
     reindexSearch();
 
-    // Without sync, attach whatever the index file holds for this embedder
-    // (optional — BM25 works without it). With sync, the sync attaches.
     if (embedder && !embeddingSync) await attachStoredEmbeddings(hybridSearch, embedder, appConfig.tool_search.embeddings_path);
 
     const report = toolsReport(embedder);

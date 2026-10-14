@@ -244,7 +244,6 @@ describe('beforeAttempt', () => {
     const beforeAttempt = vi.fn(async () => clock.advance(4_000));
     const { client, calls } = stubClient([500], { beforeAttempt, maxAttempts: 5 }, { clock });
     const error = await rejection(client.get('/x'));
-    // 4s wait + attempt (5s cap), 4s wait + attempt clamped to 2s, then no time left.
     expect(calls.map((c) => c.timeout)).toEqual([5_000, 2_000]);
     expect(error).toMatchObject({ reason: 'budget_timeout', attempts: 2 });
   });

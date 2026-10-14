@@ -1,9 +1,3 @@
-/**
- * MCP Tool Registry
- * Manages tool discovery and search across MCP servers.
- * Provides tools in Vercel AI SDK format for the chat orchestration layer.
- */
-
 import { jsonSchema, type Tool } from "ai";
 import type { mcpManager as MCPManagerType, ToolDefinition } from "./manager";
 import { ALWAYS_LOADED_TOOLS } from "./platforms.config";
@@ -20,9 +14,6 @@ export interface MCPTool {
 class ToolRegistry {
   private tools: Map<string, MCPTool> = new Map();
 
-  /**
-   * Register a tool from an MCP server
-   */
   register(server: string, tool: Omit<MCPTool, "server" | "available">, available = true): void {
     const key = `${server}:${tool.name}`;
     this.tools.set(key, { ...tool, server, available });
@@ -42,9 +33,6 @@ class ToolRegistry {
     }
   }
 
-  /**
-   * Discover tools from all running MCP servers
-   */
   async discoverTools(mcpManager: typeof MCPManagerType): Promise<void> {
     this.clear();
 
@@ -83,9 +71,6 @@ class ToolRegistry {
     });
   }
 
-  /**
-   * Update availability for all tools from a specific server
-   */
   setServerAvailability(server: string, available: boolean): void {
     for (const [key, tool] of this.tools) {
       if (tool.server === server) {
@@ -141,10 +126,6 @@ class ToolRegistry {
     return this.toVercelTools(core, sanitize);
   }
 
-  /**
-   * Get a single tool by full name in Vercel AI SDK format.
-   * Used for dynamically activating discovered tools.
-   */
   getVercelTool(
     fullName: string,
     sanitize?: (name: string) => string
@@ -159,16 +140,10 @@ class ToolRegistry {
     return { key: entry![0], tool: entry![1] };
   }
 
-  /**
-   * Get the list of always-loaded tool names for verification.
-   */
   getAlwaysLoadedTools(): string[] {
     return Array.from(ALWAYS_LOADED_TOOLS);
   }
 
-  /**
-   * Parse a Claude tool name back to server and tool name
-   */
   parseToolName(claudeToolName: string): { server: string; name: string } {
     const separatorIndex = claudeToolName.indexOf("__");
     if (separatorIndex === -1) {
@@ -180,24 +155,15 @@ class ToolRegistry {
     };
   }
 
-  /**
-   * Get all registered tools
-   */
   getAll(includeUnavailable = true): MCPTool[] {
     const tools = Array.from(this.tools.values());
     return includeUnavailable ? tools : tools.filter((t) => t.available);
   }
 
-  /**
-   * Get tools by server name
-   */
   getByServer(server: string): MCPTool[] {
     return Array.from(this.tools.values()).filter((t) => t.server === server);
   }
 
-  /**
-   * Search tools by name or description
-   */
   search(query: string, includeUnavailable = true): MCPTool[] {
     const q = query.toLowerCase();
     const tools = Array.from(this.tools.values()).filter(
@@ -209,34 +175,21 @@ class ToolRegistry {
     return includeUnavailable ? tools : tools.filter((t) => t.available);
   }
 
-  /**
-   * Get a specific tool
-   */
   get(server: string, name: string): MCPTool | undefined {
     return this.tools.get(`${server}:${name}`);
   }
 
-  /**
-   * Clear all tools
-   */
   clear(): void {
     this.tools.clear();
   }
 
-  /**
-   * Get tool count
-   */
   get count(): number {
     return this.tools.size;
   }
 
-  /**
-   * Get count of available tools
-   */
   get availableCount(): number {
     return Array.from(this.tools.values()).filter((t) => t.available).length;
   }
 }
 
-// Singleton instance
 export const toolRegistry = new ToolRegistry();

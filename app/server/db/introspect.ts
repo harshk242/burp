@@ -1,11 +1,3 @@
-/**
- * Schema fingerprint: a representation-agnostic but semantically complete view
- * of a SQLite schema (plans/drizzle-orm-migration.md §6 step 3).
- *
- * Two DBs with equal fingerprints accept and reject the same rows, whatever DDL
- * text built them (inline vs. named UNIQUEs, ALTER-appended columns, quoting).
- * Used by legacy adoption (legacy.ts) and `db:verify`.
- */
 import type { Database } from "bun:sqlite";
 import { balancedParens, isKeyword, normalizeExpression, tokenize } from "./sql-tokens";
 
@@ -150,7 +142,6 @@ function indexes(sqlite: Database, table: string, master: MasterRow[]): Pick<Tab
       .all()
       .filter((k) => k.key === 1);
     if (idx.unique === 1 && idx.partial === 0) {
-      // A unique constraint is a column set: name, origin and key order don't change what it rejects.
       uniques.push(keys.map((k) => (k.name ?? "<expr>").toLowerCase()).sort().join(","));
       continue;
     }
@@ -169,7 +160,6 @@ function indexes(sqlite: Database, table: string, master: MasterRow[]): Pick<Tab
   return { uniques: uniques.sort(), indexes: ordinary.sort() };
 }
 
-/** Normalized WHERE clause of a partial `CREATE INDEX`, or null. */
 function partialWhere(sql: string): string | null {
   const tokens = tokenize(sql);
   let depth = 0;

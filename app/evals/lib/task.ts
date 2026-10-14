@@ -1,12 +1,3 @@
-/**
- * The experiment task for one dataset item (plan 2.1 step 3): a fresh session,
- * each turn drained through the production chat orchestrator with the turn
- * root nested under the experiment task span, then the output read back from
- * the eval DB's persisted rows.
- *
- * Imports server modules: load only after run.ts pointed DATABASE_URL at the
- * run's own DB.
- */
 import { randomUUID } from "node:crypto";
 import { getActiveSpanId, getActiveTraceId } from "@langfuse/tracing";
 import { chatTurnQueries, messageQueries, modelTranscriptQueries, usageEventQueries } from "../../server/db";
@@ -42,7 +33,6 @@ export function activeTraceParent(): TraceParent | undefined {
   return traceId && spanId ? { traceId, spanId } : undefined;
 }
 
-/** Reads an item session's rows from the eval DB into the task output. */
 export function readTaskOutput(itemId: string, sessionId: string, durationsMs: number[], provider: LLMProviderName): TaskOutput {
   const turns = chatTurnQueries.findBySessionId(sessionId);
   const messages = new Map<string, string | null>();
@@ -78,7 +68,6 @@ export function createItemTask(ctx: TaskContext): (item: ItemLike) => Promise<Ta
 
     for (const [i, message] of turns.entries()) {
       if (ctx.lifecycle.stopping) throw new RunStoppedError(itemId);
-      // No new turn once the shared budget is spent: the item is incomplete.
       if (ctx.budget.exhausted) {
         budgetStopped = true;
         break;
@@ -90,13 +79,11 @@ export function createItemTask(ctx: TaskContext): (item: ItemLike) => Promise<Ta
           costBudget: ctx.budget,
           llm: ctx.llm,
         })) {
-          // Events go to the DB; the output is read from persisted rows.
         }
       })();
       await ctx.lifecycle.track(`${itemId} (turn ${i + 1})`, drain);
       durations.push(performance.now() - started);
     }
-    // A turn cut off by a signal is not scored.
     if (ctx.lifecycle.stopping) throw new RunStoppedError(itemId);
 
     const output = readTaskOutput(itemId, sessionId, durations, ctx.provider);

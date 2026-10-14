@@ -1,6 +1,3 @@
-// Open Targets MCP TypeScript Types
-
-// GraphQL Client Types
 export interface GraphQLResponse<T = unknown> {
   data?: T;
   errors?: GraphQLError[];
@@ -13,13 +10,11 @@ export interface GraphQLError {
   extensions?: Record<string, unknown>;
 }
 
-// Cache Types
 export interface CacheEntry<T = unknown> {
   data: T;
   timestamp: number;
 }
 
-// Pagination Types
 export interface PageInput {
   index: number;
   size: number;
@@ -30,7 +25,6 @@ export interface PaginatedResult<T> {
   rows: T[];
 }
 
-// Target Types
 export interface Target {
   id: string;
   approvedSymbol: string;
@@ -76,7 +70,6 @@ export interface DbXref {
   source: string;
 }
 
-// Expression Types
 export interface Expression {
   tissue: Tissue;
   rna?: RnaExpression;
@@ -109,7 +102,6 @@ export interface CellType {
   reliability: boolean;
 }
 
-// Pathway Types
 export interface Pathway {
   pathway: string;
   pathwayId: string;
@@ -128,7 +120,6 @@ export interface GoTerm {
   source: string;
 }
 
-// Homologue Types
 export interface Homologue {
   homologyType: string;
   speciesId: string;
@@ -140,7 +131,6 @@ export interface Homologue {
   targetPercentageIdentity: number;
 }
 
-// Subcellular Location Types
 export interface SubcellularLocation {
   location: string;
   source: string;
@@ -148,7 +138,6 @@ export interface SubcellularLocation {
   labelSL: string;
 }
 
-// Genetic Constraint Types
 export interface GeneticConstraint {
   constraintType: string;
   score: number;
@@ -159,7 +148,6 @@ export interface GeneticConstraint {
   oeUpper: number;
 }
 
-// Mouse Phenotype Types
 export interface MousePhenotype {
   modelPhenotypeId: string;
   modelPhenotypeLabel: string;
@@ -179,7 +167,6 @@ export interface BiologicalModel {
   literature?: string[];
 }
 
-// Cancer Hallmark Types
 export interface Hallmark {
   name: string;
   description: string;
@@ -189,7 +176,6 @@ export interface Hallmark {
   label?: string;
 }
 
-// Essentiality Types
 export interface DepMapEssentiality {
   screens: EssentialityScreen[];
 }
@@ -204,7 +190,6 @@ export interface EssentialityScreen {
   mutation: string;
 }
 
-// Interaction Types
 export interface Interaction {
   intA: string;
   intABiologicalRole: string;
@@ -248,7 +233,6 @@ export interface InteractionEvidence {
   interactionTypeShortName: string;
 }
 
-// Safety Types
 export interface SafetyLiability {
   event: string;
   eventId: string;
@@ -278,14 +262,12 @@ export interface SafetyBiosample {
   tissueLabel: string;
 }
 
-// Tractability Types
 export interface Tractability {
   id: string;
   modality: string;
   value: boolean;
 }
 
-// Chemical Probe Types
 export interface ChemicalProbe {
   id: string;
   control: string;
@@ -307,7 +289,6 @@ export interface ProbeUrl {
   url: string;
 }
 
-// TEP Types
 export interface Tep {
   name: string;
   uri: string;
@@ -315,7 +296,6 @@ export interface Tep {
   therapeuticArea: string;
 }
 
-// Prioritization Types
 export interface Prioritization {
   items: PrioritizationItem[];
 }
@@ -325,7 +305,6 @@ export interface PrioritizationItem {
   value: number;
 }
 
-// Disease Types
 export interface Disease {
   id: string;
   name: string;
@@ -356,14 +335,12 @@ export interface Ontology {
   sources: string[];
 }
 
-// Phenotype Types
 export interface Phenotype {
   id: string;
   name: string;
   url: string;
 }
 
-// Drug Types
 export interface DrugLabelAndSource {
   label: string;
   source: string;
@@ -427,7 +404,6 @@ export interface Indication {
   maxClinicalStage: string;
 }
 
-// Adverse Event Types
 export interface AdverseEvent {
   name: string;
   meddraCode: string;
@@ -436,7 +412,6 @@ export interface AdverseEvent {
   criticalValue: number;
 }
 
-// Pharmacovigilance Types
 export interface Pharmacovigilance {
   isBlackBoxWarning: boolean;
   adverseEffectsActivities?: AdverseEffectActivity;
@@ -454,7 +429,6 @@ export interface AdverseEffectOrgan {
   organsSystemsAffected?: string[];
 }
 
-// Warning Types
 export interface DrugWarning {
   warningType: string;
   description: string;
@@ -473,7 +447,6 @@ export interface WarningReference {
   url: string;
 }
 
-// Association Types
 export interface Association {
   score: number;
   datatypeScores: DatatypeScore[];
@@ -495,7 +468,6 @@ export interface DiseaseTargetAssociation extends Association {
   target: Target;
 }
 
-// Evidence Types
 export interface Evidence {
   id: string;
   score: number;
@@ -527,7 +499,6 @@ export interface EvidenceUrl {
   url: string;
 }
 
-// Biomarker Types
 export interface Biomarker {
   id: string;
   geneExpression: {
@@ -563,7 +534,6 @@ export interface Biomarker {
   };
 }
 
-// Search Types
 export interface SearchResult {
   total: number;
   hits: SearchHit[];
@@ -592,7 +562,6 @@ export interface Facet {
   total: number;
 }
 
-// Variant Types
 export interface Variant {
   id: string;
   rsId?: string;
@@ -645,7 +614,6 @@ export interface AlleleFrequency {
   alleleFrequency: number;
 }
 
-// Credible Set Types
 export interface CredibleSet {
   studyLocusId: string;
   locusStart?: number;
@@ -675,7 +643,6 @@ export interface LocusVariant {
   r2Overall?: number;
 }
 
-// Pharmacogenomics Types
 export interface PharmacogenomicsVariant {
   datasourceId: string;
   drugFromSource: string;
@@ -696,7 +663,6 @@ export interface PharmacogenomicsVariant {
   variantRsId?: string;
 }
 
-// Study Types
 export interface Study {
   studyId: string;
   studyType: string;
@@ -732,7 +698,6 @@ export interface Biosample {
   biosampleName?: string;
 }
 
-// Colocalisation Types
 export interface Colocalisation {
   leftStudyLocusId: string;
   rightStudyLocusId: string;
@@ -746,7 +711,6 @@ export interface Colocalisation {
   rightVariant?: Variant;
 }
 
-// Literature Types
 export interface LiteratureOccurrence {
   pmid: string;
   pmcid?: string;
@@ -763,7 +727,6 @@ export interface Sentence {
   section: string;
 }
 
-// Meta/API Types
 export interface ApiMetadata {
   name: string;
   apiVersion: ApiVersion;
@@ -795,7 +758,6 @@ export interface InteractionResource {
   sourceDatabase: string;
 }
 
-// Tool Definition Types (for MCP)
 export interface ToolParameter {
   name: string;
   type: string;
@@ -811,7 +773,6 @@ export interface ToolDefinition {
   handler: (args: Record<string, unknown>) => Promise<unknown>;
 }
 
-// OTAR Project Types
 export interface OtarProject {
   otarCode: string;
   projectName: string;

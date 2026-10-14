@@ -1,9 +1,3 @@
-/**
- * Sync failure modes: vectors already attached survive a failed sync, a
- * failing batch cancels its sibling requests, a file whose size contradicts
- * the embedder is rebuilt, and a rejected file is warned about once. Stubbed
- * HTTP or a fake embedder, temp dirs, no network.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
@@ -36,7 +30,6 @@ const A = tool("alpha__one", "First alpha tool");
 const B = tool("beta__one", "First beta tool");
 const A_CHANGED = { ...A, description: "First alpha tool, now paginated" };
 
-/** Fake embedder: `fail` throws from every call, `defer` holds calls until released. */
 function fakeEmbedder(id = "fake:model@3") {
   const batches: string[][] = [];
   const held: Array<() => void> = [];
@@ -62,7 +55,6 @@ async function seed(embedderId: string, tools: SyncTool[], dimension = DIM) {
 
 const readIndex = () => JSON.parse(readFileSync(path, "utf-8")) as { dimension: number; tools: { full_name: string; text: string }[] };
 
-/** Timers that only fire when the test says so. */
 function fakeScheduler() {
   const live: Array<() => void> = [];
   const scheduler: Scheduler = (fn) => {
@@ -72,7 +64,6 @@ function fakeScheduler() {
   return { scheduler, fire: () => live.shift()!() };
 }
 
-/** A queue whose `current` is what search would hold: each onReady replaces it. */
 function queue(embedder: Embedder, scheduler = fakeScheduler().scheduler) {
   const state = { current: null as Map<string, Float32Array> | null };
   const q = new ToolEmbeddingSync({
@@ -101,11 +92,11 @@ describe("a failed sync keeps attached vectors", () => {
     const before = readFileSync(path, "utf-8");
     const { q, state } = queue(embedder);
 
-    q.request([A, B]); // boot: nothing changed, both attached
+    q.request([A, B]);
     await q.idle();
     expect([...state.current!.keys()].sort()).toEqual(["alpha__one", "beta__one"]);
 
-    q.request([A_CHANGED, B]); // A must be re-embedded; the provider refuses
+    q.request([A_CHANGED, B]);
     await q.idle();
 
     expect([...state.current!.keys()].sort()).toEqual(["alpha__one", "beta__one"]);
@@ -134,14 +125,12 @@ describe("a failed sync keeps attached vectors", () => {
 
 describe("batch failure", () => {
   it("aborts sibling batch requests as soon as one batch fails", async () => {
-    // 2049 inputs → two OpenAI calls (2048 per call) running in parallel.
     const tools = Array.from({ length: 2049 }, (_, i) => tool(`alpha__t${i}`, `tool ${i}`));
     let stalled: AbortSignal | undefined;
     const fetch = (async (_url: unknown, init?: RequestInit) => {
       const inputs: string[] = JSON.parse(String(init?.body)).input;
       if (inputs.length === 1) return json({ error: { message: "bad request", type: "invalid_request_error" } }, 400);
       stalled = init!.signal!;
-      // Never answers; settles only when aborted.
       return new Promise((_, reject) => stalled!.addEventListener("abort", () => reject(stalled!.reason)));
     }) as unknown as typeof globalThis.fetch;
     const embedder = createEmbedder({ provider: "openai", model: "text-embedding-3-small", dimensions: DIM }, { env: { OPENAI_API_KEY: "sk" }, fetch })!;
@@ -157,8 +146,8 @@ describe("batch failure", () => {
 
 describe("dimension contradicting the embedder", () => {
   it("rebuilds a file whose header size differs from the configured one", async () => {
-    const fake = fakeEmbedder(); // fake:model@3, dimensions 3
-    await seed(fake.embedder.id, [A, B], 2); // same identity, but 2-dim vectors
+    const fake = fakeEmbedder();
+    await seed(fake.embedder.id, [A, B], 2);
 
     const attached: Map<string, Float32Array>[] = [];
     const stats = await syncToolEmbeddings({ embedder: fake.embedder, tools: [A, B], path, timeoutMs: 5000, onReady: (v) => attached.push(v) });
@@ -181,17 +170,16 @@ describe("rejected index warning", () => {
 
     q.request([A]);
     await q.idle();
-    timers.fire(); // retry 1, still failing
+    timers.fire();
     await q.idle();
     expect(fake.batches).toHaveLength(2);
     expect(rejections()).toEqual([{ path, reason: "embedder_mismatch", found: "old:model@3", expected: "new:model@3" }]);
 
     fake.state.fail = null;
-    timers.fire(); // retry 2 succeeds and replaces the file
+    timers.fire();
     await q.idle();
     expect(rejections()).toHaveLength(1);
 
-    // A later missing file is normal (first boot), not a rejection.
     rmSync(path);
     q.request([A]);
     await q.idle();

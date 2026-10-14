@@ -1,13 +1,8 @@
-/**
- * Config: the embedding block is validated again after env overrides, booleans
- * parse strictly, and the embeddings index path doesn't depend on cwd.
- */
 import { describe, expect, it } from "bun:test";
 import { tmpdir } from "os";
 import { join } from "path";
 import { APP_DIR, loadConfig as loadFromYaml, parseBooleanEnv } from "../config";
 
-// Sections without schema defaults; everything else comes from built-in defaults.
 const loadConfig = (env: Record<string, string | undefined>, raw: Record<string, unknown>) =>
   loadFromYaml(env, { llm: { effort: "medium" }, server: {}, tool_search: {}, ...raw });
 
