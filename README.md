@@ -1,648 +1,198 @@
-# BURP
+# BURP — Bio Unified Research Platform
 
-A unified AI-powered research platform that connects 10 major biomedical research databases through the Model Context Protocol (MCP). Write natural language queries that seamlessly span across biological research platforms to synthesize complex research questions and conduct end-to-end research workflows.
+**A research agent that answers biomedical questions by working across 10 public databases: it resolves identifiers, chains the right tools, and cites the records it found.**
 
-## Overview
+Live at [tryburp.com](https://tryburp.com) · TypeScript · Bun · Hono · Next.js · Vercel AI SDK · MCP · Langfuse
 
-BURP integrates the following biomedical research platforms into a single cohesive system:
-
-| Platform | Purpose | Records | Key IDs |
-|----------|---------|---------|---------|
-| **Open Targets** | Target-disease-drug associations | 45+ evidence sources | Ensembl gene IDs |
-| **UniProt** | Protein sequences & annotations | 27M+ proteins | UniProt accessions |
-| **Ensembl** | Genomic sequences & annotations | 200+ species | Gene/transcript IDs |
-| **ChEMBL** | Bioactive compounds & activities | 2M+ compounds | ChEMBL IDs |
-| **PubChem** | Chemical structure database | 110M+ compounds | CID |
-| **ClinicalTrials** | Clinical trial registry | 400K+ trials | NCT IDs |
-| **ClinVar** | Genetic variants & phenotypes | 1.2M+ variants | rsID, variant IDs |
-| **PubMed** | Biomedical literature | 35M+ citations | PMID |
-| **Reactome** | Biological pathways | 2,500+ pathways | Reactome IDs |
-| **PharmGKB (ClinPGx)** | Pharmacogenomics & drug response | Gene-drug interactions | Gene symbols |
-
-## Key Features
-
-✨ **Unified Query Interface**: Ask complex questions that span multiple biological databases in natural language
-
-🔗 **Intelligent ID Mapping**: Seamlessly translate between 12+ identifier systems (genes, proteins, compounds, variants, etc.)
-
-🔀 **40+ Connection Paths**: Pre-mapped workflows connecting all platforms for integrated research analysis
-
-📊 **Multi-Format Output**: Results available in JSON, FASTA, GFF, VCF, XML, CSV formats depending on the platform
-
-⚡ **Batch Processing**: Efficiently query multiple entities simultaneously with built-in rate limit compliance
-
-🧬 **End-to-End Workflows**: Automate complex research pipelines like target validation, drug repurposing, and biomarker discovery
-
-## Example Queries
-
-```
-"Find all genes associated with Alzheimer's disease,
- get their protein structures from UniProt,
- find small molecule compounds that interact with these proteins,
- and show ongoing clinical trials testing these compounds."
-
-"What kinase inhibitors are in clinical trials for cancer?
- Get their chemical structures, predicted ADMET properties,
- and pharmacogenomic considerations for patient stratification."
-
-"For a given genetic variant, show the gene it affects,
- the protein change, associated diseases,
- relevant clinical trials, and literature citations."
-```
-
-## Project Structure
-
-```
-burp/
-├── app/
-│   ├── server/                    # Hono backend API
-│   └── web/                       # Next.js frontend
-│
-├── mcp-servers/
-│   ├── open-targets/              # Target-disease-drug integration hub
-│   ├── uniprot/                   # Protein sequences & annotations
-│   ├── ensembl/                   # Genomic sequences & gene annotations
-│   ├── chembl/                    # Bioactive compounds & targets
-│   ├── pubchem/                   # Chemical structure database
-│   ├── clinical-trials/           # Clinical trial registry
-│   ├── clinvar/                   # Genetic variants & phenotypes
-│   ├── pubmed/                    # Biomedical literature
-│   ├── reactome/                  # Biological pathways
-│   └── clinpgx/                   # Pharmacogenomics
-│
-├── docs/                          # Documentation
-├── scripts/                       # Utility scripts
-├── .mcp.json                      # MCP server configuration
-├── .env.local                     # Environment variables (API keys)
-└── CLAUDE.md                      # Build & deployment instructions
-```
-
-## Getting Started
-
-### Prerequisites
-
-1. **Bun** package manager
-   ```bash
-   curl -fsSL https://bun.sh/install | bash
-   ```
-
-2. **Node.js** 18+ (included with Bun)
-
-3. **API Keys** — Get these before starting:
-   - **Anthropic API Key**: Get from [Anthropic Console](https://console.anthropic.com/)
-   - **Clerk API Key**: Get from [Clerk Dashboard](https://dashboard.clerk.com)
-   - **NCBI API Key** (optional, but recommended for higher rate limits): Get from [NCBI](https://www.ncbi.nlm.nih.gov/account/)
-
-### Installation Steps
-
-#### 1. **Clone & Install Dependencies**
-```bash
-git clone <repository-url>
-cd burp
-
-# Install root dependencies (if any)
-bun install
-
-# Install server dependencies
-cd app
-bun install
-
-# Install web (frontend) dependencies
-cd web
-bun install
-cd ../..
-```
-
-#### 2. **Setup Clerk Authentication**
-
-Go to [Clerk Dashboard](https://dashboard.clerk.com):
-- Create a new application (if you haven't)
-- Copy your **Publishable Key** and **Secret Key**
-- You'll use these in the environment variables
-
-#### 3. **Environment Variables**
-
-**For the backend** (`app/.env`):
-```bash
-cd app
-cp .env.example .env
-```
-
-Edit `app/.env` and fill in:
-```env
-# Required
-ANTHROPIC_API_KEY=sk-ant-...
-CLERK_SECRET_KEY=sk_test_...
-
-# Recommended
-NCBI_API_KEY=<your-ncbi-key>
-OPENAI_API_KEY=sk-...   # semantic tool search (embedding.provider: openai); keyword-only without it
-
-# Optional
-CLAUDE_MODEL=claude-sonnet-4-6
-PORT=3000
-DATABASE_URL=./data/app.db
-MCP_SERVERS_BASE=../mcp-server
-ADMIN_EMAIL=you@example.com
-CORS_ORIGINS=http://localhost:3000,http://localhost:3001
-```
-
-With `OPENAI_API_KEY` set, the server keeps the semantic tool search index
-(`app/data/tool-embeddings.json`, or `tool_search.embeddings_path`) up to date by itself: in the
-background at boot and whenever the MCP tool set changes, it embeds only new or changed tools
-(everything after an `embedding:` provider/model/dimensions change) and logs
-`embeddings_sync_complete`. Search is keyword-only until the first sync finishes. Set
-`EMBEDDING_SYNC_ON_BOOT=false` to opt out; `bun run generate:embeddings` still rebuilds the index
-from scratch manually.
-
-**For the frontend** (`app/web/.env.local`):
-```bash
-cd web
-cp .env.example .env.local
-```
-
-Edit `app/web/.env.local`:
-```env
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-NEXT_PUBLIC_API_URL=http://localhost:3000
-```
-
-#### 4. **Build MCP Servers** (one-time)
-```bash
-# Build all servers from the project root
-bun run build:servers
-```
-
-Or build an individual server:
-```bash
-cd mcp-servers/uniprot
-bun install
-bun run build
-cd ../..
-```
-
-### Running the Application
-
-#### **Option 1: Development Mode** (recommended)
-
-Terminal 1 — Backend:
-```bash
-cd app
-bun run dev
-# Server runs on http://localhost:3000
-```
-
-Terminal 2 — Frontend:
-```bash
-cd app/web
-bun run dev
-# Frontend runs on http://localhost:3001
-```
-
-Then open http://localhost:3001 in your browser.
-
-#### **Option 2: Production Mode**
-
-Backend:
-```bash
-cd app
-bun run start
-```
-
-Frontend:
-```bash
-cd app/web
-bun run build
-bun run start
-```
-
-### Database (Drizzle ORM + migrations)
-
-There is no separate init step: the server applies pending migrations on every
-boot, before it starts listening. A fresh SQLite file (default `./data/app.db`,
-set via `DATABASE_URL` or `config.yaml` `server.database_url`) is created and
-migrated automatically. A pre-Drizzle ("legacy") database is detected, backed
-up and adopted in the same transaction. If a migration fails, including a
-foreign key violation found before commit, the transaction rolls back, the DB
-is left unchanged and the server refuses to start.
-
-Schema lives in `app/server/db/schema/*.ts`; migrations generated by drizzle-kit
-live in `app/server/db/migrations/`. Scripts (run from `app/`):
-
-| Script | What it does |
-|---|---|
-| `bun run db:migrate [path]` | Apply pending migrations without starting the server |
-| `bun run db:generate --name <change>` | Generate a migration from schema edits |
-| `bun run db:generate:custom --name <x>` | Empty migration for data/seed changes |
-| `bun run db:check` | `drizzle-kit check` (migration folder consistency) |
-| `bun run db:drift` | Fail if the schema has changes without a committed migration (CI runs this) |
-| `bun run db:verify <path>` | Dry-run adoption + migrations on a copy of a DB and report diffs/backfills |
-| `bun run db:snapshot <out>` | Consistent copy of a live (WAL) DB via `VACUUM INTO` |
-| `bun run db:studio` | Drizzle Studio |
-
-**Changing the schema:**
-
-1. Edit `app/server/db/schema/*.ts`.
-2. `bun run db:generate --name <change>`.
-3. Review the SQL. If a table recreation tightens a column (e.g. adds `NOT NULL`), prepend backfills for existing rows.
-4. Commit the schema, SQL and `meta/` snapshot together. CI fails (`db:drift`) if they're out of sync.
-5. The next boot applies it.
-
-Row types (`DbUser` etc. in `app/server/types.ts`) are inferred from the schema.
-`app/server/__tests__/db-row-types.typecheck.ts` makes `bun run typecheck` fail
-if a row type stops matching its Zod API schema in `app/server/schemas/`.
-
-**Before deploying a migration to prod**, check it against a consistent copy of the prod DB:
-
-```bash
-fly ssh console -C "bun run /app/server/db/cli/snapshot.ts /app/data/backups/prod-copy.db"
-fly ssh sftp get /app/data/backups/prod-copy.db ./prod-copy.db
-fly ssh console -C "rm /app/data/backups/prod-copy.db"
-cd app && bun run db:verify ../prod-copy.db
-```
-
-#### Restoring from a pre-migration backup
-
-There are no down-migrations. Before running pending migrations, boot writes a
-`VACUUM INTO` backup next to the DB: `data/backups/<db>-pre-migrate-<timestamp>.db`
-(`<db>-pre-drizzle-<timestamp>.db` for a legacy adoption). The last 5 per DB are kept.
-To roll back a release that migrated the DB:
-
-1. Stop the server process so nothing holds the DB open, but keep the machine and
-   volume reachable, e.g. `fly machine update <machine-id> --command "sleep infinity"`.
-2. `fly ssh console`, then pick the backup taken just before the bad migration
-   (`ls -l /app/data/backups`).
-3. Move the live DB and its WAL/SHM files aside and copy the backup into place:
-   ```bash
-   cd /app/data
-   mv app.db app.db.bad; mv app.db-wal app.db-wal.bad; mv app.db-shm app.db-shm.bad
-   cp backups/app-pre-migrate-<timestamp>.db app.db
-   ```
-4. Deploy the previous release (whose migrations match the backup) or a forward fix,
-   e.g. `fly deploy --image <previous-image>`. Don't restart the release that contains
-   the bad migration: it would apply it again on boot.
-5. Once the app is healthy, delete the `.bad` files.
-
-Locally the same steps apply to `./data/app.db` (use `gio trash` instead of `rm`).
-
-### Verification Checklist
-
-- [ ] Bun installed: `bun --version`
-- [ ] Dependencies installed: Check `app/node_modules` and `app/web/node_modules` exist
-- [ ] Environment variables set in both `app/.env` and `app/web/.env.local`
-- [ ] Clerk keys are valid (test by visiting login page at http://localhost:3001)
-- [ ] MCP servers built: Check `mcp-servers/*/dist` or `mcp-servers/*/build` folders exist
-- [ ] Backend starts: `bun run dev` in `app/` should show "Server running"
-- [ ] Frontend starts: `bun run dev` in `app/web/` should show "ready - started server on ..."
-
-### Troubleshooting
-
-**"Port already in use"**
-- Backend uses 3000, frontend uses 3001. Stop other services or change port in scripts.
-
-**"Clerk authentication fails"**
-- Verify `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is set in `app/web/.env.local`
-- Make sure it matches your Clerk application
-
-**"MCP servers not found"**
-- Ensure all servers are built: `cd mcp-servers/<server> && bun run build`
-- Check `.mcp.json` paths match your actual build output directories
-
-**"Database errors"**
-- Migrations run on boot; check the `STARTUP database_migration_failed` /
-  `database_migration_fk_violation` log line for the cause (the DB is left unchanged)
-- Run `bun run db:migrate` from `app/` to apply migrations without starting the server
-- Check file permissions on `./data/` directory
-
-### Configuration
-
-The `.mcp.json` file configures how all 10 servers are launched:
-
-```json
-{
-  "mcpServers": {
-    "open-targets": {
-      "command": "node",
-      "args": ["mcp-servers/open-targets/dist/index.js"]
-    },
-    "chembl": {
-      "command": "node",
-      "args": ["mcp-servers/chembl/build/index.js"]
-    },
-    // ... more servers
-  }
-}
-```
-
-## Usage
-
-### With Claude Desktop
-
-1. **Add to Claude Desktop configuration** (`~/.claude/claude_desktop_config.json`):
-   ```json
-   {
-     "mcpServers": {
-       "burp": {
-         "command": "node",
-         "args": ["<path-to-burp>/.mcp.json"]
-       }
-     }
-   }
-   ```
-
-2. **Use in conversations** with Claude:
-   ```
-   "Find all kinase inhibitors in clinical trials that target
-    proteins associated with HER2-positive breast cancer"
-   ```
-
-### Programmatically
-
-Each server implements the MCP protocol and exposes 15-27 specialized tools:
-
-```typescript
-// Access through any MCP client
-const openTargets = mcpClient.getServer('open-targets');
-const targets = await openTargets.callTool('get_target_associated_diseases', {
-  ensembl_id: 'ENSG00000157764'  // BRCA2
-});
-```
-
-## Platforms & Tools
-
-### Open Targets (45+ tools)
-Hub for target-disease-drug associations. Links all platforms together.
-- Target information & validation
-- Disease associations
-- Drug mechanisms
-- Genetic evidence
-- Literature & clinical trials
-
-### UniProt (26 tools)
-Protein sequences and functional annotations.
-- Protein lookup & cross-references
-- Orthologs & homologs
-- Domains & pathways
-- Post-translational modifications
-- Interactions & complexes
-
-### Ensembl (25 tools)
-Genomic sequences and gene annotations for 200+ species.
-- Gene & transcript lookup
-- DNA sequence retrieval
-- Variant consequence prediction
-- Homologs across species
-- Regulatory features
-- Coordinate mapping between assemblies
-
-### ChEMBL (27 tools)
-Bioactive compounds and target interactions (2M+ compounds).
-- Compound search & similarity
-- Target screening data
-- Bioactivity results
-- Drug development phases
-- ADMET prediction
-- Mechanism of action
-
-### PubChem (24 tools)
-Chemical structures and properties (110M+ compounds).
-- Compound search by name, SMILES, InChI
-- 2D/3D conformers
-- Molecular properties
-- Bioassay results
-- Toxicity & safety data
-- Patent information
-
-### ClinicalTrials (18 tools)
-Clinical trial registry (400K+ trials from 220+ countries).
-- Trial search by condition, intervention, location
-- Recruitment status
-- Trial outcomes & results
-- Eligibility criteria
-- Pediatric & rare disease filters
-- Timeline analysis
-
-### ClinVar (12 tools)
-Genetic variants and phenotype associations (1.2M+ variants).
-- Variant lookup by gene, coordinates, rsID
-- Clinical significance assessment
-- Submission details & conflicts
-- Population frequencies
-- Pharmacogenomic annotations
-
-### PubMed (13 tools)
-Biomedical literature (35M+ citations).
-- Article search
-- Citation networks
-- Author searches
-- MeSH term indexing
-- Publication trends
-- Full-text availability
-
-### Reactome (8 tools)
-Manually curated biological pathways (2,500+ pathways).
-- Pathway search & hierarchy
-- Reaction participants
-- Gene-pathway associations
-- Cross-species pathways
-
-### PharmGKB (16 tools)
-Pharmacogenomics and personalized medicine.
-- Gene-drug interactions
-- Star alleles (CYP2D6, etc.)
-- Dosing guidelines (CPIC, DPWG)
-- Drug response associations
-- FDA drug labels with PGx info
-
-## Documentation
-
-- **`docs/PLATFORM_OVERVIEW_AND_CONNECTIONS.md`**: Complete platform descriptions and all 40+ inter-platform connection workflows
-- **`docs/research-platform-strategy.md`**: Project vision, strategy, and roadmap for computational intelligence features
-- **Individual server READMEs**: Detailed tool documentation for each platform in `mcp-servers/*/README.md`
-
-## Architecture
-
-### Technology Stack
-- **SDK**: Model Context Protocol (MCP)
-- **Language**: TypeScript + Node.js 18+
-- **Package Manager**: Bun
-- **HTTP Client**: Axios
-- **Type Safety**: Full TypeScript with @types
-
-### Connection Model
-
-The platform uses three types of connections between platforms:
-
-1. **Bidirectional**: Data flows both directions
-   - Example: ChEMBL ↔ UniProt (via protein targets)
-   - Example: Ensembl ↔ ClinVar (via genomic coordinates)
-
-2. **Unidirectional**: One-way data integration
-   - Open Targets integrates evidence from ClinVar, ClinicalTrials, PubMed
-   - ChEMBL → PubMed (literature links)
-
-3. **Total Paths**: 40+ documented workflows connecting the platforms
-
-## API Integration
-
-All platforms provide public REST APIs with the following characteristics:
-
-| Platform | Rate Limit | Authentication | Batch Support |
-|----------|-----------|-----------------|----------------|
-| ChEMBL | Reasonable | No | Yes (1-50) |
-| UniProt | 1 req/sec | No | Yes |
-| Ensembl | 15 req/sec | No | Yes |
-| PubChem | No limit | No | Yes |
-| ClinicalTrials | Reasonable | No | No |
-| ClinVar | Moderate | Optional API key | No |
-| PubMed | Depends on key | Optional API key | Yes |
-| Reactome | Reasonable | No | No |
-| PharmGKB | Reasonable | No | No |
-| Open Targets | GraphQL API | No | Yes |
-
-## Development
-
-### Building a Single Server
-
-```bash
-cd mcp-servers/chembl
-bun install
-bun run build
-```
-
-### Development Mode
-
-```bash
-# Watch mode compilation
-bun run dev
-
-# Run specific server in development
-node build/index.js
-```
-
-### Adding a New Server
-
-Each MCP server follows this structure:
-
-```typescript
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-
-const server = new Server({
-  name: "platform-name",
-  version: "1.0.0",
-});
-
-// Define tools
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [
-    {
-      name: "tool_name",
-      description: "Tool description",
-      inputSchema: {
-        type: "object",
-        properties: { /* parameters */ },
-        required: ["param1", "param2"]
-      }
-    }
-  ]
-}));
-
-// Handle tool calls
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  // Implementation
-});
-
-const transport = new StdioServerTransport();
-await server.connect(transport);
-```
-
-## Use Cases
-
-### 1. **Target Validation**
-- Find a gene target
-- Get protein structure & function
-- Find compounds that interact with it
-- Check clinical trials using those compounds
-- Review literature evidence
-
-### 2. **Drug Repurposing**
-- Identify a disease
-- Find approved drugs in clinical use
-- Check their targets
-- Find other diseases those targets are associated with
-- Predict new indications
-
-### 3. **Biomarker Discovery**
-- Start with a disease
-- Find associated genetic variants
-- Map to genes & proteins
-- Check tissue expression
-- Link to diagnostic compounds & assays
-
-### 4. **Personalized Medicine**
-- Analyze patient's genetic variants
-- Check pharmacogenomic profiles
-- Get dosing recommendations
-- Identify relevant clinical trials
-- Find alternative drugs based on genetic profile
-
-## Roadmap
-
-- [ ] Enhanced ID mapping automation
-- [ ] Workflow templates for common research scenarios
-- [ ] Artifact generation (reports, code, visualizations)
-- [ ] Computational prioritization algorithms
-- [ ] Gap analysis (what data is missing)
-- [ ] Hypothesis generation from cross-platform data
-- [ ] Result export to R/Python for further analysis
-- [ ] Reproducibility & versioning of research workflows
-
-## Contributing
-
-This is a research project integrating public biomedical databases. Contributions welcome for:
-
-- Adding new platforms
-- Improving tool definitions
-- Enhancing documentation
-- Bug fixes and optimizations
-- Integration examples
-
-## License
-
-[Specify your license - MIT, Apache 2.0, etc.]
-
-## Citation
-
-If you use BURP in your research, please cite:
-
-```bibtex
-@software{burp,
-  title={BURP: Bio Unified Research Platform},
-  author={[Your Name/Organization]},
-  year={2024},
-  url={https://github.com/[your-repo]}
-}
-```
-
-## Support & Issues
-
-- 📖 **Documentation**: See `PLATFORM_OVERVIEW_AND_CONNECTIONS.md` for detailed platform mappings
-- 🐛 **Issues**: Report bugs on GitHub
-- 💬 **Questions**: Open a discussion
-
-## Acknowledgments
-
-This project integrates public data from:
-- EMBL-EBI (ChEMBL, UniProt, Ensembl, Reactome)
-- NCBI (PubMed, ClinVar)
-- NIH (Open Targets, ClinicalTrials.gov)
-- PubChem
-- PharmGKB
-
-All data is used in compliance with the respective platform's terms of service.
+> *"Which kinase inhibitors in clinical trials target proteins linked to HER2-positive breast cancer, and what pharmacogenomic variants affect their dosing?"*
+>
+> Answering that by hand means Open Targets → Ensembl → UniProt → ChEMBL → ClinicalTrials.gov → PharmGKB, with a different identifier scheme at every step. BURP does that loop for you and links every claim back to a source record.
 
 ---
 
-**Made with 🧬 for bioinformatics research**
+## The product problem
+
+Biomedical researchers already have great databases. What they lack is a way to **join** them. Each source has its own API and its own IDs (ENSG, UniProt accessions, CHEMBL IDs, PubChem CIDs, rsIDs, NCT numbers, PMIDs). Even the big integrators don't fully cover each other (Open Targets breaks on ClinPGx and UniProt lookups, for example). So a cross-database question turns into an afternoon of copying IDs between browser tabs.
+
+A plain chatbot doesn't solve this. It makes up plausible identifiers, and researchers can't use an answer they can't trace. The product constraints I designed against:
+
+1. **Every fact must come from a tool call, not model memory**, and every ID has to be checkable.
+2. **ID mapping is the core skill.** If the agent can't get reliably from a gene symbol to the right drug and trial records, nothing downstream works.
+3. **It has to stay affordable per question.** Real research questions take 10–20 tool calls and return very large JSON.
+4. **Quality must be measurable.** "It seems better" doesn't count as a release criterion.
+
+---
+
+## Agent design (overview)
+
+The agent is a **single tool-using loop** that I wrote by hand on top of the Vercel AI SDK instead of using an agent framework. That gives me control over the four things that decide whether a research agent works in production: **which tools the model sees, what tool output it reads, what gets cached, and what gets measured.**
+
+```mermaid
+flowchart LR
+    U[Researcher] -->|SSE| API[Hono API<br/>auth · rate + cost limits]
+    API --> LOOP
+
+    subgraph LOOP[Agent loop · processChat]
+        direction TB
+        CTX[Context assembly<br/>system prompt · replayed transcript<br/>cache breakpoints]
+        LLM[LLM call<br/>Claude / Gemini]
+        DISP[Tool dispatch]
+        CTX --> LLM --> DISP --> CTX
+    end
+
+    DISP -->|core + discovered tools| MCP[Unified MCP server<br/>~230 tools · 10 platforms]
+    DISP -->|search_available_tools| HS[Hybrid tool search<br/>BM25 + embeddings · RRF]
+    DISP -->|inspect_artifact| ART[Artifact store<br/>jq queries]
+    MCP -->|large output| LO[Noise filters → artifact + schema preview]
+    LO --> ART
+
+    MCP --> EXT[(Open Targets · Ensembl · UniProt · ChEMBL · PubChem<br/>ClinVar · PubMed · ClinicalTrials · Reactome · ClinPGx)]
+
+    LOOP -. spans, cost, scores .-> LF[Langfuse<br/>traces · evals · feedback]
+    LOOP --> DB[(SQLite · Drizzle<br/>transcripts · usage ledger)]
+```
+
+### 1. ~230 tools don't fit in a prompt, so the catalog has two tiers
+
+Loading every tool schema on every call would fill a large share of the context window before the user has asked anything, and tool-choice accuracy drops as the list grows.
+
+- **Always-loaded core (~10 tools):** the ID-resolution entry points, i.e. gene symbol → ENSG, drug name → CHEMBL, rsID → gene, condition → NCT. They're set per platform in `config.yaml` (`always_loaded_tools`).
+- **Deferred tools (the rest):** the model finds them through a `search_available_tools` system tool. That runs **hybrid search**: BM25 over SQLite FTS plus embedding similarity, merged with Reciprocal Rank Fusion. Keyword matches get extra weight on short queries (`"clinvar variant"`), and embeddings get more on descriptive ones.
+- **Provider-aware wiring:** on Anthropic the catalog uses native `defer_loading` with `tool_reference` results, so discovered tools become callable without changing the cached prefix. On other providers, matching tools are injected into the active set on the fly.
+- The embedding index **syncs itself**: at boot and whenever the MCP tool set changes, only new or changed tools are re-embedded. If no embedding key is set, search falls back to keyword-only.
+
+→ `app/server/orchestration/context/tool-catalog.ts`, `app/server/search/hybrid-search.ts`, `app/server/embeddings/`
+
+### 2. Tool output is the real context problem, so it's handled in layers
+
+A single UniProt or ChEMBL call can return megabytes of JSON. Truncating it loses data, and passing it through as-is overflows the context. Each MCP result goes through a fixed pipeline:
+
+| Size after step | What the model receives |
+|---|---|
+| Small enough | The raw output, inline |
+| Too large → **deterministic noise filters** (jq policies per platform or tool, e.g. strip sequences and evidence arrays, cap result lists) | The reduced JSON, inline |
+| Still too large | Stored as a **session-scoped artifact**. The model gets a **schema preview** (shape, sample items, sizes) plus an artifact ID |
+
+The model then pulls exactly what it needs with an `inspect_artifact` tool that runs **jq filters** against the stored data (`[.results[] | select(.phase >= 3) | {id, name}]`), with timeouts and output caps. The model only sees the full data through targeted queries.
+
+→ `app/server/orchestration/large-output.ts`, `app/server/orchestration/tools/{noise-reduction,schema-preview,artifact-store,jq-engine}.ts`
+
+### 3. Context assembly is built for prompt caching and lossless replay
+
+Multi-turn research is expensive if each turn re-sends the whole conversation uncached, so the context layout is deliberate:
+
+- The tool catalog is **sorted and hashed**. If it ever changes between turns, a `catalog_changed` warning is logged, because that silently breaks the cache.
+- Cache breakpoints sit on the system prompt, the **previous call's last message**, and the current last message, so each loop iteration reads the prefix the previous one wrote.
+- The transcript is stored **as the provider returned it**, including thinking signatures and provider metadata that later calls need, and tagged with a `contextVersion` (a hash of the system prompt + provider options). If the prompt or model changes, old history degrades gracefully instead of corrupting the request.
+- A separate **prompt-cache gate** script checks cache hit behaviour and lossless replay against the live API after SDK or model upgrades.
+
+→ `app/server/orchestration/context/`, `app/scripts/prompt-cache-gate/`
+
+### 4. Grounding by construction
+
+- The system prompt requires tools over training knowledge, evidence over recommendations, and links for every PMID and NCT ID.
+- Every tool result is stamped `[fetched_at: <UTC>]`, so the model can tell that a trial's recruitment status from three turns ago may be out of date and fetch it again.
+- **`id_grounding`** is a measured metric, not a hope: it checks that every database ID in an answer appeared in evidence the model actually had *before* writing it (see [Evals](#evaluation-as-code)).
+
+### 5. A loop that survives production
+
+The loop is an `AsyncGenerator` of typed stream events (`tool_start`, `tool_end`, text, reasoning, usage). It's consumed directly by the SSE route and by the eval runner, so evals exercise exactly the code path users hit.
+
+- **Per-session turn lock**, client-disconnect and server-shutdown **abort propagation** all the way down to in-flight HTTP requests, and a max-iterations guard.
+- **Cost as a first-class limit:** every call is metered in pico-USD, including cache read/write pricing tiers. A turn budget is checked before each model call, and users have daily and monthly cost caps. Failed and aborted turns still write an accurate usage ledger.
+- **Errors are classified** (refusal, budget, tool timeout, upstream failure) into a user-facing message and a machine-readable code that feeds traces and evals.
+
+→ `app/server/orchestration/chat-v2.ts`, `tool-dispatch.ts`, `cost-budget.ts`, `usage-meter.ts`
+
+### 6. One MCP server, many unreliable upstreams
+
+All 10 platforms live in **one unified MCP server** (a stdio child process) instead of ten. Each platform is a module that exports `{ name, tools, handlers }`, and tools are namespaced as `platform__tool`. Adding a database means adding a module.
+
+Public bioinformatics APIs are flaky in different ways, so every client goes through a **shared HTTP retry layer**: error classification (retryable vs. not, per status/reason), exponential backoff with jitter, a total time budget per tool call, `Retry-After` handling for 429s, and abortable token-bucket rate limiting for the NCBI APIs (PubMed and ClinVar), which allow more requests per second when an API key is set. Retry attempts and upstream timings appear as metadata on each tool span.
+
+→ `mcp-server/src/shared/http-retry*.ts`, `mcp-server/src/platforms/*/`
+
+---
+
+## Evaluation as code
+
+Datasets, metrics and rubrics are **versioned in git** and synced to Langfuse, which stores traces, experiment runs and scores.
+
+```text
+trace every turn  →  run datasets as experiments  →  review failing traces  →  grow datasets from real traces
+```
+
+- **Datasets:** `smoke` (cheap, runs on every change) and `deep` (multi-turn target-selection cases, runs before releases). Items carry per-turn checkpoints with accepted aliases, expected tool globs and a `reviewed_by` field. Unreviewed, model-drafted expectations run but never count toward pass/fail.
+- **Code evaluators** (pure functions, fixture-tested): `id_grounding`, `checkpoint_recall`, `expected_tool_coverage`, `turn_outcome`, `answer_truncated`, `tool_error_count`.
+- **Reproducible runs:** each experiment pins the dataset version and hash, git SHA, model, effort and evaluator hashes. It refuses to start if the hosted dataset drifted from git or tool search isn't indexed.
+- **Model × effort matrices:** `bun run eval --dataset smoke --matrix sonnet-effort --repeat 2` runs each arm under a shared cost cap and writes a comparison report with variance.
+- **User feedback** (thumbs and categorised comments from the UI) is synced onto the same traces as scores, which feeds the error-analysis loop.
+
+→ `app/evals/`, `app/server/observability/`
+
+---
+
+## The rest of the platform
+
+| Area | What's there |
+|---|---|
+| **Frontend** | Next.js (static export served by the API), streaming chat with collapsible reasoning and grouped tool-call cards, tool browser, PDF export of conversations, feedback dialog, admin panel, waitlist/access requests |
+| **API** | Hono + Zod OpenAPI (Swagger UI), Clerk JWT auth, per-user rate and token limits, SSE streaming |
+| **Data** | SQLite (WAL) + Drizzle ORM. Migrations run on boot inside one transaction, with an automatic `VACUUM INTO` backup first. Legacy schema adoption, and a CI drift guard that fails if the schema changes without a migration |
+| **Testing** | 110+ test files: unit tests for both packages, typechecks, and **nightly contract tests against the live upstream APIs** that upload a drift report when a database changes its response shape |
+| **Delivery** | Multi-stage Docker build on Fly.io, deploy on merge with generated release notes, and an agent-driven workflow that tries to fix failing CI on the dev branch |
+| **Observability** | Structured JSON logs with session/turn context, plus OpenTelemetry → Langfuse spans per generation, tool and retriever call |
+
+### Integrated databases
+
+| Platform | Domain | Platform | Domain |
+|---|---|---|---|
+| Open Targets | Target–disease–drug evidence | ClinVar | Clinical variant interpretation |
+| Ensembl | Genes, transcripts, variants | PubMed | Literature |
+| UniProt | Proteins & annotations | ClinicalTrials.gov | Trial registry |
+| ChEMBL | Bioactivity & drug mechanisms | Reactome | Pathways |
+| PubChem | Chemical structures & assays | ClinPGx (PharmGKB) | Pharmacogenomics |
+
+---
+
+## Repository layout
+
+```text
+app/
+├── server/
+│   ├── orchestration/     # agent loop, tool dispatch, context assembly, large-output pipeline, cost budget
+│   ├── search/            # hybrid BM25 + embedding tool search
+│   ├── embeddings/        # provider-agnostic embedder + incremental index sync
+│   ├── mcp/               # MCP child-process manager and tool registry
+│   ├── llm/               # provider abstraction (Anthropic, Google, OpenAI)
+│   ├── observability/     # Langfuse tracing, scores, feedback sync
+│   ├── db/                # Drizzle schema, migrations, queries, backup/verify CLIs
+│   └── routes/            # chat (SSE), sessions, tools, usage, admin, feedback
+├── evals/                 # datasets, metrics, rubrics, evaluators, experiment runner
+├── web/                   # Next.js frontend
+└── config.yaml            # models, pricing, tool tiers, search weights, artifact policies
+mcp-server/
+└── src/
+    ├── platforms/         # one module per database (client + tools + contract tests)
+    └── shared/            # HTTP retry, rate limiter, tool-call context
+docs/                      # architecture diagrams, codemaps, use cases, decisions
+plans/                     # design docs written before each major change
+```
+
+---
+
+## Running locally
+
+Requires [Bun](https://bun.sh) and Node 18+ (Node runs the MCP child process).
+
+```bash
+bun install
+cp app/.env.example app/.env              # ANTHROPIC_API_KEY, CLERK_SECRET_KEY; optional NCBI_API_KEY, OPENAI_API_KEY
+cp app/web/.env.example app/web/.env.local  # Clerk publishable key, API URL
+
+bun run dev        # builds the MCP server, then runs MCP + API (:3000) + web (:3001)
+bun run test       # unit tests for mcp-server and app
+bun run eval --dataset smoke --max-cost-usd 0.5
+```
+
+Models, tool tiers, search weights and output-handling policies are set in `app/config.yaml`. The database is created and migrated on first boot. See `docs/architecture.md` for deployment and operational details.
