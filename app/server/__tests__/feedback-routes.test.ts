@@ -9,6 +9,9 @@ import type { AppEnv } from "../types";
 const t = createTestDb();
 const q = createQueries(t.db);
 mock.module("../db", () => ({ db: t.db, sqlite: t.sqlite, ...q }));
+// bun's mock.module outlives this file and patches the loaded module in place,
+// so snapshot the real exports (a copy, not the live namespace) to put back in afterAll.
+const realClerk = { ...(await import("../middleware/clerk")) };
 mock.module("../middleware/clerk", () => ({
   clerkAuth: async (c: Context<AppEnv>, next: Next) => {
     c.set("userId", c.req.header("x-test-user") ?? null);
@@ -43,7 +46,10 @@ beforeEach(() => {
   setFeedbackSyncForTests(sync);
 });
 
-afterAll(() => setFeedbackSyncForTests(null));
+afterAll(() => {
+  setFeedbackSyncForTests(null);
+  mock.module("../middleware/clerk", () => realClerk);
+});
 
 describe("feedback routes", () => {
   it("rejects other users, unknown messages, user messages and bad values", async () => {
