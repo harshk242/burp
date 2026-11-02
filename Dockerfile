@@ -27,6 +27,8 @@ COPY app/package.json app/bun.lock ./
 RUN bun install
 COPY app/shared ./shared
 COPY app/server ./server
+COPY app/scripts/build-server.ts ./scripts/
+RUN bun run build:server
 
 FROM base AS runner
 
@@ -34,8 +36,10 @@ COPY --from=mcp-build /app/mcp-server ./mcp-server
 
 COPY --from=web-build /app/web/out ./public
 
-COPY --from=server-build /app/shared ./shared
-COPY --from=server-build /app/server ./server
+# The bundle must stay at server/index.js: APP_DIR resolves config.yaml and migrations from it.
+COPY --from=server-build /app/dist/server ./server
+COPY --from=server-build /app/server/db/migrations ./server/db/migrations
+# Runtime externals (node-jq's jq binary) still resolve from node_modules.
 COPY --from=server-build /app/node_modules ./node_modules
 
 COPY app/config.yaml ./
@@ -53,4 +57,4 @@ EXPOSE 3000
 
 VOLUME ["/app/data"]
 
-CMD ["bun", "run", "server/index.ts"]
+CMD ["bun", "server/index.js"]

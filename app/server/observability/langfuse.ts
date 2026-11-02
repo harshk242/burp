@@ -5,7 +5,7 @@ import { setLangfuseTracerProvider } from "@langfuse/tracing";
 import { defaultResource, resourceFromAttributes, type Resource } from "@opentelemetry/resources";
 import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { appConfig } from "../config";
+import { APP_DIR, appConfig } from "../config";
 import { logger } from "../logger";
 import { loadScoreConfigIds } from "./score-configs";
 
@@ -23,7 +23,7 @@ export function resolveRelease(env: Env = process.env, gitShortSha: () => string
 
 function readGitShortSha(): string | undefined {
   try {
-    const proc = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"], { cwd: import.meta.dir, stderr: "ignore" });
+    const proc = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"], { cwd: APP_DIR, stderr: "ignore" });
     return proc.success ? proc.stdout.toString().trim() || undefined : undefined;
   } catch {
     return undefined;
