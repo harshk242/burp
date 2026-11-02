@@ -1,8 +1,8 @@
 import { readFileSync } from "fs";
-import { dirname, join, resolve } from "path";
-import { fileURLToPath } from "url";
+import { join, resolve } from "path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
+import { APP_DIR } from "./app-dir";
 import { EMBEDDING_PROVIDERS } from "./embeddings/types";
 import { EnvironmentLimitSchema, IntegerLimitSchema, LimitSchema } from "./schemas/limits";
 
@@ -175,7 +175,7 @@ export type PlatformConfig = z.infer<typeof PlatformSchema>;
 export type EmbeddingConfig = z.infer<typeof EmbeddingConfigSchema>;
 export type ModelPricing = z.infer<typeof ModelPricingSchema>;
 
-export const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
+export { APP_DIR };
 const CONFIG_PATH = join(APP_DIR, "config.yaml");
 
 function loadYamlFile(): Record<string, unknown> {

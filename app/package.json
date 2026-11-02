@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "bun run --hot server/index.ts",
     "start": "bun run server/index.ts",
+    "build:server": "bun scripts/build-server.ts",
     "db:migrate": "bun run server/db/cli/migrate.ts",
     "db:generate": "drizzle-kit generate",
     "db:generate:custom": "drizzle-kit generate --custom",
