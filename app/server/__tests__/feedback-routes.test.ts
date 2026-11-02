@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
-import { Hono, type Context, type Next } from "hono";
+import { Hono } from "hono";
 import { createTestDb } from "../__test-utils__/db";
 import { createQueries } from "../db/queries";
 import { createFeedbackSync, feedbackScoreId, setFeedbackSyncForTests, type FeedbackSync } from "../observability/feedback-sync";
@@ -9,20 +9,22 @@ import type { AppEnv } from "../types";
 const t = createTestDb();
 const q = createQueries(t.db);
 mock.module("../db", () => ({ db: t.db, sqlite: t.sqlite, ...q }));
-mock.module("../middleware/clerk", () => ({
-  clerkAuth: async (c: Context<AppEnv>, next: Next) => {
-    c.set("userId", c.req.header("x-test-user") ?? null);
-    await next();
-  },
-  requireDbUser: async (_c: Context, next: Next) => next(),
-  requireUser: async (_c: Context, next: Next) => next(),
-}));
 
 const { feedback } = await import("../routes/feedback");
 const { sessions } = await import("../routes/sessions");
 const app = new Hono<AppEnv>().route("/messages", feedback).route("/sessions", sessions);
 
 seedTracedTurn(q);
+
+const savedEnv = { DEV_AGENT_TOKEN: process.env.DEV_AGENT_TOKEN, DEV_AGENT_EMAIL: process.env.DEV_AGENT_EMAIL };
+const agentToken = "feedback-routes-test-agent-token-0123456789";
+process.env.DEV_AGENT_TOKEN = agentToken;
+
+function authAs(userId: string) {
+  process.env.DEV_AGENT_EMAIL = q.userQueries.findById(userId)!.email;
+  return { authorization: `Bearer ${agentToken}` };
+}
+
 const key = { messageId: ids.assistantMessage, userId: ids.user };
 
 let writer: FakeScoreWriter;
@@ -31,7 +33,7 @@ let sync: FeedbackSync;
 function send(method: "PUT" | "DELETE", messageId: string, user = ids.user, body?: unknown) {
   return app.request(`/messages/${messageId}/feedback`, {
     method,
-    headers: { "x-test-user": user, "content-type": "application/json" },
+    headers: { ...authAs(user), "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
@@ -43,7 +45,13 @@ beforeEach(() => {
   setFeedbackSyncForTests(sync);
 });
 
-afterAll(() => setFeedbackSyncForTests(null));
+afterAll(() => {
+  setFeedbackSyncForTests(null);
+  for (const [name, value] of Object.entries(savedEnv)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+});
 
 describe("feedback routes", () => {
   it("rejects other users, unknown messages, user messages and bad values", async () => {
@@ -135,7 +143,7 @@ describe("feedback routes", () => {
     await send("PUT", ids.assistantMessage, ids.user, { value: 0, comment: "too long", categories: ["incomplete"] });
     q.messageFeedbackQueries.upsert({ ...key, userId: ids.otherUser }, 1, null);
     const history = async () => {
-      const res = await app.request(`/sessions/${ids.session}`, { headers: { "x-test-user": ids.user } });
+      const res = await app.request(`/sessions/${ids.session}`, { headers: authAs(ids.user) });
       return ((await res.json()) as { messages: { id: string; feedback?: unknown }[] }).messages;
     };
     const messages = await history();
