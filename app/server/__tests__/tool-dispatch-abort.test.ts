@@ -58,6 +58,26 @@ afterEach(() => mock.restore());
 afterAll(() => t.sqlite.close());
 
 describe("dispatchToolCall abort", () => {
+  it("returns a failed search record alongside the error result", async () => {
+    spyOn(hybridSearch, "search").mockRejectedValue(new Error("index unavailable"));
+    const gen = dispatchToolCall(
+      { toolCallId: "failed-search", toolName: SEARCH, input: { query: "TP53" } },
+      context(new AbortController()),
+    );
+    const events: StreamEvent[] = [];
+    for (;;) {
+      const step = await gen.next();
+      if (!step.done) { events.push(step.value); continue; }
+      expect(step.value.record).toEqual({
+        id: "failed-search", name: SEARCH, server: "system",
+        toolName: "search_available_tools", input: { query: "TP53" }, error: "index unavailable",
+      });
+      expect(step.value.part.output).toMatchObject({ type: "error-text" });
+      break;
+    }
+    expect(events.at(-1)).toMatchObject({ type: "tool_end", data: { error: "index unavailable" } });
+  });
+
   it("search tool: abort at the tool_start write skips the search", async () => {
     const turn = new AbortController();
     const search = spyOn(hybridSearch, "search").mockResolvedValue([]);

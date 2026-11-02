@@ -55,7 +55,7 @@ function count(value: unknown): number {
 export function splitCallUsage(
   usage: LanguageModelUsage | undefined,
   providerMetadata: ProviderMetadata | undefined
-): { usage: CallUsage; inputTokens: number; gap: number } {
+): { usage: CallUsage; inputTokens: number; gap: number; policy: string } {
   const details = usage?.inputTokenDetails;
   const noCache = count(details?.noCacheTokens);
   const cacheRead = count(details?.cacheReadTokens);
@@ -66,12 +66,14 @@ export function splitCallUsage(
   const write1h = Math.min(count(cacheCreation?.ephemeral_1h_input_tokens), cacheWrite);
 
   const gap = inputTokens - (noCache + cacheRead + cacheWrite);
+  const overflow = gap < 0;
   return {
+    policy: overflow ? "discard_inconsistent_split_as_uncached" : "fill_missing_as_uncached",
     usage: {
-      noCacheTokens: noCache + Math.max(0, gap),
-      cacheReadTokens: cacheRead,
-      cacheWrite5mTokens: cacheWrite - write1h,
-      cacheWrite1hTokens: write1h,
+      noCacheTokens: overflow ? inputTokens : noCache + Math.max(0, gap),
+      cacheReadTokens: overflow ? 0 : cacheRead,
+      cacheWrite5mTokens: overflow ? 0 : cacheWrite - write1h,
+      cacheWrite1hTokens: overflow ? 0 : write1h,
       outputTokens: count(usage?.outputTokens),
     },
     inputTokens,
@@ -114,6 +116,7 @@ export class UsageMeter {
           cache_read: usage?.inputTokenDetails?.cacheReadTokens,
           cache_write: usage?.inputTokenDetails?.cacheWriteTokens,
           gap: split.gap,
+          policy: split.policy,
         },
       });
     }

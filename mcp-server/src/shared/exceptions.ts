@@ -117,6 +117,9 @@ export class UpstreamError extends MCPError {
   }
 }
 
-export function isRejectedLookup(error: unknown): error is UpstreamError {
-  return error instanceof UpstreamError && (error.kind === 'not_found' || error.kind === 'bad_request');
+export function isRejectedLookup(error: unknown, invalidIdentifierStatuses: readonly number[] = []): error is UpstreamError {
+  if (!(error instanceof UpstreamError) || error.status === null) return false;
+  if (error.status === 404) return true;
+  if (error.status === 401 || error.status === 403) return false;
+  return error.kind === 'bad_request' && invalidIdentifierStatuses.includes(error.status);
 }

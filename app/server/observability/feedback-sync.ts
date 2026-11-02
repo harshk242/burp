@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { DbMessageFeedback, FeedbackKey } from "../db/queries";
 import { logger } from "../logger";
-import type { ScoreUpsert, ScoreWriter } from "./score-writer";
+import type { ScoreWriter } from "./score-writer";
 import { categoryScoreUpserts, writeCategoryScores } from "./feedback-category-scores";
 import { scoreConfigId } from "./score-configs";
 
@@ -10,8 +10,11 @@ export const FEEDBACK_SCORE_NAME = "user_feedback";
 export interface FeedbackSyncQueries {
   find(key: FeedbackKey): DbMessageFeedback | null;
   findPending(): DbMessageFeedback[];
-  markSynced(key: FeedbackKey, revision: number): boolean;
-  setDeleteUnconfirmed(key: FeedbackKey, unconfirmed: boolean): void;
+  claim(key: FeedbackKey, token: string, now: number, leaseMs: number): DbMessageFeedback | null;
+  acknowledge(key: FeedbackKey, token: string, revision: number): boolean;
+  cleanupDue(feedbackId: string, revision: number, now: number): number[];
+  advanceCleanup(feedbackId: string, revision: number, nextAt: number): void;
+  release(key: FeedbackKey, token: string, revision: number, retryAt?: number, failures?: number): void;
   traceIdForMessage(messageId: string): string | null;
 }
 
@@ -19,119 +22,84 @@ export interface FeedbackSyncOptions {
   queries: FeedbackSyncQueries;
   writer: ScoreWriter;
   environment: string;
-  sleep?: (ms: number) => Promise<void>;
   now?: () => number;
-  confirm?: { settleMs: number; pollMs: number; deadlineMs: number };
   backoff?: { baseMs: number; maxMs: number };
 }
 
 export type PushResult = "synced" | "pending" | "failed";
 
-export function feedbackScoreId({ messageId, userId }: FeedbackKey): string {
-  return `fb-${createHash("sha256").update(`${messageId}:${userId}`).digest("hex").slice(0, 32)}`;
+export function feedbackScoreId({ messageId, userId }: FeedbackKey, revision = 0): string {
+  const base = `fb-${createHash("sha256").update(`${messageId}:${userId}`).digest("hex").slice(0, 32)}`;
+  return revision === 0 ? base : `${base}-r${revision}`;
 }
 
-const DEFAULT_CONFIRM = { settleMs: 60_000, pollMs: 15_000, deadlineMs: 120_000 };
 const DEFAULT_BACKOFF = { baseMs: 60_000, maxMs: 60 * 60_000 };
-const SUPERSEDE_CHECK_MS = 5_000;
+const CLAIM_LEASE_MS = 60_000;
+const CLEANUP_INTERVAL_MS = 5 * 60_000;
 const RECONCILE_CONCURRENCY = 4;
 
 export function createFeedbackSync(options: FeedbackSyncOptions) {
   const { queries, writer, environment } = options;
-  const sleep = options.sleep ?? ((ms: number) => Bun.sleep(ms));
   const now = options.now ?? Date.now;
-  const confirm = options.confirm ?? DEFAULT_CONFIRM;
   const backoff = options.backoff ?? DEFAULT_BACKOFF;
-
   const tails = new Map<string, Promise<PushResult>>();
   const queued = new Set<string>();
-  const failures = new Map<string, { count: number; nextAt: number }>();
   let reconciling: Promise<void> | null = null;
 
-  async function waitUnlessSuperseded(ms: number, superseded: () => boolean): Promise<boolean> {
-    for (let left = ms; left > 0; left -= SUPERSEDE_CHECK_MS) {
-      await sleep(Math.min(left, SUPERSEDE_CHECK_MS));
-      if (superseded()) return true;
-    }
-    return superseded();
-  }
-
-  async function readBack(scoreId: string, superseded: () => boolean): Promise<"absent" | "present" | "superseded"> {
-    if (await waitUnlessSuperseded(confirm.settleMs, superseded)) return "superseded";
-    for (let waited = confirm.settleMs; ; waited += confirm.pollMs) {
-      if (!(await writer.exists(scoreId))) return "absent";
-      if (waited >= confirm.deadlineMs) return "present";
-      if (await waitUnlessSuperseded(confirm.pollMs, superseded)) return "superseded";
-    }
-  }
-
-  async function pushOnce(key: FeedbackKey, scoreId: string): Promise<PushResult> {
-    const row = queries.find(key);
-    if (!row || row.sync_pending === 0) return "synced";
-    const { revision } = row;
-    const traceId = queries.traceIdForMessage(key.messageId);
-    const synced = (): PushResult => (queries.markSynced(key, revision) ? "synced" : "pending");
-    if (!traceId) return synced();
-    const superseded = () => queries.find(key)?.revision !== revision;
-    const confirmed = (): PushResult => {
-      queries.setDeleteUnconfirmed(key, false);
-      return synced();
-    };
-    const writeCategories = () =>
-      writeCategoryScores(writer, categoryScoreUpserts(key, traceId, row.value === null ? [] : row.categories, environment));
-
-    if (row.value !== null) {
-      const score: ScoreUpsert = {
-        id: scoreId,
-        traceId,
-        name: FEEDBACK_SCORE_NAME,
-        value: row.value,
-        dataType: "NUMERIC",
-        environment,
-        comment: row.comment,
-        configId: scoreConfigId(FEEDBACK_SCORE_NAME),
-        metadata: { message_id: key.messageId, categories: row.categories },
-      };
-      await writer.upsert(score);
-      if (!(await writeCategories())) return "failed";
-      if (row.delete_unconfirmed === 0) return synced();
-      const outcome = await readBack(scoreId, superseded);
-      if (outcome === "present") return confirmed();
-      if (outcome === "superseded") return "pending";
-      await writer.upsert(score);
-      logger.warn("TRACE", "feedback_score_deleted_late", { data: { score_id: scoreId, revision } });
-      return "failed";
-    }
-
-    queries.setDeleteUnconfirmed(key, true);
-    await writer.remove(scoreId);
-    if (!(await writeCategories())) return "failed";
-    const outcome = await readBack(scoreId, superseded);
-    if (outcome === "absent") return confirmed();
-    if (outcome === "superseded") return "pending";
-    await writer.remove(scoreId);
-    logger.warn("TRACE", "feedback_tombstone_still_present", { data: { score_id: scoreId, revision } });
-    return "failed";
-  }
-
   async function attempt(key: FeedbackKey, scoreId: string): Promise<PushResult> {
-    let result: PushResult;
+    const token = randomUUID();
+    let row: DbMessageFeedback | null = null;
+    let retryAt = 0;
+    let failures = 0;
     try {
-      result = await pushOnce(key, scoreId);
+      row = queries.claim(key, token, now(), CLAIM_LEASE_MS);
+      if (!row) return queries.find(key)?.sync_pending === 0 ? "synced" : "pending";
+      const { revision } = row;
+      const traceId = queries.traceIdForMessage(key.messageId);
+      let result: PushResult = "synced";
+      if (row.sync_pending) {
+        if (traceId) {
+          if (row.value !== null) await writer.upsert({
+            id: feedbackScoreId(key, revision), traceId, name: FEEDBACK_SCORE_NAME,
+            value: row.value, dataType: "NUMERIC", environment, comment: row.comment,
+            configId: scoreConfigId(FEEDBACK_SCORE_NAME),
+            metadata: { message_id: key.messageId, feedback_revision: revision, categories: row.categories },
+          });
+          const categories = categoryScoreUpserts(key, traceId, row.value === null ? [] : row.categories, environment, revision);
+          if (!(await writeCategoryScores(writer, categories))) throw new Error("Category writes failed");
+        }
+        result = queries.acknowledge(key, token, revision) ? "synced" : "pending";
+      }
+      for (const retired of queries.cleanupDue(row.id, revision, now())) {
+        const ids = [feedbackScoreId(key, retired), ...categoryScoreUpserts(key, traceId ?? "", [], environment, retired).map((s) => s.id)];
+        const results = await Promise.allSettled(traceId ? ids.map((id) => writer.remove(id)) : []);
+        for (const [index, outcome] of results.entries()) if (outcome.status === "rejected") {
+          logger.warn("TRACE", "feedback_cleanup_failed", {
+            data: { score_id: ids[index], revision: retired },
+            error: outcome.reason instanceof Error ? outcome.reason : String(outcome.reason),
+          });
+        }
+        if (results.some((r) => r.status === "rejected")) throw new Error("Generation cleanup failed");
+        queries.advanceCleanup(row.id, retired, now() + CLEANUP_INTERVAL_MS);
+      }
+      return result;
     } catch (error) {
       logger.warn("TRACE", "feedback_sync_failed", {
         data: { score_id: scoreId, message_id: key.messageId },
         error: error instanceof Error ? error : String(error),
       });
-      result = "failed";
+      if (row && queries.find(key)?.revision === row.revision) {
+        failures = row.failures + 1;
+        retryAt = now() + Math.min(backoff.baseMs * 2 ** (failures - 1), backoff.maxMs);
+      }
+      return "failed";
+    } finally {
+      if (row) try { queries.release(key, token, row.revision, retryAt, failures); } catch (error) {
+        logger.warn("TRACE", "feedback_claim_release_failed", {
+          data: { score_id: scoreId }, error: error instanceof Error ? error : String(error),
+        });
+      }
     }
-    if (result === "failed") {
-      const count = (failures.get(scoreId)?.count ?? 0) + 1;
-      failures.set(scoreId, { count, nextAt: now() + Math.min(backoff.baseMs * 2 ** (count - 1), backoff.maxMs) });
-    } else {
-      failures.delete(scoreId);
-    }
-    return result;
   }
 
   function sync(key: FeedbackKey): Promise<PushResult> {
@@ -167,7 +135,7 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     }
     const due = rows
       .map((row) => ({ messageId: row.message_id, userId: row.user_id }))
-      .filter((key) => (failures.get(feedbackScoreId(key))?.nextAt ?? 0) <= now());
+      .filter((key) => (queries.find(key)?.retry_at ?? 0) <= now());
     if (due.length === 0) return;
     logger.info("TRACE", "feedback_reconcile", { data: { pending: rows.length, due: due.length } });
     let next = 0;

@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { createFileSink } from "./logger-file-sink";
 import { appConfig } from "./config";
 
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
@@ -27,8 +26,7 @@ export interface LogContext {
 }
 
 const LOG_DIR = appConfig.server.log_dir;
-const LOG_FILE = path.join(LOG_DIR, "app.log");
-const MAX_LOG_SIZE = 50 * 1024 * 1024;
+const fileSink = createFileSink({ directory: LOG_DIR });
 const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   DEBUG: 0,
   INFO: 1,
@@ -36,34 +34,6 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   ERROR: 3,
 };
 const MIN_LOG_LEVEL: LogLevel = appConfig.server.log_level;
-
-try {
-  if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-  }
-} catch {}
-
-function rotateIfNeeded(): void {
-  try {
-    if (!fs.existsSync(LOG_FILE)) return;
-    const stats = fs.statSync(LOG_FILE);
-    if (stats.size >= MAX_LOG_SIZE) {
-      const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      const rotated = LOG_FILE.replace(".log", `.${ts}.log`);
-      fs.renameSync(LOG_FILE, rotated);
-
-      const dir = path.dirname(LOG_FILE);
-      const rotatedFiles = fs
-        .readdirSync(dir)
-        .filter((f) => f.match(/^app\.\d.*\.log$/))
-        .sort()
-        .reverse();
-      for (const old of rotatedFiles.slice(5)) {
-        try { fs.unlinkSync(path.join(dir, old)); } catch {}
-      }
-    }
-  } catch {}
-}
 
 export function estimateTokens(text: string): number {
   if (!text) return 0;
@@ -102,27 +72,7 @@ function buildKVPairs(data: Record<string, unknown>): string {
   return parts.join(" ");
 }
 
-let buffer: string[] = [];
-let flushTimer: ReturnType<typeof setTimeout> | null = null;
-
-function scheduleFlush(): void {
-  if (flushTimer) return;
-  flushTimer = setTimeout(() => {
-    flushBuffers();
-    flushTimer = null;
-  }, 100);
-}
-
-function flushBuffers(): void {
-  if (buffer.length === 0) return;
-  try {
-    rotateIfNeeded();
-    fs.appendFileSync(LOG_FILE, buffer.join("\n") + "\n");
-  } catch {}
-  buffer = [];
-}
-
-process.on("exit", flushBuffers);
+process.on("exit", fileSink.flush);
 
 function writeLog(
   level: LogLevel,
@@ -172,8 +122,7 @@ function writeLog(
     console.log(line);
   }
 
-  buffer.push(line);
-  scheduleFlush();
+  fileSink.write(line);
 }
 
 function createLogFn(level: LogLevel) {
@@ -194,8 +143,8 @@ export const logger = {
   info: createLogFn("INFO"),
   warn: createLogFn("WARN"),
   error: createLogFn("ERROR"),
-  flush: flushBuffers,
-  getLogPath: () => LOG_FILE,
+  flush: fileSink.flush,
+  getLogPath: () => fileSink.file,
 };
 
 export function startTimer(): () => number {

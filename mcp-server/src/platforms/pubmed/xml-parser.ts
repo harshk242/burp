@@ -1,11 +1,11 @@
 import { XMLParser } from 'fast-xml-parser';
+import { decodeAuthors } from './author-decoder.js';
 import { XMLParseError } from './exceptions.js';
 import { ensureArray, extractText } from './utils.js';
 import type {
   ESearchResult,
   ArticleSummary,
   PubMedArticle,
-  AuthorInfo,
   MeshTerm,
   Grant,
   LinkResult,
@@ -24,7 +24,7 @@ const parser = new XMLParser({
     // Note: IdList is NOT included because there's only one per response
     // and including it causes IdList?.Id to fail (becomes array[0].Id)
     const arrayElements = [
-      'Id', 'Item', 'Author', 'AuthorList',
+      'Id', 'Item', 'Author',
       'ArticleId', 'MeshHeading', 'Keyword', 'Grant',
       'PublicationType', 'Link', 'LinkSet', 'Translation'
     ];
@@ -95,7 +95,7 @@ export function parseESummaryResult(xml: string): ArticleSummary[] {
       }
 
       return {
-        uid: extractText(doc.Id) || doc['@_uid'] as string || '',
+        uid: extractText(ensureArray(doc.Id)[0]) || doc['@_uid'] as string || '',
         pubdate: (itemMap.PubDate as string) || '',
         epubdate: itemMap.EPubDate as string,
         source: (itemMap.Source as string) || '',
@@ -174,20 +174,7 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
         }
       }
 
-      const authorListObj = articleData.AuthorList as AnyObject | undefined;
-      const authorList = authorListObj?.Author || [];
-      const authors: AuthorInfo[] = ensureArray(authorList).map((author: AnyObject) => {
-        const affiliationInfo = author.AffiliationInfo as AnyObject | undefined;
-        const identifier = author.Identifier as AnyObject | undefined;
-        return {
-          lastName: extractText(author.LastName),
-          foreName: extractText(author.ForeName),
-          initials: extractText(author.Initials),
-          affiliation: affiliationInfo ? extractText(affiliationInfo.Affiliation) : undefined,
-          orcid: identifier ? extractText(identifier['#text']) : undefined,
-          collectiveName: extractText(author.CollectiveName),
-        };
-      });
+      const authors = decodeAuthors(articleData.AuthorList);
 
       const journalData = articleData.Journal as AnyObject | undefined;
       const journalIssue = journalData?.JournalIssue as AnyObject | undefined;
@@ -311,7 +298,7 @@ export function parseELinkResult(xml: string): LinkResult {
       };
     }
 
-    const linkSetObj = linkSet as AnyObject;
+    const linkSetObj = ensureArray(linkSet)[0] as AnyObject;
     const idListObj = linkSetObj.IdList as AnyObject | undefined;
     const idList = ensureArray(idListObj?.Id || []).map(String);
     const linkSetDbList = ensureArray(linkSetObj.LinkSetDb || []);
@@ -323,7 +310,7 @@ export function parseELinkResult(xml: string): LinkResult {
         dbTo: extractText(lsdb.DbTo) || '',
         linkName: extractText(lsdb.LinkName) || '',
         link: ensureArray(lsdb.Link || []).map((link: AnyObject) => ({
-          id: extractText(link.Id) || '',
+          id: extractText(ensureArray(link.Id)[0]) || '',
           score: link.Score ? parseInt(extractText(link.Score), 10) : undefined,
         })),
       })),

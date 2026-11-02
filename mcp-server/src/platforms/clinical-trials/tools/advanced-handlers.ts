@@ -169,10 +169,18 @@ export const handleGetSimilarStudies: ToolHandler = async (args) => {
       if (condition) searchParams['query.cond'] = condition;
       break;
     }
-    case 'INTERVENTION':
-      searchParams['query.term'] =
-        referenceStudy.protocolSection.identificationModule.briefTitle;
+    case 'INTERVENTION': {
+      const names = referenceStudy.protocolSection.armsInterventionsModule?.interventions
+        ?.map((intervention) => intervention.name?.trim())
+        .filter((name): name is string => !!name);
+      if (!names?.length) {
+        throw new Error(`Reference study has no intervention names: ${nctId}`);
+      }
+      searchParams['query.intr'] = [...new Set(names)]
+        .map((name) => `"${name.replaceAll('"', ' ')}"`)
+        .join(' OR ');
       break;
+    }
     case 'SPONSOR': {
       const sponsor =
         referenceStudy.protocolSection.sponsorCollaboratorsModule?.leadSponsor

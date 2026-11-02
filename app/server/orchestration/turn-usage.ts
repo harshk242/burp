@@ -3,13 +3,16 @@ import { v4 as uuidv4 } from "uuid";
 import { db, chatSessionQueries, chatTurnQueries, dailyUsageQueries, messageQueries, usageEventQueries, userQueries } from "../db";
 import { estimateTokens, logger, type LogContext } from "../logger";
 import { getUtcDate, getUtcMonth, type CallCost, type CallUsage, type ChatCost } from "../usage";
+import { usageRecovery } from "./usage-reconciliation";
+import type { ChatTurnOutcome } from "../db";
 import { TurnError, type TurnErrorCode } from "./chat-turn";
+import { stripCacheMarkers } from "./context/transcript";
 import type { ToolCallRecord } from "./types";
 import type { UsageMeter } from "./usage-meter";
 
 interface CallInFlight {
   iteration: number;
-  sent: boolean;
+  state: "prepared" | "attempted" | "accepted" | "rejected" | "completed";
   streamedChars: number;
   request?: LanguageModelCallStartEvent;
 }
@@ -19,6 +22,7 @@ interface PreviousCall {
   messageCount: number;
   instructions: string;
   tools: Set<string>;
+  identity: string;
 }
 
 type PreparedTool = Record<string, unknown> & {
@@ -52,29 +56,45 @@ function referencedToolNames(messages: LanguageModelCallStartEvent["messages"]):
   return names;
 }
 
+export function inputIdentity(request: LanguageModelCallStartEvent, messageCount = request.messages.length): string {
+  return new Bun.CryptoHasher("sha256").update(JSON.stringify({
+    provider: request.provider, model: request.modelId, instructions: request.instructions,
+    tools: request.tools, messages: request.messages.slice(0, messageCount).map(stripCacheMarkers),
+  })).digest("hex");
+}
+
 export class CallTracker {
   private current: CallInFlight | null = null;
   private previous: PreviousCall | null = null;
-  private carried: { promptTokens: number; messageCount: number } | null = null;
+  private carried: { promptTokens: number; messageCount: number; identity?: string } | null = null;
 
   constructor(private readonly maxContextTokens = Infinity) {}
 
-  carryOver(promptTokens: number, messageCount: number): void {
-    this.carried = { promptTokens, messageCount };
+  carryOver(promptTokens: number, messageCount: number, identity?: string): void {
+    this.carried = { promptTokens, messageCount, identity };
   }
 
   get lastPromptTokens(): number | undefined {
     return this.previous?.promptTokens;
   }
 
+  get lastInputMessageCount(): number | undefined { return this.previous?.messageCount; }
+  get lastInputIdentity(): string | undefined { return this.previous?.identity; }
+
+  get reconciliationState(): "none" | "estimated" | "uncertain" {
+    return this.current?.state === "attempted" ? "uncertain" : this.current?.state === "accepted" ? "estimated" : "none";
+  }
+
   begin(iteration: number): void {
-    this.current = { iteration, sent: false, streamedChars: 0 };
+    this.current = { iteration, state: "prepared", streamedChars: 0 };
   }
 
   readonly fetch: typeof fetch = Object.assign(
     async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
+      const call = this.current;
+      if (call) call.state = "attempted";
       const res = await globalThis.fetch(input, init);
-      if (res.ok && this.current) this.current.sent = true;
+      if (call) call.state = res.ok ? "accepted" : "rejected";
       return res;
     },
     { preconnect: (...args: Parameters<typeof fetch.preconnect>) => globalThis.fetch.preconnect(...args) }
@@ -120,13 +140,15 @@ export class CallTracker {
       messageCount: request?.messages.length ?? 0,
       instructions: JSON.stringify(request?.instructions) ?? "",
       tools: new Set(loadedTools(request)),
+      identity: request ? inputIdentity(request) : "",
     };
+    if (this.current) this.current.state = "completed";
     this.current = null;
   }
 
   estimateCutOffCall(cacheWrites = false): { iteration: number; usage: CallUsage } | null {
     const call = this.current;
-    if (!call?.sent || !call.request) return null;
+    if (!call || !["attempted", "accepted"].includes(call.state) || !call.request) return null;
     const inputTokens = this.estimateInputTokens(call.request);
     return {
       iteration: call.iteration,
@@ -142,8 +164,10 @@ export class CallTracker {
 
   private carriedCall(request: LanguageModelCallStartEvent): PreviousCall | null {
     const carried = this.carried;
-    if (!carried || carried.messageCount > request.messages.length) return null;
+    if (!carried || carried.messageCount > request.messages.length ||
+      carried.identity !== inputIdentity(request, carried.messageCount)) return null;
     return {
+      identity: carried.identity,
       promptTokens: carried.promptTokens,
       messageCount: carried.messageCount,
       instructions: JSON.stringify(request.instructions) ?? "",
@@ -175,6 +199,7 @@ export interface FailedTurn {
   model: string;
   ctx: LogContext;
   errorCode: TurnErrorCode;
+  outcome?: ChatTurnOutcome;
 }
 
 export function recordFailedTurn(turn: FailedTurn): CallCost | undefined {
@@ -189,6 +214,7 @@ export function recordFailedTurn(turn: FailedTurn): CallCost | undefined {
         ctx,
         data: {
           iteration: cutOff.iteration,
+          reconciliation_state: turn.tracker.reconciliationState,
           error_code: errorCode,
           prompt_tokens: call.promptTokens,
           output_tokens: call.outputTokens,
@@ -197,29 +223,21 @@ export function recordFailedTurn(turn: FailedTurn): CallCost | undefined {
         },
       });
     }
-    if (meter.callCount === 0) return estimate;
-
     const cost = meter.summary();
     const usageEventId = uuidv4();
-    db.transaction(() => {
-      usageEventQueries.create({
-        id: usageEventId,
-        user_id: turn.userId,
-        date: getUtcDate(),
-        month: getUtcMonth(),
-        operation: "chat",
-        provider: turn.provider,
-        model: turn.model,
-        ...meter.ledgerFields(cost),
-        status: "error",
-        session_id: turn.sessionId,
-        message_id: null,
-        turn_id: turn.turnId,
-      });
-      dailyUsageQueries.incrementTokens(turn.userId, cost.inputTokens, cost.outputTokens);
+    usageRecovery.submit({
+      id: usageEventId,
+      turnId: turn.turnId,
+      outcome: turn.outcome,
+      event: meter.callCount === 0 ? undefined : {
+        id: usageEventId, user_id: turn.userId, date: getUtcDate(), month: getUtcMonth(),
+        operation: "chat", provider: turn.provider, model: turn.model,
+        ...meter.ledgerFields(cost), status: "error", session_id: turn.sessionId,
+        message_id: null, turn_id: turn.turnId, reconciliation_state: turn.tracker.reconciliationState,
+      },
     });
 
-    logger.info("CHAT", "failed_turn_usage_recorded", {
+    logger.info("CHAT", "failed_turn_usage_submitted", {
       ctx,
       data: {
         usage_event_id: usageEventId,
@@ -252,6 +270,8 @@ export interface OkTurn {
   toolCalls: ToolCallRecord[];
   iterations: number;
   lastPromptTokens: number | null | undefined;
+  lastInputMessageCount?: number;
+  lastInputIdentity?: string;
   finalFinishReason: string | null;
   toolErrorCount: number;
 }
@@ -292,6 +312,8 @@ export function recordOkTurn(turn: OkTurn): string {
       iterations: turn.iterations,
       assistantMessageId: assistantMsgId,
       lastPromptTokens: turn.lastPromptTokens,
+      lastInputMessageCount: turn.lastInputMessageCount,
+      lastInputIdentity: turn.lastInputIdentity,
       finalFinishReason: turn.finalFinishReason,
       toolErrorCount: turn.toolErrorCount,
     });

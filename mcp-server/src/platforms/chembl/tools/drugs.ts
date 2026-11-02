@@ -86,14 +86,10 @@ async function handleGetDrugInfo(args: Record<string, unknown>) {
   const moleculeResponse = await client.get(`/molecule/${args.chembl_id}.json`);
   const molecule = moleculeResponse.data;
 
-  let indications: unknown[] = [];
-  try {
-    const indicationResponse = await client.get('/drug_indication.json', {
-      params: { molecule_chembl_id: args.chembl_id, limit: 50 },
-    });
-    indications = indicationResponse.data.drug_indications || [];
-  } catch {
-  }
+  const indicationResponse = await client.get('/drug_indication.json', {
+    params: { molecule_chembl_id: args.chembl_id, limit: 50 },
+  });
+  const indications = indicationResponse.data.drug_indications || [];
 
   return {
     chembl_id: args.chembl_id,

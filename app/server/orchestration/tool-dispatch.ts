@@ -2,7 +2,7 @@ import type { ToolResultPart } from "ai";
 import { desanitizeToolName, type LLMProviderName } from "../llm";
 import { toolRegistry } from "../mcp/registry";
 import { logger, type LogContext } from "../logger";
-import { createMcpToolExecutor, executeMcpTool, upstreamTraceMetadata, type McpExecution } from "./tools/mcp-executor";
+import { executeMcpTool, upstreamTraceMetadata, type McpExecution } from "./tools/mcp-executor";
 import { handleLargeOutput } from "./large-output";
 import { runToolSearch } from "./tools/search-tool";
 import { SEARCH_TOOL_NAME, type ToolSet } from "./context/tool-catalog";
@@ -140,6 +140,10 @@ async function* runSearchTool(
   call: ParsedCall,
   dc: DispatchContext,
 ): AsyncGenerator<StreamEvent, DispatchResult> {
+  const record: ToolCallRecord = {
+    id: call.tc.toolCallId, name: call.originalName, server: "system",
+    toolName: call.name, input: call.input,
+  };
   const { activeTools, sanitize, provider } = dc;
   try {
     const query = (call.input as { query: string }).query;
@@ -152,7 +156,7 @@ async function* runSearchTool(
         if (activeTools[hit.name]) continue;
         const vTool = toolRegistry.getVercelTool(hit.fullName, sanitize);
         if (vTool) {
-          activeTools[vTool.key] = { ...vTool.tool, execute: createMcpToolExecutor(hit.fullName) };
+          activeTools[vTool.key] = vTool.tool;
         }
       }
     }
@@ -173,14 +177,7 @@ async function* runSearchTool(
     });
 
     return {
-      record: {
-        id: call.tc.toolCallId,
-        name: call.originalName,
-        server: "system",
-        toolName: call.name,
-        input: call.input,
-        output: search.uiSummary,
-      },
+      record: { ...record, output: search.uiSummary },
       part: {
         type: "tool-result" as const,
         toolCallId: call.tc.toolCallId,
@@ -193,7 +190,7 @@ async function* runSearchTool(
     if (dc.signal?.aborted) throw err;
     const errorMsg = err instanceof Error ? err.message : String(err);
     yield errorEnd(call, errorMsg);
-    return { part: resultPart(call, errorMsg, true) };
+    return { record: { ...record, error: errorMsg }, part: resultPart(call, errorMsg, true) };
   }
 }
 

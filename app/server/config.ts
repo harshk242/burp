@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { EMBEDDING_PROVIDERS } from "./embeddings/types";
+import { EnvironmentLimitSchema, IntegerLimitSchema, LimitSchema } from "./schemas/limits";
 
 const PlatformSchema = z.object({
   enabled: z.boolean().default(true),
@@ -77,11 +78,11 @@ const LangfuseConfigSchema = z.object({
 
 const AppConfigSchema = z.object({
   rate_limits: z.object({
-    default_daily_tokens: z.number().int().default(200_000),
+    default_daily_tokens: IntegerLimitSchema.default(200_000),
   }).default({}),
   usage: z.object({
-    default_daily_cost_limit_usd: z.number().default(0.25),
-    default_monthly_cost_limit_usd: z.number().default(3),
+    default_daily_cost_limit_usd: LimitSchema.default(0.25),
+    default_monthly_cost_limit_usd: LimitSchema.default(3),
     max_chat_input_chars: z.number().int().positive().default(20_000),
     pricing: z.record(z.string(), z.record(z.string(), ModelPricingSchema)).default({
       anthropic: {
@@ -229,8 +230,8 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   }
   if (e.LLM_MAX_TOOL_ITERATIONS) cfg.llm.max_tool_iterations = parseInt(e.LLM_MAX_TOOL_ITERATIONS, 10);
 
-  if (e.DEFAULT_DAILY_COST_LIMIT_USD) cfg.usage.default_daily_cost_limit_usd = parseFloat(e.DEFAULT_DAILY_COST_LIMIT_USD);
-  if (e.DEFAULT_MONTHLY_COST_LIMIT_USD) cfg.usage.default_monthly_cost_limit_usd = parseFloat(e.DEFAULT_MONTHLY_COST_LIMIT_USD);
+  if (e.DEFAULT_DAILY_COST_LIMIT_USD !== undefined) cfg.usage.default_daily_cost_limit_usd = EnvironmentLimitSchema.parse(e.DEFAULT_DAILY_COST_LIMIT_USD);
+  if (e.DEFAULT_MONTHLY_COST_LIMIT_USD !== undefined) cfg.usage.default_monthly_cost_limit_usd = EnvironmentLimitSchema.parse(e.DEFAULT_MONTHLY_COST_LIMIT_USD);
   if (e.MAX_CHAT_INPUT_CHARS) cfg.usage.max_chat_input_chars = parseInt(e.MAX_CHAT_INPUT_CHARS, 10);
 
   if (e.PORT) cfg.server.port = parseInt(e.PORT, 10);

@@ -1,175 +1,63 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createTestDb } from "../../__test-utils__/db";
 import { createQueries, type FeedbackKey } from "../../db/queries";
+import { feedbackSyncOperations } from "../../db/schema";
 import { createFeedbackSync, feedbackScoreId, type FeedbackSyncOptions } from "../feedback-sync";
-import { ScoreWriteError } from "../score-writer";
 import { FakeScoreWriter, ids, seedTracedTurn } from "./feedback-test-utils";
 
 const key: FeedbackKey = { messageId: ids.assistantMessage, userId: ids.user };
-const scoreId = feedbackScoreId(key);
-
 let q: ReturnType<typeof createQueries>;
 let writer: FakeScoreWriter;
 let clock: number;
-
-function makeSync(overrides: Partial<FeedbackSyncOptions> = {}) {
-  return createFeedbackSync({
-    queries: q.messageFeedbackQueries,
-    writer,
-    environment: "test",
-    sleep: async () => {},
-    now: () => clock,
-    ...overrides,
-  });
-}
-
+let db: ReturnType<typeof createTestDb>["db"];
 const row = () => q.messageFeedbackQueries.find(key)!;
-const mainLog = () => writer.log.filter((c) => c.id === scoreId);
-
+const scoreId = (revision = row().revision) => feedbackScoreId(key, revision);
+const mainLog = () => writer.log.filter((c) => c.op === "upsert" && c.id.startsWith("fb-"));
+function makeSync(overrides: Partial<FeedbackSyncOptions> = {}) {
+  return createFeedbackSync({ queries: q.messageFeedbackQueries, writer, environment: "test", now: () => clock, ...overrides });
+}
 beforeEach(() => {
-  q = createQueries(createTestDb().db);
+  db = createTestDb().db;
+  q = createQueries(db);
   seedTracedTurn(q);
   writer = new FakeScoreWriter();
-  writer.hold = (_op, id) => id === scoreId;
+  writer.hold = (op, id) => op === "upsert" && id.startsWith("fb-");
   clock = 1_000_000;
 });
 
-describe("feedback score id", () => {
-  it("is stable per (message, user) and differs between users", () => {
-    expect(feedbackScoreId(key)).toBe(scoreId);
-    expect(scoreId).toMatch(/^fb-[0-9a-f]{32}$/);
-    expect(feedbackScoreId({ ...key, userId: ids.otherUser })).not.toBe(scoreId);
+describe("feedback durable outbox", () => {
+  it("uses stable keys with distinct immutable revision IDs", () => {
+    expect(feedbackScoreId(key)).toMatch(/^fb-[0-9a-f]{32}$/);
+    expect(feedbackScoreId(key, 1)).not.toBe(feedbackScoreId(key, 2));
+    expect(feedbackScoreId({ ...key, userId: ids.otherUser })).not.toBe(feedbackScoreId(key));
   });
-});
-
-describe("message_feedback writes", () => {
-  it("bumps revision on every write, even two in the same second", () => {
-    q.messageFeedbackQueries.upsert(key, 1, null);
-    const first = row();
-    q.messageFeedbackQueries.upsert(key, 0, "wrong gene");
-    const second = row();
-    expect(second.updated_at - first.updated_at).toBeLessThanOrEqual(1);
-    expect([first.revision, second.revision]).toEqual([1, 2]);
-    expect(q.messageFeedbackQueries.clear(key)).toMatchObject({ revision: 3, value: null, comment: null, sync_pending: 1 });
-    expect(q.messageFeedbackQueries.upsert(key, 1, null)).toMatchObject({ id: first.id, revision: 4, value: 1 });
+  it("increments desired revision on every write and retains the tombstone", () => {
+    const first = q.messageFeedbackQueries.upsert(key, 1, null);
+    expect(q.messageFeedbackQueries.upsert(key, 0, "wrong gene")).toMatchObject({ id: first.id, revision: 2 });
+    expect(q.messageFeedbackQueries.clear(key)).toMatchObject({ revision: 3, value: null, sync_pending: 1, sync_state: "pending" });
   });
-
-  it("markSynced clears sync_pending only when the revision still matches", () => {
-    q.messageFeedbackQueries.upsert(key, 1, null);
-    q.messageFeedbackQueries.upsert(key, 0, null);
-    expect(q.messageFeedbackQueries.markSynced(key, 1)).toBe(false);
-    expect(row()).toMatchObject({ sync_pending: 1, synced_revision: 1 });
-    expect(q.messageFeedbackQueries.markSynced(key, 2)).toBe(true);
-    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 2 });
-  });
-});
-
-describe("feedback sync", () => {
-  it("upserts the score on the turn's trace and marks the row synced", async () => {
+  it("writes the traced score and records accepted revision", async () => {
     q.messageFeedbackQueries.upsert(key, 0, "missed the drug");
     expect(await makeSync().sync(key)).toBe("synced");
-    expect(writer.remote.get(scoreId)).toMatchObject({
-      id: scoreId,
-      traceId: ids.traceId,
-      name: "user_feedback",
-      value: 0,
-      dataType: "NUMERIC",
-      environment: "test",
-      comment: "missed the drug",
-    });
+    expect(writer.remote.get(scoreId())).toMatchObject({ traceId: ids.traceId, value: 0, comment: "missed the drug", metadata: { feedback_revision: 1 } });
+    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 1, sync_state: "accepted", claim_token: null });
+  });
+  it("persists failure backoff across sync instances", async () => {
+    q.messageFeedbackQueries.upsert(key, 1, null);
+    writer.failNext.push(new TypeError("fetch failed"));
+    expect(await makeSync().sync(key)).toBe("failed");
+    expect(row()).toMatchObject({ sync_pending: 1, synced_revision: null, failures: 1, retry_at: clock + 60_000 });
+    await makeSync().reconcile();
+    expect(mainLog()).toHaveLength(1);
+    clock += 60_000;
+    writer.failNext.push(new TypeError("fetch failed"));
+    await makeSync().reconcile();
+    expect(row().retry_at).toBe(clock + 120_000);
+    clock += 120_000;
+    await makeSync().reconcile();
     expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 1 });
-    expect(row().synced_at).not.toBeNull();
   });
-
-  for (const [label, error] of [
-    ["a transport failure", new TypeError("fetch failed")],
-    ["a 5xx", new ScoreWriteError("POST /api/public/scores failed: HTTP 503", 503)],
-  ] as const) {
-    it(`leaves the row pending with synced_revision unchanged after ${label}`, async () => {
-      const sync = makeSync();
-      q.messageFeedbackQueries.upsert(key, 1, null);
-      await sync.sync(key);
-      q.messageFeedbackQueries.upsert(key, 0, null);
-      writer.failNext.push(error);
-      expect(await sync.sync(key)).toBe("failed");
-      expect(row()).toMatchObject({ revision: 2, sync_pending: 1, synced_revision: 1 });
-      expect(writer.remote.get(scoreId)?.value).toBe(1);
-    });
-  }
-
-  it("create → clear: deletes only after the create resolved; synced only after delete and confirm read", async () => {
-    writer.mode = "manual";
-    const sync = makeSync();
-    q.messageFeedbackQueries.upsert(key, 1, null);
-    const createPush = sync.sync(key);
-    const create = await writer.nextHeld();
-    expect(create.op).toBe("upsert");
-
-    q.messageFeedbackQueries.clear(key);
-    const clearPush = sync.sync(key);
-    await Bun.sleep(5);
-    expect(writer.held).toHaveLength(0);
-
-    create.resolve();
-    expect(await createPush).toBe("pending");
-    expect(row()).toMatchObject({ sync_pending: 1, synced_revision: 1 });
-
-    const remove = await writer.nextHeld();
-    expect(remove.op).toBe("remove");
-    remove.resolve();
-    const confirm = await writer.nextHeld();
-    expect(confirm.op).toBe("exists");
-    expect(row().sync_pending).toBe(1);
-    confirm.resolve();
-    expect(await clearPush).toBe("synced");
-    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 2 });
-    expect(writer.remote.has(scoreId)).toBe(false);
-  });
-
-  it("deletes again when the confirm read still sees the score, and keeps the row pending", async () => {
-    q.messageFeedbackQueries.upsert(key, 1, null);
-    const sync = makeSync({ confirm: { settleMs: 60_000, pollMs: 15_000, deadlineMs: 120_000 } });
-    await sync.sync(key);
-    q.messageFeedbackQueries.clear(key);
-    writer.existsAnswer = () => true;
-    expect(await sync.sync(key)).toBe("failed");
-    const ops = mainLog().map((c) => c.op);
-    expect(ops[0]).toBe("upsert");
-    expect(ops.at(1)).toBe("remove");
-    expect(ops.filter((op) => op === "exists")).toHaveLength(5);
-    expect(ops.at(-1)).toBe("remove");
-    expect(row()).toMatchObject({ sync_pending: 1, synced_revision: 1 });
-
-    writer.existsAnswer = null;
-    clock += 60 * 60_000;
-    await sync.reconcile();
-    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 2 });
-  });
-
-  it("👎 held open while 👍 arrives: the 👍 push starts after, final remote value 1", async () => {
-    writer.mode = "manual";
-    const sync = makeSync();
-    q.messageFeedbackQueries.upsert(key, 0, "not useful");
-    const down = sync.sync(key);
-    const downCall = await writer.nextHeld();
-    expect(downCall.body?.value).toBe(0);
-
-    q.messageFeedbackQueries.upsert(key, 1, null);
-    const up = sync.sync(key);
-    await Bun.sleep(5);
-    expect(writer.held).toHaveLength(0);
-
-    downCall.resolve();
-    expect(await down).toBe("pending");
-    const upCall = await writer.nextHeld();
-    expect(upCall.body?.value).toBe(1);
-    upCall.resolve();
-    expect(await up).toBe("synced");
-    expect(writer.remote.get(scoreId)?.value).toBe(1);
-    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 2 });
-  });
-
-  it("coalesces requests while a push is already waiting to start", async () => {
+  it("coalesces waiting work and acknowledges only the desired revision", async () => {
     writer.mode = "manual";
     const sync = makeSync();
     q.messageFeedbackQueries.upsert(key, 0, null);
@@ -180,92 +68,116 @@ describe("feedback sync", () => {
     q.messageFeedbackQueries.upsert(key, 0, null);
     expect(sync.sync(key)).toBe(second);
     held.resolve();
-    await first;
+    expect(await first).toBe("pending");
+    expect(row()).toMatchObject({ sync_pending: 1, synced_revision: 1 });
     (await writer.nextHeld()).resolve();
     expect(await second).toBe("synced");
     expect(mainLog().map((c) => c.value)).toEqual([0, 0]);
-    expect(row()).toMatchObject({ revision: 3, sync_pending: 0 });
+    expect(writer.remote.get(scoreId())?.value).toBe(0);
   });
-
-  it("stops confirming a tombstone once a newer write supersedes it", async () => {
+  it("a deferred clear delete cannot erase replacement feedback after both pushes settle", async () => {
+    const sync = makeSync();
     q.messageFeedbackQueries.upsert(key, 0, null);
-    let sync = makeSync();
     await sync.sync(key);
-    q.messageFeedbackQueries.clear(key);
-    let clicked = false;
-    sync = makeSync({
-      sleep: async () => {
-        if (!clicked) q.messageFeedbackQueries.upsert(key, 1, null);
-        clicked = true;
-      },
-    });
-    expect(await sync.sync(key)).toBe("pending");
-    expect(mainLog().map((c) => c.op)).toEqual(["upsert", "remove"]);
-    expect(await sync.sync(key)).toBe("synced");
-    expect(writer.remote.get(scoreId)?.value).toBe(1);
-  });
-
-  it("a superseded delete that lands after the newer upsert is repaired before the row counts as synced", async () => {
-    q.messageFeedbackQueries.upsert(key, 0, null);
-    await makeSync().sync(key);
-    q.messageFeedbackQueries.clear(key);
+    const original = scoreId();
     writer.deferDeletes = true;
-    let clicked = false;
-    let sync = makeSync({
-      sleep: async () => {
-        if (!clicked) q.messageFeedbackQueries.upsert(key, 1, null);
-        clicked = true;
-      },
-    });
-    expect(await sync.sync(key)).toBe("pending");
-    expect(row().delete_unconfirmed).toBe(1);
-
-    sync = makeSync({ sleep: async () => writer.landDeletes() });
-    expect(await sync.sync(key)).toBe("failed");
-    expect(writer.remote.get(scoreId)?.value).toBe(1);
-    expect(row()).toMatchObject({ value: 1, sync_pending: 1, delete_unconfirmed: 1 });
-
-    clock += 60 * 60_000;
-    await sync.reconcile();
-    expect(row()).toMatchObject({ value: 1, sync_pending: 0, delete_unconfirmed: 0 });
-    expect(writer.remote.get(scoreId)?.value).toBe(1);
-
-    q.messageFeedbackQueries.upsert(key, 0, null);
-    const before = mainLog().length;
+    q.messageFeedbackQueries.clear(key);
     expect(await sync.sync(key)).toBe("synced");
-    expect(mainLog().slice(before).map((c) => c.op)).toEqual(["upsert"]);
+    q.messageFeedbackQueries.upsert(key, 1, "replacement");
+    expect(await sync.sync(key)).toBe("synced");
+    const replacement = scoreId();
+    expect(writer.remote.has(original)).toBe(true);
+    writer.landDeletes();
+    expect(writer.remote.has(original)).toBe(false);
+    expect(writer.remote.get(replacement)?.value).toBe(1);
+    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 3 });
+    expect(writer.log.some((c) => c.op === "exists")).toBe(false);
   });
-
-  it("marks rows synced without a remote write when the turn has no trace", async () => {
+  it("durably claims a key across separate instances", async () => {
+    writer.mode = "manual";
+    q.messageFeedbackQueries.upsert(key, 0, null);
+    const first = makeSync().sync(key);
+    const held = await writer.nextHeld();
+    const token = row().claim_token;
+    q.messageFeedbackQueries.upsert(key, 1, null);
+    expect(await makeSync().sync(key)).toBe("pending");
+    expect(row().claim_token).toBe(token);
+    expect(mainLog()).toHaveLength(1);
+    held.resolve();
+    expect(await first).toBe("pending");
+    writer.mode = "auto";
+    expect(await makeSync().sync(key)).toBe("synced");
+    expect(writer.remote.get(scoreId())?.value).toBe(1);
+  });
+  it("fences an expired owner and confirms cleanup of late old writes once", async () => {
+    writer.mode = "manual";
+    q.messageFeedbackQueries.upsert(key, 0, null);
+    const old = makeSync().sync(key);
+    const held = await writer.nextHeld();
+    q.messageFeedbackQueries.upsert(key, 1, null);
+    clock += 60_001;
+    writer.mode = "auto";
+    expect(await makeSync().sync(key)).toBe("synced");
+    held.resolve();
+    expect(await old).toBe("pending");
+    expect(row()).toMatchObject({ synced_revision: 2, sync_pending: 0 });
+    expect(writer.remote.has(scoreId(1))).toBe(true);
+    clock += 300_000;
+    await makeSync().reconcile();
+    expect(writer.remote.has(scoreId(1))).toBe(false);
+    expect(writer.remote.get(scoreId(2))?.value).toBe(1);
+    q.messageFeedbackQueries.advanceCleanup(row().id, 1, clock + 300_000);
+    expect(db.select().from(feedbackSyncOperations).all().find((op) => op.revision === 1)?.state).toBe("cleaned");
+    expect(q.messageFeedbackQueries.findPending()).toEqual([]);
+    const removes = writer.log.filter((op) => op.op === "remove").length;
+    clock += 300_000;
+    await makeSync().reconcile();
+    expect(writer.log.filter((op) => op.op === "remove")).toHaveLength(removes);
+  });
+  it("failed cleanup preserves its lifecycle state and retries with durable backoff", async () => {
+    const sync = makeSync();
+    q.messageFeedbackQueries.upsert(key, 0, null);
+    await sync.sync(key);
+    q.messageFeedbackQueries.upsert(key, 1, null);
+    await sync.sync(key);
+    expect(db.select().from(feedbackSyncOperations).all().find((op) => op.revision === 1)?.state).toBe("confirmation_pending");
+    clock += 300_000;
+    writer.failWhen = (op, id) => op === "remove" && id === scoreId(1) ? new Error("delete unavailable") : null;
+    await sync.reconcile();
+    expect(row()).toMatchObject({ failures: 1, retry_at: clock + 60_000 });
+    expect(db.select().from(feedbackSyncOperations).all().find((op) => op.revision === 1)?.state).toBe("confirmation_pending");
+    const removes = writer.log.filter((op) => op.op === "remove").length;
+    await makeSync().reconcile();
+    expect(writer.log.filter((op) => op.op === "remove")).toHaveLength(removes);
+    clock += 60_000;
+    await makeSync().reconcile();
+    expect(row()).toMatchObject({ failures: 2, retry_at: clock + 120_000 });
+    writer.failWhen = null;
+    clock += 120_000;
+    await makeSync().reconcile();
+    expect(db.select().from(feedbackSyncOperations).all().find((op) => op.revision === 1)?.state).toBe("cleaned");
+    expect(q.messageFeedbackQueries.findPending()).toEqual([]);
+  });
+  it("reclaims a crashed worker without losing its durable operation", async () => {
+    q.messageFeedbackQueries.upsert(key, 1, null);
+    expect(q.messageFeedbackQueries.claim(key, "crashed", clock, 60_000)).not.toBeNull();
+    expect(await makeSync().sync(key)).toBe("pending");
+    clock += 60_001;
+    expect(await makeSync().sync(key)).toBe("synced");
+    expect(q.messageFeedbackQueries.acknowledge(key, "crashed", 1)).toBe(false);
+  });
+  it("does not apply an older operation's retry delay to a newer desired revision", () => {
+    q.messageFeedbackQueries.upsert(key, 0, null);
+    q.messageFeedbackQueries.claim(key, "old", clock, 60_000);
+    q.messageFeedbackQueries.upsert(key, 1, null);
+    q.messageFeedbackQueries.release(key, "old", 1, clock + 60_000, 1);
+    expect(row()).toMatchObject({ revision: 2, retry_at: 0, failures: 0, claim_token: null });
+  });
+  it("marks untraced feedback accepted without remote requests", async () => {
     q = createQueries(createTestDb().db);
     seedTracedTurn(q, null);
     q.messageFeedbackQueries.upsert(key, 1, null);
     expect(await makeSync().sync(key)).toBe("synced");
     expect(writer.log).toEqual([]);
-    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 1 });
-  });
-
-  it("reconciliation lands feedback given while Langfuse was unreachable, with backoff", async () => {
-    const sync = makeSync({ backoff: { baseMs: 60_000, maxMs: 3_600_000 } });
-    q.messageFeedbackQueries.upsert(key, 1, null);
-    writer.failNext.push(new TypeError("fetch failed"));
-    expect(await sync.sync(key)).toBe("failed");
-
-    await sync.reconcile();
-    expect(mainLog()).toHaveLength(1);
-
-    writer.failNext.push(new TypeError("fetch failed"));
-    clock += 60_000;
-    await sync.reconcile();
-    expect(mainLog()).toHaveLength(2);
-    expect(row().sync_pending).toBe(1);
-
-    clock += 60_000;
-    await sync.reconcile();
-    expect(mainLog()).toHaveLength(2);
-    clock += 60_000;
-    await sync.reconcile();
-    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 1 });
-    expect(writer.remote.get(scoreId)?.value).toBe(1);
   });
 });

@@ -54,6 +54,8 @@ export const chatTurns = sqliteTable(
     error_message: text("error_message"),
     iterations: integer("iterations").notNull().default(0),
     last_prompt_tokens: integer("last_prompt_tokens"),
+    last_input_message_count: integer("last_input_message_count"),
+    last_input_identity: text("last_input_identity"),
     trace_id: text("trace_id"),
     final_finish_reason: text("final_finish_reason"),
     tool_error_count: integer("tool_error_count").notNull().default(0),

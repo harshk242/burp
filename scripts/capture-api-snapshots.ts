@@ -5,34 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-interface SchemaNode {
-  type: 'string' | 'number' | 'boolean' | 'null' | 'object' | 'array' | 'unknown';
-  path: string;
-  properties?: Record<string, SchemaNode>;
-  items?: SchemaNode | null;
-}
-
-function extractSchema(value: unknown, path = '$'): SchemaNode {
-  if (value === null) return { type: 'null', path };
-  if (Array.isArray(value)) {
-    return {
-      type: 'array',
-      path,
-      items: value.length > 0 ? extractSchema(value[0], `${path}[]`) : null,
-    };
-  }
-  if (typeof value === 'object') {
-    const node: SchemaNode = { type: 'object', path, properties: {} };
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      node.properties![k] = extractSchema(v, `${path}.${k}`);
-    }
-    return node;
-  }
-  if (typeof value === 'string') return { type: 'string', path };
-  if (typeof value === 'number') return { type: 'number', path };
-  if (typeof value === 'boolean') return { type: 'boolean', path };
-  return { type: 'unknown', path };
-}
+import { extractSchema, type SchemaNode } from '../mcp-server/src/shared/schema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.join(

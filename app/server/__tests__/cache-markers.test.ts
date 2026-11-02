@@ -9,7 +9,7 @@ import { mcpManager } from "../mcp/manager";
 import { ALWAYS_LOADED_TOOLS } from "../mcp/platforms.config";
 import { toolRegistry } from "../mcp/registry";
 import { applyCacheMarkers, cachedInstructions, EPHEMERAL_5M } from "../orchestration/context/cache-markers";
-import { SYSTEM_PROMPT } from "../orchestration/context/system-prompt";
+import { buildSystemPrompt } from "../orchestration/context/system-prompt";
 
 type LanguageModelV4StreamPart =
   Awaited<ReturnType<MockLanguageModelV4["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never;
@@ -180,7 +180,7 @@ describe("processChat cache markers", () => {
 
     expect(prompts).toHaveLength(3);
     for (const prompt of prompts) {
-      expect(prompt[0]).toMatchObject({ role: "system", content: SYSTEM_PROMPT, providerOptions: MARK });
+      expect(prompt[0]).toMatchObject({ role: "system", content: buildSystemPrompt(), providerOptions: MARK });
     }
     const messageMarks = prompts.map((prompt) => prompt.slice(1).map(marked));
     expect(messageMarks).toEqual([

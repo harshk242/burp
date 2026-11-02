@@ -13,6 +13,15 @@ import { initTracing, shutdownTracing, tracingEnvironment } from "./observabilit
 import { startFeedbackSync, stopFeedbackSync } from "./observability/feedback-sync";
 import { scoreWriterFromEnv } from "./observability/score-writer";
 import type { AppEnv } from "./types";
+import { AUTH_CONFIGURATION_MESSAGE, resolveAuthConfig, validateAuthConfig } from "./auth-config";
+
+validateAuthConfig();
+const authConfig = resolveAuthConfig();
+if (!authConfig.secretKey) {
+  logger.warn("STARTUP", authConfig.development ? "explicit_development_auth" : "auth_not_configured", {
+    data: { message: AUTH_CONFIGURATION_MESSAGE },
+  });
+}
 
 try {
   const { applied, adopted, backupPath, transactionMs } = runMigrations(sqlite);

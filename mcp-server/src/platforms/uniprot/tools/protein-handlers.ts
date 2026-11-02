@@ -323,7 +323,7 @@ const handleValidateAccession: ToolHandler = async (args) => {
       exists: true,
     };
   } catch (error) {
-    if (!isRejectedLookup(error)) throw error;
+    if (!isRejectedLookup(error, [400])) throw error;
     return {
       accession,
       isValid: false,

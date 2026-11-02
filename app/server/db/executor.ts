@@ -75,7 +75,7 @@ export function recordMigration(sqlite: Database, migration: MigrationMeta): voi
     .run(migration.hash, migration.folderMillis);
 }
 
-export function applyMigration(sqlite: Database, migration: MigrationMeta): void {
+function applyMigration(sqlite: Database, migration: MigrationMeta): void {
   for (const statement of migration.sql) {
     sqlite.prepare(statement).run();
   }

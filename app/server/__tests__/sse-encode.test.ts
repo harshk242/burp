@@ -42,8 +42,7 @@ describe("encodeSSE", () => {
       { type: "text_block_end", data: { isReasoning: true } },
       { type: "tool_start", data: { id: "c1", tool: "a__b", server: "a", toolName: "b", input: { n: 1 } } },
       { type: "tool_end", data: { id: "c1", tool: "a__b", output: "multi\nline\r\n" } },
-      { type: "done", data: { messageId: "m1" } },
-      { type: "usage", data: { inputTokens: 1, outputTokens: 2 } },
+      { type: "done", data: { messageId: "m1", inputTokens: 1, outputTokens: 2 } },
       { type: "error", data: { error: "boom" } },
     ];
 

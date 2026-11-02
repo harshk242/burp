@@ -22,6 +22,7 @@ export function generatePreview(
   return {
     _meta: {
       artifact_id: artifactId,
+      artifact_type: "json",
       raw_size_kb: Math.round(rawSizeKb),
       stored_size_kb: Math.round(storedSizeKb),
       tool: toolName,

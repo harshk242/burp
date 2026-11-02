@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, spyOn, mock } from "bun:test";
 import { mcpManager } from "../mcp/manager";
 import {
-  McpToolError,
-  createMcpToolExecutor,
   executeMcpTool,
   upstreamTraceMetadata,
 } from "../orchestration/tools/mcp-executor";
@@ -38,23 +36,6 @@ describe("executeMcpTool", () => {
       return { content: "late", isError: false };
     });
     await expect(executeMcpTool(TOOL, {}, turn.signal)).rejects.toBe(turn.signal.reason);
-  });
-});
-
-describe("createMcpToolExecutor (SDK execute)", () => {
-  it("returns the plain string on success", async () => {
-    spyOn(mcpManager, "callTool").mockResolvedValue({ content: { ok: true }, isError: false, meta: { retry } });
-    expect(await createMcpToolExecutor(TOOL)({})).toBe('{"ok":true}');
-  });
-
-  it("throws McpToolError with the tool text as message and the meta attached", async () => {
-    spyOn(mcpManager, "callTool").mockResolvedValue({ content: JSON.parse(errorJson), isError: true, meta: { retry } });
-
-    const error = await createMcpToolExecutor(TOOL)({}).then(() => null, (e: unknown) => e);
-    expect(error).toBeInstanceOf(McpToolError);
-    expect(error).toBeInstanceOf(Error);
-    expect((error as McpToolError).message).toBe(errorJson);
-    expect((error as McpToolError).meta).toEqual({ retry });
   });
 });
 

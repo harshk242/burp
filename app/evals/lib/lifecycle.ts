@@ -1,7 +1,7 @@
 export interface LifecycleDeps {
   shutdownTracing: () => Promise<void>;
   stopMcp: () => Promise<void>;
-  stopBackground?: () => void;
+  stopBackground?: () => void | Promise<void>;
   log?: (line: string) => void;
   exit?: (code: number) => void;
   drainTimeoutMs?: number;
@@ -14,7 +14,7 @@ async function bounded(promise: Promise<unknown>, ms: number): Promise<boolean> 
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<false>((resolve) => (timer = setTimeout(() => resolve(false), ms)));
   try {
-    return await Promise.race([promise.then(() => true, () => true), timedOut]);
+    return await Promise.race([promise.then(() => true), timedOut]);
   } finally {
     clearTimeout(timer);
   }
@@ -81,17 +81,28 @@ export class RunLifecycle {
 
   private async runCleanup(): Promise<void> {
     this.stoppingFlag = true;
-    this.deps.stopBackground?.();
+    await this.stage("background stop", () => this.deps.stopBackground?.());
     const drainMs = this.deps.drainTimeoutMs ?? 30_000;
-    if (this.active.size > 0 && !(await bounded(Promise.allSettled([...this.active.keys()]), drainMs))) {
-      this.log(`drain timed out after ${drainMs} ms; still running: ${[...this.active.values()].join(", ")}`);
-    }
-    try {
-      await this.deps.shutdownTracing();
-    } catch (error) {
-      this.log(`tracing flush failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    await this.stage("drain", async () => {
+      if (this.active.size > 0 && !(await bounded(Promise.allSettled([...this.active.keys()]), drainMs))) {
+        this.log(`drain timed out after ${drainMs} ms; still running: ${[...this.active.values()].join(", ")}`);
+      }
+    });
+    await this.stage("tracing flush", () => this.deps.shutdownTracing());
     const mcpMs = this.deps.mcpStopTimeoutMs ?? 5_000;
-    if (!(await bounded(this.deps.stopMcp(), mcpMs))) this.log(`MCP stop timed out after ${mcpMs} ms`);
+    await this.stage("MCP stop", async () => {
+      const stop = Promise.resolve().then(() => this.deps.stopMcp());
+      if (!(await bounded(stop, mcpMs))) {
+        this.log(`MCP stop timed out after ${mcpMs} ms`);
+      }
+    });
+  }
+
+  private async stage(name: string, run: () => void | Promise<void>): Promise<void> {
+    try {
+      await run();
+    } catch (error) {
+      this.log(`${name} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }

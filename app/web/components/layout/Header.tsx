@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton } from "@clerk/clerk-react";
+import { UserButton } from "@/lib/auth";
 import Image from "next/image";
 import { Menu, Wrench, Shield, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";

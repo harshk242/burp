@@ -19,9 +19,9 @@ export async function getGenePathways(geneSymbol: string): Promise<Pathway[]> {
   return client.getGenePathways(geneSymbol);
 }
 
-export async function getVIPGenes(): Promise<GeneInfo[]> {
+export async function getCPICGenesWithGuidelines(): Promise<GeneInfo[]> {
   const client = getClient();
-  const result = await client.searchGenes('', 100);
+  const result = await client.listCPICGenes(100);
   return result.results.filter(gene => gene.hasGuidelines);
 }
 
@@ -29,6 +29,6 @@ export async function getGenesWithAnnotations(
   maxResults: number = 50
 ): Promise<GeneInfo[]> {
   const client = getClient();
-  const result = await client.searchGenes('', maxResults);
+  const result = await client.listCPICGenes(maxResults);
   return result.results.filter(gene => gene.hasClinicalAnnotations);
 }

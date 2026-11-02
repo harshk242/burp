@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SignUp } from "@clerk/clerk-react";
+import { SignUp } from "@/lib/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SignUpPage() {

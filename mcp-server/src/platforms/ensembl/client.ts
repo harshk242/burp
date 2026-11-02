@@ -146,6 +146,7 @@ export const ENSEMBL_POLICY: RetryPolicy = Object.freeze({
   totalBudgetMs: 40_000,
   perAttemptTimeoutMs: 30_000,
   on429: 'wait',
+  rateLimitResetHeader: { name: 'x-ratelimit-reset', semantics: 'relative-seconds' as const },
 });
 
 export const ENSEMBL_BASE_URL = 'https://rest.ensembl.org';

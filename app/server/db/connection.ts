@@ -7,7 +7,13 @@ import * as schema from "./schema";
 
 export type DrizzleDb = BunSQLiteDatabase<typeof schema>;
 
-export function openDatabase(path: string): Database {
+export function openDatabase(path: string, options: { existing?: boolean } = {}): Database {
+  if (options.existing) {
+    if (isMemoryDbPath(path) || !existsSync(path)) throw new Error(`Existing database required: ${path}`);
+    const sqlite = new Database(path, { create: false, readwrite: true });
+    sqlite.run("PRAGMA foreign_keys = ON");
+    return sqlite;
+  }
   const memory = isMemoryDbPath(path);
   if (!memory) {
     const dir = dirname(path);

@@ -62,6 +62,7 @@ export const usageEvents = sqliteTable(
     llm_calls: integer("llm_calls"),
     long_context_calls: integer("long_context_calls").notNull().default(0),
     status: text("status", { enum: ["ok", "error"] }).notNull().default("ok"),
+    reconciliation_state: text("reconciliation_state", { enum: ["none", "estimated", "uncertain"] }).notNull().default("none"),
     usage_estimated: integer("usage_estimated").notNull().default(0),
     session_id: text("session_id").references(() => chatSessions.id, { onDelete: "set null" }),
     message_id: text("message_id").references(() => messages.id, { onDelete: "set null" }),

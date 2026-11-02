@@ -5,14 +5,27 @@ import * as tools from './tools/index.js';
 
 const TOOLS: Tool[] = [
   {
+    name: 'list_cpic_genes',
+    description: 'List CPIC pharmacogenes, independently of symbol search',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        maxResults: {
+          type: 'number',
+          description: 'Maximum number of genes to return',
+        },
+      },
+    },
+  },
+  {
     name: 'search_genes',
-    description: 'Search for pharmacogenes by name or symbol in PharmGKB',
+    description: 'Search for pharmacogenes by nonblank symbol in PharmGKB',
     inputSchema: {
       type: 'object' as const,
       properties: {
         query: {
           type: 'string',
-          description: 'Gene name or symbol to search for (e.g., CYP2D6, TPMT)',
+          description: 'Nonblank gene symbol to search for (e.g., CYP2D6, TPMT)',
         },
         maxResults: {
           type: 'number',
@@ -281,7 +294,7 @@ const TOOLS: Tool[] = [
 
   {
     name: 'get_database_stats',
-    description: 'Get PharmGKB database statistics',
+    description: 'Get scoped sample counts for CPIC genes/pathways and CYP2D6 annotations/guidelines/labels; drugs and variants are unsupported. Counts describe returned records, not database totals. Each sample reports available or failed status.',
     inputSchema: {
       type: 'object' as const,
       properties: {},
@@ -290,6 +303,9 @@ const TOOLS: Tool[] = [
 ];
 
 const handlers: Record<string, ToolHandler> = {
+  list_cpic_genes: async (args) => {
+    return getClient().listCPICGenes(args.maxResults as number | undefined);
+  },
   search_genes: async (args) => {
     return tools.searchGenes(
       args.query as string,

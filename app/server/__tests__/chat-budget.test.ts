@@ -10,6 +10,7 @@ import * as langfuse from "../observability/langfuse";
 import { resetTracingForTests } from "../observability/langfuse";
 import { installMemoryTracing, one } from "../observability/__tests__/trace-test-utils";
 import { SharedCostBudget, type CostBudget } from "../orchestration/cost-budget";
+import { UserCostBudgetRegistry } from "../orchestration/user-cost-budget";
 import type { StreamEvent } from "../orchestration/types";
 
 type StreamPart =
@@ -179,6 +180,82 @@ describe("cost budget", () => {
     expect(shared.exhausted).toBe(true);
     expect(turnRow(sessionId)).toMatchObject({ status: "error", error_code: "budget_exceeded", iterations: 1 });
     expect(Math.ceil(charges[0]! / 1e6)).toBe(ledgerMicrousd());
+  });
+});
+
+describe("user cost budget integration", () => {
+  it("shares charged spend across simultaneous turns in different sessions", async () => {
+    const registry = new UserCostBudgetRegistry(q.usageEventQueries);
+    const limits = { daily_cost_limit_microusd: 1, monthly_cost_limit_microusd: -1 };
+    const firstBudget = registry.acquire(USER_ID, limits);
+    const firstSession = crypto.randomUUID();
+    model = scriptedModel([toolTurn]);
+    const first = processChat(firstSession, USER_ID, "hi", undefined, { costBudget: firstBudget });
+    const secondBudget = registry.acquire(USER_ID, limits);
+    const secondSession = crypto.randomUUID();
+    try {
+      let event;
+      do {
+        event = await first.next();
+      } while (!event.done && event.value.type !== "tool_end");
+      expect(event.done).toBe(false);
+      expect(firstBudget.spentPicoUsd).toBeGreaterThan(1e6);
+      expect(q.usageEventQueries.getTotalsForDate(USER_ID).cost_microusd).toBe(0);
+      const second = await collect(processChat(secondSession, USER_ID, "hi", undefined, { costBudget: secondBudget }));
+      expect(modelCalls).toBe(1);
+      expect(second.find((e) => e.type === "error")?.data).toMatchObject({ code: "budget_exceeded" });
+      expect(turnRow(secondSession)).toMatchObject({ status: "error", error_code: "budget_exceeded" });
+    } finally {
+      await first.return(undefined);
+      firstBudget.release();
+      secondBudget.release();
+    }
+    expect(turnRow(firstSession).status).toBe("aborted");
+    expect(() => registry.acquire(USER_ID, { ...limits, daily_cost_limit_microusd: ledgerMicrousd() + 1 }).check()).not.toThrow();
+  });
+
+  it("stops a turn after its remaining daily budget is spent and persists the SSE failure", async () => {
+    const registry = new UserCostBudgetRegistry(q.usageEventQueries);
+    const budget = registry.acquire(USER_ID, { daily_cost_limit_microusd: 1, monthly_cost_limit_microusd: -1 });
+    model = scriptedModel([toolTurn]);
+    const sessionId = crypto.randomUUID();
+    let events: StreamEvent[] = [];
+    try {
+      events = await collect(processChat(sessionId, USER_ID, "hi", undefined, {
+        costBudget: budget, onUsageRecorded: () => budget.release(),
+      }));
+    } finally {
+      budget.release();
+    }
+    expect(modelCalls).toBe(1);
+    expect(events.find((event) => event.type === "error")?.data).toMatchObject({
+      code: "budget_exceeded", error: "You have used your daily dollar budget. Limits reset at midnight UTC.",
+    });
+    expect(turnRow(sessionId)).toMatchObject({ status: "error", error_code: "budget_exceeded" });
+    expect(ledgerMicrousd()).toBeGreaterThan(1);
+    expect(() => registry.acquire(USER_ID, { daily_cost_limit_microusd: ledgerMicrousd() + 1, monthly_cost_limit_microusd: -1 }).check()).not.toThrow();
+  });
+
+  it("settles recorded spend before yielding done so another active turn does not count it twice", async () => {
+    const registry = new UserCostBudgetRegistry(q.usageEventQueries);
+    const limits = { daily_cost_limit_microusd: 1_000_000, monthly_cost_limit_microusd: -1 };
+    const first = registry.acquire(USER_ID, limits);
+    const second = registry.acquire(USER_ID, limits);
+    model = scriptedModel([]);
+    const turn = processChat(crypto.randomUUID(), USER_ID, "hi", undefined, {
+      costBudget: first, onUsageRecorded: () => first.release(),
+    });
+    try {
+      for await (const event of turn) {
+        if (event.type !== "done") continue;
+        second.charge((limits.daily_cost_limit_microusd - ledgerMicrousd() - 1) * 1e6);
+        expect(() => second.check()).not.toThrow();
+        break;
+      }
+    } finally {
+      first.release();
+      second.release();
+    }
   });
 });
 

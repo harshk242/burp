@@ -195,4 +195,10 @@ bun run test       # unit tests for mcp-server and app
 bun run eval --dataset smoke --max-cost-usd 0.5
 ```
 
+For local development without Clerk, leave `CLERK_SECRET_KEY` empty and set
+`AUTH_MODE=development` in `app/.env` (or the environment used by Docker Compose).
+This explicitly enables a local admin identity and is disabled when
+`NODE_ENV=production`. Production requires `CLERK_SECRET_KEY` and refuses to start
+without it. Without either configuration, protected requests return HTTP 503.
+
 Models, tool tiers, search weights and output-handling policies are set in `app/config.yaml`. The database is created and migrated on first boot. See `docs/architecture.md` for deployment and operational details.

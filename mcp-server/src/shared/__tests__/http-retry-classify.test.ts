@@ -124,8 +124,8 @@ describe('Retry-After parsing', () => {
     expect(parseRetryAfter('-1', now)).toBeUndefined();
     expect(parseRetryAfter('2026-01-01T00:00:03Z', now)).toBeUndefined();
     expect(parseRetryAfter('9'.repeat(400), now)).toBeUndefined();
-    expect(parseRateLimitReset('-5', now)).toBeUndefined();
-    expect(parseRateLimitReset('9'.repeat(400), now)).toBeUndefined();
+    expect(parseRateLimitReset('-5', 'relative-seconds', now)).toBeUndefined();
+    expect(parseRateLimitReset('9'.repeat(400), 'relative-seconds', now)).toBeUndefined();
   });
 
   it('ignores missing or invalid values', () => {
@@ -134,19 +134,19 @@ describe('Retry-After parsing', () => {
   });
 
   it('parses x-ratelimit-reset as seconds or epoch seconds', () => {
-    expect(parseRateLimitReset('7', now)).toBe(7_000);
-    expect(parseRateLimitReset(String(now / 1_000 + 4), now)).toBe(4_000);
-    expect(parseRateLimitReset('later', now)).toBeUndefined();
+    expect(parseRateLimitReset('7', 'relative-seconds', now)).toBe(7_000);
+    expect(parseRateLimitReset(String(now / 1_000 + 4), 'epoch-seconds', now)).toBe(4_000);
+    expect(parseRateLimitReset('later', 'relative-seconds', now)).toBeUndefined();
   });
 
   it('reads Retry-After first, then x-ratelimit-reset, from a 429', () => {
     const both = axiosFailure({ status: 429, headers: { 'Retry-After': '2', 'x-ratelimit-reset': '9' } });
     const resetOnly = axiosFailure({ status: 429, headers: { 'x-ratelimit-reset': '9' } });
-    expect(getRetryAfterMs(both, now)).toBe(2_000);
-    expect(getRetryAfterMs(resetOnly, now)).toBe(9_000);
+    expect(getRetryAfterMs(both, now, { name: 'x-ratelimit-reset', semantics: 'relative-seconds' })).toBe(2_000);
+    expect(getRetryAfterMs(resetOnly, now, { name: 'x-ratelimit-reset', semantics: 'relative-seconds' })).toBe(9_000);
     for (const bad of ['-1', 'soon', '9'.repeat(400)]) {
       const fallback = axiosFailure({ status: 429, headers: { 'Retry-After': bad, 'x-ratelimit-reset': '9' } });
-      expect(getRetryAfterMs(fallback, now)).toBe(9_000);
+      expect(getRetryAfterMs(fallback, now, { name: 'x-ratelimit-reset', semantics: 'relative-seconds' })).toBe(9_000);
     }
     expect(getRetryAfterMs(axiosFailure({ status: 429 }), now)).toBeUndefined();
     expect(getRetryAfterMs(new Error('x'), now)).toBeUndefined();
@@ -155,5 +155,20 @@ describe('Retry-After parsing', () => {
   it('reads headers case-insensitively from plain objects', () => {
     expect(getHeader({ 'RETRY-AFTER': '3' }, 'retry-after')).toBe('3');
     expect(getHeader(undefined, 'retry-after')).toBeUndefined();
+  });
+});
+
+describe('explicit reset header semantics', () => {
+  it('decodes epoch milliseconds without an enormous delay', () => {
+    const now = 1_800_000_000_000;
+    expect(parseRateLimitReset(String(now + 4000), 'epoch-milliseconds', now)).toBe(4000);
+    expect(parseRateLimitReset('1000000001', 'relative-seconds', now)).toBe(1000000001000);
+    expect(parseRateLimitReset('7', 'epoch-seconds', now)).toBe(0);
+  });
+  it('ignores reset headers without platform configuration and honors a configured header name', () => {
+    const now = 1_800_000_000_000;
+    const error = axiosFailure({ status: 429, headers: { 'x-ratelimit-reset': '9', 'custom-reset': String(now + 1000) } });
+    expect(getRetryAfterMs(error, now)).toBeUndefined();
+    expect(getRetryAfterMs(error, now, { name: 'custom-reset', semantics: 'epoch-milliseconds' })).toBe(1000);
   });
 });

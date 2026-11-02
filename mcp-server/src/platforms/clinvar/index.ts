@@ -175,7 +175,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'get_variant_frequency',
-    description: 'Get population frequency data for a variant.',
+    description: 'Get allele frequency data reported by ClinVar ESummary, including source and minor allele when provided.',
     inputSchema: {
       type: 'object',
       properties: {

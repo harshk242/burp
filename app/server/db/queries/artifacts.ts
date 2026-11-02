@@ -29,19 +29,19 @@ export function createArtifactQueries(db: DrizzleDb) {
         .all().length;
     },
 
-    evictOverBudget(sessionId: string, maxChars: number, keepId: string): string[] {
+    evictOverBudget(sessionId: string, maxBytes: number, keepId: string): string[] {
       return db
         .delete(artifacts)
         .where(
           sql`${artifacts.id} IN (
             SELECT id FROM (
-              SELECT id, SUM(stored_size_chars) OVER (
+              SELECT id, SUM(stored_size_bytes) OVER (
                 ORDER BY created_at DESC, rowid DESC
               ) AS newer_total
               FROM artifacts
               WHERE session_id = ${sessionId}
             )
-            WHERE newer_total > ${maxChars} AND id != ${keepId}
+            WHERE newer_total > ${maxBytes} AND id != ${keepId}
           )`,
         )
         .returning({ id: artifacts.id })

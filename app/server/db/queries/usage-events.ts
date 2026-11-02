@@ -1,6 +1,8 @@
 import { and, count, eq, sql, type SQL } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { usageEvents } from "../schema";
+import { createDailyUsageQueries } from "./daily-usage";
+import type { UsageLedgerFields } from "../../orchestration/usage-meter";
 import type { DbUsageEvent } from "../../types";
 
 export interface UsageTotals {
@@ -25,8 +27,28 @@ export function createUsageEventQueries(db: DrizzleDb) {
   }
 
   return {
-    create(event: Omit<DbUsageEvent, "created_at">): void {
+    exists(id: string): boolean {
+      return !!db.select({ id: usageEvents.id }).from(usageEvents).where(eq(usageEvents.id, id)).get();
+    },
+
+    create(event: Omit<DbUsageEvent, "created_at" | "reconciliation_state"> & Partial<Pick<DbUsageEvent, "reconciliation_state">>): void {
       db.insert(usageEvents).values(event).run();
+    },
+
+    findPendingReconciliation(): DbUsageEvent[] {
+      return db.select().from(usageEvents).where(sql`${usageEvents.reconciliation_state} != 'none'`).all();
+    },
+
+    reconcile(id: string, measured: UsageLedgerFields): boolean {
+      return db.transaction(() => {
+        const previous = db.select().from(usageEvents).where(eq(usageEvents.id, id)).get();
+        if (!previous || previous.reconciliation_state === "none") return false;
+        db.update(usageEvents).set({ ...measured, usage_estimated: 0, reconciliation_state: "none" })
+          .where(eq(usageEvents.id, id)).run();
+        createDailyUsageQueries(db).incrementTokens(previous.user_id,
+          measured.input_tokens - previous.input_tokens, measured.output_tokens - previous.output_tokens, previous.date);
+        return true;
+      });
     },
 
     findByTurnId(turnId: string): DbUsageEvent[] {

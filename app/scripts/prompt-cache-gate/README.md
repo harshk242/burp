@@ -20,7 +20,11 @@ Set `ANTHROPIC_API_KEY` in `app/.env` or the environment. The chat provider and
 model come from `app/config.yaml` (or `LLM_PROVIDER` / `LLM_CHAT_MODEL` overrides);
 use Anthropic and a model supporting the plan's adaptive thinking and tool search.
 Phase 4b uses effort `high` by default to elicit signed thinking; `GATE_EFFORT`
-can override it. The configured platforms must include the ChEMBL tools used by
+can override it with `low`, `medium`, `high`, `xhigh`, or `max`. Invalid values
+fail before requests. Live Phase 4b (including `all`) first checks the Models API
+for adaptive thinking, the selected effort, and configured token limits. Cache
+creation is judged from observed cache writes, without assuming a token threshold
+shared by all models. The configured platforms must include the ChEMBL tools used by
 the scenarios. The gate discovers tool schemas over MCP stdio and stubs tool
 results; it does not need an embedding index or a running HTTP backend.
 

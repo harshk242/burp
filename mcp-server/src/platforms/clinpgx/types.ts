@@ -70,6 +70,7 @@ export interface DosingGuideline {
   genes: string[];
   drugs: string[];
   recommendation?: string;
+  hasRecommendation?: boolean;
   implications?: string;
   phenotypeCategory?: string;
   alternateDrug?: string;

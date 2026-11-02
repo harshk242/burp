@@ -20,6 +20,7 @@ export interface ToolEmbeddingsIndex {
 }
 
 export type IndexRejectReason =
+  | "read_failed"
   | "file_missing"
   | "malformed_json"
   | "version_mismatch"
@@ -29,7 +30,8 @@ export type IndexRejectReason =
 
 export type IndexReadResult =
   | { ok: true; index: ToolEmbeddingsIndex }
-  | { ok: false; reason: IndexRejectReason; detail?: Record<string, unknown> };
+  | { ok: false; reason: "read_failed"; cause: unknown; detail?: Record<string, unknown> }
+  | { ok: false; reason: Exclude<IndexRejectReason, "read_failed">; detail?: Record<string, unknown> };
 
 export function toolEmbeddingText(fullName: string, description: string): string {
   return `${fullName}: ${description}`;
@@ -49,7 +51,7 @@ export async function inspectToolEmbeddings(
     raw = await readFile(path, "utf-8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return { ok: false, reason: "file_missing" };
-    return { ok: false, reason: "malformed_json", detail: { error: String(err) } };
+    return { ok: false, reason: "read_failed", cause: err };
   }
 
   let doc: unknown;
@@ -100,6 +102,7 @@ export async function inspectToolEmbeddings(
 export function logIndexRejected(path: string, result: Extract<IndexReadResult, { ok: false }>): void {
   logger.warn("SEARCH", "embeddings_index_rejected", {
     data: { path, reason: result.reason, ...result.detail },
+    ...(result.reason === "read_failed" ? { error: result.cause instanceof Error ? result.cause : String(result.cause) } : {}),
   });
 }
 

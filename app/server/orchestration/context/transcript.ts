@@ -93,6 +93,7 @@ export interface TranscriptContext {
   messages: ModelMessage[];
   previousLastIndex?: number;
   previousPromptTokens?: number;
+  previousInputIdentity?: string;
   previousFinishedAt?: number;
 }
 
@@ -165,10 +166,11 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
         if (msg.id !== turn.user_message_id) continue;
         const offset = context.messages.length;
         context.messages.push(...replay);
-        let endpoint = replay.length - 1;
-        while (endpoint >= 0 && replay[endpoint]!.role === "assistant") endpoint--;
-        context.previousLastIndex = endpoint >= 0 ? offset + endpoint : undefined;
-        context.previousPromptTokens = endpoint >= 0 ? turn.last_prompt_tokens ?? undefined : undefined;
+        const count = turn.last_input_message_count;
+        const valid = count !== null && count > offset && count <= context.messages.length && turn.last_input_identity !== null;
+        context.previousLastIndex = valid ? count - 1 : undefined;
+        context.previousInputIdentity = valid ? turn.last_input_identity! : undefined;
+        context.previousPromptTokens = valid ? turn.last_prompt_tokens ?? undefined : undefined;
         context.previousFinishedAt = turn.finished_at ?? undefined;
         continue;
       }

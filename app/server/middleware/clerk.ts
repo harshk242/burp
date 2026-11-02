@@ -4,14 +4,16 @@ import { userQueries, accessRequestQueries } from "../db";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../logger";
 import type { AppEnv, DbUser, DbAccessRequest } from "../types";
+import { AUTH_CONFIGURATION_MESSAGE, resolveAuthConfig } from "../auth-config";
 import { isValidDevAgentToken } from "./devAgentAuth";
 
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
 
-function getClerkClient() {
-  if (!clerkClient && process.env.CLERK_SECRET_KEY) {
+function getClerkClient(secretKey: string | null) {
+  if (!secretKey) return null;
+  if (!clerkClient) {
     clerkClient = createClerkClient({
-      secretKey: process.env.CLERK_SECRET_KEY,
+      secretKey,
     });
   }
   return clerkClient;
@@ -46,6 +48,14 @@ function setDevelopmentUser(
   c.set("clerkImageUrl", dbUser.image_url);
 }
 
+export function trackActivityBestEffort(userId: string, write: (id: string) => unknown): void {
+  try { write(userId); } catch (error) {
+    logger.warn("AUTH", "activity_write_failed", {
+      ctx: { user_id: userId }, error: error instanceof Error ? error : String(error),
+    });
+  }
+}
+
 export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   const authHeader = c.req.header("Authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -58,10 +68,14 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
     return next();
   }
 
-  const clerk = getClerkClient();
+  const { secretKey, development } = resolveAuthConfig();
+  const clerk = getClerkClient(secretKey);
 
-  if (!clerk) {
-    logger.warn("AUTH", "dev_mode_no_clerk_key");
+  if (!clerk || !secretKey) {
+    if (!development) {
+      return c.json({ error: "auth_not_configured", message: AUTH_CONFIGURATION_MESSAGE }, 503);
+    }
+    logger.warn("AUTH", "explicit_development_auth");
     setDevelopmentUser(
       c,
       "dev-clerk-id",
@@ -80,7 +94,7 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
   }
 
   try {
-    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+    const payload = await verifyToken(token, { secretKey });
     const clerkUserId = payload.sub;
 
     if (!clerkUserId) {
@@ -121,9 +135,7 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
       c.set("role", dbUser.role);
       c.set("dbUser", dbUser);
 
-      try {
-        userQueries.updateLastActive(dbUser.id);
-      } catch {}
+      trackActivityBestEffort(dbUser.id, userQueries.updateLastActive);
     } else {
       c.set("userId", null);
       c.set("role", "unknown");

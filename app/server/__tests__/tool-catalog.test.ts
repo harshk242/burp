@@ -123,7 +123,7 @@ describe("buildToolCatalog (google)", () => {
     const tools = buildToolCatalog("google", sanitize, "s1");
     expect(Object.keys(tools).sort()).toEqual(["open_targets__search_entities", ...SYSTEM_TOOLS].sort());
     expect(countDeferred(tools)).toBe(0);
-    expect(tools["open_targets__search_entities"]!.execute).toBeFunction();
+    expect(tools["open_targets__search_entities"]!.execute).toBeUndefined();
   });
 });
 

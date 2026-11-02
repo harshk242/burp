@@ -12,6 +12,8 @@ export interface ChatTurnOutcome {
   iterations: number;
   assistantMessageId?: string | null;
   lastPromptTokens?: number | null;
+  lastInputMessageCount?: number | null;
+  lastInputIdentity?: string | null;
   finalFinishReason?: string | null;
   toolErrorCount?: number;
 }
@@ -36,6 +38,8 @@ export function createChatTurnQueries(db: DrizzleDb) {
           iterations: outcome.iterations,
           assistant_message_id: outcome.assistantMessageId ?? null,
           last_prompt_tokens: outcome.lastPromptTokens ?? null,
+          last_input_message_count: outcome.lastInputMessageCount ?? null,
+          last_input_identity: outcome.lastInputIdentity ?? null,
           final_finish_reason: outcome.finalFinishReason ?? null,
           tool_error_count: outcome.toolErrorCount ?? 0,
           finished_at: sql`(unixepoch())`,
