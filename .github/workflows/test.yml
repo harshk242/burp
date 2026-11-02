@@ -60,6 +60,26 @@ jobs:
         working-directory: app
         run: bun test
 
+  # Builds and boots the production image (Deploy calls this workflow, so it gates every deploy).
+  # In a workflow_call run, github.* describes the caller's push to main.
+  image-smoke:
+    name: Image Smoke Test
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.base_ref == 'main' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Build and smoke-test production image
+        run: bun run smoke:image
+
   contract-tests:
     name: API Contract Tests
     runs-on: ubuntu-latest
