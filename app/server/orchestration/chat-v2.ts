@@ -28,6 +28,9 @@ import { streamModelCall } from "./model-call";
 import { langfuseConfig } from "../observability/langfuse";
 import { TurnTrace, type TraceParent } from "../observability/turn-trace";
 import { resolveTurnLLM } from "./turn-llm";
+import { waitForTools } from "../boot/tools";
+
+const TOOLS_READY_TIMEOUT_MS = 15_000;
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
@@ -48,6 +51,9 @@ export async function* processChat(
 ): AsyncGenerator<StreamEvent> {
   const chatElapsed = startTimer();
   const ctx: LogContext = { session_id: sessionId, user_id: userId };
+  if (!(await waitForTools(TOOLS_READY_TIMEOUT_MS, signal))) {
+    logger.warn("CHAT", "tools_not_ready", { ctx, duration_ms: chatElapsed() });
+  }
   const { llmConfig, providerOptions, transcriptTag, generationParameters, systemPrompt } = resolveTurnLLM(options.llm);
   const sanitize = (name: string) => sanitizeToolName(name, llmConfig.provider);
 

@@ -19,6 +19,36 @@ export interface ToolsBoot {
   ready: Promise<ToolsReport>;
 }
 
+let bootReady: Promise<unknown> | null = null;
+
+/** Resolves true once `work` settles (either way), false on timeout or abort. */
+export async function settlesWithin(work: Promise<unknown>, timeoutMs: number, signal?: AbortSignal): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  const giveUp = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+    onAbort = () => resolve(false);
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([work.then(() => true, () => true), giveUp]);
+  } finally {
+    clearTimeout(timer);
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+/** Records the in-flight tool boot that `waitForTools` gates on; null clears it. */
+export function trackToolsBoot(ready: Promise<unknown> | null): void {
+  bootReady = ready;
+}
+
+/** Lets a turn that arrives during a cold start wait for the tool catalog; true at once when boot never ran. */
+export function waitForTools(timeoutMs: number, signal?: AbortSignal): Promise<boolean> {
+  return bootReady ? settlesWithin(bootReady, timeoutMs, signal) : Promise.resolve(true);
+}
+
 export function toolsReport(embedder: Embedder | null): ToolsReport {
   return {
     toolsAvailable: toolRegistry.availableCount,
@@ -76,5 +106,6 @@ export function initializeTools(): ToolsBoot {
     return report;
   })();
 
+  trackToolsBoot(ready);
   return { embedder, embeddingSync, ready };
 }
