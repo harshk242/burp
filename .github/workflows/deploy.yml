@@ -15,6 +15,25 @@ jobs:
   tests:
     uses: ./.github/workflows/test.yml
 
+  sync-develop:
+    name: Fast-forward develop to main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward develop
+        run: |
+          git fetch origin develop
+          if git merge-base --is-ancestor origin/develop "$GITHUB_SHA"; then
+            git push origin "$GITHUB_SHA:refs/heads/develop"
+          else
+            echo "::warning::develop has commits not on main; skipping fast-forward. Merge main into develop manually."
+          fi
+
   deploy:
     name: Deploy to Fly.io
     needs: tests
