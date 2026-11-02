@@ -9,17 +9,25 @@ export interface ToolSearchRow {
   rank: number;
 }
 
+export interface ToolSearchEntry {
+  fullName: string;
+  server: string;
+  toolName: string;
+  description: string;
+}
+
 export function createToolSearchQueries(db: DrizzleDb) {
   return {
-    clearAll() {
-      db.run(sql`DELETE FROM tool_search_fts`);
-    },
-
-    insertTool(fullName: string, server: string, toolName: string, description: string) {
-      db.run(
-        sql`INSERT INTO tool_search_fts (full_name, server, tool_name, description)
-            VALUES (${fullName}, ${server}, ${toolName}, ${description})`
-      );
+    replaceAll(tools: readonly ToolSearchEntry[]) {
+      db.transaction((tx) => {
+        tx.run(sql`DELETE FROM tool_search_fts`);
+        for (const t of tools) {
+          tx.run(
+            sql`INSERT INTO tool_search_fts (full_name, server, tool_name, description)
+                VALUES (${t.fullName}, ${t.server}, ${t.toolName}, ${t.description})`
+          );
+        }
+      });
     },
 
     searchBM25(query: string, limit: number = 20): ToolSearchRow[] {

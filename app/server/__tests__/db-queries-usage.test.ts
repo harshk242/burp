@@ -176,9 +176,11 @@ describe("rateLimitQueries", () => {
 
 describe("toolSearchQueries (FTS5)", () => {
   beforeEach(() => {
-    q.toolSearchQueries.insertTool("uniprot__search", "uniprot", "search", "Search UniProt for protein entries");
-    q.toolSearchQueries.insertTool("pubmed__search", "pubmed", "search", "Search PubMed literature articles");
-    q.toolSearchQueries.insertTool("chembl__compound", "chembl", "compound", "Look up ChEMBL compound bioactivity");
+    q.toolSearchQueries.replaceAll([
+      { fullName: "uniprot__search", server: "uniprot", toolName: "search", description: "Search UniProt for protein entries" },
+      { fullName: "pubmed__search", server: "pubmed", toolName: "search", description: "Search PubMed literature articles" },
+      { fullName: "chembl__compound", server: "chembl", toolName: "compound", description: "Look up ChEMBL compound bioactivity" },
+    ]);
   });
 
   it("ranks BM25 matches and returns snake_case rows", () => {
@@ -194,8 +196,11 @@ describe("toolSearchQueries (FTS5)", () => {
     expect(q.toolSearchQueries.searchBM25("protein OR compound OR literature", 2).length).toBe(2);
   });
 
-  it("clearAll empties the index", () => {
-    q.toolSearchQueries.clearAll();
+  it("replaceAll swaps the whole index", () => {
+    q.toolSearchQueries.replaceAll([
+      { fullName: "reactome__pathway", server: "reactome", toolName: "pathway", description: "Find Reactome pathways" },
+    ]);
     expect(q.toolSearchQueries.searchBM25("search")).toEqual([]);
+    expect(q.toolSearchQueries.searchBM25("pathways").map((r) => r.full_name)).toEqual(["reactome__pathway"]);
   });
 });

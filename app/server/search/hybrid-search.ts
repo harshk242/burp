@@ -74,14 +74,8 @@ export class HybridToolSearch {
 
   indexTools(tools: ToolInfo[]): void {
     const elapsed = startTimer();
-    const toolIndex = new Map<string, ToolInfo>();
-    this.queries.clearAll();
-
-    for (const tool of tools) {
-      this.queries.insertTool(tool.fullName, tool.server, tool.toolName, tool.description);
-      toolIndex.set(tool.fullName, tool);
-    }
-    this.toolIndex = toolIndex;
+    this.queries.replaceAll(tools);
+    this.toolIndex = new Map(tools.map((tool) => [tool.fullName, tool]));
 
     logger.info("SEARCH", "fts_indexed", {
       duration_ms: elapsed(),

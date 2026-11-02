@@ -23,7 +23,11 @@ export function openDatabase(path: string, options: { existing?: boolean } = {})
   const sqlite = new Database(path, { create: true });
   // Foreign key enforcement is per-connection and off by default in SQLite.
   sqlite.run("PRAGMA foreign_keys = ON");
-  if (!memory) sqlite.run("PRAGMA journal_mode = WAL");
+  if (!memory) {
+    sqlite.run("PRAGMA journal_mode = WAL");
+    // WAL + NORMAL syncs at checkpoints, not every commit: a power loss can drop the latest commits but never corrupts the DB.
+    sqlite.run("PRAGMA synchronous = NORMAL");
+  }
   return sqlite;
 }
 
