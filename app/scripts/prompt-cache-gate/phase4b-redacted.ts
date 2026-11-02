@@ -1,16 +1,6 @@
-/**
- * Phase 4b.6 check 2, offline half: does a `redacted_thinking` block survive
- * provider stream parsing → ModelMessage → JSON.stringify/parse → provider prompt conversion?
- *
- * Call 1 gets a canned SSE response with a redacted_thinking block (no network). Call 2 replays the
- * JSON round-tripped response message; its request body is captured and the call is failed locally.
- * Same provider instance as the app (getChatModel with a custom fetch).
- */
-
 import { streamText, type ModelMessage } from "ai";
 import { getChatModel } from "../../server/llm";
 
-// Documented test string that makes the API return a redacted_thinking block (extended-thinking docs).
 export const REDACTED_TRIGGER = "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253";
 
 const DATA = "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2Xlxh0L5L8rLVyIwxtE3rAFBa8cr3qpPkNRj2YfWXGmKDxH4mPnZ5sQ7vB5URj/pa2ZBaGgVQjN7LkQ==";
@@ -32,7 +22,6 @@ const CANNED = [
 ];
 
 export async function checkRedactedOffline(): Promise<{ pass: boolean; detail: string }> {
-  // Call 1: parse the canned stream.
   const first = streamText({
     model: getChatModel({ fetch: (async () => sse(CANNED)) as unknown as typeof fetch }),
     messages: [{ role: "user", content: "hi" }],
@@ -45,7 +34,6 @@ export async function checkRedactedOffline(): Promise<{ pass: boolean; detail: s
   const reasoning = parts.find((p) => p.type === "reasoning");
   const kept = reasoning?.providerOptions?.anthropic?.redactedData === DATA;
 
-  // Call 2: replay the round-tripped message; capture the converted request body, then fail locally.
   let body: any;
   const second = streamText({
     model: getChatModel({

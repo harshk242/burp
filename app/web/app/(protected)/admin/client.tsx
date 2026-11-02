@@ -58,7 +58,6 @@ interface AdminUser {
   today_output_tokens: number;
   today_cost_microusd: number;
   month_cost_microusd: number;
-  /** Limits actually enforced (override or role/config default). -1 = unlimited. */
   effective_limits: {
     daily_query_limit: number;
     daily_cost_limit_microusd: number;
@@ -99,13 +98,11 @@ export function AdminPageClient() {
     request: AccessRequest | null;
   }>({ open: false, action: "approve", request: null });
 
-  // Users tab state
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [limitEdits, setLimitEdits] = useState<Record<string, LimitEdit>>({});
   const [savingLimits, setSavingLimits] = useState<string | null>(null);
 
-  // Client-side admin guard
   useEffect(() => {
     if (user && user.role !== "admin") {
       router.push("/chat");
@@ -135,7 +132,6 @@ export function AdminPageClient() {
       setUsersLoading(true);
       const data = await get<{ users: AdminUser[] }>("/admin/users");
       setAdminUsers(data.users);
-      // Pre-populate edit state with current values
       const edits: Record<string, LimitEdit> = {};
       for (const u of data.users) {
         edits[u.id] = {
@@ -164,7 +160,6 @@ export function AdminPageClient() {
         daily_cost_limit_microusd: dailyCostVal === "" ? null : usdInputToMicrousd(dailyCostVal),
         monthly_cost_limit_microusd: monthlyCostVal === "" ? null : usdInputToMicrousd(monthlyCostVal),
       });
-      // Refresh list
       await fetchUsers();
     } catch (err) {
       console.error("Failed to save limits:", err);
@@ -177,7 +172,6 @@ export function AdminPageClient() {
     setActionLoading(id);
     try {
       await post(`/waitlist/${id}/${action}`, {});
-      // Update local state
       setRequests((prev) =>
         prev.map((r) =>
           r.id === id
@@ -201,7 +195,6 @@ export function AdminPageClient() {
     setConfirmDialog({ open: true, action, request });
   };
 
-  // Filter requests by status
   const pending = requests.filter((r) => r.status === "pending");
   const approved = requests.filter((r) => r.status === "approved");
   const rejected = requests.filter((r) => r.status === "rejected");
@@ -222,7 +215,6 @@ export function AdminPageClient() {
       <Header />
       <main className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
-          {/* Stats */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold">Admin Panel</h1>
@@ -249,7 +241,6 @@ export function AdminPageClient() {
             </div>
           </div>
 
-          {/* Tabs */}
           <Tabs defaultValue="pending" onValueChange={(v) => { if (v === "users" && adminUsers.length === 0) fetchUsers(); }}>
             <TabsList>
               <TabsTrigger value="pending">
@@ -311,7 +302,6 @@ export function AdminPageClient() {
         </div>
       </main>
 
-      {/* Confirmation Dialog */}
       <Dialog
         open={confirmDialog.open}
         onOpenChange={(open) =>
@@ -359,8 +349,6 @@ export function AdminPageClient() {
   );
 }
 
-/* ─── Sub-components ──────────────────────────────────────────────── */
-
 function UsersTable({
   users,
   isLoading,
@@ -398,7 +386,6 @@ function UsersTable({
     const usd = microusd / 1_000_000;
     return usd < 0.01 && usd > 0 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
   };
-  // Empty input = no override; the placeholder shows the default that applies.
   const formatDefault = (value: number, format: (n: number) => string) =>
     value === -1 ? "Unlimited" : format(value);
   const limitInputClass = "h-7 text-sm min-w-[6.5rem] placeholder:text-muted-foreground/60";

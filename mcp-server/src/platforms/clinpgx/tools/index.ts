@@ -1,10 +1,8 @@
-// Export all tool functions
-
 export {
   searchGenes,
   getGeneInfo,
   getGenePathways,
-  getVIPGenes,
+  getCPICGenesWithGuidelines,
   getGenesWithAnnotations,
 } from './genes.js';
 

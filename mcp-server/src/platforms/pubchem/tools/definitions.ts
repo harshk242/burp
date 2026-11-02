@@ -1,6 +1,5 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
-// ── Chemical Search & Retrieval (6 tools) ────────────────────────────────────
 const searchCompounds: Tool = {
   name: 'search_compounds',
   description: 'Search PubChem database for compounds by name, CAS number, formula, or identifier',
@@ -92,7 +91,6 @@ const getCompoundSynonyms: Tool = {
   },
 };
 
-// ── Structure Analysis & Similarity (5 tools) ───────────────────────────────
 const searchSimilarCompounds: Tool = {
   name: 'search_similar_compounds',
   description: 'Find chemically similar compounds using Tanimoto similarity',
@@ -182,7 +180,6 @@ const analyzeStereochemistry: Tool = {
   },
 };
 
-// ── Chemical Properties & Descriptors (6 tools) ─────────────────────────────
 const getCompoundProperties: Tool = {
   name: 'get_compound_properties',
   description: 'Get molecular properties (MW, logP, TPSA, etc.)',
@@ -267,7 +264,6 @@ const getPharmacophoreFeatures: Tool = {
   },
 };
 
-// ── Bioassay & Activity Data (5 tools) ───────────────────────────────────────
 const searchBioassays: Tool = {
   name: 'search_bioassays',
   description: 'Search for biological assays by target, description, or source',
@@ -358,7 +354,6 @@ const compareActivityProfiles: Tool = {
   },
 };
 
-// ── Safety & Toxicity (4 tools) ──────────────────────────────────────────────
 const getSafetyData: Tool = {
   name: 'get_safety_data',
   description: 'Get GHS hazard classifications and safety information',
@@ -404,7 +399,6 @@ const getRegulatoryInfo: Tool = {
   },
 };
 
-// ── Cross-References & Integration (4 tools) ────────────────────────────────
 const getExternalReferences: Tool = {
   name: 'get_external_references',
   description: 'Get links to external databases (ChEMBL, DrugBank, KEGG, etc.)',
@@ -463,40 +457,33 @@ const batchCompoundLookup: Tool = {
   },
 };
 
-// ── Aggregated export ────────────────────────────────────────────────────────
 export const tools: Tool[] = [
-  // Chemical Search & Retrieval
   searchCompounds,
   getCompoundInfo,
   searchBySmiles,
   searchByInchi,
   searchByCasNumber,
   getCompoundSynonyms,
-  // Structure Analysis & Similarity
   searchSimilarCompounds,
   substructureSearch,
   superstructureSearch,
   get3dConformers,
   analyzeStereochemistry,
-  // Chemical Properties & Descriptors
   getCompoundProperties,
   calculateDescriptors,
   predictAdmetProperties,
   assessDrugLikeness,
   analyzeMolecularComplexity,
   getPharmacophoreFeatures,
-  // Bioassay & Activity Data
   searchBioassays,
   getAssayInfo,
   getCompoundBioactivities,
   searchByTarget,
   compareActivityProfiles,
-  // Safety & Toxicity
   getSafetyData,
   getToxicityInfo,
   assessEnvironmentalFate,
   getRegulatoryInfo,
-  // Cross-References & Integration
   getExternalReferences,
   searchPatents,
   getLiteratureReferences,

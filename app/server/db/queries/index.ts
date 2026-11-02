@@ -1,7 +1,3 @@
-/**
- * Query objects, one file each. Every factory takes the Drizzle instance so
- * tests can bind them to createTestDb(); db/index.ts binds them to the app DB.
- */
 import type { DrizzleDb } from "../connection";
 import { createAccessRequestQueries } from "./access-requests";
 import { createArtifactQueries } from "./artifacts";

@@ -119,7 +119,6 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
 
   return (
     <div className={cn("flex gap-3", isUser && "flex-row-reverse")}>
-      {/* Avatar */}
       <div
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium",
@@ -131,7 +130,6 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
         {isUser ? <User className="h-4 w-4" /> : "AI"}
       </div>
 
-      {/* Content */}
       <div
         className={cn(
           "flex-1 space-y-2 overflow-hidden",
@@ -139,19 +137,16 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
         )}
       >
         <div className={cn("w-full", isUser ? "flex justify-end" : "space-y-2")}>
-          {/* Reasoning block (assistant only) */}
           {!isUser && message.reasoning && (
             <ReasoningBlock content={message.reasoning} defaultExpanded={false} />
           )}
 
-          {/* Tool calls (for assistant messages) */}
           {message.toolCalls && message.toolCalls.length > 0 && (
             <div className="text-left w-full">
               <ToolCallGroup toolCalls={message.toolCalls} />
             </div>
           )}
 
-          {/* Message content */}
           {message.content && (
             <div className={cn(isUser && "max-w-[85%]")}>
               <div
@@ -168,7 +163,6 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
                   </div>
                 )}
               </div>
-              {/* Action bar below bubble */}
               <div className={cn(
                 "action-bar flex flex-wrap items-center gap-2 mt-1",
                 isUser ? "justify-end" : "justify-start"
@@ -178,7 +172,6 @@ export function MessageBubble({ message, sessionTitle = "Chat" }: MessageBubbleP
                   <DownloadButton content={message.content} sessionTitle={sessionTitle} />
                 )}
                 {!isUser && message.persisted && <MessageFeedback message={message} />}
-                {/* Token count — only shown for assistant messages that have usage data */}
                 {!isUser && message.tokenUsage && (
                   <span className="text-[10px] text-foreground/60 select-none">
                     {(message.tokenUsage.input + message.tokenUsage.output).toLocaleString()} tokens

@@ -1,68 +1,90 @@
-// Open Targets GraphQL Client with caching and retry logic
-
-import axios, { AxiosInstance, AxiosError } from 'axios';
-import {
-  NetworkError,
-  GraphQLError,
-  OpenTargetsAPIError,
-} from './exceptions.js';
-import {
-  filterNoneValues,
-  generateCacheKey,
-  sleep,
-  calculateBackoff,
-  isRetryableStatus,
-} from './utils.js';
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { GraphQLError, OpenTargetsAPIError } from './exceptions.js';
+import { filterNoneValues, generateCacheKey } from './utils.js';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
+import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import type { CacheEntry, GraphQLResponse, GraphQLError as GraphQLErrorType } from './types.js';
 
-const DEFAULT_BASE_URL = 'https://api.platform.opentargets.org/api/v4/graphql';
-const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour in milliseconds
-const DEFAULT_MAX_RETRIES = 3;
-const DEFAULT_RETRY_DELAY = 1000; // 1 second
+export const OPEN_TARGETS_GRAPHQL_URL = 'https://api.platform.opentargets.org/api/v4/graphql';
+const DEFAULT_CACHE_TTL = 3600 * 1000;
+const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_RETRY_DELAY = 1000;
+
+function exponentialBackoff(baseMs: number): (attempt: number) => number {
+  return (attempt) => 2 ** (attempt - 1) * baseMs;
+}
+
+export const OPEN_TARGETS_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: DEFAULT_MAX_ATTEMPTS,
+  backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
+  retryOn: isRetryableTransportOr5xx,
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+  on429: 'retry',
+});
+
+export interface OpenTargetsHttpOptions {
+  baseUrl?: string;
+  policy?: RetryPolicy;
+  adapter?: AxiosAdapter;
+  retryDeps?: RetryDeps;
+}
+
+export function createOpenTargetsHttp(options: OpenTargetsHttpOptions = {}): AxiosInstance {
+  const instance = axios.create({
+    baseURL: options.baseUrl ?? OPEN_TARGETS_GRAPHQL_URL,
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    timeout: 30000,
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(instance, options.policy ?? OPEN_TARGETS_POLICY, 'open-targets', options.retryDeps);
+}
 
 export interface OpenTargetsClientOptions {
   baseUrl?: string;
   cacheTtl?: number;
-  maxRetries?: number;
+  maxAttempts?: number;
   retryDelay?: number;
+  adapter?: AxiosAdapter;
+  retryDeps?: RetryDeps;
 }
 
 export class OpenTargetsClient {
   private readonly baseUrl: string;
   private readonly cacheTtl: number;
-  private readonly maxRetries: number;
+  private readonly maxAttempts: number;
   private readonly retryDelay: number;
   private readonly cache: Map<string, CacheEntry>;
-  private axiosInstance: AxiosInstance;
+  private readonly axiosInstance: AxiosInstance;
 
   constructor(options: OpenTargetsClientOptions = {}) {
-    this.baseUrl = options.baseUrl || process.env.OPEN_TARGETS_API_URL || DEFAULT_BASE_URL;
+    this.baseUrl = options.baseUrl || process.env.OPEN_TARGETS_API_URL || OPEN_TARGETS_GRAPHQL_URL;
     this.cacheTtl = options.cacheTtl || DEFAULT_CACHE_TTL;
-    this.maxRetries = options.maxRetries || DEFAULT_MAX_RETRIES;
+    this.maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
 
-    this.axiosInstance = axios.create({
-      baseURL: this.baseUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+    this.axiosInstance = createOpenTargetsHttp({
+      baseUrl: this.baseUrl,
+      policy: {
+        ...OPEN_TARGETS_POLICY,
+        maxAttempts: this.maxAttempts,
+        backoffMs: exponentialBackoff(this.retryDelay),
       },
-      timeout: 30000, // 30 seconds
+      adapter: options.adapter,
+      retryDeps: options.retryDeps,
     });
   }
 
-  /**
-   * Execute a GraphQL query with caching and retry logic
-   */
   async query<T = unknown>(
     query: string,
     variables?: Record<string, unknown>
   ): Promise<T> {
-    // Filter out null/undefined values
     const cleanVariables = variables ? filterNoneValues(variables) : undefined;
 
-    // Check cache
     const cacheKey = generateCacheKey(query, cleanVariables);
     const cachedEntry = this.cache.get(cacheKey);
 
@@ -70,88 +92,43 @@ export class OpenTargetsClient {
       return cachedEntry.data as T;
     }
 
-    // Execute query with retries
-    let lastError: Error | undefined;
+    const response = await this.axiosInstance.post<GraphQLResponse<T>>(
+      '',
+      {
+        query,
+        variables: cleanVariables,
+      }
+    );
 
-    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      try {
-        const response = await this.axiosInstance.post<GraphQLResponse<T>>(
-          '',
-          {
-            query,
-            variables: cleanVariables,
-          }
+    const { data, errors } = response.data;
+
+    if (errors && errors.length > 0) {
+      if (data) {
+        console.warn('GraphQL returned partial data with errors:', errors);
+      } else {
+        throw new GraphQLError(
+          `GraphQL query failed: ${errors.map((e: GraphQLErrorType) => e.message).join(', ')}`,
+          errors.map((e: GraphQLErrorType) => ({ message: e.message, path: e.path as string[] }))
         );
-
-        const { data, errors } = response.data;
-
-        // Handle GraphQL errors
-        if (errors && errors.length > 0) {
-          // If we have partial data, log the warning but continue
-          if (data) {
-            console.warn('GraphQL returned partial data with errors:', errors);
-          } else {
-            throw new GraphQLError(
-              `GraphQL query failed: ${errors.map((e: GraphQLErrorType) => e.message).join(', ')}`,
-              errors.map((e: GraphQLErrorType) => ({ message: e.message, path: e.path as string[] }))
-            );
-          }
-        }
-
-        if (!data) {
-          throw new OpenTargetsAPIError('No data returned from GraphQL query');
-        }
-
-        // Cache the result
-        this.cache.set(cacheKey, {
-          data,
-          timestamp: Date.now(),
-        });
-
-        return data as T;
-      } catch (error) {
-        lastError = error as Error;
-
-        if (axios.isAxiosError(error)) {
-          const axiosError = error as AxiosError;
-          const status = axiosError.response?.status;
-
-          // Don't retry non-retryable errors
-          if (status && !isRetryableStatus(status)) {
-            throw new NetworkError(
-              `HTTP error ${status}: ${axiosError.message}`,
-              status
-            );
-          }
-
-          // Retry with exponential backoff
-          if (attempt < this.maxRetries - 1) {
-            const delay = calculateBackoff(attempt, this.retryDelay);
-            console.warn(
-              `Request failed (attempt ${attempt + 1}/${this.maxRetries}), retrying in ${delay}ms...`
-            );
-            await sleep(delay);
-          }
-        } else if (error instanceof GraphQLError || error instanceof OpenTargetsAPIError) {
-          throw error;
-        }
       }
     }
 
-    // All retries exhausted
-    throw lastError || new NetworkError('Request failed after all retries');
+    if (!data) {
+      throw new OpenTargetsAPIError('No data returned from GraphQL query');
+    }
+
+    this.cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    });
+
+    return data as T;
   }
 
-  /**
-   * Clear the cache
-   */
   clearCache(): void {
     this.cache.clear();
   }
 
-  /**
-   * Get cache statistics
-   */
   getCacheStats(): { size: number; entries: number } {
     return {
       size: this.cache.size,
@@ -160,20 +137,13 @@ export class OpenTargetsClient {
   }
 }
 
-// Global client instance
 let _client: OpenTargetsClient | null = null;
 
-/**
- * Initialize the global client
- */
 export function initializeClient(options?: OpenTargetsClientOptions): OpenTargetsClient {
   _client = new OpenTargetsClient(options);
   return _client;
 }
 
-/**
- * Get the global client instance
- */
 export function getClient(): OpenTargetsClient {
   if (!_client) {
     throw new Error(
@@ -183,9 +153,6 @@ export function getClient(): OpenTargetsClient {
   return _client;
 }
 
-/**
- * Close the global client (cleanup)
- */
 export function closeClient(): void {
   if (_client) {
     _client.clearCache();

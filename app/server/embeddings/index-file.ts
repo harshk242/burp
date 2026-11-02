@@ -1,15 +1,3 @@
-/**
- * The tool embeddings index file (v2): which embedder made it, the vector
- * size, and for each tool the exact text that was embedded plus its vector.
- *
- *   { version: 2, embedder, dimension, generated_at, tools: [{ full_name, text, embedding }] }
- *
- * A file that is missing, malformed, from an older version, from another
- * embedder, with a size other than the embedder's, or holding any invalid
- * vector is rejected as a whole, so vectors from different models are never
- * compared.
- */
-
 import { randomUUID } from "crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "fs/promises";
 import { dirname } from "path";
@@ -20,7 +8,6 @@ export const INDEX_FILE_VERSION = 2;
 
 export interface ToolEmbeddingEntry {
   fullName: string;
-  /** The text that was embedded; compare with toolEmbeddingText() to detect stale entries. */
   text: string;
   vector: Float32Array;
 }
@@ -33,6 +20,7 @@ export interface ToolEmbeddingsIndex {
 }
 
 export type IndexRejectReason =
+  | "read_failed"
   | "file_missing"
   | "malformed_json"
   | "version_mismatch"
@@ -42,22 +30,17 @@ export type IndexRejectReason =
 
 export type IndexReadResult =
   | { ok: true; index: ToolEmbeddingsIndex }
-  | { ok: false; reason: IndexRejectReason; detail?: Record<string, unknown> };
+  | { ok: false; reason: "read_failed"; cause: unknown; detail?: Record<string, unknown> }
+  | { ok: false; reason: Exclude<IndexRejectReason, "read_failed">; detail?: Record<string, unknown> };
 
-/** The text embedded for a tool. Every writer must use this so stored texts stay comparable. */
 export function toolEmbeddingText(fullName: string, description: string): string {
   return `${fullName}: ${description}`;
 }
 
-/** Name → vector map, the shape hybrid search attaches. */
 export function toVectorMap(entries: readonly ToolEmbeddingEntry[]): Map<string, Float32Array> {
   return new Map(entries.map((e) => [e.fullName, e.vector]));
 }
 
-/**
- * Read and validate the index without logging. Never throws.
- * `expectedDimension` is the embedder's configured size, when it has one.
- */
 export async function inspectToolEmbeddings(
   path: string,
   expectedEmbedder: string,
@@ -68,7 +51,7 @@ export async function inspectToolEmbeddings(
     raw = await readFile(path, "utf-8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return { ok: false, reason: "file_missing" };
-    return { ok: false, reason: "malformed_json", detail: { error: String(err) } };
+    return { ok: false, reason: "read_failed", cause: err };
   }
 
   let doc: unknown;
@@ -116,17 +99,13 @@ export async function inspectToolEmbeddings(
   };
 }
 
-/** The one warning logged when an index file is rejected. */
 export function logIndexRejected(path: string, result: Extract<IndexReadResult, { ok: false }>): void {
   logger.warn("SEARCH", "embeddings_index_rejected", {
     data: { path, reason: result.reason, ...result.detail },
+    ...(result.reason === "read_failed" ? { error: result.cause instanceof Error ? result.cause : String(result.cause) } : {}),
   });
 }
 
-/**
- * Read the index for `expectedEmbedder`, or null (with one warning naming the
- * reason) when the file can't be used. Nothing from a rejected file is returned.
- */
 export async function readToolEmbeddings(
   path: string,
   expectedEmbedder: string,
@@ -147,11 +126,6 @@ export async function readToolEmbeddings(
   return result.index;
 }
 
-/**
- * Write the index atomically: a unique temp file in the same directory, then
- * rename over the target. Concurrent writers each produce a complete file and
- * the last rename wins. Invalid vectors are refused before anything is written.
- */
 export async function writeToolEmbeddings(
   path: string,
   header: { embedder: string; dimension: number },

@@ -1,13 +1,9 @@
-// ClinVar platform module for the unified MCP server
-
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { PlatformModule, ToolHandler } from '../../types.js';
 import { initializeClient, closeClient } from './client.js';
 import * as tools from './tools/index.js';
 
-// Tool definitions
 const TOOLS: Tool[] = [
-  // Variant lookup tools
   {
     name: 'search_variants_by_gene',
     description: 'Search ClinVar for variants in a specific gene. Returns variant IDs and summaries.',
@@ -179,7 +175,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'get_variant_frequency',
-    description: 'Get population frequency data for a variant.',
+    description: 'Get allele frequency data reported by ClinVar ESummary, including source and minor allele when provided.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -240,7 +236,6 @@ const TOOLS: Tool[] = [
   },
 ];
 
-// Tool handlers
 const handlers: Record<string, ToolHandler> = {
   search_variants_by_gene: async (args) => {
     return tools.searchVariantsByGene(args.gene as string, {

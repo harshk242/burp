@@ -21,7 +21,6 @@ const usage = (u: Partial<CallUsage>): CallUsage => ({
   ...u,
 });
 
-// Sections without schema defaults; pricing replaces the built-in default.
 const configWithPricing = (pricing: Record<string, unknown>) =>
   loadConfig({}, { llm: { effort: "medium" }, server: {}, tool_search: {}, usage: { pricing } });
 
@@ -36,7 +35,7 @@ describe("priceCall", () => {
     expect(cost.promptTokens).toBe(54_234);
     expect(cost.tier).toBe("base");
     expect(cost.inputCostPicoUsd).toBe(1234 * 2_000_000);
-    expect(cost.cacheReadCostPicoUsd).toBe(50_000 * 100_000); // $0.10/MTok
+    expect(cost.cacheReadCostPicoUsd).toBe(50_000 * 100_000);
     expect(cost.cacheWriteCostPicoUsd).toBe(2000 * 2_500_000 + 1000 * 4_000_000);
     expect(cost.outputCostPicoUsd).toBe(500 * 10_000_000);
     expect(cost.costPicoUsd).toBe(21_468_000_000);
@@ -112,12 +111,10 @@ describe("summarizeTurnCost", () => {
     expect(turn.longContextCalls).toBe(0);
     expect(turn.llmCalls).toBe(3);
     expect(turn.costMicrousd).toBe(3 * 6000);
-    // The same tokens in one request would cross the threshold.
     expect(priceCall("anthropic", "claude-haiku-5-5", usage({ noCacheTokens: 180_000 })).tier).toBe("long_context");
   });
 
   it("rounds up once per turn: ceil(sum), not sum(ceil)", () => {
-    // 1 output token on Haiku 5.5 = 0.5 µUSD.
     const calls = Array.from({ length: 20 }, () => priceCall("anthropic", "claude-haiku-5-5", usage({ outputTokens: 1 })));
     expect(summarizeTurnCost(calls).costMicrousd).toBe(10);
     expect(summarizeTurnCost(calls.slice(0, 3)).costMicrousd).toBe(2);
@@ -136,8 +133,8 @@ describe("summarizeTurnCost", () => {
       cacheWrite1hTokens: 2,
       outputTokens: 1,
       inputCostMicrousd: 2,
-      cacheReadCostMicrousd: 0, // 0.7 µUSD
-      cacheWriteCostMicrousd: 15, // 7.5 + 8
+      cacheReadCostMicrousd: 0,
+      cacheWriteCostMicrousd: 15,
       outputCostMicrousd: 10,
       costPicoUsd: 28_200_000,
       costMicrousd: 29,

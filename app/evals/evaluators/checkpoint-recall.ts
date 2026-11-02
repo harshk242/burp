@@ -1,11 +1,3 @@
-/**
- * checkpoint_recall (rubrics/checkpoint-recall.md): the share of an item's
- * checkpoints met by the final answer to their own turn. An alias group hits
- * when any alias appears case-insensitively with no letter or digit right
- * before or after it (so `IL-23` does not match `IL-23R`); a checkpoint passes
- * with at least `min_hits` groups. A failed turn (no answer) fails its
- * checkpoints. Not scored when the item has no checkpoints.
- */
 import type { Checkpoint } from "../lib/schema";
 import type { ItemEvaluator } from "./types";
 
@@ -15,7 +7,6 @@ export function aliasHits(alias: string, answer: string): boolean {
   return new RegExp(`(?<![\\p{L}\\p{N}])${escape(alias)}(?![\\p{L}\\p{N}])`, "iu").test(answer);
 }
 
-/** Alias groups of `checkpoint` that missed in `answer` (all of them when there is no answer). */
 export function missedGroups(checkpoint: Checkpoint, answer: string | null): string[][] {
   return checkpoint.any_of.filter((group) => !answer || !group.some((alias) => aliasHits(alias, answer)));
 }

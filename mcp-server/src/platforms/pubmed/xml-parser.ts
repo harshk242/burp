@@ -1,23 +1,19 @@
-// XML Parser for NCBI E-utilities responses
-
 import { XMLParser } from 'fast-xml-parser';
+import { decodeAuthors } from './author-decoder.js';
 import { XMLParseError } from './exceptions.js';
 import { ensureArray, extractText } from './utils.js';
 import type {
   ESearchResult,
   ArticleSummary,
   PubMedArticle,
-  AuthorInfo,
   MeshTerm,
   Grant,
   LinkResult,
   Author,
 } from './types.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObject = Record<string, any>;
 
-// Configure XML parser for NCBI responses
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
@@ -25,11 +21,10 @@ const parser = new XMLParser({
   parseAttributeValue: true,
   trimValues: true,
   isArray: (name) => {
-    // Force these elements to always be arrays
     // Note: IdList is NOT included because there's only one per response
     // and including it causes IdList?.Id to fail (becomes array[0].Id)
     const arrayElements = [
-      'Id', 'Item', 'Author', 'AuthorList',
+      'Id', 'Item', 'Author',
       'ArticleId', 'MeshHeading', 'Keyword', 'Grant',
       'PublicationType', 'Link', 'LinkSet', 'Translation'
     ];
@@ -37,9 +32,6 @@ const parser = new XMLParser({
   },
 });
 
-/**
- * Parse ESearch response
- */
 export function parseESearchResult(xml: string): ESearchResult {
   try {
     const result = parser.parse(xml);
@@ -74,9 +66,6 @@ export function parseESearchResult(xml: string): ESearchResult {
   }
 }
 
-/**
- * Parse ESummary response
- */
 export function parseESummaryResult(xml: string): ArticleSummary[] {
   try {
     const result = parser.parse(xml);
@@ -106,7 +95,7 @@ export function parseESummaryResult(xml: string): ArticleSummary[] {
       }
 
       return {
-        uid: extractText(doc.Id) || doc['@_uid'] as string || '',
+        uid: extractText(ensureArray(doc.Id)[0]) || doc['@_uid'] as string || '',
         pubdate: (itemMap.PubDate as string) || '',
         epubdate: itemMap.EPubDate as string,
         source: (itemMap.Source as string) || '',
@@ -140,9 +129,6 @@ export function parseESummaryResult(xml: string): ArticleSummary[] {
   }
 }
 
-/**
- * Parse structure items from ESummary
- */
 function parseStructureItem(item: AnyObject): AnyObject {
   const result: AnyObject = {};
   const subItems = ensureArray(item.Item || []);
@@ -156,9 +142,6 @@ function parseStructureItem(item: AnyObject): AnyObject {
   return result;
 }
 
-/**
- * Parse EFetch (full article) response
- */
 export function parseEFetchResult(xml: string): PubMedArticle[] {
   try {
     const result = parser.parse(xml);
@@ -176,13 +159,10 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
         continue;
       }
 
-      // Extract PMID
       const pmid = extractText(medlineCitation.PMID);
 
-      // Extract title
       const title = extractText(articleData.ArticleTitle);
 
-      // Extract abstract
       const abstractObj = articleData.Abstract as AnyObject | undefined;
       const abstractText = abstractObj?.AbstractText;
       let abstract: string | undefined;
@@ -194,23 +174,8 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
         }
       }
 
-      // Extract authors
-      const authorListObj = articleData.AuthorList as AnyObject | undefined;
-      const authorList = authorListObj?.Author || [];
-      const authors: AuthorInfo[] = ensureArray(authorList).map((author: AnyObject) => {
-        const affiliationInfo = author.AffiliationInfo as AnyObject | undefined;
-        const identifier = author.Identifier as AnyObject | undefined;
-        return {
-          lastName: extractText(author.LastName),
-          foreName: extractText(author.ForeName),
-          initials: extractText(author.Initials),
-          affiliation: affiliationInfo ? extractText(affiliationInfo.Affiliation) : undefined,
-          orcid: identifier ? extractText(identifier['#text']) : undefined,
-          collectiveName: extractText(author.CollectiveName),
-        };
-      });
+      const authors = decodeAuthors(articleData.AuthorList);
 
-      // Extract journal info
       const journalData = articleData.Journal as AnyObject | undefined;
       const journalIssue = journalData?.JournalIssue as AnyObject | undefined;
       const pagination = articleData.Pagination as AnyObject | undefined;
@@ -224,7 +189,6 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
         pages: extractText(pagination?.MedlinePgn),
       };
 
-      // Extract MeSH terms
       const meshHeadingList = medlineCitation.MeshHeadingList as AnyObject | undefined;
       const meshList = meshHeadingList?.MeshHeading || [];
       const meshTerms: MeshTerm[] = ensureArray(meshList).map((mesh: AnyObject) => {
@@ -236,17 +200,14 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
         };
       });
 
-      // Extract keywords
       const keywordListObj = medlineCitation.KeywordList as AnyObject | undefined;
       const keywordList = keywordListObj?.Keyword || [];
       const keywords = ensureArray(keywordList).map((kw: unknown) => extractText(kw));
 
-      // Extract publication types
       const pubTypeListObj = articleData.PublicationTypeList as AnyObject | undefined;
       const pubTypeList = pubTypeListObj?.PublicationType || [];
       const publicationTypes = ensureArray(pubTypeList).map((pt: unknown) => extractText(pt));
 
-      // Extract grants
       const grantListObj = articleData.GrantList as AnyObject | undefined;
       const grantList = grantListObj?.Grant || [];
       const grants: Grant[] = ensureArray(grantList).map((grant: AnyObject) => ({
@@ -256,7 +217,6 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
         country: extractText(grant.Country),
       }));
 
-      // Extract DOI and PMC ID from article IDs
       const articleIdListObj = pubmedData?.ArticleIdList as AnyObject | undefined;
       const articleIdList = articleIdListObj?.ArticleId || [];
       let doi: string | undefined;
@@ -273,7 +233,6 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
         }
       }
 
-      // Extract language
       const language = extractText(articleData.Language);
 
       parsedArticles.push({
@@ -300,9 +259,6 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
   }
 }
 
-/**
- * Format publication date from NCBI date structure
- */
 function formatPubDate(pubDate: AnyObject | undefined): string {
   if (!pubDate) return '';
 
@@ -329,9 +285,6 @@ function formatPubDate(pubDate: AnyObject | undefined): string {
   return '';
 }
 
-/**
- * Parse ELink response
- */
 export function parseELinkResult(xml: string): LinkResult {
   try {
     const result = parser.parse(xml);
@@ -345,7 +298,7 @@ export function parseELinkResult(xml: string): LinkResult {
       };
     }
 
-    const linkSetObj = linkSet as AnyObject;
+    const linkSetObj = ensureArray(linkSet)[0] as AnyObject;
     const idListObj = linkSetObj.IdList as AnyObject | undefined;
     const idList = ensureArray(idListObj?.Id || []).map(String);
     const linkSetDbList = ensureArray(linkSetObj.LinkSetDb || []);
@@ -357,7 +310,7 @@ export function parseELinkResult(xml: string): LinkResult {
         dbTo: extractText(lsdb.DbTo) || '',
         linkName: extractText(lsdb.LinkName) || '',
         link: ensureArray(lsdb.Link || []).map((link: AnyObject) => ({
-          id: extractText(link.Id) || '',
+          id: extractText(ensureArray(link.Id)[0]) || '',
           score: link.Score ? parseInt(extractText(link.Score), 10) : undefined,
         })),
       })),

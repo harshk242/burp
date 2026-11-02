@@ -1,13 +1,3 @@
-/**
- * Tool boot shared by the server, the prompt-cache gate and the eval runner:
- * start the MCP servers, discover their tools, index tool search, and attach
- * embeddings (background sync, or the stored index file when sync is off).
- *
- * The keyword index is rebuilt whenever an MCP server recovers
- * (`mcpManager.onToolsChanged`), so recovered tools are searchable without a
- * restart.
- */
-
 import { appConfig } from "../config";
 import { createEmbedder, ToolEmbeddingSync, type Embedder } from "../embeddings";
 import { logger, startTimer } from "../logger";
@@ -20,20 +10,45 @@ export interface ToolsReport {
   toolsTotal: number;
   searchIndexed: boolean;
   embeddingsLoaded: boolean;
-  /** Embedder id, null without an embedding key. */
   embedder: string | null;
 }
 
 export interface ToolsBoot {
-  /** Null when the embedding provider's key is missing: search stays keyword-only. */
   embedder: Embedder | null;
-  /** Background embeddings sync; null without an embedder or when embedding.sync_on_boot is false. */
   embeddingSync: ToolEmbeddingSync | null;
-  /** Resolves once servers started, tools are discovered and search is indexed. */
   ready: Promise<ToolsReport>;
 }
 
-/** Current state of tool search (also after the embedding sync attached its vectors). */
+let bootReady: Promise<unknown> | null = null;
+
+/** Resolves true once `work` settles (either way), false on timeout or abort. */
+export async function settlesWithin(work: Promise<unknown>, timeoutMs: number, signal?: AbortSignal): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  const giveUp = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+    onAbort = () => resolve(false);
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([work.then(() => true, () => true), giveUp]);
+  } finally {
+    clearTimeout(timer);
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+/** Records the in-flight tool boot that `waitForTools` gates on; null clears it. */
+export function trackToolsBoot(ready: Promise<unknown> | null): void {
+  bootReady = ready;
+}
+
+/** Lets a turn that arrives during a cold start wait for the tool catalog; true at once when boot never ran. */
+export function waitForTools(timeoutMs: number, signal?: AbortSignal): Promise<boolean> {
+  return bootReady ? settlesWithin(bootReady, timeoutMs, signal) : Promise.resolve(true);
+}
+
 export function toolsReport(embedder: Embedder | null): ToolsReport {
   return {
     toolsAvailable: toolRegistry.availableCount,
@@ -44,12 +59,9 @@ export function toolsReport(embedder: Embedder | null): ToolsReport {
   };
 }
 
-/** Starts the tool boot; `ready` never resolves before search is indexed. Call once per process. */
 export function initializeTools(): ToolsBoot {
   const embedder = createEmbedder(appConfig.embedding, { queryTimeoutMs: appConfig.embedding.query_timeout_ms });
 
-  // Keeps the embeddings index in step with the tool set in the background and
-  // attaches its vectors (latest snapshot wins).
   const embeddingSync =
     embedder && appConfig.embedding.sync_on_boot
       ? new ToolEmbeddingSync({
@@ -77,8 +89,6 @@ export function initializeTools(): ToolsBoot {
 
     reindexSearch();
 
-    // Without sync, attach whatever the index file holds for this embedder
-    // (optional — BM25 works without it). With sync, the sync attaches.
     if (embedder && !embeddingSync) await attachStoredEmbeddings(hybridSearch, embedder, appConfig.tool_search.embeddings_path);
 
     const report = toolsReport(embedder);
@@ -96,5 +106,6 @@ export function initializeTools(): ToolsBoot {
     return report;
   })();
 
+  trackToolsBoot(ready);
   return { embedder, embeddingSync, ready };
 }

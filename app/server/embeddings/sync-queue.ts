@@ -1,19 +1,3 @@
-/**
- * Runs index syncs in the background, one at a time, latest snapshot wins.
- *
- * - No sync running: start one. One running: the request waits, replacing any
- *   older waiting request, and runs when the current sync ends. Every snapshot
- *   is synced or replaced by a newer one; none is silently dropped.
- * - Transient failures (network, timeout, 429/5xx after the SDK's own retries)
- *   get up to three more attempts at ~1 / 5 / 15 min (±20% jitter). Fly
- *   machines don't auto-stop, so the next boot can be days away. Auth/config
- *   errors and invalid responses aren't retried. A newer request cancels a
- *   scheduled retry and takes over.
- * - Failures are logged, never thrown: whatever was attached stays attached.
- * - A rejected index file (other than missing) gets one warning, not one per
- *   retry: the same rejection isn't repeated until a sync replaces the file.
- */
-
 import { APICallError, RetryError } from "ai";
 import { logger, startTimer } from "../logger";
 import { logIndexRejected, type IndexReadResult } from "./index-file";
@@ -23,26 +7,21 @@ import { EmbeddingResponseError, EmbeddingTimeoutError, type Embedder } from "./
 export const RETRY_DELAYS_MS = [60_000, 300_000, 900_000] as const;
 const RETRY_JITTER = 0.2;
 
-/** Schedules `fn` after `ms`; returns a cancel function. */
 export type Scheduler = (fn: () => void, ms: number) => () => void;
 
 const defaultScheduler: Scheduler = (fn, ms) => {
   const timer = setTimeout(fn, ms);
-  timer.unref?.(); // a pending retry never keeps the process alive
+  timer.unref?.();
   return () => clearTimeout(timer);
 };
 
 export interface EmbeddingSyncOptions {
   embedder: Embedder;
   path: string;
-  /** Deadline for the embedding call of one attempt. */
   timeoutMs: number;
-  /** Receives the vectors to attach for the synced snapshot. */
   onReady(embedder: Embedder, vectors: Map<string, Float32Array>): void;
-  /** Delays before attempts 2, 3, 4. */
   retryDelaysMs?: readonly number[];
   scheduler?: Scheduler;
-  /** Jitter source in [0, 1); tests pin it. */
   random?: () => number;
 }
 
@@ -51,14 +30,8 @@ interface Job {
   attempt: number;
 }
 
-/**
- * True for failures worth another attempt later: timeouts and API calls the
- * SDK marks retryable (network errors, 408/409/429/5xx). Everything else —
- * 4xx auth/config errors, invalid responses, missing keys, bugs — is not.
- */
 export function isRetryableSyncError(error: unknown): boolean {
   if (RetryError.isInstance(error)) {
-    // The SDK gave up: judge by what failed last.
     return isRetryableSyncError(error.lastError);
   }
   if (APICallError.isInstance(error)) return error.isRetryable;
@@ -72,7 +45,6 @@ export class ToolEmbeddingSync {
   private running: Promise<void> | null = null;
   private cancelRetry: (() => void) | null = null;
   private stopped = false;
-  /** The rejection last warned about; cleared once the file is valid or rewritten. */
   private warnedRejection: string | null = null;
   private readonly retryDelaysMs: readonly number[];
   private readonly scheduler: Scheduler;
@@ -84,24 +56,20 @@ export class ToolEmbeddingSync {
     this.random = options.random ?? Math.random;
   }
 
-  /** Sync the index to `tools` in the background. Never throws. */
   request(tools: readonly SyncTool[]): void {
     if (this.stopped) return;
-    this.clearRetry(); // the newer snapshot takes over from a scheduled retry
+    this.clearRetry();
     this.enqueue({ tools, attempt: 1 });
   }
 
-  /** Resolves once no sync is running (a scheduled retry may still be pending). */
   async idle(): Promise<void> {
     while (this.running) await this.running;
   }
 
-  /** True while a retry is scheduled. */
   get retryScheduled(): boolean {
     return this.cancelRetry !== null;
   }
 
-  /** Cancel any scheduled retry and ignore later requests. A running sync finishes. */
   stop(): void {
     this.stopped = true;
     this.pending = null;
@@ -109,7 +77,7 @@ export class ToolEmbeddingSync {
   }
 
   private enqueue(job: Job): void {
-    this.pending = job; // replaces any older waiting request
+    this.pending = job;
     if (!this.running) this.running = this.drain();
   }
 
@@ -154,7 +122,6 @@ export class ToolEmbeddingSync {
       });
     } catch (error) {
       const retryable = isRetryableSyncError(error);
-      // A waiting request is newer and takes over; otherwise retry if worth it.
       const delay = retryable && !this.pending && !this.stopped ? this.retryDelaysMs[job.attempt - 1] : undefined;
       const nextRetryMs = delay === undefined ? undefined : this.jitter(delay);
       logger.error("SEARCH", "embeddings_sync_failed", {

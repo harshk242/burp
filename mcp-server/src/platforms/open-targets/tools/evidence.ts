@@ -1,11 +1,6 @@
-// Evidence API Tools
-
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
 
-/**
- * Retrieve evidence strings linking a target to a disease.
- */
 export async function getTargetDiseaseEvidence(
   ensemblId: string,
   efoId: string,
@@ -56,9 +51,6 @@ export async function getTargetDiseaseEvidence(
   return client.query(query, variables);
 }
 
-/**
- * Inspect evidence for biomarker annotations linking a target and disease.
- */
 export async function getTargetDiseaseBiomarkers(
   ensemblId: string,
   efoId: string,

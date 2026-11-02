@@ -1,13 +1,9 @@
-// PubMed platform module for the unified MCP server
-
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { PlatformModule, ToolHandler } from '../../types.js';
 import { initializeClient, closeClient } from './client.js';
 import * as tools from './tools/index.js';
 
-// Tool definitions
 const TOOLS: Tool[] = [
-  // Search tools
   {
     name: 'search_pubmed',
     description: 'Search PubMed database with a query string. Returns matching article PMIDs and total count.',
@@ -168,7 +164,6 @@ const TOOLS: Tool[] = [
     },
   },
 
-  // Fetch tools
   {
     name: 'fetch_article_details',
     description: 'Fetch complete article details including title, abstract, authors, MeSH terms, and more.',
@@ -232,7 +227,6 @@ const TOOLS: Tool[] = [
     },
   },
 
-  // Link tools
   {
     name: 'find_related_articles',
     description: 'Find articles related to a given article based on PubMed similarity algorithm.',
@@ -291,7 +285,6 @@ const TOOLS: Tool[] = [
     },
   },
 
-  // Analysis tools
   {
     name: 'get_mesh_terms',
     description: 'Get MeSH (Medical Subject Headings) terms for an article.',
@@ -350,9 +343,7 @@ const TOOLS: Tool[] = [
   },
 ];
 
-// Tool handlers
 const toolHandlers: Record<string, ToolHandler> = {
-  // Search tools
   search_pubmed: async (args) => {
     return tools.searchPubmed(
       args.query as string,
@@ -407,7 +398,6 @@ const toolHandlers: Record<string, ToolHandler> = {
     );
   },
 
-  // Fetch tools
   fetch_article_details: async (args) => {
     return tools.fetchArticleDetails(args.pmid as string);
   },
@@ -427,7 +417,6 @@ const toolHandlers: Record<string, ToolHandler> = {
     );
   },
 
-  // Link tools
   find_related_articles: async (args) => {
     return tools.findRelatedArticles(
       args.pmid as string,
@@ -449,7 +438,6 @@ const toolHandlers: Record<string, ToolHandler> = {
     );
   },
 
-  // Analysis tools
   get_mesh_terms: async (args) => {
     return tools.getMeshTerms(args.pmid as string);
   },
@@ -470,7 +458,6 @@ const toolHandlers: Record<string, ToolHandler> = {
   },
 };
 
-// PlatformModule export
 const pubmedModule: PlatformModule = {
   name: 'pubmed',
   tools: TOOLS,

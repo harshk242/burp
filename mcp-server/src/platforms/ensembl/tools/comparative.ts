@@ -2,8 +2,6 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
-// ── Validation ──────────────────────────────────────────────────────────────
-
 const isValidHomologArgs = (
   args: any,
 ): args is {
@@ -38,8 +36,6 @@ const isValidGeneTreeArgs = (
     (args.clusterset_id === undefined || typeof args.clusterset_id === 'string')
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -94,8 +90,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ────────────────────────────────────────────────────────────────
-
 async function handleGetHomologs(args: Record<string, unknown>) {
   if (!isValidHomologArgs(args)) {
     throw new Error('Invalid homolog arguments');
@@ -137,8 +131,6 @@ async function handleGetGeneTree(args: Record<string, unknown>) {
   const response = await getClient().get(endpoint, { params });
   return response.data;
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   get_homologs: handleGetHomologs,

@@ -6,7 +6,6 @@ interface SessionState {
   activeSessionId: string | null;
   isLoading: boolean;
 
-  // Actions
   setSessions: (sessions: Session[]) => void;
   addSession: (session: Session) => void;
   updateSession: (id: string, updates: Partial<Session>) => void;

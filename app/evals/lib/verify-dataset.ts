@@ -1,15 +1,7 @@
-/**
- * Verifies a dataset fetched from Langfuse against the local YAML before a run
- * (plan 2.1 step 6). The hashes stored in Langfuse metadata are never trusted
- * (a UI edit leaves them unchanged): every item's content_hash is recomputed
- * from its fetched input / expected output / metadata, the active id set must
- * equal the local one, and dataset_hash is recomputed from those pairs.
- */
 import { contentHash, datasetHash } from "./hash";
 import { localDatasetHash, remoteContentHash } from "./plan";
 import type { DatasetFile } from "./schema";
 
-/** The fields of a fetched item the check reads (SDK DatasetItem or API item). */
 export interface FetchedItem {
   id: string;
   status?: string;
@@ -19,15 +11,11 @@ export interface FetchedItem {
 }
 
 export interface DatasetCheck {
-  /** Recomputed from the fetched active items. */
   datasetHash: string;
   localDatasetHash: string;
   activeIds: string[];
-  /** Local items missing remotely (or archived there). */
   missing: string[];
-  /** Active remote items not in the local YAML. */
   extra: string[];
-  /** Items whose fetched content differs from the local YAML. */
   changed: string[];
 }
 
@@ -55,7 +43,6 @@ export function datasetMatches(check: DatasetCheck): boolean {
   );
 }
 
-/** The error for a drifted dataset: differing ids and the fix. */
 export function driftMessage(name: string, check: DatasetCheck): string {
   const lines = [`dataset "${name}" in Langfuse does not match the local YAML:`];
   if (check.changed.length) lines.push(`  changed (content differs): ${check.changed.join(", ")}`);

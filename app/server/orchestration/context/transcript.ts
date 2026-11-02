@@ -1,36 +1,13 @@
-/**
- * Model transcript write path (plan Phase 4b.1): every `ModelMessage` the chat
- * loop sends is appended to `model_transcript` once, in send order, tagged with
- * its turn and a compatibility tag. Replay parses successful turns as-is,
- * falling back to UI text only for turns without transcript rows.
- *
- * Rules:
- * - R1, append-only: rows are inserted once and never updated (the queries
- *   have no update method; a trigger rejects UPDATEs).
- * - R2, no cache markers: `applyCacheMarkers` marks a per-call copy, so the
- *   loop's messages carry none; `stripCacheMarkers` removes any that would get
- *   through anyway, leaving every other byte as it was.
- * - R3, what the model saw: the loop's own messages (tool output after
- *   handleLargeOutput, with its `fetched_at` line; reasoning parts with their
- *   signatures / redacted data, as the SDK returned them).
- */
-
 import type { ModelMessage } from "ai";
 import { chatTurnQueries, messageQueries, modelTranscriptQueries, type DbTranscriptRow, type NewTranscriptRow } from "../../db";
 import { shortHash } from "../usage-meter";
 
-/** Compatibility tag stored on every row (4b.4): replay needs all three to match. */
 export interface TranscriptTag {
   provider: string;
   model: string;
   contextVersion: string;
 }
 
-/**
- * Hash of what makes stored messages valid to replay besides provider/model:
- * the system prompt and the provider options (thinking config, effort).
- * Changing either costs each session one cache miss (degraded replay, 4b.4).
- */
 export function contextVersion(systemPrompt: string, providerOptions: unknown): string {
   return shortHash(JSON.stringify({ systemPrompt, providerOptions: providerOptions ?? null }));
 }
@@ -38,10 +15,6 @@ export function contextVersion(systemPrompt: string, providerOptions: unknown): 
 type ProviderOptions = Record<string, Record<string, unknown> | undefined>;
 const CACHE_KEYS = ["cacheControl", "cache_control"] as const;
 
-/**
- * `providerOptions` without Anthropic cache markers, or the same object when it
- * has none (so unmarked messages are stored untouched).
- */
 function withoutCacheMarkers<T extends ProviderOptions | undefined>(options: T): T | undefined {
   const anthropic = options?.anthropic;
   if (!anthropic || !CACHE_KEYS.some((key) => key in anthropic)) return options;
@@ -51,13 +24,11 @@ function withoutCacheMarkers<T extends ProviderOptions | undefined>(options: T):
   return (Object.keys(result).length > 0 ? result : undefined) as T | undefined;
 }
 
-/** Sets or drops `providerOptions` on an object (a message or a content part). */
 function replaceOptions<T extends { providerOptions?: unknown }>(item: T, options: unknown): T {
   const { providerOptions: _old, ...rest } = item;
   return (options === undefined ? rest : { ...rest, providerOptions: options }) as T;
 }
 
-/** The message without cache markers (message- and part-level); unchanged if it has none. */
 export function stripCacheMarkers(message: ModelMessage): ModelMessage {
   let result = message;
   const options = withoutCacheMarkers(message.providerOptions as ProviderOptions | undefined);
@@ -77,11 +48,6 @@ export function stripCacheMarkers(message: ModelMessage): ModelMessage {
   return result;
 }
 
-/**
- * Sorted, distinct names of the tools a message references: `tool-call` parts
- * (assistant) and `tool-reference` parts (tool-search results on Anthropic).
- * Names are as sent to the model (sanitized), matching the catalog keys.
- */
 export function transcriptToolNames(message: ModelMessage): string[] {
   const names = new Set<string>();
   if (Array.isArray(message.content)) {
@@ -98,7 +64,6 @@ export function transcriptToolNames(message: ModelMessage): string[] {
   return [...names].sort();
 }
 
-/** The row stored for one message (seq is assigned on insert). */
 export function toTranscriptRow(turnId: string, message: ModelMessage, tag: TranscriptTag): NewTranscriptRow {
   const stored = stripCacheMarkers(message);
   return {
@@ -112,11 +77,6 @@ export function toTranscriptRow(turnId: string, message: ModelMessage, tag: Tran
   };
 }
 
-/**
- * Appends messages to the session's transcript, after its last row, in one
- * transaction. Throws on a DB error: a turn whose transcript can't be written
- * fails rather than leave a gap that replay would later read past.
- */
 export function appendTranscript(
   sessionId: string,
   turnId: string,
@@ -131,10 +91,9 @@ export function appendTranscript(
 
 export interface TranscriptContext {
   messages: ModelMessage[];
-  /** Endpoint of the preceding successful turn's final input, before its answer. */
   previousLastIndex?: number;
-  /** Measured prompt of that turn's last call (set with `previousLastIndex`). */
   previousPromptTokens?: number;
+  previousInputIdentity?: string;
   previousFinishedAt?: number;
 }
 
@@ -147,7 +106,6 @@ export type TranscriptDegradedReason =
   | { reason: "provider" | "model" | "context_version" | "system_message" }
   | { reason: "missing_tools"; missing_tools: string[] };
 
-/** Check every row: a late tool search or provider change invalidates the turn. */
 function incompatibility(rows: DbTranscriptRow[], current: TranscriptCompatibility): TranscriptDegradedReason | undefined {
   if (rows.some((row) => row.provider !== current.provider)) return { reason: "provider" };
   if (rows.some((row) => row.model !== current.model)) return { reason: "model" };
@@ -161,15 +119,6 @@ function incompatibility(rows: DbTranscriptRow[], current: TranscriptCompatibili
   if (missing.size) return { reason: "missing_tools", missing_tools: [...missing].sort() };
 }
 
-/**
- * Successful transcript rows are parsed without modifying content or metadata.
- * UI user rows anchor mixed history: untracked legacy messages use text, an ok
- * tracked turn with no rows uses its UI text, and every non-ok turn is omitted.
- * The stable UI row order and transcript seq order make the merge deterministic.
- * Incompatible turns, and turns holding a system row the loader didn't write,
- * use their UI text; their old lossless endpoint is discarded. A compatible suffix can retain its
- * own endpoint: provider caches compare prefix bytes, so changed content misses.
- */
 export function loadTranscript(sessionId: string, current?: TranscriptCompatibility): TranscriptContext {
   const history = messageQueries.findByChatId(sessionId);
   const turns = chatTurnQueries.findBySessionId(sessionId);
@@ -183,8 +132,6 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
   for (const row of rows) {
     if (!okIds.has(row.turn_id)) continue;
     const message = JSON.parse(row.content_json) as ModelMessage;
-    // Server-written tool-change system messages are not implemented yet, so
-    // any system row is untrusted: its turn replays as text (below).
     if (row.role === "system" || message.role === "system") untrusted.add(row.turn_id);
     const messages = byTurn.get(row.turn_id) ?? [];
     messages.push(message);
@@ -219,12 +166,11 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
         if (msg.id !== turn.user_message_id) continue;
         const offset = context.messages.length;
         context.messages.push(...replay);
-        // All trailing assistant messages belong to the final response, which
-        // was not part of that call's input. The preceding message was cached.
-        let endpoint = replay.length - 1;
-        while (endpoint >= 0 && replay[endpoint]!.role === "assistant") endpoint--;
-        context.previousLastIndex = endpoint >= 0 ? offset + endpoint : undefined;
-        context.previousPromptTokens = endpoint >= 0 ? turn.last_prompt_tokens ?? undefined : undefined;
+        const count = turn.last_input_message_count;
+        const valid = count !== null && count > offset && count <= context.messages.length && turn.last_input_identity !== null;
+        context.previousLastIndex = valid ? count - 1 : undefined;
+        context.previousInputIdentity = valid ? turn.last_input_identity! : undefined;
+        context.previousPromptTokens = valid ? turn.last_prompt_tokens ?? undefined : undefined;
         context.previousFinishedAt = turn.finished_at ?? undefined;
         continue;
       }

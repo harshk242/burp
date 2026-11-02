@@ -1,10 +1,3 @@
-/**
- * Side-effect-free connection factory.
- *
- * `openDatabase()` is the single place that applies connection pragmas, so the
- * app connection, CLI scripts and test databases all behave the same. Importing
- * this module never opens a database (unlike `client.ts`).
- */
 import { Database } from "bun:sqlite";
 import { drizzle, type BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { existsSync, mkdirSync } from "fs";
@@ -14,7 +7,13 @@ import * as schema from "./schema";
 
 export type DrizzleDb = BunSQLiteDatabase<typeof schema>;
 
-export function openDatabase(path: string): Database {
+export function openDatabase(path: string, options: { existing?: boolean } = {}): Database {
+  if (options.existing) {
+    if (isMemoryDbPath(path) || !existsSync(path)) throw new Error(`Existing database required: ${path}`);
+    const sqlite = new Database(path, { create: false, readwrite: true });
+    sqlite.run("PRAGMA foreign_keys = ON");
+    return sqlite;
+  }
   const memory = isMemoryDbPath(path);
   if (!memory) {
     const dir = dirname(path);
@@ -24,8 +23,11 @@ export function openDatabase(path: string): Database {
   const sqlite = new Database(path, { create: true });
   // Foreign key enforcement is per-connection and off by default in SQLite.
   sqlite.run("PRAGMA foreign_keys = ON");
-  // WAL for better concurrent read performance (not applicable to :memory:).
-  if (!memory) sqlite.run("PRAGMA journal_mode = WAL");
+  if (!memory) {
+    sqlite.run("PRAGMA journal_mode = WAL");
+    // WAL + NORMAL syncs at checkpoints, not every commit: a power loss can drop the latest commits but never corrupts the DB.
+    sqlite.run("PRAGMA synchronous = NORMAL");
+  }
   return sqlite;
 }
 

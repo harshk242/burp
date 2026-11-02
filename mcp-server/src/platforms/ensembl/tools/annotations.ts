@@ -1,8 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
-import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
-
-// ── Validation ──────────────────────────────────────────────────────────────
+import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidXrefArgs = (
   args: any,
@@ -31,8 +29,6 @@ const isValidMapCoordinatesArgs = (
     args.target_assembly.length > 0
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -70,8 +66,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ────────────────────────────────────────────────────────────────
-
 async function handleGetXrefs(args: Record<string, unknown>) {
   if (!isValidXrefArgs(args)) {
     throw new Error('Invalid xref arguments');
@@ -97,15 +91,13 @@ async function handleMapCoordinates(args: Record<string, unknown>) {
   }
 
   const species = getDefaultSpecies(args.species);
-  const region = formatGenomicRegion(args.region);
+  const region = args.region;
 
   const response = await getClient().get(
     `/map/coords/${species}/${args.target_assembly}/${region}`,
   );
   return response.data;
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   get_xrefs: handleGetXrefs,

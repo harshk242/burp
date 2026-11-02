@@ -20,7 +20,6 @@ describe("chatStore reasoning", () => {
   });
 
   it("keeps thinking and reclassified pre-tool text as segments in stream order", () => {
-    // Call 1: thinking, pre-tool text, tool call. Call 2: thinking, final text.
     store().appendReasoning("Plan A.", true);
     store().appendStreamingContent("Looking it up.");
     store().moveStreamingToReasoning();
@@ -42,7 +41,6 @@ describe("chatStore reasoning", () => {
   });
 
   it("reclassifies text interleaved with thinking in stream order", () => {
-    // Call: thinking A, text, thinking B, text, tool call.
     store().appendReasoning("A.", true);
     store().appendStreamingContent("Check");
     store().appendStreamingContent("ing.");
@@ -54,7 +52,6 @@ describe("chatStore reasoning", () => {
     expect(store().reasoningSegments).toEqual(["A.", "Checking.", "B.", "More."]);
     expect(store().streamingContent).toBe("");
 
-    // The next call's text starts a fresh run.
     store().appendStreamingContent("Final");
     store().finalizeAssistantMessage();
     expect(store().messages[0]).toMatchObject({ content: "Final", reasoning: "A.\n\nChecking.\n\nB.\n\nMore." });
@@ -74,7 +71,6 @@ describe("chatStore reasoning", () => {
   });
 
   it("doesn't stack blank lines when summaries already end in one (matches stored reasoning)", () => {
-    // Same stream as the server's chat-reasoning test of the same name.
     const tool = (id: string) => ({ id, name: "t", server: "s", toolName: "t", input: {}, status: "running" as const });
     store().appendReasoning("Plan A.\n\n", true);
     store().appendStreamingContent("\n");
@@ -149,7 +145,6 @@ describe("chatStore feedback", () => {
       { value: 1, comment: "great", categories: ["accurate", "well_sourced"] },
       null,
     ]);
-    // A thumb flip saves categories: [] and replaces the old polarity's.
     store().setFeedback("a", { value: 0, comment: null, categories: [] });
     expect(store().messages[0]?.feedback).toEqual({ value: 0, comment: null, categories: [] });
     store().setFeedback("a", { value: 0, comment: null, categories: ["incomplete", "outdated"] });
@@ -163,5 +158,31 @@ describe("chatStore feedback", () => {
     expect(store().messages[0]?.feedback).toEqual({ value: 0, comment: null, categories: [] });
     store().reset();
     expect(store().messages).toEqual([]);
+  });
+});
+
+describe("chatStore completion", () => {
+  it("finishes an empty persisted turn without attributing usage to the previous answer", () => {
+    store().setMessages([{ id: "old", role: "assistant", content: "old answer", createdAt: 1 }]);
+    store().setStreaming(true);
+    store().finalizeAssistantMessage("empty", { input: 7, output: 0 });
+    expect(store().isStreaming).toBe(false);
+    expect(store().messages).toHaveLength(2);
+    expect(store().messages[0].tokenUsage).toBeUndefined();
+    expect(store().messages[1]).toMatchObject({ id: "empty", content: "", persisted: true, tokenUsage: { input: 7, output: 0 } });
+    expect(store().streamingContent).toBe("");
+  });
+
+  it("finishes even an empty turn without a persisted message", () => {
+    store().setStreaming(true);
+    store().finalizeAssistantMessage();
+    expect(store().isStreaming).toBe(false);
+    expect(store().messages).toEqual([]);
+  });
+
+  it("preserves identity and usage when an empty persisted message is reloaded", () => {
+    const row: DbMessage = { id: "empty", chat_id: "s", role: "assistant", content: null, tool_calls: null, created_at: 1, input_tokens: 7, output_tokens: 0 };
+    expect(dbMessageToMessage(row)).toMatchObject({ id: "empty", content: "", persisted: true, tokenUsage: { input: 7, output: 0 } });
+    expect(dbMessageToMessage({ ...row, input_tokens: 0 }).tokenUsage).toBeUndefined();
   });
 });

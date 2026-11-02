@@ -9,12 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-/**
- * Compact usage indicator for the header.
- * Shows daily dollar spend with a color-coded bar, or "Unlimited" for admins.
- */
 export function UsageIndicator() {
-  // Hook triggers fetch on mount and after each stream
   useUsage();
 
   const usage = useUserStore((s) => s.usage);
@@ -24,7 +19,6 @@ export function UsageIndicator() {
 
   const cost = usage.cost;
 
-  // Admin / unlimited cost budget
   if (cost?.daily_limit_microusd === -1 && cost.monthly_limit_microusd === -1) {
     return (
       <Badge variant="secondary" className="text-xs font-normal">
@@ -46,7 +40,6 @@ export function UsageIndicator() {
       ? (cost.monthly_used_microusd / cost.monthly_limit_microusd) * 100
       : 0;
 
-  // Color threshold: fire if either quota is close to exhausted
   const worstPct = cost
     ? Math.max(dailyCostPct, monthlyCostPct)
     : Math.max(queryPct, tokens && tokens.limit !== -1 ? tokenPct : 0);

@@ -1,0 +1,28 @@
+{
+  "result": {
+    "7105": {
+      "uid": "7105",
+      "variation_set": [
+        {
+          "measure_id": "22144",
+          "allele_freq_set": [
+            {
+              "source": "1000 Genomes Project",
+              "value": "0.00399",
+              "minor_allele": "T"
+            }
+          ]
+        }
+      ]
+    },
+    "7106": {
+      "uid": "7106",
+      "variation_set": [
+        {
+          "measure_id": "22145",
+          "allele_freq_set": []
+        }
+      ]
+    }
+  }
+}

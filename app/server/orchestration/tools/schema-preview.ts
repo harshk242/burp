@@ -1,17 +1,3 @@
-/**
- * Schema Preview Generator
- *
- * Introspects JSON structure to produce a lightweight preview
- * (~300-500 tokens) that gives the LLM enough context to write
- * targeted jq filters via the inspect_artifact tool.
- *
- * The preview includes:
- * - Top-level _meta with artifact ID, sizes, tool name, and hint
- * - Key names and types at each level
- * - Array lengths, unique item keys, and sample items
- * - Truncated long strings
- */
-
 import { appConfig } from "../../config";
 
 interface PreviewOpts {
@@ -19,9 +5,6 @@ interface PreviewOpts {
   maxCharsPerValue?: number;
 }
 
-/**
- * Generate a schema preview for a stored artifact.
- */
 export function generatePreview(
   artifactId: string,
   toolName: string,
@@ -39,6 +22,7 @@ export function generatePreview(
   return {
     _meta: {
       artifact_id: artifactId,
+      artifact_type: "json",
       raw_size_kb: Math.round(rawSizeKb),
       stored_size_kb: Math.round(storedSizeKb),
       tool: toolName,
@@ -52,9 +36,6 @@ export function generatePreview(
 
 const MAX_DEPTH = 3;
 
-/**
- * Recursively introspect a JSON value, producing a preview-friendly structure.
- */
 function introspect(
   value: unknown,
   depth: number,
@@ -87,9 +68,6 @@ function introspect(
   return String(value);
 }
 
-/**
- * Introspect an array — report length, unique keys across items, and sample items.
- */
 function introspectArray(
   arr: unknown[],
   depth: number,
@@ -98,7 +76,6 @@ function introspectArray(
 ): unknown {
   if (arr.length === 0) return { _type: "array", _length: 0 };
 
-  // Beyond max depth: just summarize
   if (depth >= MAX_DEPTH) {
     return summarizeArray(arr);
   }
@@ -108,13 +85,11 @@ function introspectArray(
     _length: arr.length,
   };
 
-  // Collect unique keys if items are objects
   const itemKeys = collectUniqueKeys(arr);
   if (itemKeys.length > 0) {
     result._item_keys = itemKeys;
   }
 
-  // Collect unique types/summaries for non-object array items
   if (itemKeys.length === 0) {
     const types = new Set<string>();
     for (const item of arr.slice(0, 10)) {
@@ -123,7 +98,6 @@ function introspectArray(
     result._item_types = [...types];
   }
 
-  // Include sample items (introspected)
   const samples = arr.slice(0, maxSampleItems).map((item) =>
     introspect(item, depth + 1, maxSampleItems, maxCharsPerValue),
   );
@@ -134,16 +108,12 @@ function introspectArray(
   return result;
 }
 
-/**
- * Introspect an object — list keys, recurse into values up to max depth.
- */
 function introspectObject(
   obj: Record<string, unknown>,
   depth: number,
   maxSampleItems: number,
   maxCharsPerValue: number,
 ): unknown {
-  // Beyond max depth: just summarize
   if (depth >= MAX_DEPTH) {
     return summarizeObject(obj);
   }
@@ -190,9 +160,6 @@ function introspectObject(
   return result;
 }
 
-/**
- * Collect unique keys across array items (for arrays of objects).
- */
 function collectUniqueKeys(arr: unknown[]): string[] {
   const keySet = new Set<string>();
 
@@ -207,9 +174,6 @@ function collectUniqueKeys(arr: unknown[]): string[] {
   return [...keySet];
 }
 
-/**
- * Summarize an array beyond max depth.
- */
 function summarizeArray(arr: unknown[]): string {
   if (arr.length === 0) return "_array(0)";
 
@@ -230,9 +194,6 @@ function summarizeArray(arr: unknown[]): string {
   return `_array(${arr.length}) ${typeStr}`;
 }
 
-/**
- * Summarize an object beyond max depth.
- */
 function summarizeObject(obj: Record<string, unknown>): string {
   const keys = Object.keys(obj);
   const preview = keys.slice(0, 5).join(", ");
@@ -240,9 +201,6 @@ function summarizeObject(obj: Record<string, unknown>): string {
   return `_object(${keys.length} keys: ${preview}${suffix})`;
 }
 
-/**
- * Truncate a string to maxChars, appending size indicator.
- */
 function truncateString(str: string, maxChars: number): string {
   if (str.length <= maxChars) return str;
   return `${str.slice(0, maxChars)}...(${str.length} chars)`;

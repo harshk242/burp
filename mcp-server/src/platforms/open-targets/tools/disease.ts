@@ -1,18 +1,10 @@
-// Disease API Tools
-
 import { getClient } from '../client.js';
 import { DISEASE_INFO_OPERATION } from './operations.js';
 
-/**
- * Retrieve core metadata for an Open Targets disease entity.
- * Note: Despite the parameter name, this accepts disease IDs from any ontology (EFO, MONDO, Orphanet, etc.)
- * Use search_entities to find the correct disease ID if unsure.
- */
 export async function getDiseaseInfo(efoId: string): Promise<unknown> {
   const client = getClient();
   const result = await client.query(DISEASE_INFO_OPERATION, { efoId });
 
-  // Check if disease was found and provide helpful error
   if (result && typeof result === 'object' && 'disease' in result && result.disease === null) {
     throw new Error(
       `Disease ID '${efoId}' not found. ` +
@@ -24,11 +16,6 @@ export async function getDiseaseInfo(efoId: string): Promise<unknown> {
   return result;
 }
 
-/**
- * List targets associated with a disease, including evidence scores.
- * Note: Despite the parameter name, this accepts disease IDs from any ontology (EFO, MONDO, Orphanet, etc.)
- * Use search_entities to find the correct disease ID if unsure.
- */
 export async function getDiseaseAssociatedTargets(
   efoId: string,
   pageIndex: number = 0,
@@ -61,7 +48,6 @@ export async function getDiseaseAssociatedTargets(
   `;
   const result = await client.query(query, { efoId, pageIndex, pageSize });
 
-  // Check if disease was found and provide helpful error
   if (result && typeof result === 'object' && 'disease' in result && result.disease === null) {
     throw new Error(
       `Disease ID '${efoId}' not found. ` +
@@ -73,11 +59,6 @@ export async function getDiseaseAssociatedTargets(
   return result;
 }
 
-/**
- * Fetch HPO phenotype annotations linked to a disease.
- * Note: Despite the parameter name, this accepts disease IDs from any ontology (EFO, MONDO, Orphanet, etc.)
- * Use search_entities to find the correct disease ID if unsure.
- */
 export async function getDiseasePhenotypes(
   efoId: string,
   pageIndex: number = 0,
@@ -122,7 +103,6 @@ export async function getDiseasePhenotypes(
   `;
   const result = await client.query(query, { efoId, pageIndex, pageSize });
 
-  // Check if disease was found and provide helpful error
   if (result && typeof result === 'object' && 'disease' in result && result.disease === null) {
     throw new Error(
       `Disease ID '${efoId}' not found. ` +
@@ -134,11 +114,6 @@ export async function getDiseasePhenotypes(
   return result;
 }
 
-/**
- * List Open Targets Associated Research (OTAR) projects linked to a disease.
- * Note: Despite the parameter name, this accepts disease IDs from any ontology (EFO, MONDO, Orphanet, etc.)
- * Use search_entities to find the correct disease ID if unsure.
- */
 export async function getDiseaseOtarProjects(efoId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -158,7 +133,6 @@ export async function getDiseaseOtarProjects(efoId: string): Promise<unknown> {
   `;
   const result = await client.query(query, { efoId });
 
-  // Check if disease was found and provide helpful error
   if (result && typeof result === 'object' && 'disease' in result && result.disease === null) {
     throw new Error(
       `Disease ID '${efoId}' not found. ` +

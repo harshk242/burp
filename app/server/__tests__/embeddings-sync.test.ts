@@ -1,8 +1,3 @@
-/**
- * Background sync of the tool embeddings index: incremental reuse, per-platform
- * prune vs carry-over, never mixing models, retry classification and timing
- * (fake scheduler), and latest-wins coalescing. Fake embedder, temp dirs, no network.
- */
 import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 import { APICallError, RetryError } from "ai";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "fs";
@@ -34,7 +29,6 @@ const A1 = tool("alpha__one", "First alpha tool");
 const A2 = tool("alpha__two", "Second alpha tool");
 const B1 = tool("beta__one", "First beta tool");
 
-/** Records every embedDocuments batch; `failures` (one per call) or `fail` throws, `defer` holds calls until released. */
 function fakeEmbedder(id = "fake:model@3") {
   const batches: string[][] = [];
   const held: Array<() => void> = [];
@@ -54,7 +48,6 @@ function fakeEmbedder(id = "fake:model@3") {
   return { embedder, batches, state, release: () => held.splice(0).forEach((fn) => fn()) };
 }
 
-/** Write an index made by `embedderId` holding `tools` as they are described now. */
 async function seed(embedderId: string, tools: SyncTool[]) {
   const entries = tools.map((t) => {
     const text = toolEmbeddingText(t.fullName, t.description);
@@ -110,7 +103,6 @@ describe("syncToolEmbeddings", () => {
     expect(fake.batches).toEqual([[toolEmbeddingText(changed.fullName, changed.description)]]);
     expect(stats).toMatchObject({ kept: 2, embedded: 1, pruned: 0, wrote: true });
     expect(readIndex().tools.find((t) => t.full_name === "alpha__two")?.text).toContain("pagination");
-    // Every stored vector (the stale one too) is served first, then the refreshed set once written.
     expect(attached.map((m) => [...m.keys()].sort())).toEqual([
       ["alpha__one", "alpha__two", "beta__one"],
       ["alpha__one", "alpha__two", "beta__one"],
@@ -134,7 +126,7 @@ describe("syncToolEmbeddings", () => {
     await seed("old:model@3", [A1, B1]);
     const fake = fakeEmbedder("new:model@3");
 
-    const { stats } = await sync(fake.embedder, [A1]); // beta's server is down
+    const { stats } = await sync(fake.embedder, [A1]);
 
     expect(stats).toMatchObject({ embedded: 1, carriedOver: 0, pruned: 0 });
     const index = readIndex();
@@ -159,13 +151,11 @@ describe("syncToolEmbeddings", () => {
     const fake = fakeEmbedder();
     await seed(fake.embedder.id, [A1, A2, B1]);
 
-    // alpha discovered without alpha__two; beta's server is down.
     const { stats, attached } = await sync(fake.embedder, [A1]);
 
     expect(stats).toMatchObject({ kept: 1, embedded: 0, pruned: 1, carriedOver: 1, wrote: true });
-    expect(fake.batches).toEqual([]); // pruning alone needs no API call
+    expect(fake.batches).toEqual([]);
     expect(readIndex().tools.map((t) => t.full_name)).toEqual(["alpha__one", "beta__one"]);
-    // Only the snapshot's vectors are attached; carried-over ones stay in the file.
     expect([...attached[0].keys()]).toEqual(["alpha__one"]);
   });
 
@@ -198,7 +188,6 @@ describe("isRetryableSyncError", () => {
   });
 });
 
-/** Timers that only fire when the test says so. */
 function fakeScheduler() {
   const timers: { fn: () => void; ms: number; cancelled: boolean }[] = [];
   const scheduler: Scheduler = (fn, ms) => {
@@ -224,7 +213,7 @@ function queue(embedder: Embedder, scheduler: Scheduler) {
     path,
     timeoutMs: 1000,
     scheduler,
-    random: () => 0.5, // no jitter
+    random: () => 0.5,
     onReady: (_, vectors) => attached.push(vectors),
   });
   return { q, attached };
@@ -247,7 +236,7 @@ describe("ToolEmbeddingSync", () => {
     q.request([A1]);
     await q.idle();
 
-    expect(calls).toBe(1); // the SDK doesn't retry a 401 either
+    expect(calls).toBe(1);
     expect(() => statSync(path)).toThrow();
     expect(attached).toEqual([]);
     expect(timers.timers).toEqual([]);
@@ -330,10 +319,10 @@ describe("ToolEmbeddingSync", () => {
     fake.state.defer = true;
     const { q, attached } = queue(fake.embedder, fakeScheduler().scheduler);
 
-    q.request([A1]); // starts
+    q.request([A1]);
     while (fake.batches.length < 1) await Bun.sleep(0);
-    q.request([A1, A2]); // waits…
-    q.request([A1, B1]); // …and is replaced by this one
+    q.request([A1, A2]);
+    q.request([A1, B1]);
     fake.state.defer = false;
     fake.release();
     await q.idle();
@@ -349,7 +338,7 @@ describe("ToolEmbeddingSync", () => {
   it("a failure while a newer request waits doesn't retry the superseded snapshot", async () => {
     const fake = fakeEmbedder();
     fake.state.defer = true;
-    fake.state.failures = [new EmbeddingTimeoutError("slow")]; // first run only
+    fake.state.failures = [new EmbeddingTimeoutError("slow")];
     const timers = fakeScheduler();
     const { q, attached } = queue(fake.embedder, timers.scheduler);
 

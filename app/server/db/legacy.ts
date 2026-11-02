@@ -1,20 +1,8 @@
-/**
- * Legacy DB adoption (plans/drizzle-orm-migration.md §6 steps 2–6).
- *
- * A legacy DB was built by the old `schema.sql` + try/catch ALTER list and has
- * no `__drizzle_migrations`. `adoptLegacyDatabase()` turns it into exactly what
- * migration `0000` builds and records `0000` as applied. It runs inside the
- * caller's migration transaction (migrate.ts), so any failure rolls everything
- * back and the legacy DB stays as it was.
- *
- * Delete this file (and its fixtures/tests) once every DB has been adopted (§11 Phase 7).
- */
 import { Database } from "bun:sqlite";
 import { ensureMigrationsTable, recordMigration } from "./executor";
 import { diffFingerprints, fingerprintSchema, isFingerprintedTable, quoteIdent } from "./introspect";
 import type { MigrationMeta } from "drizzle-orm/migrator";
 
-/** The old `applyMigrations()` list, frozen. Only "duplicate column" errors are expected. */
 export const LEGACY_CATCH_UP: readonly string[] = [
   "ALTER TABLE users ADD COLUMN daily_query_limit INTEGER",
   "ALTER TABLE users ADD COLUMN daily_token_limit INTEGER",
@@ -65,14 +53,12 @@ export class LegacyAdoptionError extends Error {
 
 const LEGACY_PREFIX = "__legacy_";
 
-/** Fresh in-memory DB with only the baseline applied — the adoption target. Caller closes it. */
 export function baselineDatabase(baseline: MigrationMeta): Database {
   const reference = new Database(":memory:");
   for (const statement of baseline.sql) reference.prepare(statement).run();
   return reference;
 }
 
-/** Fingerprint differences between `sqlite` and the baseline (read-only). */
 export function baselineDiffs(sqlite: Database, baseline: MigrationMeta): string[] {
   const reference = baselineDatabase(baseline);
   try {
@@ -82,11 +68,6 @@ export function baselineDiffs(sqlite: Database, baseline: MigrationMeta): string
   }
 }
 
-/**
- * Adopt a legacy DB: catch-up ALTERs → semantic verify → canonical rebuild →
- * exact verify → record `baseline`. Must run inside the caller's transaction
- * with foreign keys already OFF (so dropping the old tables doesn't cascade).
- */
 export function adoptLegacyDatabase(sqlite: Database, baseline: MigrationMeta): void {
   if (!sqlite.inTransaction) throw new Error("adoptLegacyDatabase() must run inside a caller-owned transaction");
 
@@ -108,7 +89,6 @@ export function adoptLegacyDatabase(sqlite: Database, baseline: MigrationMeta): 
   recordMigration(sqlite, baseline);
 }
 
-/** Frozen ALTER catch-up; caller owns the transaction. */
 export function runCatchUp(sqlite: Database): void {
   for (const statement of LEGACY_CATCH_UP) {
     try {
@@ -122,16 +102,9 @@ export function runCatchUp(sqlite: Database): void {
 }
 
 /**
- * SQLite's table-rebuild procedure for every baseline table, done so the
- * result's sqlite_master text equals a fresh `0000` DB's exactly:
- *
- * the old tables are renamed away (with `legacy_alter_table` ON, so FK
- * references in other tables keep pointing at the canonical names) and the
- * canonical tables are created under their real names with the verbatim `0000`
- * DDL. The textbook order — create `__new_x`, then rename it to `x` — would make
+ * The textbook order — create `__new_x`, then rename it to `x` — would make
  * SQLite rewrite the header to `CREATE TABLE "x"`, which differs from a fresh
- * DB. Views/triggers that would be affected by the legacy rename mode are
- * already rejected by the fingerprint.
+ * DB.
  */
 function rebuildTables(sqlite: Database, baseline: MigrationMeta, reference: Database): void {
   const createTables: string[] = [];
@@ -149,7 +122,6 @@ function rebuildTables(sqlite: Database, baseline: MigrationMeta, reference: Dat
     .filter(isFingerprintedTable);
   const sequences = savedSequences(sqlite, tables);
 
-  // Named indexes would clash with the canonical ones; their definitions were verified above.
   const named = sqlite
     .query<{ name: string; tbl_name: string }, []>("SELECT name, tbl_name FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL")
     .all()
@@ -157,7 +129,7 @@ function rebuildTables(sqlite: Database, baseline: MigrationMeta, reference: Dat
   for (const idx of named) sqlite.run(`DROP INDEX ${quoteIdent(idx.name)}`);
 
   const legacyAlter = sqlite.query<{ legacy_alter_table: number }, []>("PRAGMA legacy_alter_table").get()!.legacy_alter_table;
-  sqlite.run("PRAGMA legacy_alter_table = ON"); // connection flag, not rolled back → restored below
+  sqlite.run("PRAGMA legacy_alter_table = ON"); // connection flag, not rolled back
   try {
     for (const t of tables) sqlite.run(`ALTER TABLE ${quoteIdent(t)} RENAME TO ${quoteIdent(LEGACY_PREFIX + t)}`);
   } finally {
@@ -172,7 +144,6 @@ function rebuildTables(sqlite: Database, baseline: MigrationMeta, reference: Dat
       .all();
     const pk = info.filter((c) => c.pk > 0);
     const rowidAlias = pk.length === 1 && pk[0]!.type.toUpperCase() === "INTEGER";
-    // Copy by name (legacy column order may differ); keep rowids so implicit row order survives.
     const cols = [...(rowidAlias ? [] : ["rowid"]), ...info.map((c) => quoteIdent(c.name))].join(", ");
     sqlite.run(`INSERT INTO ${quoteIdent(t)} (${cols}) SELECT ${cols} FROM ${quoteIdent(LEGACY_PREFIX + t)}`);
   }
@@ -200,7 +171,6 @@ function restoreSequences(sqlite: Database, sequences: Array<{ name: string; seq
   }
 }
 
-/** sqlite_master rows outside bookkeeping/FTS, verbatim (`type|name|tbl_name|sql`). */
 export function schemaRows(sqlite: Database): string[] {
   return sqlite
     .query<{ type: string; name: string; tbl_name: string; sql: string | null }, []>(

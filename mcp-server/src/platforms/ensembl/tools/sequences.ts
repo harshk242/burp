@@ -1,8 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
-import { getClient, getDefaultSpecies, formatGenomicRegion } from '../client.js';
-
-// ── Validation ──────────────────────────────────────────────────────────────
+import { getToolCallContext } from '../../../shared/tool-call-context.js';
+import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidSequenceArgs = (
   args: any,
@@ -65,8 +64,6 @@ const isValidBatchSequenceArgs = (
     (args.format === undefined || ['json', 'fasta'].includes(args.format))
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -157,8 +154,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ────────────────────────────────────────────────────────────────
-
 async function fetchSingleSequence(args: {
   region: string;
   species?: string;
@@ -167,7 +162,7 @@ async function fetchSingleSequence(args: {
   multiple_sequences?: boolean;
 }) {
   const species = getDefaultSpecies(args.species);
-  const region = formatGenomicRegion(args.region);
+  const region = args.region;
 
   let endpoint: string;
   const params: Record<string, unknown> = {};
@@ -265,7 +260,15 @@ async function handleBatchSequenceFetch(args: Record<string, unknown>) {
   const format = args.format || 'fasta';
   const results = [];
 
-  for (const region of args.regions) {
+  const context = getToolCallContext();
+
+  for (const [index, region] of args.regions.entries()) {
+    if (context && context.remainingMs() <= 0) {
+      for (const skipped of args.regions.slice(index)) {
+        results.push({ region: skipped, success: false, skipped: 'deadline' });
+      }
+      break;
+    }
     try {
       const data = await fetchSingleSequence({ region, species, format });
       results.push({ region, success: true, data });
@@ -280,8 +283,6 @@ async function handleBatchSequenceFetch(args: Record<string, unknown>) {
 
   return { batch_results: results };
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   get_sequence: handleGetSequence,

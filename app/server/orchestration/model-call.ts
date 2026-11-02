@@ -1,10 +1,3 @@
-/**
- * One LLM call of the chat loop: runs streamText over the turn's transport,
- * streams text and thinking to the client as it arrives, and returns the
- * call's results once it finished cleanly. A failed or aborted call throws
- * before its results are read, so it is never metered as finished.
- */
-
 import { streamText, wrapLanguageModel, type ModelMessage, type SystemModelMessage } from "ai";
 import { getChatModel, type ChatProviderOptions, type LLMConfig } from "../llm";
 import { providerError, TurnError } from "./chat-turn";
@@ -14,10 +7,8 @@ import type { StreamEvent } from "./types";
 
 type StreamResult = ReturnType<typeof streamText<ToolSet>>;
 
-/** Stream parts that mean the model started answering (completionStartTime). */
 const FIRST_CHUNK_PARTS = new Set<string>(["text-delta", "reasoning-delta", "tool-input-start", "tool-call"]);
 
-/** A stretch of the call's output in stream order: thinking or text. */
 export interface CallSegment {
   thinking: boolean;
   text: string;
@@ -28,18 +19,14 @@ export interface ModelCallRequest {
   llmConfig: Pick<LLMConfig, "chatModel" | "maxRetries" | "maxOutputTokens">;
   providerOptions: ChatProviderOptions | undefined;
   instructions: string | SystemModelMessage;
-  /** What is sent: the turn's messages, with cache markers when caching. */
   messages: ModelMessage[];
-  /** Declarations only (no execute): the loop dispatches tool calls itself. */
   tools: ToolSet;
   tracker: CallTracker;
   signal: AbortSignal;
-  /** Called once, on the first streamed output (text, thinking or a tool call). */
   onFirstChunk?: () => void;
 }
 
 export interface ModelCallResult {
-  /** This call's response text (all text deltas). */
   text: string;
   segments: CallSegment[];
   finishReason: Awaited<StreamResult["finishReason"]>;
@@ -48,10 +35,6 @@ export interface ModelCallResult {
   finalStep: Awaited<StreamResult["finalStep"]>;
 }
 
-/**
- * Runs one call. Thinking (summarized on Anthropic) is sent as `reasoning`
- * events; the first delta of each thinking block carries `newBlock`.
- */
 export async function* streamModelCall(req: ModelCallRequest): AsyncGenerator<StreamEvent, ModelCallResult> {
   const { llmConfig, tracker, signal } = req;
   // A provider error part does not make the stream throw: the SDK emits an
@@ -83,7 +66,6 @@ export async function* streamModelCall(req: ModelCallRequest): AsyncGenerator<St
     },
   });
 
-  // Segments keep this call's thinking and text in stream order.
   const segments: CallSegment[] = [];
   let text = "";
   let thinkingStarted = false;
@@ -111,13 +93,7 @@ export async function* streamModelCall(req: ModelCallRequest): AsyncGenerator<St
       streamError ??= part.error;
     }
   }
-  // An abort can end the text stream without an error; stop before
-  // reading the step's results.
   signal.throwIfAborted();
-  // A failed call has no valid final usage: throw before metering it, so
-  // the tracker keeps it in flight and the turn records it as an estimate.
-  // Checked before awaiting the results, which would reject with a generic
-  // NoOutputGeneratedError when the call produced nothing.
   if (streamError !== undefined) throw streamError instanceof TurnError ? streamError : providerError(streamError);
 
   const finishReason = await result.finishReason;

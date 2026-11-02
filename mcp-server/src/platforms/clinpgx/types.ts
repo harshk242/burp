@@ -1,12 +1,11 @@
-// TypeScript interfaces for ClinPGx/PharmGKB platform module
+import type { AxiosAdapter } from 'axios';
+import type { RetryDeps } from '../../shared/http-retry.js';
 
-// Cache entry type
 export interface CacheEntry {
   data: unknown;
   timestamp: number;
 }
 
-// Gene information
 export interface GeneInfo {
   id: string;
   symbol: string;
@@ -21,7 +20,6 @@ export interface GeneInfo {
   summary?: string;
 }
 
-// Drug information
 export interface DrugInfo {
   id: string;
   name: string;
@@ -37,7 +35,6 @@ export interface DrugInfo {
   summary?: string;
 }
 
-// Variant information
 export interface VariantInfo {
   id: string;
   name?: string;
@@ -50,7 +47,6 @@ export interface VariantInfo {
   crossReferences?: CrossReference[];
 }
 
-// Clinical annotation
 export interface ClinicalAnnotation {
   id: string;
   gene: string;
@@ -67,7 +63,6 @@ export interface ClinicalAnnotation {
   pmids?: string[];
 }
 
-// Dosing guideline
 export interface DosingGuideline {
   id: string;
   name: string;
@@ -75,6 +70,7 @@ export interface DosingGuideline {
   genes: string[];
   drugs: string[];
   recommendation?: string;
+  hasRecommendation?: boolean;
   implications?: string;
   phenotypeCategory?: string;
   alternateDrug?: string;
@@ -83,7 +79,6 @@ export interface DosingGuideline {
   lastModified?: string;
 }
 
-// Drug label
 export interface DrugLabel {
   id: string;
   name: string;
@@ -98,7 +93,6 @@ export interface DrugLabel {
   url?: string;
 }
 
-// Pathway information
 export interface Pathway {
   id: string;
   name: string;
@@ -109,7 +103,6 @@ export interface Pathway {
   url?: string;
 }
 
-// Literature reference
 export interface LiteratureReference {
   pmid: string;
   title?: string;
@@ -119,14 +112,12 @@ export interface LiteratureReference {
   doi?: string;
 }
 
-// Cross reference
 export interface CrossReference {
   database: string;
   id: string;
   url?: string;
 }
 
-// Drug-gene interaction
 export interface DrugGeneInteraction {
   drug: string;
   gene: string;
@@ -137,7 +128,6 @@ export interface DrugGeneInteraction {
   evidenceLevel?: string;
 }
 
-// VIP (Very Important Pharmacogene) annotation
 export interface VIPAnnotation {
   gene: string;
   summary: string;
@@ -146,7 +136,6 @@ export interface VIPAnnotation {
   clinicalRelevance?: string;
 }
 
-// Allele functionality
 export interface AlleleFunctionality {
   allele: string;
   gene: string;
@@ -156,7 +145,6 @@ export interface AlleleFunctionality {
   haplotype?: string;
 }
 
-// Diplotype-phenotype mapping
 export interface DiplotypePhenotype {
   gene: string;
   diplotype: string;
@@ -165,16 +153,16 @@ export interface DiplotypePhenotype {
   ehRRecommendation?: string;
 }
 
-// Search result
 export interface SearchResult<T> {
   totalCount: number;
   results: T[];
   query: string;
 }
 
-// Client options
 export interface PharmGKBClientOptions {
   cacheTtl?: number;
-  maxRetries?: number;
+  maxAttempts?: number;
   retryDelay?: number;
+  adapter?: AxiosAdapter;
+  retryDeps?: RetryDeps;
 }

@@ -1,10 +1,3 @@
-/**
- * Tool search output: the search returns top_k tools; on Anthropic the model
- * gets one tool-reference per tool shown and nothing else (no text, no
- * descriptions) and no tool is added to the turn's set; on Gemini a name +
- * score text and exactly the shown tools are activated. The UI summary keeps
- * descriptions on both.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { generateText, jsonSchema, tool, type ModelMessage, type Tool } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";

@@ -1,56 +1,11 @@
 #!/usr/bin/env bun
-/**
- * One-time bootstrap script — captures current API response schemas for all
- * 5 Phase-1 platforms and writes them as .schema.json fixture files.
- *
- * Run once, review the git diff, then commit the fixtures.
- * After that, the weekly contract tests will detect schema drift automatically.
- *
- * Usage:
- *   bun run scripts/capture-api-snapshots.ts
- *
- * To refresh all fixtures (e.g., after a legitimate API change):
- *   UPDATE_SNAPSHOTS=true bun run --filter bio-mcp-unified test:contracts
- */
 
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Re-implement extractSchema inline so this script has no local imports
-// (it lives at the repo root and doesn't depend on the mcp-server build).
-
-interface SchemaNode {
-  type: 'string' | 'number' | 'boolean' | 'null' | 'object' | 'array' | 'unknown';
-  path: string;
-  properties?: Record<string, SchemaNode>;
-  items?: SchemaNode | null;
-}
-
-function extractSchema(value: unknown, path = '$'): SchemaNode {
-  if (value === null) return { type: 'null', path };
-  if (Array.isArray(value)) {
-    return {
-      type: 'array',
-      path,
-      items: value.length > 0 ? extractSchema(value[0], `${path}[]`) : null,
-    };
-  }
-  if (typeof value === 'object') {
-    const node: SchemaNode = { type: 'object', path, properties: {} };
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      node.properties![k] = extractSchema(v, `${path}.${k}`);
-    }
-    return node;
-  }
-  if (typeof value === 'string') return { type: 'string', path };
-  if (typeof value === 'number') return { type: 'number', path };
-  if (typeof value === 'boolean') return { type: 'boolean', path };
-  return { type: 'unknown', path };
-}
-
-// ── Fixture path helpers ──────────────────────────────────────────────────────
+import { extractSchema, type SchemaNode } from '../mcp-server/src/shared/schema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.join(
@@ -65,8 +20,6 @@ function save(fixturePath: string, schema: SchemaNode): void {
   fs.writeFileSync(fullPath, JSON.stringify(schema, null, 2) + '\n');
   console.log(`  ✔  ${fixturePath}`);
 }
-
-// ── Request helpers ───────────────────────────────────────────────────────────
 
 const NCBI_API_KEY = process.env.NCBI_API_KEY;
 
@@ -106,8 +59,6 @@ async function ncbiGet(
     ...(NCBI_API_KEY ? { api_key: NCBI_API_KEY } : {}),
   });
 }
-
-// ── Platform snapshot functions ───────────────────────────────────────────────
 
 async function captureEnsembl(): Promise<void> {
   console.log('\n📋  Ensembl REST');
@@ -220,8 +171,6 @@ async function captureClinvar(): Promise<void> {
   save('clinvar/esummary-variants.schema.json',
     extractSchema(await ncbiGet('esummary.fcgi', { id: '7105,7106' })));
 }
-
-// ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   console.log('🔬  Capturing API schema snapshots for Phase-1 contract tests');

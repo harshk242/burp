@@ -1,9 +1,3 @@
-# deep-v0: target-selection validation pack (prompt version v1), cases 01–04 plus 05 as a
-# multi-turn item (parent case 03 + audit turn). Turn 1 = the pack's shared instructions
-# (experiments/target-selection-validation/instructions.md) + the case prompt, as the pack
-# specifies. Checkpoints come from evaluator-guide.md and live in expected_output/metadata only;
-# they are checkpoints, not the only acceptable answers. Case 06 (historical) waits until the
-# basic source and direction checks pass. Expensive: run with concurrency 1–2 and a cost cap.
 name: deep
 description: >-
   Target-selection validation pack v1 (cases 01–05): retrieval, evidence synthesis,

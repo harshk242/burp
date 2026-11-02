@@ -1,7 +1,3 @@
-/**
- * Index file v2: accepted only when it matches the expected embedder and every
- * vector is valid; writes are atomic and leave no temp files behind.
- */
 import { afterAll, afterEach, describe, expect, it, spyOn } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
@@ -82,7 +78,6 @@ describe("readToolEmbeddings", () => {
 
   it("rejects a header size that contradicts the embedder's configured size", async () => {
     warnSpy = spyOn(logger, "warn");
-    // Claims to be the @3 embedder, but holds self-consistent 2-dim vectors.
     const doc = { ...validDoc(), dimension: 2, tools: [{ full_name: "a__b", text: "t", embedding: [1, 2] }] };
     expect(await readToolEmbeddings(writeRaw(doc), ID, 3)).toBeNull();
     expect(rejectReasons()).toEqual(["dimension_mismatch"]);
@@ -165,7 +160,7 @@ describe("writeToolEmbeddings", () => {
     const index = await readToolEmbeddings(path, ID);
     expect(index!.entries).toHaveLength(200);
     const seeds = new Set(index!.entries.map((e) => e.vector[0]));
-    expect(seeds.size).toBe(1); // all entries from a single writer
+    expect(seeds.size).toBe(1);
   });
 
   it("removes its temp file and rethrows when the rename fails", async () => {

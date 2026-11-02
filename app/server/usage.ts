@@ -1,7 +1,8 @@
+import type { EpochSeconds } from "../shared/usage";
+import { UNLIMITED } from "../shared/limits";
 import { appConfig, type AppConfig, type ModelPricing } from "./config";
 
 export const MICROUSD_PER_USD = 1_000_000;
-/** tokens × µUSD-per-MTok is an exact count of pico-USD (1e-12 USD). */
 const PICOUSD_PER_MICROUSD = 1_000_000;
 
 export class PricingConfigError extends Error {
@@ -16,8 +17,8 @@ export function usdToMicrousd(usd: number): number {
 }
 
 export function defaultCostLimitMicrousd(usdLimit: number, isAdmin: boolean): number {
-  if (isAdmin) return -1;
-  if (usdLimit === -1) return -1;
+  if (isAdmin) return UNLIMITED;
+  if (usdLimit === UNLIMITED) return UNLIMITED;
   return usdToMicrousd(usdLimit);
 }
 
@@ -35,11 +36,6 @@ type LimitOverrides = {
   monthly_cost_limit_microusd?: number | null;
 };
 
-/**
- * Resolve the limits actually applied to a user: per-user override, else the
- * role/config default. -1 = unlimited. `roleQueryLimit` comes from the
- * rate_limits table (rateLimitQueries.getForRole) so this stays DB-free.
- */
 export function resolveEffectiveLimits(
   user: LimitOverrides,
   role: string,
@@ -49,7 +45,7 @@ export function resolveEffectiveLimits(
   const isAdmin = role === "admin";
   return {
     daily_query_limit: user.daily_query_limit ?? roleQueryLimit,
-    daily_token_limit: user.daily_token_limit ?? (isAdmin ? -1 : config.rate_limits.default_daily_tokens),
+    daily_token_limit: user.daily_token_limit ?? (isAdmin ? UNLIMITED : config.rate_limits.default_daily_tokens),
     daily_cost_limit_microusd:
       user.daily_cost_limit_microusd ??
       defaultCostLimitMicrousd(config.usage.default_daily_cost_limit_usd, isAdmin),
@@ -60,7 +56,7 @@ export function resolveEffectiveLimits(
 }
 
 export function getRemainingMicrousd(limitMicrousd: number, usedMicrousd: number): number {
-  return limitMicrousd === -1 ? -1 : Math.max(0, limitMicrousd - usedMicrousd);
+  return limitMicrousd === UNLIMITED ? UNLIMITED : Math.max(0, limitMicrousd - usedMicrousd);
 }
 
 export function getUtcDate(date = new Date()): string {
@@ -71,24 +67,18 @@ export function getUtcMonth(date = new Date()): string {
   return date.toISOString().slice(0, 7);
 }
 
-export function getNextUtcMidnight(date = new Date()): number {
+export function getNextUtcMidnight(date = new Date()): EpochSeconds {
   const resetDate = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1)
   );
   return Math.floor(resetDate.getTime() / 1000);
 }
 
-export function getNextUtcMonthStart(date = new Date()): number {
+export function getNextUtcMonthStart(date = new Date()): EpochSeconds {
   const resetDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
   return Math.floor(resetDate.getTime() / 1000);
 }
 
-// ── Cost engine ──────────────────────────────────────────────────────────────
-// Each LLM call is priced on its own (the long-context tier depends on one
-// request's prompt size), in exact pico-USD integers. A turn sums its calls and
-// rounds up to µUSD once.
-
-/** One rate set in µUSD per MTok, cache fallbacks already applied. */
 export interface Rates {
   input: number;
   output: number;
@@ -100,42 +90,32 @@ export interface Rates {
 export interface ResolvedPricing {
   base: Rates;
   longContext: (Rates & { aboveInputTokens: number }) | null;
-  /** The config entry as written, for snapshotting with a usage row. */
   entry: ModelPricing;
 }
 
-/** One streamText call. */
 export interface CallUsage {
   noCacheTokens: number;
   cacheReadTokens: number;
   cacheWrite5mTokens: number;
   cacheWrite1hTokens: number;
-  /** Includes reasoning/thinking tokens. */
   outputTokens: number;
 }
 
 export type PricingTier = "base" | "long_context";
 
 export interface CallCost extends CallUsage {
-  /** noCache + cacheRead + cacheWrite5m + cacheWrite1h; picks the tier. */
   promptTokens: number;
   tier: PricingTier;
   inputCostPicoUsd: number;
   cacheReadCostPicoUsd: number;
-  /** 5m + 1h writes. */
   cacheWriteCostPicoUsd: number;
   outputCostPicoUsd: number;
   costPicoUsd: number;
 }
 
-/**
- * A whole turn. Category costs are floored and the total is rounded up once,
- * so the parts can add up to a few µUSD less than `costMicrousd`.
- */
 export interface ChatCost {
   llmCalls: number;
   longContextCalls: number;
-  /** All input tokens, every category. */
   inputTokens: number;
   noCacheTokens: number;
   cacheReadTokens: number;
@@ -150,8 +130,7 @@ export interface ChatCost {
   costMicrousd: number;
 }
 
-/** Throws instead of letting a cost lose precision past 2^53. */
-function safe(value: number, what: string): number {
+function assertSafeInteger(value: number, what: string): number {
   if (!Number.isSafeInteger(value)) {
     throw new RangeError(`Cost overflow: ${what} = ${value} is not a safe integer`);
   }
@@ -165,10 +144,7 @@ function toRates(set: {
   cache_write_5m_usd_per_mtok?: number;
   cache_write_1h_usd_per_mtok?: number;
 }): Rates {
-  // Exact: config.ts only accepts whole µUSD per MTok, so nothing is rounded off.
   const input = usdToMicrousd(set.input_usd_per_mtok);
-  // Fallbacks never undercharge: reads at the full input rate, writes at the
-  // 1.25x / 2x multipliers documented for every Anthropic model.
   return {
     input,
     output: usdToMicrousd(set.output_usd_per_mtok),
@@ -195,7 +171,6 @@ export function resolvePricing(provider: string, model: string, config: AppConfi
   };
 }
 
-/** Fails with PricingConfigError when the model has no pricing entry. */
 export function assertPricingConfigured(provider: string, model: string, config: AppConfig = appConfig): void {
   resolvePricing(provider, model, config);
 }
@@ -219,21 +194,20 @@ export function priceCall(
   const cacheWrite5mTokens = tokenCount(usage.cacheWrite5mTokens, "cacheWrite5mTokens");
   const cacheWrite1hTokens = tokenCount(usage.cacheWrite1hTokens, "cacheWrite1hTokens");
   const outputTokens = tokenCount(usage.outputTokens, "outputTokens");
-  const promptTokens = safe(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "promptTokens");
+  const promptTokens = assertSafeInteger(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "promptTokens");
 
-  // The tier applies to the whole request, output included.
   const lc = pricing.longContext;
   const tier: PricingTier = lc && promptTokens > lc.aboveInputTokens ? "long_context" : "base";
   const rates = tier === "long_context" && lc ? lc : pricing.base;
 
-  const inputCostPicoUsd = safe(noCacheTokens * rates.input, "input cost");
-  const cacheReadCostPicoUsd = safe(cacheReadTokens * rates.cacheRead, "cache read cost");
-  const cacheWriteCostPicoUsd = safe(
-    safe(cacheWrite5mTokens * rates.cacheWrite5m, "cache write 5m cost") +
-      safe(cacheWrite1hTokens * rates.cacheWrite1h, "cache write 1h cost"),
+  const inputCostPicoUsd = assertSafeInteger(noCacheTokens * rates.input, "input cost");
+  const cacheReadCostPicoUsd = assertSafeInteger(cacheReadTokens * rates.cacheRead, "cache read cost");
+  const cacheWriteCostPicoUsd = assertSafeInteger(
+    assertSafeInteger(cacheWrite5mTokens * rates.cacheWrite5m, "cache write 5m cost") +
+      assertSafeInteger(cacheWrite1hTokens * rates.cacheWrite1h, "cache write 1h cost"),
     "cache write cost"
   );
-  const outputCostPicoUsd = safe(outputTokens * rates.output, "output cost");
+  const outputCostPicoUsd = assertSafeInteger(outputTokens * rates.output, "output cost");
 
   return {
     noCacheTokens,
@@ -247,18 +221,17 @@ export function priceCall(
     cacheReadCostPicoUsd,
     cacheWriteCostPicoUsd,
     outputCostPicoUsd,
-    costPicoUsd: safe(inputCostPicoUsd + cacheReadCostPicoUsd + cacheWriteCostPicoUsd + outputCostPicoUsd, "call cost"),
+    costPicoUsd: assertSafeInteger(inputCostPicoUsd + cacheReadCostPicoUsd + cacheWriteCostPicoUsd + outputCostPicoUsd, "call cost"),
   };
 }
 
-/** Integer division on the remainder, so no float rounding can creep in. */
 function picoToMicrousdFloor(pico: number): number {
   return (pico - (pico % PICOUSD_PER_MICROUSD)) / PICOUSD_PER_MICROUSD;
 }
 
 export function summarizeTurnCost(calls: readonly CallCost[]): ChatCost {
   const sum = (pick: (call: CallCost) => number, what: string) =>
-    calls.reduce((total, call) => safe(total + pick(call), what), 0);
+    calls.reduce((total, call) => assertSafeInteger(total + pick(call), what), 0);
 
   const noCacheTokens = sum((c) => c.noCacheTokens, "noCacheTokens");
   const cacheReadTokens = sum((c) => c.cacheReadTokens, "cacheReadTokens");
@@ -269,7 +242,7 @@ export function summarizeTurnCost(calls: readonly CallCost[]): ChatCost {
   return {
     llmCalls: calls.length,
     longContextCalls: calls.filter((c) => c.tier === "long_context").length,
-    inputTokens: safe(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "inputTokens"),
+    inputTokens: assertSafeInteger(noCacheTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens, "inputTokens"),
     noCacheTokens,
     cacheReadTokens,
     cacheWrite5mTokens,
@@ -280,7 +253,6 @@ export function summarizeTurnCost(calls: readonly CallCost[]): ChatCost {
     cacheWriteCostMicrousd: picoToMicrousdFloor(sum((c) => c.cacheWriteCostPicoUsd, "cache write cost")),
     outputCostMicrousd: picoToMicrousdFloor(sum((c) => c.outputCostPicoUsd, "output cost")),
     costPicoUsd,
-    // The only rounding step of the turn.
     costMicrousd: picoToMicrousdFloor(costPicoUsd) + (costPicoUsd % PICOUSD_PER_MICROUSD === 0 ? 0 : 1),
   };
 }

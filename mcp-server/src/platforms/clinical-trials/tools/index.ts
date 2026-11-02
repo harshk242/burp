@@ -1,8 +1,3 @@
-/**
- * Re-exports the combined tool definitions and handler map
- * for the ClinicalTrials.gov platform module.
- */
-
 import type { ToolHandler } from '../../../types.js';
 import { tools } from './definitions.js';
 

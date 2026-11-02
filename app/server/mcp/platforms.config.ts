@@ -1,13 +1,3 @@
-/**
- * MCP Platforms Configuration — derived from app/config.yaml.
- *
- * To enable/disable a platform or change always-loaded tools,
- * edit app/config.yaml instead of this file.
- *
- * Secrets (NCBI_API_KEY) are injected here from process.env because
- * they must not appear in the YAML config file.
- */
-
 import { appConfig } from "../config";
 
 export interface PlatformConfig {
@@ -17,7 +7,6 @@ export interface PlatformConfig {
   alwaysLoadedTools?: string[];
 }
 
-/** Platforms that require NCBI API key forwarded to the MCP process */
 const NCBI_PLATFORMS = new Set(["clinvar", "pubmed"]);
 
 export const PLATFORMS: PlatformConfig[] = Object.entries(appConfig.platforms).map(
@@ -31,10 +20,6 @@ export const PLATFORMS: PlatformConfig[] = Object.entries(appConfig.platforms).m
 
 export const enabledPlatforms = PLATFORMS.filter((p) => p.enabled);
 
-/**
- * Set of "server__tool" names that should always be loaded (non-deferred).
- * Automatically excludes tools from disabled platforms.
- */
 export const ALWAYS_LOADED_TOOLS: Set<string> = new Set(
   enabledPlatforms.flatMap((p) =>
     (p.alwaysLoadedTools ?? []).map((tool) => `${p.name}__${tool}`)

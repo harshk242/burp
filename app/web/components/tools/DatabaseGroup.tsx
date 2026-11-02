@@ -12,7 +12,6 @@ interface DatabaseGroupProps {
 }
 
 export function DatabaseGroup({ name, server, tools }: DatabaseGroupProps) {
-  // Check if any tools in this group are unavailable (server down)
   const unavailableCount = tools.filter((t) => !t.available).length;
   const isServerDown = unavailableCount === tools.length && tools.length > 0;
   const description = DATABASE_DESCRIPTIONS[server];

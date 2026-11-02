@@ -1,9 +1,3 @@
-/**
- * processChat's per-turn `llm` override (eval arms): without it the model call
- * gets exactly the app config's model, max tokens and provider options; with it
- * the call, the trace generation, the transcript tag and the priced
- * usage_events row all follow the override.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { MockLanguageModelV4 } from "ai/test";
 import { createTestDb } from "../__test-utils__/db";
@@ -82,7 +76,6 @@ beforeEach(() => {
   q.userQueries.create(USER_ID, "clerk_llm", "llm@example.com", null, null, "user", null, null);
   const { server, name } = toolRegistry.parseToolName(TOOL_FULL_NAME);
   toolRegistry.register(server, { name, description: "test tool", inputSchema: { type: "object", properties: {} } });
-  // Online scores go nowhere (no Langfuse in tests).
   spyOn(langfuse, "getScoreClient").mockReturnValue({ score: { create: () => undefined } } as never);
   mem.reset();
 });
@@ -103,7 +96,6 @@ afterAll(() => {
 const usageRow = () => t.sqlite.query<{ model: string; cost_microusd: number }, []>("SELECT model, cost_microusd FROM usage_events").get()!;
 const transcriptModels = () =>
   t.sqlite.query<{ model: string; context_version: string }, []>("SELECT DISTINCT model, context_version FROM model_transcript").all();
-/** The usage above priced on `model`, in µUSD (one call). */
 const expectedMicrousd = (model: string) =>
   summarizeTurnCost([
     priceCall(config.provider, model, { noCacheTokens: 100, cacheReadTokens: 800, cacheWrite5mTokens: 100, cacheWrite1hTokens: 0, outputTokens: 20 }),

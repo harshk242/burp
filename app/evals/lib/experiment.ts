@@ -1,16 +1,10 @@
-/**
- * One Langfuse experiment over the verified dataset items: the item task,
- * the code evaluators (each score referencing its config) and the run
- * evaluator (aggregates). Imports server modules (via task.ts): load only
- * after run.ts set up the environment.
- */
 import type { ExperimentItemResult, FetchedDataset, LangfuseClient } from "@langfuse/client";
 import { scoreConfigId } from "../../server/observability/score-configs";
 import { evaluateItem } from "../evaluators";
 import type { TaskOutput } from "../evaluators/types";
 import type { DatasetItem } from "./schema";
 import { runEvaluations, summarizeRun, type ItemRun, type RunSummary } from "./aggregate";
-import { countsTowardScores } from "./schema";
+import { isEligibleForPassFail } from "./schema";
 import { createItemTask, type TaskContext } from "./task";
 
 export type FetchedItem = FetchedDataset["items"][number];
@@ -19,12 +13,7 @@ export interface ExperimentSpec {
   name: string;
   description: string;
   metadata: Record<string, unknown>;
-  /** Verified active items to run (already filtered by --items). */
   items: FetchedItem[];
-  /**
-   * The same items parsed from their pinned payload (pinned-items.ts): what the
-   * evaluators score against and what decides pass/fail eligibility.
-   */
   evalItems: Map<string, DatasetItem>;
   datasetVersion: string;
   concurrency: number;
@@ -51,7 +40,7 @@ function toItemRun(result: ExperimentItemResult, evalItems: Map<string, DatasetI
   const output = result.output as TaskOutput;
   return {
     itemId: output.item_id,
-    reviewed: countsTowardScores(evalItem(evalItems, output.item_id)),
+    reviewed: isEligibleForPassFail(evalItem(evalItems, output.item_id)),
     output,
     evaluations: result.evaluations.map((e) => ({ name: e.name, value: e.value as number | string })),
   };
@@ -59,9 +48,6 @@ function toItemRun(result: ExperimentItemResult, evalItems: Map<string, DatasetI
 
 export async function runExperiment(client: LangfuseClient, spec: ExperimentSpec): Promise<ExperimentOutcome> {
   let summary: RunSummary | null = null;
-  // `experiment.run` with the fetched items rather than `dataset.runExperiment`, which
-  // would run every fetched item, archived ones included, and can't take a subset.
-  // Items keep their datasetId/id, so each run item links to its dataset item.
   const result = await client.experiment.run({
     name: spec.name,
     description: spec.description,

@@ -1,8 +1,3 @@
-/**
- * model_transcript: append-only (orchestration/context/transcript.ts owns the
- * write path). Insert and read only: there is deliberately no update method,
- * and an UPDATE trigger rejects changes made any other way.
- */
 import { asc, eq, sql } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { modelTranscript } from "../schema";
@@ -22,10 +17,6 @@ export interface NewTranscriptRow {
 
 export function createModelTranscriptQueries(db: DrizzleDb) {
   return {
-    /**
-     * Appends rows after the session's last `seq`, in order, in one
-     * transaction. Returns the seq values assigned.
-     */
     append(sessionId: string, rows: NewTranscriptRow[]): number[] {
       if (rows.length === 0) return [];
       return db.transaction((tx) => {

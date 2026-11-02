@@ -5,12 +5,7 @@ import type { AppEnv } from "../types";
 
 const users = new OpenAPIHono<AppEnv>();
 
-// Apply Clerk auth to all user routes
 users.use("*", clerkAuth);
-
-// ============================================
-// POST /api/users/sync - Sync user from Clerk after login
-// ============================================
 
 const syncUserRoute = createRoute({
   method: "post",
@@ -54,15 +49,10 @@ users.openapi(syncUserRoute, async (c) => {
   const name = c.get("clerkName") as string | null;
   const imageUrl = c.get("clerkImageUrl") as string | null;
 
-  // Sync user to database (creates if not exists)
   const user = syncUserToDatabase(clerkUserId, email, name, imageUrl);
 
   return c.json(user, 200);
 });
-
-// ============================================
-// GET /api/users/me - Current user info + role
-// ============================================
 
 const getCurrentUserRoute = createRoute({
   method: "get",

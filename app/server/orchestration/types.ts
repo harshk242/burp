@@ -1,11 +1,10 @@
-/**
- * Shared types for the chat orchestration modules.
- */
+import type { ChatCompletion } from "../../shared/chat";
+export type { ChatCompletion } from "../../shared/chat";
 
-export interface StreamEvent {
-  type: "start" | "text" | "tool_start" | "tool_end" | "text_block_end" | "reasoning" | "done" | "usage" | "error";
+export type StreamEvent = { type: "done"; data: ChatCompletion } | {
+  type: "start" | "text" | "tool_start" | "tool_end" | "text_block_end" | "reasoning" | "error";
   data: unknown;
-}
+};
 
 export interface ToolCallRecord {
   id: string;

@@ -1,19 +1,11 @@
-// Target Identity API Tools
-
 import { getClient } from '../../client.js';
 import { TARGET_INFO_OPERATION } from './operations.js';
 
-/**
- * Retrieve core identity details for a target gene.
- */
 export async function getTargetInfo(ensemblId: string): Promise<unknown> {
   const client = getClient();
   return client.query(TARGET_INFO_OPERATION, { ensemblId });
 }
 
-/**
- * Return ChEMBL target class annotations for a gene.
- */
 export async function getTargetClass(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -32,9 +24,6 @@ export async function getTargetClass(ensemblId: string): Promise<unknown> {
   return client.query(query, { ensemblId });
 }
 
-/**
- * List alternate gene symbols and database cross-references for a target.
- */
 export async function getTargetAlternativeGenes(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `

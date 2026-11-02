@@ -1,25 +1,13 @@
-/**
- * The experiment runner behind `bun run eval` (plan 2.1). Loaded by run.ts
- * after DATABASE_URL points at the run's own DB, because server modules read
- * config at import.
- *
- * Order: arms checked (pricing, Models API; arm-setup.ts) → own DB + eval
- * user → tracing (with async context for the task span) → pinned dataset
- * fetched and verified against the local YAML → tools booted through the
- * production path, search indexed and probed → per arm, N experiments, all
- * arms on the same dataset version and one cost budget (matrix.ts) → reports
- * (variance per arm, comparison across arms). Cleanup is signal-safe
- * (lifecycle.ts).
- */
 import { randomUUID } from "node:crypto";
 import type { LangfuseClient } from "@langfuse/client";
 import { initializeTools, toolsReport, type ToolsBoot } from "../../server/boot/tools";
-import { runMigrations, sqlite, userQueries } from "../../server/db";
-import { chatProviderOptions, effectiveLLMConfig, loadLLMConfig } from "../../server/llm";
+import { runMigrations, userQueries } from "../../server/db";
+import { resolveDbPath } from "../../server/db/paths";
+import { chatProviderOptions, effectiveLLMConfig, type LLMConfig } from "../../server/llm";
 import { mcpManager } from "../../server/mcp/manager";
 import { getScoreClient, initTracing, scoreConfigsReady, shutdownTracing } from "../../server/observability/langfuse";
 import { contextVersion } from "../../server/orchestration/context/transcript";
-import { SYSTEM_PROMPT } from "../../server/orchestration/context/system-prompt";
+import { buildSystemPrompt } from "../../server/orchestration/context/system-prompt";
 import { SharedCostBudget } from "../../server/orchestration/cost-budget";
 import { hybridSearch } from "../../server/search";
 import { DEFAULT_CONCURRENCY, DEFAULT_MAX_COST_USD, type RunArgs } from "./args";
@@ -30,6 +18,7 @@ import { buildComparison, saveItemRun, type SavedComparison } from "./compare";
 import { comparisonMarkdown, printComparison } from "./compare-render";
 import { runArms, type ArmRunResult } from "./matrix";
 import { runExperiment, type ExperimentOutcome, type FetchedItem } from "./experiment";
+import type { RunDependencies } from "./bootstrap";
 import { RunLifecycle } from "./lifecycle";
 import { loadEvalHome } from "./load";
 import { pinnedEvalItems, PinnedItemError } from "./pinned-items";
@@ -41,9 +30,7 @@ import { checkDataset, datasetMatches, driftMessage } from "./verify-dataset";
 
 export interface RunEnv {
   runId: string;
-  /** Repo-relative DB path (DATABASE_URL). */
   dbPath: string;
-  /** Where the variance and comparison reports go. */
   outDir: string;
 }
 
@@ -76,7 +63,6 @@ async function fetchVerifiedItems(client: LangfuseClient, args: RunArgs, dataset
   return { version, items, evalItems, datasetHash: check.datasetHash };
 }
 
-/** Boots tools like the server, waits for the embedding sync, and checks search works. */
 async function bootTools(boot: ToolsBoot): Promise<SearchState> {
   await boot.ready;
   await boot.embeddingSync?.idle();
@@ -85,9 +71,8 @@ async function bootTools(boot: ToolsBoot): Promise<SearchState> {
   return search;
 }
 
-/** The context version of an arm's requests (system prompt + provider options). */
-function armContextVersion(arm: ResolvedArm): string {
-  return contextVersion(SYSTEM_PROMPT, chatProviderOptions(effectiveLLMConfig(loadLLMConfig(), arm.override)));
+function armContextVersion(arm: ResolvedArm, config: LLMConfig): string {
+  return contextVersion(buildSystemPrompt(), chatProviderOptions(effectiveLLMConfig(config, arm.override)));
 }
 
 async function writeVariance(outDir: string, runId: string, arm: ResolvedArm, repeatGroup: string, outcomes: ExperimentOutcome[]): Promise<void> {
@@ -98,7 +83,7 @@ async function writeVariance(outDir: string, runId: string, arm: ResolvedArm, re
   log(`variance report (${arm.label}): ${path}`);
 }
 
-export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
+export async function runEval(args: RunArgs, env: RunEnv, deps: RunDependencies): Promise<number> {
   let tools: ToolsBoot | null = null;
   const lifecycle = new RunLifecycle({
     shutdownTracing: () => shutdownTracing(),
@@ -107,8 +92,8 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
   });
   const removeHandlers = lifecycle.installSignalHandlers();
   try {
-    // Arms first: a bad model, effort level or missing pricing fails before any spend.
-    const config = loadLLMConfig();
+    if (deps.dbPath !== resolveDbPath(env.dbPath)) throw new RunAbort("initialized database does not match RunEnv.dbPath");
+    const { config, sqlite } = deps;
     const { arms, comparing } = await prepareArms(args, config, {
       apiKey: process.env.ANTHROPIC_API_KEY,
       baseUrl: process.env.ANTHROPIC_BASE_URL,
@@ -128,7 +113,6 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
     const loaded = home.datasets.find((d) => d.dataset.name === args.dataset);
     if (!loaded) throw new RunAbort(`unknown dataset "${args.dataset}" (have: ${home.datasets.map((d) => d.dataset.name).join(", ")})`);
     const dataset = loaded.dataset;
-    // One pinned dataset version for every arm and repeat.
     const pinned = await fetchVerifiedItems(client, args, dataset);
     if (pinned.items.length === 0) throw new RunAbort("no items to run");
 
@@ -181,7 +165,7 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
             arm: arm.label,
             armIndex: arms.indexOf(arm) + 1,
             armCount: arms.length,
-            contextVersion: armContextVersion(arm),
+            contextVersion: armContextVersion(arm, config),
             git,
             datasetName: args.dataset,
             datasetVersion: shared.datasetVersion,
@@ -201,7 +185,7 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
           evalItems: pinned.evalItems,
           datasetVersion: shared.datasetVersion,
           concurrency,
-          task: { userId, provider: arm.provider, llm: arm.override, budget: shared.budget, lifecycle, log },
+          task: { userId, provider: arm.provider, llm: arm.override ?? { model: config.chatModel, effort: config.effort, max_output_tokens: config.maxOutputTokens }, budget: shared.budget, lifecycle, log },
         });
         printOutcome(outcome, log);
         return outcome;
@@ -248,7 +232,10 @@ export async function runEval(args: RunArgs, env: RunEnv): Promise<number> {
     console.error(error instanceof RunAbort ? `eval aborted: ${error.message}` : error);
     return 1;
   } finally {
-    await lifecycle.cleanup();
-    removeHandlers();
+    try {
+      await lifecycle.cleanup();
+    } finally {
+      removeHandlers();
+    }
   }
 }

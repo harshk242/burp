@@ -1,8 +1,3 @@
-/**
- * Boot tests: spawn the real server (server/index.ts) against scratch DBs and
- * prove it migrates before listening, serves snake_case rows from the Drizzle
- * query layer, and refuses to start when the migration hits an FK violation.
- */
 import { Database } from "bun:sqlite";
 import { afterAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, readdirSync, rmSync } from "fs";
@@ -13,7 +8,7 @@ import { loadMigrations } from "../db/executor";
 import { MIGRATIONS_FOLDER } from "../db/paths";
 
 const APP_DIR = join(import.meta.dir, "..", "..");
-const TOKEN = "t".repeat(48); // dev-agent bearer token (>= 32 chars, non-production only)
+const TOKEN = "t".repeat(48);
 const dir = mkdtempSync(join(tmpdir(), "burp-boot-"));
 
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -25,7 +20,7 @@ function freePort(): number {
   return port;
 }
 
-function spawnServer(dbPath: string, actAs: string) {
+function spawnServer(dbPath: string, actAs: string, authEnv: Record<string, string> = {}) {
   const port = freePort();
   const proc = Bun.spawn(["bun", "run", "server/index.ts"], {
     cwd: APP_DIR,
@@ -35,11 +30,13 @@ function spawnServer(dbPath: string, actAs: string) {
       PORT: String(port),
       DATABASE_URL: dbPath,
       LOG_DIR: join(dir, "logs"),
-      MCP_SERVERS_BASE: join(dir, "no-mcp"), // MCP init fails fast; it never blocks serving
+      MCP_SERVERS_BASE: join(dir, "no-mcp"),
       CLERK_SECRET_KEY: "",
+      AUTH_MODE: "clerk",
       DEV_AGENT_TOKEN: TOKEN,
       DEV_AGENT_EMAIL: actAs,
-      LANGFUSE_ENABLED: "false", // never send test traces
+      LANGFUSE_ENABLED: "false",
+      ...authEnv,
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -54,7 +51,6 @@ async function waitForHealth(base: string, proc: Bun.Subprocess): Promise<void> 
       const res = await fetch(`${base}/health`);
       if (res.ok) return;
     } catch {
-      // not listening yet
     }
     await Bun.sleep(100);
   }
@@ -79,7 +75,6 @@ async function withServer(dbPath: string, actAs: string, fn: (api: Api) => Promi
 
 type Api = (path: string, init?: RequestInit) => Promise<Response>;
 
-// Response bodies are asserted on below, so `any` keeps the expectations readable.
 async function getJson(api: Api, path: string): Promise<any> {
   return (await api(path)).json();
 }
@@ -114,6 +109,21 @@ const USER_KEYS = [
 ];
 
 describe("server boot", () => {
+  for (const mode of ["clerk", "development"]) {
+    it(`refuses production startup without a Clerk secret with AUTH_MODE=${mode}`, async () => {
+      const { proc } = spawnServer(":memory:", "dev-agent@example.com", { NODE_ENV: "production", AUTH_MODE: mode });
+      const timer = setTimeout(() => proc.kill("SIGKILL"), 20_000);
+      try {
+        expect(await proc.exited).toBe(1);
+        const output = await new Response(proc.stdout).text() + await new Response(proc.stderr).text();
+        expect(output).toContain("Server authentication is not configured");
+        expect(output).not.toContain("Status: Running");
+      } finally {
+        clearTimeout(timer);
+      }
+    }, 30_000);
+  }
+
   it("migrates a fresh DB before listening and serves snake_case rows", async () => {
     const dbPath = join(dir, "fresh.db");
     await withServer(dbPath, "dev-agent@example.com", async (api) => {
@@ -138,7 +148,6 @@ describe("server boot", () => {
     });
     expect(migrationCount(dbPath)).toBe(MIGRATION_COUNT);
 
-    // Second boot: nothing pending, data intact.
     await withServer(dbPath, "dev-agent@example.com", async (api) => {
       expect((await getJson(api, "/sessions")).sessions).toHaveLength(1);
     });

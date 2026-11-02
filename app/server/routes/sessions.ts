@@ -15,12 +15,7 @@ import type { AppEnv } from "../types";
 
 const sessions = new OpenAPIHono<AppEnv>();
 
-// Apply Clerk auth and user role check to all session routes
 sessions.use("*", clerkAuth, requireDbUser, requireUser);
-
-// ============================================
-// GET /api/sessions - List user's chat sessions
-// ============================================
 
 const listSessionsRoute = createRoute({
   method: "get",
@@ -76,10 +71,6 @@ sessions.openapi(listSessionsRoute, async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-
-// ============================================
-// POST /api/sessions - Create new chat session
-// ============================================
 
 const createSessionRoute = createRoute({
   method: "post",
@@ -151,10 +142,6 @@ sessions.openapi(createSessionRoute, async (c) => {
   }
 });
 
-// ============================================
-// GET /api/sessions/:id - Get chat session with messages
-// ============================================
-
 const getSessionRoute = createRoute({
   method: "get",
   path: "/{id}",
@@ -213,7 +200,6 @@ sessions.openapi(getSessionRoute, async (c) => {
       return c.json({ error: "Session not found" }, 404);
     }
 
-    // Ensure user owns this session
     if (session.user_id !== userId) {
       return c.json({ error: "Forbidden - Not your session" }, 403);
     }
@@ -221,7 +207,6 @@ sessions.openapi(getSessionRoute, async (c) => {
     const messages = messageQueries.findByChatId(id);
     const feedback = messageFeedbackQueries.findForSession(id, userId);
 
-    // Parse tool_calls JSON string for each message; attach the user's feedback to assistant messages
     const parsedMessages = messages.map((msg) => ({
       ...msg,
       tool_calls: msg.tool_calls ? JSON.parse(msg.tool_calls) : null,
@@ -234,10 +219,6 @@ sessions.openapi(getSessionRoute, async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-
-// ============================================
-// DELETE /api/sessions/:id - Delete chat session
-// ============================================
 
 const deleteSessionRoute = createRoute({
   method: "delete",
@@ -297,12 +278,10 @@ sessions.openapi(deleteSessionRoute, async (c) => {
       return c.json({ error: "Session not found" }, 404);
     }
 
-    // Ensure user owns this session
     if (session.user_id !== userId) {
       return c.json({ error: "Forbidden - Not your session" }, 403);
     }
 
-    // Messages are cascade deleted due to foreign key
     chatSessionQueries.delete(id);
     return c.json({ message: "Session deleted" }, 200);
   } catch (error) {
@@ -310,10 +289,6 @@ sessions.openapi(deleteSessionRoute, async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-
-// ============================================
-// PATCH /api/sessions/:id - Update session title
-// ============================================
 
 const updateSessionRoute = createRoute({
   method: "patch",
@@ -390,7 +365,6 @@ sessions.openapi(updateSessionRoute, async (c) => {
       return c.json({ error: "Session not found" }, 404);
     }
 
-    // Ensure user owns this session
     if (session.user_id !== userId) {
       return c.json({ error: "Forbidden - Not your session" }, 403);
     }

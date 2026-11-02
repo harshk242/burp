@@ -7,12 +7,10 @@ interface ToolState {
   searchQuery: string;
   isLoading: boolean;
 
-  // Actions
   setTools: (tools: Tool[]) => void;
   setSearchQuery: (query: string) => void;
   setLoading: (loading: boolean) => void;
 
-  // Computed
   filteredTools: () => Tool[];
 }
 

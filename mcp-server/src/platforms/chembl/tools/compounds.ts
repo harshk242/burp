@@ -2,8 +2,6 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
 
-// ── Validation ─────────────────────────────────────────────────────────────
-
 const isValidCompoundSearchArgs = (
   args: any,
 ): args is { query: string; limit?: number; offset?: number } => {
@@ -29,8 +27,6 @@ const isValidSimilaritySearchArgs = (
     (args.limit === undefined || (typeof args.limit === 'number' && args.limit > 0 && args.limit <= 1000))
   );
 };
-
-// ── Tool definitions ───────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -95,8 +91,6 @@ export const tools: Tool[] = [
     },
   },
 ];
-
-// ── Handlers ───────────────────────────────────────────────────────────────
 
 async function handleSearchCompounds(args: Record<string, unknown>) {
   if (!isValidCompoundSearchArgs(args)) {

@@ -1,13 +1,3 @@
-/**
- * exportPdf.ts
- *
- * Thin public adapter. Converts a raw markdown string to a downloadable PDF
- * via pdfmake (no print dialog, text-selectable output).
- *
- * Heavy dependencies (pdfmake, fonts) are loaded lazily inside generatePdf so
- * they never appear in the main bundle.
- */
-
 export interface ExportResult {
   success: boolean;
   error?: string;

@@ -1,8 +1,3 @@
-/**
- * Pure sync planner: local eval home + remote Langfuse state → actions, conflicts, warnings.
- * sync.ts fetches the remote state, prints the plan (dry run) and applies it with --apply.
- * Planning against the state left by a full apply yields no actions (idempotent).
- */
 import { canonicalJson, contentHash, datasetHash } from "./hash";
 import type {
   DatasetBody,
@@ -35,10 +30,8 @@ export interface GitInfo {
 
 export interface SyncPlan {
   actions: SyncAction[];
-  /** Blocking: --apply refuses to run while any exist. */
   conflicts: string[];
   warnings: string[];
-  /** Human-readable summary lines, in print order. */
   report: string[];
 }
 
@@ -55,8 +48,7 @@ export function scoreConfigBody(m: Metric): ScoreConfigBody {
   };
 }
 
-/** The parts of a config that define what a score means. Description is not one of them. */
-function definition(c: ScoreConfigBody): string {
+function scoreDefinitionFields(c: ScoreConfigBody): string {
   return canonicalJson({
     dataType: c.dataType,
     minValue: c.minValue ?? null,
@@ -77,7 +69,6 @@ export function itemBody(datasetName: string, item: DatasetItem): DatasetItemBod
   };
 }
 
-/** Hash recomputed from a fetched item's payload; never trusts the stored content_hash. */
 export function remoteContentHash(item: { input?: unknown; expectedOutput?: unknown; metadata?: unknown }): string {
   return contentHash({ input: item.input, expected_output: item.expectedOutput, metadata: item.metadata as Record<string, unknown> | null });
 }
@@ -102,7 +93,6 @@ export function datasetBody(loaded: LoadedDataset, git: GitInfo): DatasetBody {
   };
 }
 
-/** Dataset metadata that must match; git_sha/git_dirty only record the last write. */
 function datasetFingerprint(body: DatasetBody | RemoteDataset): string {
   const { git_sha: _sha, git_dirty: _dirty, ...rest } = (body.metadata ?? {}) as Record<string, unknown>;
   return canonicalJson({ description: body.description ?? null, metadata: rest });
@@ -126,10 +116,10 @@ function planConfigs(metrics: Metric[], remote: RemoteScoreConfig[], plan: SyncP
       plan.report.push(`  + ${m.name} (${m.data_type})`);
       continue;
     }
-    if (definition(existing) !== definition(local)) {
+    if (scoreDefinitionFields(existing) !== scoreDefinitionFields(local)) {
       plan.conflicts.push(
-        `score config ${m.name} exists with a different definition (remote ${definition(existing)} vs local ` +
-          `${definition(local)}). Changed definitions need a new metric name; configs are never edited.`,
+        `score config ${m.name} exists with a different definition (remote ${scoreDefinitionFields(existing)} vs local ` +
+          `${scoreDefinitionFields(local)}). Changed definitions need a new metric name; configs are never edited.`,
       );
       plan.report.push(`  ! ${m.name} (definition differs)`);
       continue;
@@ -211,10 +201,6 @@ export function planSync(home: EvalHome, remote: RemoteState, git: GitInfo): Syn
   return plan;
 }
 
-/**
- * Apply order: configs, new datasets (items need their dataset), items, archives, and
- * dataset metadata updates last so dataset_hash only changes once the items are written.
- */
 export function orderActions(actions: SyncAction[]): SyncAction[] {
   const rank = (a: SyncAction): number => {
     if (a.kind === "create-config") return 0;

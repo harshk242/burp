@@ -1,46 +1,28 @@
-/**
- * Schema fingerprint: a representation-agnostic but semantically complete view
- * of a SQLite schema (plans/drizzle-orm-migration.md §6 step 3).
- *
- * Two DBs with equal fingerprints accept and reject the same rows, whatever DDL
- * text built them (inline vs. named UNIQUEs, ALTER-appended columns, quoting).
- * Used by legacy adoption (legacy.ts) and `db:verify`.
- */
 import type { Database } from "bun:sqlite";
 import { balancedParens, isKeyword, normalizeExpression, tokenize } from "./sql-tokens";
 
 export interface ColumnFingerprint {
-  /** Declared type, upper-cased. */
   type: string;
   /** INTEGER rowid-alias PKs count as NOT NULL (they can never hold NULL). */
   notnull: boolean;
-  /** Normalized DEFAULT expression, or null. */
   default: string | null;
 }
 
 export interface TableFingerprint {
-  /** Keyed by column name (lower-case), so column order is irrelevant. */
   columns: Record<string, ColumnFingerprint>;
-  /** PK columns in key order. */
   primaryKey: string[];
   autoincrement: boolean;
-  /** `(from) -> parent(to) on delete X on update Y`, sorted. */
   foreignKeys: string[];
-  /** Column sets with a full (non-partial) UNIQUE index of any origin, sorted. */
   uniques: string[];
-  /** Normalized CHECK bodies, sorted (a multiset: duplicates are kept). */
   checks: string[];
-  /** Every other index: name, ordered key columns, unique flag, partial WHERE. */
   indexes: string[];
 }
 
 export interface SchemaFingerprint {
   tables: Record<string, TableFingerprint>;
-  /** Views and triggers (`type name`); the baseline has none. */
   others: string[];
 }
 
-/** Bookkeeping and FTS5 objects are managed by migrations 0001+, not part of the fingerprint. */
 export function isFingerprintedTable(name: string): boolean {
   const n = name.toLowerCase();
   return (
@@ -150,7 +132,6 @@ function indexes(sqlite: Database, table: string, master: MasterRow[]): Pick<Tab
       .all()
       .filter((k) => k.key === 1);
     if (idx.unique === 1 && idx.partial === 0) {
-      // A unique constraint is a column set: name, origin and key order don't change what it rejects.
       uniques.push(keys.map((k) => (k.name ?? "<expr>").toLowerCase()).sort().join(","));
       continue;
     }
@@ -169,7 +150,6 @@ function indexes(sqlite: Database, table: string, master: MasterRow[]): Pick<Tab
   return { uniques: uniques.sort(), indexes: ordinary.sort() };
 }
 
-/** Normalized WHERE clause of a partial `CREATE INDEX`, or null. */
 function partialWhere(sql: string): string | null {
   const tokens = tokenize(sql);
   let depth = 0;
@@ -186,10 +166,6 @@ export function quoteIdent(name: string): string {
   return `"${name.replaceAll('"', '""')}"`;
 }
 
-/**
- * Human-readable differences, `actual` (DB under test) vs `expected` (baseline).
- * Empty array = semantically identical.
- */
 export function diffFingerprints(actual: SchemaFingerprint, expected: SchemaFingerprint): string[] {
   const diffs: string[] = [];
   const tableNames = [...new Set([...Object.keys(actual.tables), ...Object.keys(expected.tables)])].sort();

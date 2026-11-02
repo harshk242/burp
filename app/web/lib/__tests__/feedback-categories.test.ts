@@ -7,8 +7,6 @@ import {
 } from "../feedback-categories";
 
 describe("feedback categories", () => {
-  // Same pin as server/__tests__/feedback-categories.test.ts: the ids are stored and
-  // validated by the server, so a change on one side must be made on the other.
   test("pins the category ids per polarity", () => {
     expect(NEGATIVE_FEEDBACK_CATEGORIES.map((c) => c.id)).toEqual([
       "factually_incorrect",

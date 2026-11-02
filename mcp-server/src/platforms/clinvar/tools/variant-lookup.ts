@@ -1,12 +1,7 @@
-// Variant lookup tools for ClinVar platform module
-
 import { getClient } from '../client.js';
 import { formatVariationId, formatRsId } from '../utils.js';
 import type { VariantInfo, VCVRecord } from '../types.js';
 
-/**
- * Search variants by gene name
- */
 export async function searchVariantsByGene(
   gene: string,
   options?: {
@@ -22,7 +17,6 @@ export async function searchVariantsByGene(
   const client = getClient();
   const result = await client.searchByGene(gene, options);
 
-  // Get summaries for first batch of results
   const summaries = result.ids.length > 0
     ? await client.getVariantSummaries(result.ids.slice(0, 20))
     : [];
@@ -35,9 +29,6 @@ export async function searchVariantsByGene(
   };
 }
 
-/**
- * Get variant info by variation ID
- */
 export async function getVariantInfo(
   variationId: string
 ): Promise<VariantInfo | null> {
@@ -47,9 +38,6 @@ export async function getVariantInfo(
   return summaries.length > 0 ? summaries[0] : null;
 }
 
-/**
- * Get full VCV record with all details
- */
 export async function getVCVRecord(
   variationId: string
 ): Promise<VCVRecord | null> {
@@ -58,9 +46,6 @@ export async function getVCVRecord(
   return client.getVCVRecord(formattedId);
 }
 
-/**
- * Lookup variant by genomic coordinates
- */
 export async function lookupByCoordinates(
   chromosome: string,
   start: number,
@@ -79,7 +64,6 @@ export async function lookupByCoordinates(
     ? `chr${chromosome}:${start}-${stop}`
     : `chr${chromosome}:${start}`;
 
-  // Get summaries for results
   const summaries = result.ids.length > 0
     ? await client.getVariantSummaries(result.ids.slice(0, 20))
     : [];
@@ -92,9 +76,6 @@ export async function lookupByCoordinates(
   };
 }
 
-/**
- * Lookup variant by rsID
- */
 export async function lookupByRsId(
   rsId: string
 ): Promise<{
@@ -119,9 +100,6 @@ export async function lookupByRsId(
   };
 }
 
-/**
- * Batch lookup multiple variants
- */
 export async function batchVariantLookup(
   variationIds: string[]
 ): Promise<{
@@ -157,9 +135,6 @@ export async function batchVariantLookup(
   };
 }
 
-/**
- * Quick variant search using Clinical Tables API
- */
 export async function quickVariantSearch(
   query: string,
   maxResults: number = 10

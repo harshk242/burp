@@ -26,7 +26,6 @@ afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
 });
 
-/** drizzle-kit's table-recreation shape for `users` (e.g. tightening a column). */
 const RECREATE_USERS: ExtraMigration = {
   tag: "0900_test_recreate_users",
   statements: [
@@ -60,7 +59,6 @@ const RECREATE_USERS: ExtraMigration = {
   ],
 };
 
-/** Schema change + an orphan row: must roll back as a unit. */
 const ORPHAN_SESSION: ExtraMigration = {
   tag: "0901_test_orphan_session",
   statements: [
@@ -139,7 +137,7 @@ describe("pre-migrate backups", () => {
     tempDirs.push(dir);
     const sqlite = openDatabase(join(dir, "app.db"));
 
-    expect(runMigrations(sqlite).backupPath).toBeNull(); // fresh file: nothing to back up
+    expect(runMigrations(sqlite).backupPath).toBeNull();
     sqlite.run("INSERT INTO users (id, clerk_id, email) VALUES ('u', 'c', 'e')");
     const baseHistory = historyRows(sqlite);
 
@@ -148,11 +146,11 @@ describe("pre-migrate backups", () => {
     expect(existsSync(backupPath!)).toBe(true);
 
     const backup = openDatabase(backupPath!);
-    expect(historyRows(backup)).toEqual(baseHistory); // state *before* the new migration
+    expect(historyRows(backup)).toEqual(baseHistory);
     expect(backup.query("SELECT id FROM users").all()).toEqual([{ id: "u" }]);
     backup.close();
 
-    expect(runMigrations(sqlite).backupPath).toBeNull(); // nothing pending → no backup
+    expect(runMigrations(sqlite).backupPath).toBeNull();
     sqlite.close();
   });
 

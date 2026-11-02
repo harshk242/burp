@@ -1,17 +1,8 @@
-// ClinVar API Client with dual API support (E-utilities + Clinical Tables)
-
-import axios, { AxiosInstance, AxiosError } from 'axios';
-import {
-  NetworkError,
-  NCBIAPIError,
-  RateLimitError,
-} from './exceptions.js';
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { decodeFrequencySummary } from './frequency-decoder.js';
 import {
   filterNoneValues,
   generateCacheKey,
-  sleep,
-  calculateBackoff,
-  isRetryableStatus,
   buildClinVarSearchTerm,
   toVariationId,
 } from './utils.js';
@@ -21,6 +12,8 @@ import {
   parseVCVRecord,
 } from './xml-parser.js';
 import { TokenBucketRateLimiter, createNcbiRateLimiter } from '../../shared/rate-limiter.js';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
+import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import type {
   CacheEntry,
   ClinVarClientOptions,
@@ -32,42 +25,89 @@ import type {
 
 const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const CLINICAL_TABLES_URL = 'https://clinicaltables.nlm.nih.gov/api/variants/v4';
-const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
-const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_CACHE_TTL = 3600 * 1000;
+const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY = 1000;
+
+function exponentialBackoff(baseMs: number): (attempt: number) => number {
+  return (attempt) => 2 ** (attempt - 1) * baseMs;
+}
+
+export const CLINVAR_NCBI_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: DEFAULT_MAX_ATTEMPTS,
+  backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
+  retryOn: isRetryableTransportOr5xx,
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+  on429: 'fail',
+  fallbackReportedRetryAfterMs: 5_000,
+});
+
+export const CLINICAL_TABLES_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: 1,
+  backoffMs: [0],
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+});
+
+export interface ClinVarHttpOptions {
+  policy?: RetryPolicy;
+  adapter?: AxiosAdapter;
+  retryDeps?: RetryDeps;
+}
+
+function createHttp(baseURL: string, defaultPolicy: RetryPolicy, options: ClinVarHttpOptions): AxiosInstance {
+  const instance = axios.create({
+    baseURL,
+    timeout: 30000,
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(instance, options.policy ?? defaultPolicy, 'clinvar', options.retryDeps);
+}
+
+export function createClinVarNcbiHttp(options: ClinVarHttpOptions = {}): AxiosInstance {
+  return createHttp(NCBI_BASE_URL, CLINVAR_NCBI_POLICY, options);
+}
+
+export function createClinicalTablesHttp(options: ClinVarHttpOptions = {}): AxiosInstance {
+  return createHttp(CLINICAL_TABLES_URL, CLINICAL_TABLES_POLICY, options);
+}
 
 export class ClinVarClient {
   private readonly apiKey?: string;
   private readonly cacheTtl: number;
-  private readonly maxRetries: number;
+  private readonly maxAttempts: number;
   private readonly retryDelay: number;
   private readonly cache: Map<string, CacheEntry>;
   private readonly rateLimiter: TokenBucketRateLimiter;
-  private ncbiAxios: AxiosInstance;
-  private clinicalTablesAxios: AxiosInstance;
+  private readonly ncbiAxios: AxiosInstance;
+  private readonly clinicalTablesAxios: AxiosInstance;
 
   constructor(options: ClinVarClientOptions = {}) {
     this.apiKey = options.apiKey || process.env.NCBI_API_KEY;
     this.cacheTtl = options.cacheTtl || DEFAULT_CACHE_TTL;
-    this.maxRetries = options.maxRetries || DEFAULT_MAX_RETRIES;
+    this.maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
-    this.rateLimiter = createNcbiRateLimiter(!!this.apiKey);
+    this.rateLimiter = options.rateLimiter ?? createNcbiRateLimiter(!!this.apiKey);
 
-    this.ncbiAxios = axios.create({
-      baseURL: NCBI_BASE_URL,
-      timeout: 30000,
+    this.ncbiAxios = createClinVarNcbiHttp({
+      policy: {
+        ...CLINVAR_NCBI_POLICY,
+        maxAttempts: this.maxAttempts,
+        backoffMs: exponentialBackoff(this.retryDelay),
+        beforeAttempt: (signal) => this.rateLimiter.waitForToken(signal),
+      },
+      adapter: options.adapter,
+      retryDeps: options.retryDeps,
     });
 
-    this.clinicalTablesAxios = axios.create({
-      baseURL: CLINICAL_TABLES_URL,
-      timeout: 30000,
+    this.clinicalTablesAxios = createClinicalTablesHttp({
+      adapter: options.adapter,
+      retryDeps: options.retryDeps,
     });
   }
 
-  /**
-   * Execute NCBI E-utilities request with rate limiting, caching, and retries
-   */
   private async ncbiRequest<T>(
     endpoint: string,
     params: Record<string, unknown>,
@@ -86,60 +126,21 @@ export class ClinVarClient {
       return cachedEntry.data as T;
     }
 
-    let lastError: Error | undefined;
+    const response = await this.ncbiAxios.get(endpoint, {
+      params: fullParams,
+      responseType: 'text',
+    });
 
-    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      try {
-        await this.rateLimiter.waitForToken();
+    const data = parser(response.data);
 
-        const response = await this.ncbiAxios.get(endpoint, {
-          params: fullParams,
-          responseType: 'text',
-        });
+    this.cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    });
 
-        const data = parser(response.data);
-
-        this.cache.set(cacheKey, {
-          data,
-          timestamp: Date.now(),
-        });
-
-        return data;
-      } catch (error) {
-        lastError = error as Error;
-
-        if (axios.isAxiosError(error)) {
-          const axiosError = error as AxiosError;
-          const status = axiosError.response?.status;
-
-          if (status === 429) {
-            const retryAfter = parseInt(
-              axiosError.response?.headers['retry-after'] || '5',
-              10
-            );
-            throw new RateLimitError('NCBI rate limit exceeded', retryAfter * 1000);
-          }
-
-          if (status && !isRetryableStatus(status)) {
-            throw new NetworkError(`HTTP error ${status}: ${axiosError.message}`, status);
-          }
-
-          if (attempt < this.maxRetries - 1) {
-            const delay = calculateBackoff(attempt, this.retryDelay);
-            await sleep(delay);
-          }
-        } else {
-          throw error;
-        }
-      }
-    }
-
-    throw lastError || new NetworkError('Request failed after all retries');
+    return data;
   }
 
-  /**
-   * Execute Clinical Tables API request
-   */
   private async clinicalTablesRequest(
     params: Record<string, unknown>
   ): Promise<ClinicalTablesResult> {
@@ -150,44 +151,34 @@ export class ClinVarClient {
       return cachedEntry.data as ClinicalTablesResult;
     }
 
-    try {
-      const response = await this.clinicalTablesAxios.get('/search', {
-        params: filterNoneValues(params),
-      });
+    const response = await this.clinicalTablesAxios.get('/search', {
+      params: filterNoneValues(params),
+    });
 
-      // Clinical Tables returns array: [total, list_of_codes, extra_data, list_of_display_strings]
-      const [totalCount, , , displayData] = response.data;
+    // Clinical Tables returns array: [total, list_of_codes, extra_data, list_of_display_strings]
+    const [totalCount, , , displayData] = response.data;
 
-      const variants: ClinicalTablesVariant[] = (displayData || []).map((item: string[]) => ({
-        name: item[0] || '',
-        gene: item[1] || undefined,
-        clinicalSignificance: item[2] || undefined,
-        chromosome: item[3] || undefined,
-        position: item[4] ? parseInt(item[4], 10) : undefined,
-      }));
+    const variants: ClinicalTablesVariant[] = (displayData || []).map((item: string[]) => ({
+      name: item[0] || '',
+      gene: item[1] || undefined,
+      clinicalSignificance: item[2] || undefined,
+      chromosome: item[3] || undefined,
+      position: item[4] ? parseInt(item[4], 10) : undefined,
+    }));
 
-      const result: ClinicalTablesResult = {
-        totalCount: totalCount || 0,
-        variants,
-      };
+    const result: ClinicalTablesResult = {
+      totalCount: totalCount || 0,
+      variants,
+    };
 
-      this.cache.set(cacheKey, {
-        data: result,
-        timestamp: Date.now(),
-      });
+    this.cache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
 
-      return result;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new NetworkError(`Clinical Tables API error: ${error.message}`);
-      }
-      throw error;
-    }
+    return result;
   }
 
-  /**
-   * Search ClinVar using E-utilities
-   */
   async search(
     term: string,
     options?: { maxResults?: number; start?: number }
@@ -209,9 +200,6 @@ export class ClinVarClient {
     };
   }
 
-  /**
-   * Search variants by gene name
-   */
   async searchByGene(
     gene: string,
     options?: {
@@ -227,9 +215,6 @@ export class ClinVarClient {
     return this.search(term, { maxResults: options?.maxResults });
   }
 
-  /**
-   * Search variants by condition/disease
-   */
   async searchByCondition(
     condition: string,
     options?: {
@@ -245,9 +230,6 @@ export class ClinVarClient {
     return this.search(term, { maxResults: options?.maxResults });
   }
 
-  /**
-   * Search variants by genomic coordinates
-   */
   async searchByCoordinates(
     chromosome: string,
     start: number,
@@ -261,9 +243,6 @@ export class ClinVarClient {
     return this.search(coordTerm, { maxResults: options?.maxResults });
   }
 
-  /**
-   * Get variant summaries by IDs
-   */
   async getVariantSummaries(ids: string[]): Promise<VariantInfo[]> {
     if (ids.length === 0) return [];
 
@@ -277,9 +256,15 @@ export class ClinVarClient {
     );
   }
 
-  /**
-   * Get full VCV record
-   */
+  async getVariantFrequency(variationId: string) {
+    const id = toVariationId(variationId);
+    return this.ncbiRequest(
+      'esummary.fcgi',
+      { id, retmode: 'json' },
+      (json) => decodeFrequencySummary(JSON.parse(json), id)
+    );
+  }
+
   async getVCVRecord(variationId: string): Promise<VCVRecord | null> {
     const records = await this.ncbiRequest(
       'efetch.fcgi',
@@ -296,9 +281,6 @@ export class ClinVarClient {
     return records.length > 0 ? records[0] : null;
   }
 
-  /**
-   * Get multiple VCV records
-   */
   async getVCVRecords(variationIds: string[]): Promise<VCVRecord[]> {
     if (variationIds.length === 0) return [];
 
@@ -314,9 +296,6 @@ export class ClinVarClient {
     );
   }
 
-  /**
-   * Quick variant lookup using Clinical Tables API
-   */
   async quickLookup(
     query: string,
     maxResults: number = 10
@@ -328,18 +307,11 @@ export class ClinVarClient {
     });
   }
 
-  /**
-   * Search by rsID
-   */
   async searchByRsId(rsId: string): Promise<{ count: number; ids: string[] }> {
     const cleanRsId = rsId.replace(/^rs/i, '');
-    // Search by rsID directly - ClinVar recognizes rs numbers without field qualifier
     return this.search(`rs${cleanRsId}`);
   }
 
-  /**
-   * Search by molecular consequence
-   */
   async searchByMolecularConsequence(
     consequence: string,
     options?: {
@@ -355,9 +327,6 @@ export class ClinVarClient {
     return this.search(term, { maxResults: options?.maxResults });
   }
 
-  /**
-   * Search by review status
-   */
   async searchByReviewStatus(
     reviewStatus: string,
     options?: {
@@ -391,7 +360,6 @@ export class ClinVarClient {
   }
 }
 
-// Global client instance
 let _client: ClinVarClient | null = null;
 
 export function initializeClient(options?: ClinVarClientOptions): ClinVarClient {

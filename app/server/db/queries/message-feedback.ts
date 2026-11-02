@@ -1,14 +1,8 @@
-/**
- * message_feedback: one row per (assistant message, user). Every write bumps
- * `revision` and sets `sync_pending`; observability/feedback-sync.ts clears it
- * with a compare-and-set on the revision it pushed. `delete_unconfirmed` is
- * sync bookkeeping only (see feedback-sync.ts).
- */
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type { FeedbackCategory } from "../../schemas/feedback-categories";
 import type { DrizzleDb } from "../connection";
-import { chatTurns, messageFeedback, messages } from "../schema";
+import { chatTurns, feedbackSyncOperations, messageFeedback, messages } from "../schema";
 
 export type DbMessageFeedback = typeof messageFeedback.$inferSelect;
 export type FeedbackValue = 0 | 1;
@@ -21,6 +15,9 @@ export interface FeedbackKey {
 const pendingWrite = {
   revision: sql`${messageFeedback.revision} + 1`,
   sync_pending: 1,
+  sync_state: "pending" as const,
+  retry_at: 0,
+  failures: 0,
   updated_at: sql`(unixepoch())`,
 };
 
@@ -29,10 +26,6 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
     and(eq(messageFeedback.message_id, messageId), eq(messageFeedback.user_id, userId));
 
   return {
-    /**
-     * Sets the value, comment and categories (re-creating a cleared row in place, so its id is kept).
-     * Categories are stored as given; the route validates, dedupes and sorts them.
-     */
     upsert(key: FeedbackKey, value: FeedbackValue, comment: string | null, categories: FeedbackCategory[] = []): DbMessageFeedback {
       return db
         .insert(messageFeedback)
@@ -45,7 +38,6 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
         .get();
     },
 
-    /** Clears the value (tombstone). Null when the user never gave feedback on the message. */
     clear(key: FeedbackKey): DbMessageFeedback | null {
       return (
         db
@@ -62,33 +54,64 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
     },
 
     findPending(): DbMessageFeedback[] {
-      return db.select().from(messageFeedback).where(eq(messageFeedback.sync_pending, 1)).all();
+      return db.select().from(messageFeedback).where(or(eq(messageFeedback.sync_pending, 1), sql`EXISTS (SELECT 1 FROM feedback_sync_operations WHERE feedback_id = ${messageFeedback.id} AND revision < ${messageFeedback.revision} AND state != 'cleaned')`)).all();
     },
 
-    /**
-     * Records that Langfuse acknowledged `revision`. Clears sync_pending only if
-     * no write happened since (revision unchanged). Returns whether it cleared.
-     */
-    markSynced(key: FeedbackKey, revision: number): boolean {
-      const updated = db
-        .update(messageFeedback)
-        .set({
-          synced_revision: revision,
-          synced_at: sql`(unixepoch())`,
-          sync_pending: sql`CASE WHEN ${messageFeedback.revision} = ${revision} THEN 0 ELSE 1 END`,
-        })
-        .where(byKey(key))
-        .returning({ sync_pending: messageFeedback.sync_pending })
-        .get();
-      return updated?.sync_pending === 0;
+    claim(key: FeedbackKey, token: string, now: number, leaseMs: number): DbMessageFeedback | null {
+      return db.transaction(() => {
+        const row = db.update(messageFeedback)
+          .set({ claim_token: token, claim_until: now + leaseMs })
+          .where(and(byKey(key), lte(messageFeedback.claim_until, now), lte(messageFeedback.retry_at, now)))
+          .returning().get();
+        if (!row) return null;
+        if (row.sync_pending) db.insert(feedbackSyncOperations)
+          .values({ feedback_id: row.id, revision: row.revision, state: "write_pending" })
+          .onConflictDoNothing().run();
+        return row;
+      });
     },
 
-    /** Sets or clears delete_unconfirmed (a sent delete that may not have been applied yet). Not a write: revision is unchanged. */
-    setDeleteUnconfirmed(key: FeedbackKey, unconfirmed: boolean): void {
-      db.update(messageFeedback).set({ delete_unconfirmed: unconfirmed ? 1 : 0 }).where(byKey(key)).run();
+    acknowledge(key: FeedbackKey, token: string, revision: number): boolean {
+      return db.transaction(() => {
+        const current = db.select().from(messageFeedback)
+          .where(and(byKey(key), eq(messageFeedback.claim_token, token))).get();
+        if (!current) return false;
+        db.update(feedbackSyncOperations)
+          .set({ state: current.revision === revision ? "accepted" : "retired" })
+          .where(and(eq(feedbackSyncOperations.feedback_id, current.id), eq(feedbackSyncOperations.revision, revision))).run();
+        db.update(messageFeedback).set({
+          synced_revision: revision, synced_at: sql`(unixepoch())`,
+          sync_pending: current.revision === revision ? 0 : 1,
+          sync_state: current.revision === revision ? "accepted" : "pending",
+        }).where(and(byKey(key), eq(messageFeedback.claim_token, token))).run();
+        return current.revision === revision;
+      });
     },
 
-    /** The Langfuse trace of the turn that produced the assistant message (null when tracing was off). */
+    cleanupDue(feedbackId: string, revision: number, now: number): number[] {
+      return db.select({ revision: feedbackSyncOperations.revision }).from(feedbackSyncOperations)
+        .where(and(eq(feedbackSyncOperations.feedback_id, feedbackId), lt(feedbackSyncOperations.revision, revision),
+          sql`${feedbackSyncOperations.state} != 'cleaned'`, lte(feedbackSyncOperations.cleanup_at, now))).all().map((r) => r.revision);
+    },
+
+    advanceCleanup(feedbackId: string, revision: number, nextAt: number): void {
+      db.update(feedbackSyncOperations).set({
+        state: sql`CASE WHEN ${feedbackSyncOperations.state} = 'confirmation_pending' THEN 'cleaned' ELSE 'confirmation_pending' END`,
+        cleanup_at: nextAt,
+      })
+        .where(and(eq(feedbackSyncOperations.feedback_id, feedbackId), eq(feedbackSyncOperations.revision, revision),
+          sql`${feedbackSyncOperations.state} != 'cleaned'`)).run();
+    },
+
+    release(key: FeedbackKey, token: string, revision: number, retryAt = 0, failures = 0): void {
+      db.update(messageFeedback).set({
+        claim_token: null, claim_until: 0,
+        retry_at: sql`CASE WHEN ${messageFeedback.revision} = ${revision} THEN ${retryAt} ELSE ${messageFeedback.retry_at} END`,
+        failures: sql`CASE WHEN ${messageFeedback.revision} = ${revision} THEN ${failures} ELSE ${messageFeedback.failures} END`,
+      })
+        .where(and(byKey(key), eq(messageFeedback.claim_token, token))).run();
+    },
+
     traceIdForMessage(messageId: string): string | null {
       const row = db
         .select({ trace_id: chatTurns.trace_id })
@@ -98,7 +121,6 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
       return row?.trace_id ?? null;
     },
 
-    /** The user's current (non-cleared) feedback on a session's messages, by message id. */
     findForSession(
       sessionId: string,
       userId: string

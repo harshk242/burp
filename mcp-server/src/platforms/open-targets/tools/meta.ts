@@ -1,10 +1,5 @@
-// Meta API Tools
-
 import { getClient } from '../client.js';
 
-/**
- * Return Open Targets Platform release metadata.
- */
 export async function getApiMetadata(): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -27,9 +22,6 @@ export async function getApiMetadata(): Promise<unknown> {
   return client.query(query);
 }
 
-/**
- * List sources contributing target-disease association evidence.
- */
 export async function getAssociationDatasources(): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -43,9 +35,6 @@ export async function getAssociationDatasources(): Promise<unknown> {
   return client.query(query);
 }
 
-/**
- * Enumerate interaction databases integrated into Open Targets.
- */
 export async function getInteractionResources(): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -59,9 +48,6 @@ export async function getInteractionResources(): Promise<unknown> {
   return client.query(query);
 }
 
-/**
- * Resolve Gene Ontology identifiers to human-readable labels.
- */
 export async function getGeneOntologyTerms(goIds: string[]): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -75,9 +61,6 @@ export async function getGeneOntologyTerms(goIds: string[]): Promise<unknown> {
   return client.query(query, { goIds });
 }
 
-/**
- * Map free-text terms to canonical Open Targets identifiers.
- */
 export async function mapIds(
   queryTerms: string[],
   entityNames?: string[]

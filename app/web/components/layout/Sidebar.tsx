@@ -30,7 +30,6 @@ export function Sidebar() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
 
-  // Fetch sessions on mount
   useEffect(() => {
     async function fetchSessions() {
       setLoading(true);
@@ -101,7 +100,6 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div
           className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
@@ -109,18 +107,14 @@ export function Sidebar() {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed left-0 top-14 z-40 h-[calc(100dvh-3.5rem)] w-64 overflow-hidden border-r bg-background transition-all duration-200 md:relative md:top-0 md:h-full",
-          // Mobile: slide in/out based solely on mobileMenuOpen
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full",
-          // Desktop: always translate-x-0; collapse width when sidebarOpen is false
           sidebarOpen ? "md:translate-x-0" : "md:w-0 md:translate-x-0"
         )}
       >
         <div className="flex h-full flex-col">
-          {/* New chat button */}
           <div className="p-4">
             <Button
               onClick={handleNewChat}
@@ -133,7 +127,6 @@ export function Sidebar() {
 
           <Separator />
 
-          {/* Sessions list */}
           <ScrollArea className="flex-1 px-2 [&_[data-radix-scroll-area-viewport]>div]:!block [&_[data-radix-scroll-area-viewport]>div]:!min-w-0">
             <div className="space-y-1 py-2">
               {isLoading ? (

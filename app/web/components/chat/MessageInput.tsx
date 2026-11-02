@@ -21,7 +21,6 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     onSend(trimmed);
     setContent("");
 
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -34,7 +33,6 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     }
   };
 
-  // Auto-resize textarea
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const textarea = e.target;
     textarea.style.height = "auto";

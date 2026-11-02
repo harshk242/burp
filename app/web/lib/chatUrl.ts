@@ -14,7 +14,6 @@ export function extractSessionIdFromLocation(location: Location): string | null 
     return fromQuery;
   }
 
-  // Legacy URL support: /chat/<uuid>/
   const match = url.pathname.match(/\/chat\/([0-9a-f-]{36})\/?$/i);
   const fromPath = match?.[1] ?? null;
   return isUuid(fromPath) ? fromPath : null;

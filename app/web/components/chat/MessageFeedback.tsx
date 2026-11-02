@@ -8,13 +8,6 @@ import { useChatStore } from "@/stores/chatStore";
 import type { Feedback, Message } from "@/types";
 import { FeedbackDialog } from "./FeedbackDialog";
 
-/**
- * 👍/👎 on a saved assistant message. Clicking a thumb saves the rating (with no
- * categories, so a flip never keeps the other polarity's), then opens a dialog
- * for optional categories and a comment; clicking the active thumb clears it.
- * Disabled while a reply is streaming or a save is in flight; a failed save
- * restores the old state.
- */
 export function MessageFeedback({ message }: { message: Message }) {
   const { put, delete: del } = useApi();
   const isStreaming = useChatStore((s) => s.isStreaming);

@@ -2,8 +2,6 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
-// ── Validation ──────────────────────────────────────────────────────────────
-
 const isValidAssemblyArgs = (
   args: any,
 ): args is { species?: string; bands?: boolean } => {
@@ -14,8 +12,6 @@ const isValidAssemblyArgs = (
     (args.bands === undefined || typeof args.bands === 'boolean')
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -59,8 +55,6 @@ export const tools: Tool[] = [
     },
   },
 ];
-
-// ── Handlers ────────────────────────────────────────────────────────────────
 
 async function handleListSpecies(args: Record<string, unknown>) {
   const params: Record<string, unknown> = {};
@@ -107,8 +101,6 @@ async function handleGetKaryotype(args: Record<string, unknown>) {
     chromosomes: response.data.top_level_region || [],
   };
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   list_species: handleListSpecies,

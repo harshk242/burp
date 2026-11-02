@@ -1,9 +1,5 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
-// ---------------------------------------------------------------------------
-// MCP Tool definitions for the Reactome platform
-// ---------------------------------------------------------------------------
-
 export const tools: Tool[] = [
   {
     name: 'search_pathways',

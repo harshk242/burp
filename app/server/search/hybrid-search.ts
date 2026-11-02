@@ -1,9 +1,3 @@
-/**
- * Hybrid Tool Search Engine
- * Combines FTS5 BM25 text search with embedding cosine similarity,
- * fused via Reciprocal Rank Fusion (RRF).
- */
-
 import type { createToolSearchQueries } from "../db/queries/tool-search";
 import type { QueryEmbedder } from "../embeddings/types";
 import { untilAborted } from "../embeddings/deadline";
@@ -12,14 +6,9 @@ import { appConfig } from "../config";
 
 type ToolSearchQueries = ReturnType<typeof createToolSearchQueries>;
 
-/**
- * Embedder and the tool vectors it produced, swapped as one unit so a search
- * never compares a query from one model against vectors from another.
- */
 interface EmbeddingSnapshot {
   readonly embedder: QueryEmbedder;
   readonly vectors: ReadonlyMap<string, Float32Array>;
-  /** Length shared by every stored vector; query vectors must match it. */
   readonly dimension: number;
 }
 
@@ -46,7 +35,6 @@ export interface HybridSearchConfig {
   shortQueryTokenThreshold: number;
   shortQueryBm25Weight: number;
   topK: number;
-  /** Candidates taken from each ranker before fusion; independent of topK. */
   candidateK: number;
   rrfK: number;
 }
@@ -66,7 +54,6 @@ function loadConfig(): HybridSearchConfig {
 
 export class HybridToolSearch {
   private embeddings: EmbeddingSnapshot | null = null;
-  // Replaced wholesale on reindex (never mutated), so a search can hold a stable reference.
   private toolIndex: ReadonlyMap<string, ToolInfo> = new Map();
   private config: HybridSearchConfig;
 
@@ -74,10 +61,6 @@ export class HybridToolSearch {
     this.config = loadConfig();
   }
 
-  /**
-   * Replace the embedder and tool vectors together. The vectors must all come
-   * from `embedder` and share one length (the index file reader guarantees both).
-   */
   attachEmbeddings(embedder: QueryEmbedder, vectors: ReadonlyMap<string, Float32Array>): void {
     const dimension = vectors.values().next().value?.length ?? 0;
     for (const [name, vector] of vectors) {
@@ -89,17 +72,10 @@ export class HybridToolSearch {
     });
   }
 
-  /** Rebuild the keyword index and tool map from the full set of live tools. */
   indexTools(tools: ToolInfo[]): void {
     const elapsed = startTimer();
-    const toolIndex = new Map<string, ToolInfo>();
-    this.queries.clearAll();
-
-    for (const tool of tools) {
-      this.queries.insertTool(tool.fullName, tool.server, tool.toolName, tool.description);
-      toolIndex.set(tool.fullName, tool);
-    }
-    this.toolIndex = toolIndex;
+    this.queries.replaceAll(tools);
+    this.toolIndex = new Map(tools.map((tool) => [tool.fullName, tool]));
 
     logger.info("SEARCH", "fts_indexed", {
       duration_ms: elapsed(),
@@ -107,7 +83,6 @@ export class HybridToolSearch {
     });
   }
 
-  /** Rejects with `signal.reason` once `signal` aborts, even if the embedder ignores it. */
   async search(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
     const elapsed = startTimer();
     const snapshot = this.embeddings;
@@ -121,7 +96,6 @@ export class HybridToolSearch {
       duration_ms: elapsed(),
       data: {
         query,
-        // Which model ranked the semantic half (absent when keyword-only).
         embedder: semanticResults.length > 0 ? snapshot?.embedder.id : undefined,
         bm25_hits: bm25Results.length,
         semantic_hits: semanticResults.length,
@@ -161,13 +135,6 @@ export class HybridToolSearch {
     }
   }
 
-  /**
-   * Rank tools in `toolIndex` against the query using `snapshot`. Both are read
-   * by the caller before any await, so a concurrent swap or reindex can't mix
-   * models or score tools that aren't registered. Any failure (timeout,
-   * provider error, wrong-length query vector) yields [] so the search falls
-   * back to keyword results; an abort of `signal` is rethrown instead.
-   */
   private async searchSemantic(
     query: string,
     snapshot: EmbeddingSnapshot | null,
@@ -178,7 +145,6 @@ export class HybridToolSearch {
 
     try {
       const queryEmb = await untilAborted(snapshot.embedder.embedQuery(query, signal), signal);
-      // Zero scores would still earn RRF weight by rank, so skip semantic entirely.
       if (queryEmb.length !== snapshot.dimension) {
         logger.warn("SEARCH", "semantic_query_dimension_mismatch", {
           data: { query, embedder: snapshot.embedder.id, expected: snapshot.dimension, actual: queryEmb.length },

@@ -1,12 +1,3 @@
-/**
- * Dry-run adoption + migrations against a copy of a database.
- *
- *   bun run db:verify <path> [--keep]     # relative paths resolve against the current directory
- *
- * Prints fingerprint diffs, 0003 backfill counts, NULL-role users, NULL-PK rows,
- * FK violations and the transaction wall-clock time.
- * The input file is never modified. Exits 1 when the copy would not migrate cleanly.
- */
 import { resolve } from "path";
 import { formatVerifyReport, verifyDatabase, verifyPassed } from "../verify";
 

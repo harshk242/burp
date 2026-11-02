@@ -1,45 +1,68 @@
-import { useChatStore } from "@/stores/chatStore";
+import type { ChatState } from "@/stores/chatStore";
 import { RateLimitError } from "@/types";
+import { isRateLimitErrorCode, RATE_LIMIT_ERROR_CODES } from "../../shared/rate-limit";
+import type { ChatCompletion } from "../../shared/chat";
 
+export interface StreamOwner {
+  signal: AbortSignal;
+  isCurrent: () => boolean;
+  commit: (commit: (store: ChatState) => void) => boolean;
+}
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export async function streamChat(
   sessionId: string,
   message: string,
-  token: string,
+  token: string | null,
+  owner: StreamOwner,
   onTitle?: (title: string) => void
 ): Promise<void> {
-  const store = useChatStore.getState();
-  // Only reset streaming state, NOT messages (keep conversation history)
-  store.resetStreamingState();
-  store.setStreaming(true);
+  try {
+    await consumeChat(sessionId, message, token, owner, onTitle);
+  } catch (error) {
+    if (!owner.isCurrent()) return;
+    owner.commit((store) => store.setError(error instanceof Error ? error.message : "Stream failed"));
+    throw error;
+  }
+}
+
+async function consumeChat(
+  sessionId: string, message: string, token: string | null, owner: StreamOwner,
+  onTitle?: (title: string) => void
+): Promise<void> {
+  if (!owner.isCurrent()) return;
 
   const response = await fetch(`${API_BASE}/api/chat`, {
+    signal: owner.signal,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ sessionId, message }),
   });
 
+  if (!owner.isCurrent()) {
+    await response.body?.cancel();
+    return;
+  }
+
   if (!response.ok) {
-    store.setStreaming(false);
     const error = await response.json().catch(() => ({ error: "Request failed" }));
     if (response.status === 429) {
-      const errorCode: string = error.error ?? "";
+      const errorCode = isRateLimitErrorCode(error.error) ? error.error : undefined;
       let message: string;
-      if (errorCode === "cost_limit_exceeded") {
+      if (errorCode === RATE_LIMIT_ERROR_CODES.cost) {
         message = error.message || "Dollar usage budget reached. Resets when the active budget window resets.";
-      } else if (errorCode === "token_limit_exceeded") {
-        message = error.message || `Daily token budget of ${(error.token_limit ?? 0).toLocaleString()} tokens reached. Resets at midnight UTC.`;
-      } else {
+      } else if (errorCode === RATE_LIMIT_ERROR_CODES.query) {
         message = error.message || "Daily query limit reached. Resets at midnight UTC.";
+      } else {
+        message = error.message || "Request rate limit reached. Please try again later.";
       }
       throw new RateLimitError(
         message,
-        error.limit ?? error.token_limit ?? error.cost_limit_microusd ?? 0,
-        error.used ?? error.tokens_used ?? error.cost_used_microusd ?? 0,
+        error.limit ?? error.cost_limit_microusd ?? 0,
+        error.used ?? error.cost_used_microusd ?? 0,
         error.resetAt ?? 0,
         errorCode
       );
@@ -49,21 +72,26 @@ export async function streamChat(
 
   const reader = response.body?.getReader();
   if (!reader) {
-    store.setStreaming(false);
     throw new Error("No response body");
   }
 
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  owner.signal.addEventListener("abort", cancel, { once: true });
   const decoder = new TextDecoder();
   let buffer = "";
+  let terminal = false;
 
-  // SSE spec: accumulate data lines per event, dispatch on empty line boundary
   let currentEventType: string | null = null;
   let dataLines: string[] = [];
 
   function dispatchEvent() {
     if (currentEventType && dataLines.length > 0) {
       const data = decodeSSEData(currentEventType, dataLines.join("\n"));
-      if (data !== undefined) handleSSEEvent(currentEventType, data, onTitle);
+      if (data !== undefined && owner.isCurrent() && (!terminal || currentEventType === "title")) {
+        owner.commit((store) => {
+          terminal = handleSSEEvent(store, currentEventType!, data, onTitle) || terminal;
+        });
+      }
     }
     currentEventType = null;
     dataLines = [];
@@ -73,11 +101,9 @@ export async function streamChat(
     if (line.startsWith("event: ")) {
       currentEventType = line.slice(7).trim();
     } else if (line.startsWith("data:")) {
-      // "data: content" (with space) or "data:" (empty / no space)
       const payload = line.startsWith("data: ") ? line.slice(6) : line.slice(5);
       dataLines.push(payload);
     } else if (line === "") {
-      // Empty line = end of event block per SSE spec
       dispatchEvent();
     }
   }
@@ -96,26 +122,23 @@ export async function streamChat(
       }
     }
 
-    // Drain any remaining data in the buffer after the stream closes.
-    // This ensures the last SSE event (e.g., title) is never lost.
     if (buffer.trim()) {
       for (const line of buffer.split("\n")) {
         processLine(line);
       }
     }
-    // Flush any pending event that wasn't terminated by an empty line
     dispatchEvent();
+    if (!terminal) {
+      owner.commit((store) => store.setError("Response interrupted before completion"));
+    }
+  } catch (error) {
+    if (!terminal) throw error;
   } finally {
+    owner.signal.removeEventListener("abort", cancel);
     reader.releaseLock();
   }
 }
 
-/**
- * Every payload is JSON, text chunks included (server/routes/sse-encode.ts), so
- * a chunk like "42" arrives as the JSON string "\"42\"" and stays a string.
- * A payload that isn't JSON is dropped rather than guessed at. Returns
- * undefined when the payload can't be decoded.
- */
 export function decodeSSEData(eventType: string, payload: string): unknown {
   try {
     return JSON.parse(payload);
@@ -125,25 +148,18 @@ export function decodeSSEData(eventType: string, payload: string): unknown {
   }
 }
 
-/**
- * Handle a single SSE event.
- * @param eventType - The event type from the `event:` line
- * @param data - The parsed payload from the `data:` line
- */
 function handleSSEEvent(
+  store: ChatState,
   eventType: string,
   data: unknown,
   onTitle?: (title: string) => void
-) {
-  const store = useChatStore.getState();
-
+): boolean {
   switch (eventType) {
     case "start":
       store.updateStreamingContent("");
       break;
 
     case "text":
-      // A JSON string, whatever it contains ("42", "true", " ").
       if (typeof data === "string") store.appendStreamingContent(data);
       break;
 
@@ -196,25 +212,21 @@ function handleSSEEvent(
     }
 
     case "reasoning": {
-      // Thinking deltas (summarized on Anthropic); rendered by the ReasoningBlock.
       const { text, newBlock } = data as { text?: string; newBlock?: boolean };
       if (typeof text === "string") store.appendReasoning(text, newBlock === true);
       break;
     }
 
     case "done": {
-      // The server's id for the saved assistant message (feedback is keyed by it).
-      const { messageId } = (data ?? {}) as { messageId?: unknown };
-      store.finalizeAssistantMessage(typeof messageId === "string" ? messageId : undefined);
-      break;
-    }
-
-    case "usage": {
-      // Arrives after "done" — finalizeAssistantMessage() has already committed
-      // the assistant message to state.messages, so patching tokenUsage is safe.
-      const { inputTokens, outputTokens } = data as { inputTokens: number; outputTokens: number };
-      store.setLastMessageTokens(inputTokens, outputTokens);
-      break;
+      const completion = (data ?? {}) as Partial<ChatCompletion>;
+      if (typeof completion.messageId !== "string" ||
+          typeof completion.inputTokens !== "number" || typeof completion.outputTokens !== "number") {
+        return false;
+      }
+      store.finalizeAssistantMessage(completion.messageId, {
+        input: completion.inputTokens, output: completion.outputTokens,
+      });
+      return true;
     }
 
     case "error": {
@@ -223,10 +235,11 @@ function handleSSEEvent(
           ? data
           : (data as { error?: string }).error || "Unknown error";
       store.setError(errorMsg);
-      break;
+      return true;
     }
 
     default:
       console.warn(`Unknown SSE event type: ${eventType}`, data);
   }
+  return false;
 }

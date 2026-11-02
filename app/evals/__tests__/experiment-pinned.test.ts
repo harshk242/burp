@@ -1,8 +1,3 @@
-/**
- * runExperiment scores and gates pass/fail from the pinned (fetched) Langfuse
- * items, not the local YAML: a --dataset-version run must reproduce the
- * expectations and review status of that version.
- */
 import { describe, expect, it } from "bun:test";
 import type { LangfuseClient } from "@langfuse/client";
 import type { TaskOutput } from "../evaluators/types";
@@ -20,7 +15,6 @@ const item = (checkpoint: string, reviewedBy: string | null, id = "pinned-item")
   metadata: { category: "lookup", turns: "single", difficulty: "easy", volatile: false, source: "hand-written", reviewed_by: reviewedBy, notes: "" },
 });
 
-/** As the sync wrote it to Langfuse (metadata carries content_hash). */
 const fetched = (i: DatasetItem): FetchedItem => {
   const { id, input, expectedOutput, metadata } = itemBody("smoke", i);
   return { id, input, expectedOutput, metadata, status: "ACTIVE" } as unknown as FetchedItem;
@@ -32,7 +26,6 @@ const output = (itemId: string, answer: string): TaskOutput => ({
   turns: [{ turn: 1, user_message: "q", answer, status: "completed", error_code: null, final_finish_reason: "stop", tool_error_count: 0, tool_calls: [], cost_usd: 0, llm_calls: 1, duration_ms: 1, trace_id: null }],
 });
 
-/** Mimics experiment.run: the canned answer per item, then item and run evaluators. */
 function fakeClient(answer: string): LangfuseClient {
   return {
     experiment: {
@@ -53,7 +46,6 @@ function fakeClient(answer: string): LangfuseClient {
   } as unknown as LangfuseClient;
 }
 
-/** `local` stands in for the current YAML: the runner no longer passes it, so it must not matter. */
 function spec(items: FetchedItem[], _local: DatasetItem[]): ExperimentSpec {
   return {
     name: "t",

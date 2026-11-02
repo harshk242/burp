@@ -1,5 +1,3 @@
-// Shared exception hierarchy across all platforms
-
 export class MCPError extends Error {
   constructor(message: string) {
     super(message);
@@ -79,4 +77,49 @@ export class CacheError extends MCPError {
     super(message);
     this.name = 'CacheError';
   }
+}
+
+export interface UpstreamErrorDetails {
+  kind: string;
+  reason: string;
+  platform: string;
+  status: number | null;
+  attempts: number;
+  elapsedMs: number;
+  retryAfterMs: number | null;
+  url: string | null;
+  cause?: unknown;
+}
+
+export class UpstreamError extends MCPError {
+  public readonly kind: string;
+  public readonly reason: string;
+  public readonly platform: string;
+  public readonly status: number | null;
+  public readonly attempts: number;
+  public readonly elapsedMs: number;
+  public readonly retryAfterMs: number | null;
+  public readonly url: string | null;
+  public override readonly cause?: unknown;
+
+  constructor(message: string, details: UpstreamErrorDetails) {
+    super(message);
+    this.name = 'UpstreamError';
+    this.kind = details.kind;
+    this.reason = details.reason;
+    this.platform = details.platform;
+    this.status = details.status;
+    this.attempts = details.attempts;
+    this.elapsedMs = details.elapsedMs;
+    this.retryAfterMs = details.retryAfterMs;
+    this.url = details.url;
+    this.cause = details.cause;
+  }
+}
+
+export function isRejectedLookup(error: unknown, invalidIdentifierStatuses: readonly number[] = []): error is UpstreamError {
+  if (!(error instanceof UpstreamError) || error.status === null) return false;
+  if (error.status === 404) return true;
+  if (error.status === 401 || error.status === 403) return false;
+  return error.kind === 'bad_request' && invalidIdentifierStatuses.includes(error.status);
 }

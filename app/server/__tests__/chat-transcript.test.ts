@@ -1,13 +1,3 @@
-/**
- * Model transcript write path through processChat: each turn appends the user
- * message, every assistant message (the final one included) and every tool
- * result, as the model saw them, tagged with the turn. Cache markers are never
- * stored; tool results carry the same fetched_at line that was sent; failed
- * turns keep the messages they got to.
- *
- * Same harness as chat-turns.test.ts: in-memory DB, mock language model, and
- * a real Anthropic provider over a stubbed fetch for signatures and markers.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel, ModelMessage } from "ai";
@@ -43,7 +33,7 @@ mock.module("../llm/provider", () => ({
 }));
 
 const { processChat } = await import("../orchestration/chat-v2");
-const { SYSTEM_PROMPT } = await import("../orchestration/context/system-prompt");
+const { buildSystemPrompt } = await import("../orchestration/context/system-prompt");
 const { contextVersion, loadTranscript, toTranscriptRow } = await import("../orchestration/context/transcript");
 
 const usage = {
@@ -63,7 +53,6 @@ const text = (delta: string): LanguageModelV4StreamPart[] => [
   { type: "text-end", id: "t" },
 ];
 
-/** Call N streams calls[N]; a call past the end fails before any response. */
 function scriptedModel(calls: LanguageModelV4StreamPart[][]) {
   let n = 0;
   return new MockLanguageModelV4({
@@ -91,7 +80,6 @@ async function collect(gen: AsyncGenerator<StreamEvent>): Promise<StreamEvent[]>
 const rows = (sessionId: string) => q.modelTranscriptQueries.findBySessionId(sessionId);
 const stored = (sessionId: string) => rows(sessionId).map((r) => JSON.parse(r.content_json) as ModelMessage);
 const turns = (sessionId: string) => q.chatTurnQueries.findBySessionId(sessionId);
-/** The text of the first tool result in a stored tool message. */
 function toolResultText(message: ModelMessage): string {
   const part = (message.content as { type: string; output: { value: string } }[])[0]!;
   return part.output.value;
@@ -124,7 +112,7 @@ describe("model transcript", () => {
       q.chatTurnQueries.start("old-turn", sessionId, "old-user");
       q.messageQueries.create("old-answer", sessionId, "assistant", "old UI answer", null);
       q.chatTurnQueries.finish("old-turn", { status: "ok", iterations: 1, assistantMessageId: "old-answer" });
-      const tag = { provider: llmConfig.provider, model: llmConfig.chatModel, contextVersion: contextVersion(SYSTEM_PROMPT, chatProviderOptions(llmConfig)) };
+      const tag = { provider: llmConfig.provider, model: llmConfig.chatModel, contextVersion: contextVersion(buildSystemPrompt(), chatProviderOptions(llmConfig)) };
       const first = toTranscriptRow("old-turn", { role: "user", content: "lossless question" }, tag);
       const last = toTranscriptRow("old-turn", {
         role: "assistant", content: [
@@ -153,18 +141,32 @@ describe("model transcript", () => {
     });
   }
 
-  it("production replay retains lossless history after tools are added or described differently", async () => {
+  it("production replay degrades when the enabled catalog changes the capability prompt", async () => {
     const sessionId = crypto.randomUUID();
     model = scriptedModel([[toolCall("kept-call"), finish("tool-calls")], [...text("answer"), finish("stop")]]);
     await collect(processChat(sessionId, USER_ID, "first"));
     const { server, name } = toolRegistry.parseToolName(TOOL_FULL_NAME);
-    toolRegistry.register(server, { name, description: "changed description", inputSchema: { type: "object", properties: {} } });
-    toolRegistry.register("new", { name: "added_tool", description: "added", inputSchema: { type: "object" } });
+    toolRegistry.register(server, { name: `${name}_added`, description: "added", inputSchema: { type: "object" } });
     const logs = spyOn(logger, "info");
     model = scriptedModel([[...text("followup"), finish("stop")]]);
     await collect(processChat(sessionId, USER_ID, "second"));
-    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain("kept-call");
-    expect(logs.mock.calls.filter(([, event]) => event === "transcript_degraded")).toHaveLength(0);
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).not.toContain("kept-call");
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain("answer");
+    const degraded = logs.mock.calls.filter(([, event]) => event === "transcript_degraded");
+    expect(degraded).toHaveLength(1);
+    expect(degraded[0]![2]?.data).toMatchObject({ reason: "context_version" });
+  });
+
+  it("reuses the measured prompt baseline when the next turn replays the same input prefix", async () => {
+    const { CallTracker } = await import("../orchestration/turn-usage");
+    const sessionId = crypto.randomUUID();
+    model = scriptedModel([[toolCall("c1"), finish("tool-calls")], [...text("answer"), finish("stop")]]);
+    await collect(processChat(sessionId, USER_ID, "first"));
+    const carried = spyOn(CallTracker.prototype as unknown as { carriedCall: (r: unknown) => unknown }, "carriedCall");
+    model = scriptedModel([[...text("followup"), finish("stop")]]);
+    await collect(processChat(sessionId, USER_ID, "second"));
+    expect(carried.mock.results[0]?.value).toMatchObject({ promptTokens: 10, messageCount: 3 });
+    carried.mockRestore();
   });
 
   it("replays complete successful messages as-is and carries the final input endpoint", async () => {
@@ -274,7 +276,7 @@ describe("model transcript", () => {
       expect(row).toMatchObject({
         provider: llmConfig.provider,
         model: llmConfig.chatModel,
-        context_version: contextVersion(SYSTEM_PROMPT, chatProviderOptions(llmConfig)),
+        context_version: contextVersion(buildSystemPrompt(), chatProviderOptions(llmConfig)),
       });
     }
     expect(saved.map((r) => JSON.parse(r.tool_names_json))).toEqual([[], [TOOL_KEY], [], []]);
@@ -284,14 +286,12 @@ describe("model transcript", () => {
     expect(call).toMatchObject({ role: "assistant", content: [{ type: "tool-call", toolCallId: "c1", toolName: TOOL_KEY }] });
     expect(final).toMatchObject({ role: "assistant", content: [{ type: "text", text: "answer" }] });
 
-    // The tool result was stored with the fetched_at line it was sent with.
     const value = toolResultText(result!);
     expect(value).toMatch(FETCHED_AT);
     expect(value.replace(FETCHED_AT, "")).toBe('{"result":"ok"}');
     const sent = JSON.stringify(model.doStreamCalls[1]!.prompt);
     expect(sent).toContain(JSON.stringify(value));
 
-    // Markers were on what was sent, never on what was stored.
     expect(sent).toContain("cacheControl");
     for (const row of saved) expect(row.content_json).not.toMatch(/cacheControl|cache_control/);
   });
@@ -313,7 +313,6 @@ describe("model transcript", () => {
   });
 
   it("keeps a failed turn's messages up to the failure", async () => {
-    // Call 1 asks for a tool, call 2 fails before any response.
     model = scriptedModel([[toolCall("c1"), finish("tool-calls")]]);
     const sessionId = crypto.randomUUID();
     await collect(processChat(sessionId, USER_ID, "question"));
@@ -382,7 +381,6 @@ describe("model transcript on a real Anthropic stream", () => {
 
     const [, assistant, result, final] = stored(sessionId);
     expect(rows(sessionId).map((r) => r.role)).toEqual(["user", "assistant", "tool", "assistant"]);
-    // Parts in the order returned (the SDK also adds its own `custom` parts).
     const parts = (assistant!.content as { type: string }[]).filter((p) => p.type !== "custom");
     expect(parts).toMatchObject([
       { type: "reasoning", text: "Plan the lookup.", providerOptions: { anthropic: { signature: "sig-123" } } },
@@ -392,7 +390,6 @@ describe("model transcript on a real Anthropic stream", () => {
     expect(final!.role).toBe("assistant");
     expect((final!.content as unknown[]).filter((p) => (p as { type: string }).type !== "custom")).toEqual([{ type: "text", text: "Final answer." }]);
 
-    // Sent with cache_control and the same fetched_at text; stored without markers.
     const request2 = JSON.parse(bodies[1]!) as { messages: { content: { type: string; content?: unknown; signature?: string }[] }[] };
     expect(bodies[1]).toContain("cache_control");
     const sentResult = request2.messages.flatMap((m) => m.content).find((c) => c.type === "tool_result")!;
@@ -400,9 +397,6 @@ describe("model transcript on a real Anthropic stream", () => {
     expect(request2.messages.flatMap((m) => m.content).find((c) => c.type === "thinking")?.signature).toBe("sig-123");
     for (const row of rows(sessionId)) expect(row.content_json).not.toMatch(/cacheControl|cache_control/);
 
-    // Two subsequent turns go through the production loop and real adapter.
-    // Their first requests retain every earlier signed/redacted block and the
-    // preceding final input's breakpoint, with at most three cache markers.
     await collect(processChat(sessionId, USER_ID, "followup"));
     await collect(processChat(sessionId, USER_ID, "third"));
     expect(bodies).toHaveLength(4);

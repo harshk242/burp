@@ -17,10 +17,8 @@ afterAll(() => {
 interface NegativeCase {
   name: string;
   schemaSql: string;
-  /** Expected diff line (substring). */
   diff: string;
   stage?: LegacyAdoptionError["stage"];
-  /** Fixture rows need the full schema; turn off when the mutation would reject them. */
   seed?: boolean;
 }
 
@@ -99,7 +97,6 @@ const CASES: NegativeCase[] = [
   },
 ];
 
-/** Exact image of the DB, plus the connection-level state adoption touches. */
 function state(sqlite: Database) {
   return {
     bytes: Buffer.from(sqlite.serialize()).toString("base64"),
@@ -160,7 +157,6 @@ describe("legacy adoption — negative cases throw and leave the DB unchanged", 
 
     expect(() => runMigrations(sqlite, { migrationsFolder: folder })).toThrow(MigrationFkError);
     expect(state(sqlite)).toEqual(before);
-    // The anonymous inline-UNIQUE autoindexes are back, the named baseline ones are gone.
     const names = sqlite.query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'index'").all().map((r) => r.name);
     expect(names).toContain("sqlite_autoindex_users_2");
     expect(names).not.toContain("users_clerk_id_unique");

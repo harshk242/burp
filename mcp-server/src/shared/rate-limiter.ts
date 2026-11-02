@@ -1,7 +1,3 @@
-// Token Bucket Rate Limiter for NCBI API
-// - 3 requests/second without API key
-// - 10 requests/second with API key
-
 export interface RateLimiterOptions {
   requestsPerSecond: number;
   burstSize?: number;
@@ -13,6 +9,7 @@ export class TokenBucketRateLimiter {
   private readonly maxTokens: number;
   private readonly refillRate: number;
   private pendingRequests: Array<() => void> = [];
+  private drainTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: RateLimiterOptions) {
     this.maxTokens = options.burstSize || options.requestsPerSecond;
@@ -29,27 +26,50 @@ export class TokenBucketRateLimiter {
     this.lastRefill = now;
   }
 
-  async waitForToken(): Promise<void> {
+  private drain(): void {
+    clearTimeout(this.drainTimer);
+    this.drainTimer = undefined;
     this.refill();
-    if (this.tokens >= 1) {
+    while (this.pendingRequests.length > 0 && this.tokens >= 1) {
+      this.tokens -= 1;
+      this.pendingRequests.shift()!();
+    }
+    if (this.pendingRequests.length > 0) {
+      const waitTime = ((1 - this.tokens) / this.refillRate) * 1000;
+      this.drainTimer = setTimeout(() => this.drain(), waitTime);
+    }
+  }
+
+  async waitForToken(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw signal.reason;
+    this.refill();
+    if (this.pendingRequests.length === 0 && this.tokens >= 1) {
       this.tokens -= 1;
       return;
     }
 
-    const tokensNeeded = 1 - this.tokens;
-    const waitTime = (tokensNeeded / this.refillRate) * 1000;
-
-    return new Promise<void>((resolve) => {
-      this.pendingRequests.push(resolve);
-      setTimeout(() => {
-        this.refill();
-        this.tokens -= 1;
-        const nextRequest = this.pendingRequests.shift();
-        if (nextRequest) {
-          nextRequest();
+    return new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        const index = this.pendingRequests.indexOf(waiter);
+        if (index !== -1) this.pendingRequests.splice(index, 1);
+        if (this.pendingRequests.length === 0) {
+          clearTimeout(this.drainTimer);
+          this.drainTimer = undefined;
         }
-      }, waitTime);
+        reject(signal!.reason);
+      };
+      const waiter = () => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+      this.pendingRequests.push(waiter);
+      this.drain();
     });
+  }
+
+  getPendingCount(): number {
+    return this.pendingRequests.length;
   }
 
   tryAcquire(): boolean {

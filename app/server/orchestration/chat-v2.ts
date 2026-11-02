@@ -1,16 +1,7 @@
-/**
- * Chat Orchestration v2 — Model-Agnostic via Vercel AI SDK
- *
- * Owns the model loop, the SSE event stream and DB persistence. Each LLM call
- * (model-call.ts), tool dispatch, large-output handling and the system prompt
- * live in their own modules.
- */
-
 import type { ModelMessage, ToolResultPart } from "ai";
 import { sanitizeToolName, type TurnLLMOverride } from "../llm";
 import { chatSessionQueries } from "../db";
 import { logger, startTimer, type LogContext } from "../logger";
-import { SYSTEM_PROMPT } from "./context/system-prompt";
 import { applyCacheMarkers, cachedInstructions } from "./context/cache-markers";
 import { appendTranscript, loadTranscript } from "./context/transcript";
 import { toolRegistry } from "../mcp/registry";
@@ -25,7 +16,6 @@ import {
   TurnError,
   acquireSessionLock,
   classifyTurnError,
-  finishFailedTurn,
   recordTraceId,
   registerActiveTurn,
   refusalError,
@@ -38,39 +28,17 @@ import { streamModelCall } from "./model-call";
 import { langfuseConfig } from "../observability/langfuse";
 import { TurnTrace, type TraceParent } from "../observability/turn-trace";
 import { resolveTurnLLM } from "./turn-llm";
+import { waitForTools } from "../boot/tools";
+
+const TOOLS_READY_TIMEOUT_MS = 15_000;
 
 export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
 
-// ── Main Chat Loop ─────────────────────────────────────────────────────────
-
-/**
- * `signal` is aborted when the client disconnects: the in-flight LLM call and
- * tool calls are cancelled, no further iterations run, and no assistant message
- * is persisted. The same happens when the consumer stops iterating before the
- * turn completed (e.g. an SSE write threw). A failed or aborted turn still
- * records the cost of its LLM calls (status "error", see turn-usage.ts).
- *
- * Every turn has a chat_turns row (`turnId`), created `running` with the user
- * message and finalized as ok / error / aborted; its usage_events row links to
- * it. Only one turn per session runs at a time (chat-turn.ts).
- *
- * Every message the model is sent from this turn on (the user message, each
- * assistant response including the final one, each tool-result message) is
- * appended to model_transcript as the iteration finishes (context/transcript.ts).
- * Failed turns keep the messages they got to, refused responses included;
- * replay will read `ok` turns only.
- *
- * Options (eval runner): `traceParent` nests the turn's trace under that span;
- * `costBudget` is checked before each model call and charged with every priced
- * call (cost-budget.ts); running out fails the turn with `budget_exceeded`.
- * `llm` overrides model, effort and max_output_tokens for this turn
- * (turn-llm.ts); pricing, trace generations, chat_turns and usage_events all
- * use the effective settings. Without it the turn uses app config.
- */
 export interface ProcessChatOptions {
   traceParent?: TraceParent;
   costBudget?: CostBudget;
+  onUsageRecorded?: () => void;
   llm?: TurnLLMOverride;
 }
 
@@ -83,7 +51,10 @@ export async function* processChat(
 ): AsyncGenerator<StreamEvent> {
   const chatElapsed = startTimer();
   const ctx: LogContext = { session_id: sessionId, user_id: userId };
-  const { llmConfig, providerOptions, transcriptTag, generationParameters } = resolveTurnLLM(options.llm);
+  if (!(await waitForTools(TOOLS_READY_TIMEOUT_MS, signal))) {
+    logger.warn("CHAT", "tools_not_ready", { ctx, duration_ms: chatElapsed() });
+  }
+  const { llmConfig, providerOptions, transcriptTag, generationParameters, systemPrompt } = resolveTurnLLM(options.llm);
   const sanitize = (name: string) => sanitizeToolName(name, llmConfig.provider);
 
   logger.info("CHAT", "process_start", {
@@ -96,32 +67,21 @@ export async function* processChat(
     },
   });
 
-  // Every finished LLM call, priced on its own. Outside the try so a failed or
-  // aborted turn can still see the calls that finished.
   const meter = new UsageMeter(llmConfig.provider, llmConfig.chatModel, ctx);
   const tracker = new CallTracker(llmConfig.maxContextTokens);
   const budget = new TurnBudget(options.costBudget);
-  // Set once the success path wrote its usage_events row.
   let ledgerWritten = false;
-  // The turn's own signal: follows the caller's, and is aborted in `finally` so
-  // an early return() by the consumer also cancels the in-flight LLM/tool call.
   const turnAbort = new AbortController();
   const turnSignal = signal ? AbortSignal.any([signal, turnAbort.signal]) : turnAbort.signal;
-  // Shutdown aborts the turn through turnAbort and waits for this `finally`.
   const drained = registerActiveTurn(turnAbort);
-  // How the turn failed; unset if the consumer stopped iterating early ("closed").
   let failure: TurnFailure | undefined;
-  // Set once the turn's chat_turns row exists.
   let turnId: string | null = null;
-  // The turn's Langfuse trace (observability/turn-trace.ts); a no-op until the turn starts.
   let trace = TurnTrace.disabled;
   let loopIteration = 0;
-  // Turn signals written on the chat_turns row whatever the outcome (observability/turn-signals.ts).
   const signals = { finalFinishReason: null as string | null, toolErrorCount: 0 };
   let releaseLock: (() => void) | null = null;
 
   try {
-    // Session check
     const session = chatSessionQueries.findById(sessionId);
     if (session && session.user_id !== userId) {
       logger.warn("CHAT", "session_unauthorized", { ctx, data: { session_owner: session.user_id } });
@@ -129,8 +89,6 @@ export async function* processChat(
       return;
     }
 
-    // One turn per session at a time. Taken before the new-session insert in
-    // startTurn, so two first requests to a new session can't both pass.
     releaseLock = acquireSessionLock(sessionId);
     if (!releaseLock) {
       logger.warn("CHAT", "turn_in_progress", { ctx });
@@ -138,7 +96,6 @@ export async function* processChat(
       return;
     }
 
-    // History (read before this turn's user message is stored)
     const history = loadTranscript(sessionId, {
       ...transcriptTag,
       toolNames: registeredToolNames(sanitize),
@@ -150,8 +107,6 @@ export async function* processChat(
     const messages = history.messages;
     const turnGapSeconds = history.previousFinishedAt === undefined ? null : Math.max(0, Date.now() / 1000 - history.previousFinishedAt);
 
-    // Store the user message with its turn (status running); a new session is
-    // created with them, so a turn that fails before this point stores nothing.
     const turn = startTurn(sessionId, userMessage, session ? null : userId);
     if (!session) logger.info("CHAT", "session_created", { ctx });
     turnId = turn.turnId;
@@ -173,11 +128,8 @@ export async function* processChat(
       },
     });
     recordTraceId(turnId, trace.traceId, ctx);
-    // Generations carry the messages added since the previous call (delta).
     let tracedUpTo = messages.length;
 
-    // Adds messages to what the next call sends and to the transcript, so
-    // what is stored is exactly what was sent.
     const send = (...added: ModelMessage[]) => {
       messages.push(...added);
       appendTranscript(sessionId, turn.turnId, added, transcriptTag);
@@ -186,14 +138,11 @@ export async function* processChat(
 
     yield { type: "start", data: { sessionId } };
 
-    // All servers down: checked on availability, not on the tool list, which
-    // (on Anthropic) declares every registered tool whether available or not.
     if (toolRegistry.availableCount === 0) {
       logger.error("CHAT", "no_tools_available", { ctx });
       throw new TurnError("no_tools_available", "No MCP tools available. All database servers may be down.");
     }
 
-    // Anthropic: fixed for the whole turn. Gemini: search grows it (tool-dispatch).
     const activeTools = buildToolCatalog(llmConfig.provider, sanitize, sessionId);
     const deferredCount = countDeferred(activeTools);
 
@@ -209,17 +158,14 @@ export async function* processChat(
     trace.setMetadata({ loaded_tools: Object.keys(activeTools).length - deferredCount, deferred_tools: deferredCount });
 
     let continueLoop = true;
-    let persistedAssistantText = ""; // final response text only (last iteration)
-    const reasoningBlocks: string[] = []; // thinking (all iterations) + pre-tool-call text (non-final iterations)
+    let persistedAssistantText = "";
+    const reasoningBlocks: string[] = [];
     const allToolCalls: ToolCallRecord[] = [];
-    // Prompt caching (Anthropic only): instructions carry the tools + system
-    // breakpoint; message breakpoints go on a per-call copy (cache-markers.ts).
     const caching = llmConfig.provider === "anthropic";
-    const instructions = caching ? cachedInstructions(SYSTEM_PROMPT) : SYSTEM_PROMPT;
-    // The previous successful turn's final input endpoint carries across turns.
+    const instructions = caching ? cachedInstructions(systemPrompt) : systemPrompt;
     let previousLastIndex = history.previousLastIndex;
     if (previousLastIndex !== undefined && history.previousPromptTokens !== undefined) {
-      tracker.carryOver(history.previousPromptTokens, previousLastIndex + 1);
+      tracker.carryOver(history.previousPromptTokens, previousLastIndex + 1, history.previousInputIdentity);
     }
 
     while (continueLoop) {
@@ -241,8 +187,6 @@ export async function* processChat(
         },
       });
 
-      // Strip execute functions — we handle execution manually for
-      // SSE events, search activation, and output compression.
       const declarationTools = toDeclarations(activeTools);
       const callLastIndex = messages.length - 1;
       const gen = trace.generation({
@@ -272,7 +216,7 @@ export async function* processChat(
         finishReason,
         toolCalls: toolCalls?.length ?? 0,
         toolNames: Object.keys(declarationTools),
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: systemPrompt,
       });
       tracker.finish(call);
       budget.chargeCall(call.costPicoUsd);
@@ -286,12 +230,8 @@ export async function* processChat(
       }
       // The SDK's response messages as returned: they keep provider metadata
       // (thinking signatures, redacted thinking, Gemini thought signatures)
-      // the model requires on later calls. Tool results come from our own
-      // dispatch below, so the SDK's tool messages are skipped. The final
-      // call's message is kept too: the next turn's cache prefix ends with it.
+      // the model requires on later calls.
       send(...finalStep.response.messages.filter((msg) => msg.role !== "tool"));
-      // A safety refusal: billed (metered above), never saved as an answer.
-      // Its response message stays in the transcript (failed turns aren't replayed).
       const traced = {
         call,
         finishReason,
@@ -308,14 +248,11 @@ export async function* processChat(
       gen.finish(traced);
       previousLastIndex = callLastIndex;
       const isToolCall = finishReason === "tool-calls" && toolCalls && toolCalls.length > 0;
-      // Stored reasoning: this call's thinking, plus its text when the text is
-      // pre-tool-call, in stream order (matches the client's segments).
       for (const seg of callSegments) {
         if (seg.thinking || isToolCall) reasoningBlocks.push(seg.text);
       }
 
       if (isToolCall) {
-        // This iteration's text is reasoning (pre-tool-call); signal the client to reclassify it.
         if (callText) {
           yield { type: "text_block_end", data: { isReasoning: true } };
         }
@@ -339,10 +276,8 @@ export async function* processChat(
           toolResultParts.push(part);
         }
 
-        // Our manually dispatched tool results (after handleLargeOutput, with fetched_at)
         send({ role: "tool", content: toolResultParts });
       } else {
-        // Final iteration — this text is the actual response.
         if (callText) {
           persistedAssistantText = callText;
         }
@@ -364,9 +299,12 @@ export async function* processChat(
       toolCalls: allToolCalls,
       iterations: loopIteration,
       lastPromptTokens: tracker.lastPromptTokens,
+      lastInputMessageCount: tracker.lastInputMessageCount,
+      lastInputIdentity: tracker.lastInputIdentity,
       ...signals,
     });
     ledgerWritten = true;
+    options.onUsageRecorded?.();
     trace.end({
       status: "ok",
       output: persistedAssistantText,
@@ -389,14 +327,12 @@ export async function* processChat(
       },
     });
 
-    // done arrives first so finalizeAssistantMessage() commits the message to
-    // state.messages before the frontend's setLastMessageTokens runs.
-    yield { type: "done", data: { messageId: assistantMsgId } };
-    // usage arrives after done — safe to patch tokenUsage onto the last message
-    yield { type: "usage", data: { inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens } };
+    yield {
+      type: "done",
+      data: { messageId: assistantMsgId, inputTokens: chatCost.inputTokens, outputTokens: chatCost.outputTokens },
+    };
   } catch (error) {
     if (turnSignal.aborted) {
-      // Client is gone (or the server is shutting down): nothing to stream an error to.
       const message = turnAbort.signal.aborted ? "Server shutting down" : "Client disconnected";
       failure = { code: "aborted", message, userMessage: "" };
       logger.info("CHAT", "process_aborted", { ctx, duration_ms: chatElapsed(), data: { error_code: failure.code } });
@@ -411,51 +347,44 @@ export async function* processChat(
     });
     yield { type: "error", data: { error: failure.userMessage, code: failure.code } };
   } finally {
-    // Errors, aborts and an early return() by the consumer all end here; the
-    // calls that already ran are billed either way. Cancel whatever is still in
-    // flight first, so the cut-off estimate covers exactly what was streamed.
-    // Never throws.
-    if (!ledgerWritten) {
-      turnAbort.abort();
-      const errorCode = failure?.code ?? "closed";
-      const cutOffCall = recordFailedTurn({
-        meter,
-        tracker,
-        userId,
-        sessionId,
-        turnId,
-        provider: llmConfig.provider,
-        model: llmConfig.chatModel,
-        ctx,
-        errorCode,
-      });
-      // The cut-off estimate never passed the per-call charge.
-      budget.reconcile(meter.summary().costPicoUsd);
-      const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
-      if (turnId) {
-        finishFailedTurn(
+    try {
+      if (!ledgerWritten) {
+        turnAbort.abort();
+        const errorCode = failure?.code ?? "closed";
+        const errorMessage = failure?.message ?? "Consumer stopped reading before the turn finished";
+        const cutOffCall = recordFailedTurn({
+          meter,
+          tracker,
+          userId,
+          sessionId,
           turnId,
-          {
+          provider: llmConfig.provider,
+          model: llmConfig.chatModel,
+          ctx,
+          errorCode,
+          outcome: {
             status: errorCode === "aborted" || errorCode === "closed" ? "aborted" : "error",
-            errorCode,
-            errorMessage,
-            iterations: loopIteration,
-            ...signals,
+            errorCode, errorMessage, iterations: loopIteration, ...signals,
           },
-          ctx
-        );
+        });
+        budget.reconcile(meter.summary().costPicoUsd);
+        trace.end({
+          status: errorCode === "aborted" || errorCode === "closed" ? errorCode : "error",
+          errorCode,
+          message: errorMessage,
+          metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
+          cutOffCall,
+          tags: errorCode === "budget_exceeded" ? ["budget_exceeded"] : undefined,
+        });
+        if (turnId) scoreTurn(turnId, ctx, trace.scoreObservationId);
+        options.onUsageRecorded?.();
       }
-      trace.end({
-        status: errorCode === "aborted" || errorCode === "closed" ? errorCode : "error",
-        errorCode,
-        message: errorMessage,
-        metadata: { iterations: loopIteration, cost_usd: meter.summary().costMicrousd / 1e6 },
-        cutOffCall,
-        tags: errorCode === "budget_exceeded" ? ["budget_exceeded"] : undefined,
-      });
-      if (turnId) scoreTurn(turnId, ctx, trace.scoreObservationId);
+    } finally {
+      try {
+        releaseLock?.();
+      } finally {
+        drained();
+      }
     }
-    releaseLock?.();
-    drained();
   }
 }

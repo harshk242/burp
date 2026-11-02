@@ -1,8 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { isRejectedLookup } from '../../../shared/exceptions.js';
 import { getClient, isValidChemblIdArgs, getExternalUrl } from '../client.js';
-
-// ── Validation ─────────────────────────────────────────────────────────────
 
 const isValidSubstructureSearchArgs = (
   args: any,
@@ -52,8 +51,6 @@ const isValidPropertyFilterArgs = (
     (args.limit === undefined || (typeof args.limit === 'number' && args.limit > 0 && args.limit <= 1000))
   );
 };
-
-// ── Tool definitions ───────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -115,8 +112,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ───────────────────────────────────────────────────────────────
-
 async function handleSubstructureSearch(args: Record<string, unknown>) {
   if (!isValidSubstructureSearchArgs(args)) {
     throw new Error('Invalid substructure search arguments');
@@ -165,12 +160,13 @@ async function handleGetExternalReferences(args: Record<string, unknown>) {
 
   try {
     response = await client.get(`/molecule/${args.chembl_id}.json`);
-  } catch {
-    // If not a molecule, try target
+  } catch (error) {
+    if (!isRejectedLookup(error)) throw error;
     try {
       response = await client.get(`/target/${args.chembl_id}.json`);
       entityType = 'target';
-    } catch {
+    } catch (targetError) {
+      if (!isRejectedLookup(targetError)) throw targetError;
       throw new Error('ChEMBL ID not found as molecule or target');
     }
   }

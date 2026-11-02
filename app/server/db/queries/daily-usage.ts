@@ -1,17 +1,13 @@
-/**
- * Daily usage queries (rate limiting). One row per user per UTC day.
- */
 import { and, eq, sql } from "drizzle-orm";
 import type { DrizzleDb } from "../connection";
 import { dailyUsage } from "../schema";
 
-const utcToday = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+const utcToday = () => new Date().toISOString().slice(0, 10);
 
 export function createDailyUsageQueries(db: DrizzleDb) {
   const todayRow = (userId: string) => and(eq(dailyUsage.user_id, userId), eq(dailyUsage.date, utcToday()));
 
   return {
-    /** Increment today's usage and return new count (single upsert). */
     incrementAndGet(userId: string): number {
       const row = db
         .insert(dailyUsage)
@@ -25,13 +21,11 @@ export function createDailyUsageQueries(db: DrizzleDb) {
       return row.query_count;
     },
 
-    /** Get today's query count without incrementing */
     getToday(userId: string): number {
       const row = db.select({ query_count: dailyUsage.query_count }).from(dailyUsage).where(todayRow(userId)).get();
       return row?.query_count ?? 0;
     },
 
-    /** Get today's full usage row: query count + token totals */
     getTodayFull(userId: string): { query_count: number; input_tokens: number; output_tokens: number } {
       const row = db
         .select({
@@ -45,16 +39,11 @@ export function createDailyUsageQueries(db: DrizzleDb) {
       return row ?? { query_count: 0, input_tokens: 0, output_tokens: 0 };
     },
 
-    /**
-     * Add token counts for today's usage row (best-effort, called post-response).
-     * Token enforcement is checked pre-request via getTodayFull; incremented here
-     * after the response completes — up to 1 request of overshoot is possible.
-     */
-    incrementTokens(userId: string, inputTokens: number, outputTokens: number): void {
+    incrementTokens(userId: string, inputTokens: number, outputTokens: number, date = utcToday()): void {
       db.insert(dailyUsage)
         .values({
           user_id: userId,
-          date: utcToday(),
+          date,
           query_count: 0,
           input_tokens: inputTokens,
           output_tokens: outputTokens,

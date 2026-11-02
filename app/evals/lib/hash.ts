@@ -1,11 +1,3 @@
-/**
- * Canonical JSON + sha256, shared by sync.ts and (Phase 2) the experiment runner.
- *
- * Canonical form: object keys sorted, no whitespace, `undefined` dropped (object
- * members) and `null` kept. Arrays keep their order; `undefined` array elements
- * become `null`, as in JSON.stringify. Non-finite numbers are rejected rather than
- * silently turned into `null`.
- */
 import { createHash } from "node:crypto";
 
 export function canonicalJson(value: unknown): string {
@@ -51,13 +43,11 @@ export interface HashableItem {
   metadata: Record<string, unknown> | null | undefined;
 }
 
-/** sha256 of `{ input, expected_output, metadata minus content_hash }`. */
 export function contentHash(item: HashableItem): string {
   const { content_hash: _ignored, ...metadata } = item.metadata ?? {};
   return sha256Hex(canonicalJson({ input: item.input, expected_output: item.expected_output, metadata }));
 }
 
-/** sha256 of the `(id, content_hash)` pairs sorted by id. */
 export function datasetHash(pairs: ReadonlyArray<{ id: string; contentHash: string }>): string {
   const sorted = [...pairs].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return sha256Hex(canonicalJson(sorted.map((p) => [p.id, p.contentHash])));

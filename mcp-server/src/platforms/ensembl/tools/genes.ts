@@ -1,8 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { UpstreamError } from '../../../shared/exceptions.js';
 import { getClient, getDefaultSpecies } from '../client.js';
-
-// ── Validation ──────────────────────────────────────────────────────────────
 
 const isValidGeneArgs = (
   args: any,
@@ -60,8 +59,6 @@ const isValidBatchArgs = (
     (args.format === undefined || ['json', 'xml'].includes(args.format))
   );
 };
-
-// ── Tool definitions ────────────────────────────────────────────────────────
 
 export const tools: Tool[] = [
   {
@@ -163,8 +160,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ────────────────────────────────────────────────────────────────
-
 async function handleLookupGene(args: Record<string, unknown>) {
   if (!isValidGeneArgs(args)) {
     throw new Error('Invalid gene lookup arguments');
@@ -228,7 +223,10 @@ async function handleSearchGenes(args: Record<string, unknown>) {
       note: 'REST API only supports exact gene symbol lookup, not fuzzy search',
       result: response.data,
     };
-  } catch {
+  } catch (error) {
+    if (!(error instanceof UpstreamError) || (error.kind !== 'not_found' && error.kind !== 'bad_request')) {
+      throw error;
+    }
     throw new Error(
       `No gene found with symbol: ${args.query}. REST API only supports exact gene symbol lookup. Try exact Ensembl gene symbols (e.g., TP53, BRCA1, BRCA2).`,
     );
@@ -258,8 +256,6 @@ async function handleBatchGeneLookup(args: Record<string, unknown>) {
 
   return response.data;
 }
-
-// ── Export ───────────────────────────────────────────────────────────────────
 
 export const handlers: Record<string, ToolHandler> = {
   lookup_gene: handleLookupGene,

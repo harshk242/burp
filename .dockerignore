@@ -1,43 +1,33 @@
-# Version control
 .git
 .gitignore
 
-# Dependencies (installed fresh inside Docker)
 **/node_modules
 
-# Python virtual environment
 bio-agent
 
-# Data and logs
 data
 logs
 
-# IDE and editor
 .cursor
 .cursorignore
 .vscode
 .idea
 .claude
 
-# Documentation and plans (not needed for build)
 docs
 plans
 reports
 
-# Environment files
 .env
 .env.*
 
-# OS files
 .DS_Store
 Thumbs.db
 
-# Build artifacts (rebuilt inside Docker)
 **/dist
 **/.next
 **/out
 
-# Agent / CI config not needed in image
 AGENTS.md
 CLAUDE.md
 CODEX_CLI.md
@@ -48,7 +38,6 @@ uniprot-tool-output-analysis.md
 .mcp.json.example
 .github
 
-# Misc scripts not part of the app
 run_use_case_2.ts
 test_failed_cases.py
 test_failed_cases.sh

@@ -1,10 +1,3 @@
-/**
- * Arm preflight (plan 2.4), before any spend: matrix + `--arm` arms are
- * combined, every arm model must have pricing (assertPricingConfigured), then
- * every arm is checked against the Anthropic Models API (capabilities.ts).
- * No arm = the production config as the single arm, exactly as before arms
- * existed (no Models API call, no override). Also the per-arm cost estimate.
- */
 import type { LLMConfig } from "../../server/llm";
 import { assertPricingConfigured, PricingConfigError } from "../../server/usage";
 import { ArmsError, combineArms, configArm, loadMatrix, resolveArm, type ResolvedArm } from "./arms";
@@ -15,7 +8,6 @@ import { RunAbort } from "./search-check";
 
 export interface PreparedArms {
   arms: ResolvedArm[];
-  /** True when arms came from --matrix / --arm (a comparison report is written). */
   comparing: boolean;
 }
 
@@ -58,7 +50,6 @@ export async function prepareArms(args: Pick<RunArgs, "matrix" | "arms">, config
   return { arms: specs.map((spec) => resolveArm(spec, config, infos.get(spec.model)?.max_tokens)), comparing: true };
 }
 
-/** Per-arm estimate from dataset size (items and their turns). */
 export function armEstimates(arms: ResolvedArm[], items: { turns: number }[], repeat: number): ArmEstimate[] {
   const turns = items.reduce((sum, i) => sum + i.turns, 0);
   return arms.map((arm) =>

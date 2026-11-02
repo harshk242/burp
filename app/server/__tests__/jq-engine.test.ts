@@ -1,5 +1,9 @@
-import { describe, expect, it } from "bun:test";
-import { executeJq, parseJqOutput } from "../orchestration/tools/jq-engine";
+import { describe, expect, it, spyOn } from "bun:test";
+import childProcess, { type ChildProcess } from "node:child_process";
+import { mkdtempSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { executeJq, parseJqOutput, validateJqFilter } from "../orchestration/tools/jq-engine";
 
 const data = {
   studies: [
@@ -10,6 +14,37 @@ const data = {
 };
 
 describe("executeJq", () => {
+  it("does not expose the server environment through $ENV or env", async () => {
+    const previous = process.env.JQ_SECRET_PROBE;
+    process.env.JQ_SECRET_PROBE = "server-secret-probe";
+    try {
+      expect(await executeJq({}, "$ENV.JQ_SECRET_PROBE")).toEqual({
+        result: null, truncated: false,
+      });
+      expect(await executeJq({}, "env")).toEqual({ result: {}, truncated: false });
+      expect(await executeJq({}, "$ENV")).toEqual({ result: {}, truncated: false });
+    } finally {
+      if (previous === undefined) delete process.env.JQ_SECRET_PROBE;
+      else process.env.JQ_SECRET_PROBE = previous;
+    }
+  });
+
+  it("cannot import JSON from the server working directory", async () => {
+    const previousCwd = process.cwd();
+    const fixture = mkdtempSync(join(tmpdir(), "jq-import-test-"));
+    writeFileSync(join(fixture, "secret.json"), JSON.stringify({ secret: "cwd-secret" }));
+    try {
+      process.chdir(fixture);
+      const result = await executeJq({}, 'import "secret" as $secret; $secret');
+      expect(result.result).toBeNull();
+      expect(result.error).toContain("module not found: secret");
+      expect((await validateJqFilter('import "secret" as $secret; $secret')).valid).toBe(false);
+    } finally {
+      process.chdir(previousCwd);
+      childProcess.execFileSync("gio", ["trash", fixture]);
+    }
+  });
+
   it("returns a single value as-is", async () => {
     const r = await executeJq(data, ".studies[0]");
     expect(r).toEqual({ result: data.studies[0], truncated: false });
@@ -47,6 +82,133 @@ describe("executeJq", () => {
     const r = await executeJq(data, ".studies | keys_unsorted(");
     expect(r.result).toBeNull();
     expect(r.error).toStartWith("jq error:");
+  });
+
+  it("kills and reaps a timed-out child before resolving", async () => {
+    const spawn = spyOn(childProcess, "spawn");
+    try {
+      const r = await executeJq(null, "def f: f; f", { timeoutMs: 30 });
+      expect(r.error).toContain("timed out after 30ms");
+      const child = spawn.mock.results[0].value as ChildProcess;
+      expect(child.pid).toBeGreaterThan(0);
+      expect(() => process.kill(child.pid!, 0)).toThrow();
+      expect(child.signalCode).toBe("SIGKILL");
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+
+  it("bounds a huge stream and keeps only complete values", async () => {
+    const r = await executeJq(null, "range(1e10)", {
+      maxOutputChars: 20, timeoutMs: 2000,
+    });
+    expect(r).toEqual({ result: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], truncated: true });
+  });
+
+  it("bounds a single huge value with the existing size error", async () => {
+    const r = await executeJq(null, '"x" * 1000000', {
+      maxOutputChars: 20, timeoutMs: 2000,
+    });
+    expect(r.truncated).toBe(true);
+    expect(r.error).toContain("exceeds 20 chars in a single value");
+  });
+
+  it("preserves character limits for multibyte values", async () => {
+    const r = await executeJq(null, 'range(100000) | "😀"', {
+      maxOutputChars: 9, timeoutMs: 2000,
+    });
+    expect(r).toEqual({ result: ["😀", "😀"], truncated: true });
+  });
+
+  it("pipes large input through stdin", async () => {
+    const r = await executeJq({ text: "a".repeat(2_000_000) }, ".text | length");
+    expect(r).toEqual({ result: 2_000_000, truncated: false });
+  });
+
+  it("handles early stdin closure and reports jq stderr", async () => {
+    const r = await executeJq("a".repeat(2_000_000), 'error("specific failure")');
+    expect(r.result).toBeNull();
+    expect(r.truncated).toBe(false);
+    expect(r.error).toContain("jq error: jq: error");
+    expect(r.error).toContain("specific failure");
+    const invalid = await executeJq("a".repeat(2_000_000), "(");
+    expect(invalid.error).toContain("syntax error");
+    const early = await executeJq("a".repeat(2_000_000), "halt");
+    expect(early).toEqual({ result: [], truncated: false });
+  });
+
+  it("bounds stderr and reaps the child", async () => {
+    const spawn = spyOn(childProcess, "spawn");
+    try {
+      const r = await executeJq(null, 'error("x" * 1000000)', { timeoutMs: 2000 });
+      expect(r.error).toStartWith("jq error: jq: error");
+      expect(Buffer.byteLength(r.error!)).toBeLessThanOrEqual(65536 + 10);
+      const child = spawn.mock.results[0].value as ChildProcess;
+      expect(() => process.kill(child.pid!, 0)).toThrow();
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+
+  it("kills and reaps an aborted child", async () => {
+    const controller = new AbortController();
+    const spawn = spyOn(childProcess, "spawn");
+    try {
+      const pending = executeJq(null, "def f: f; f", { signal: controller.signal });
+      controller.abort();
+      expect((await pending).error).toContain("aborted");
+      const child = spawn.mock.results[0].value as ChildProcess;
+      expect(() => process.kill(child.pid!, 0)).toThrow();
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+
+  it("does not spawn for an already aborted signal", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const spawn = spyOn(childProcess, "spawn");
+    try {
+      expect((await executeJq(null, ".", { signal: controller.signal })).error).toBeDefined();
+      expect(spawn).not.toHaveBeenCalled();
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+});
+
+describe("validateJqFilter", () => {
+  it("uses the same empty environment and private module directory as execution", async () => {
+    const spawn = spyOn(childProcess, "spawn");
+    try {
+      expect(await executeJq({}, ".")).toEqual({ result: {}, truncated: false });
+      expect(await validateJqFilter("$ENV")).toEqual({ valid: true });
+      const calls = spawn.mock.calls;
+      expect(calls).toHaveLength(2);
+      const cwd = calls[0][2]?.cwd as string;
+      expect(cwd).not.toBe(process.cwd());
+      expect(readdirSync(cwd)).toEqual([]);
+      expect(statSync(cwd).mode & 0o777).toBe(0o700);
+      for (const [, args, options] of calls) {
+        expect(options?.env).toEqual({});
+        expect(options?.cwd).toBe(cwd);
+        expect(args?.slice(0, 2)).toEqual(["-L", cwd]);
+      }
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+
+  it("rejects syntax errors", async () => {
+    expect((await validateJqFilter(".foo | (")).valid).toBe(false);
+  });
+
+  it("accepts filters that fail at runtime on null", async () => {
+    expect(await validateJqFilter(".foo | keys")).toEqual({ valid: true });
+  });
+
+  it("does not evaluate costly filters or trailing comments", async () => {
+    expect(await validateJqFilter("def f: f; f # comment")).toEqual({ valid: true });
   });
 });
 

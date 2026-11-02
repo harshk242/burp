@@ -1,8 +1,3 @@
-/**
- * Feedback category scores: every push writes all 10 BOOLEAN `feedback_<id>`
- * scores (never deletes them), awaits all of them before the push settles,
- * and marks the row synced only once every category write succeeded.
- */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createTestDb } from "../../__test-utils__/db";
 import { createQueries, type FeedbackKey } from "../../db/queries";
@@ -13,8 +8,8 @@ import { resetScoreConfigIdsForTests, setScoreConfigIdsForTests } from "../score
 import { FakeScoreWriter, ids, seedTracedTurn } from "./feedback-test-utils";
 
 const key: FeedbackKey = { messageId: ids.assistantMessage, userId: ids.user };
-const scoreId = feedbackScoreId(key);
-const categoryId = (category: FeedbackCategory) => feedbackCategoryScoreId(key, category);
+const scoreId = () => feedbackScoreId(key, row().revision);
+const categoryId = (category: FeedbackCategory) => feedbackCategoryScoreId(key, category, q.messageFeedbackQueries.find(key)?.revision ?? 0);
 
 let q: ReturnType<typeof createQueries>;
 let writer: FakeScoreWriter;
@@ -25,7 +20,6 @@ function makeSync(overrides: Partial<FeedbackSyncOptions> = {}) {
     queries: q.messageFeedbackQueries,
     writer,
     environment: "test",
-    sleep: async () => {},
     now: () => clock,
     backoff: { baseMs: 60_000, maxMs: 3_600_000 },
     ...overrides,
@@ -34,12 +28,10 @@ function makeSync(overrides: Partial<FeedbackSyncOptions> = {}) {
 
 const row = () => q.messageFeedbackQueries.find(key)!;
 
-/** Remote category values by category id. */
 function categoryValues(): Record<string, number | undefined> {
   return Object.fromEntries(ALL_CATEGORY_IDS.map((c) => [c, writer.remote.get(categoryId(c))?.value]));
 }
 
-/** All 10 categories: 1 for `selected`, else 0. */
 function expected(selected: FeedbackCategory[]): Record<string, number> {
   return Object.fromEntries(ALL_CATEGORY_IDS.map((c) => [c, selected.includes(c) ? 1 : 0]));
 }
@@ -60,7 +52,7 @@ describe("feedback category score id", () => {
     for (const id of ids10) expect(id).toMatch(/^fbc-[0-9a-f]{32}$/);
     expect(categoryId("accurate")).toBe(feedbackCategoryScoreId({ ...key }, "accurate"));
     expect(feedbackCategoryScoreId({ ...key, userId: ids.otherUser }, "accurate")).not.toBe(categoryId("accurate"));
-    expect(ids10).not.toContain(scoreId);
+    expect(ids10).not.toContain(feedbackScoreId(key));
   });
 });
 
@@ -70,7 +62,7 @@ describe("feedback category sync", () => {
     q.messageFeedbackQueries.upsert(key, 1, "great", ["accurate", "saved_time"]);
     expect(await makeSync().sync(key)).toBe("synced");
 
-    expect(writer.remote.get(scoreId)).toMatchObject({
+    expect(writer.remote.get(scoreId())).toMatchObject({
       value: 1,
       configId: "cfg-main",
       metadata: { message_id: ids.assistantMessage, categories: ["accurate", "saved_time"] },
@@ -96,10 +88,10 @@ describe("feedback category sync", () => {
     q.messageFeedbackQueries.clear(key);
     expect(await sync.sync(key)).toBe("synced");
 
-    expect(writer.remote.has(scoreId)).toBe(false);
+    expect(writer.remote.has(feedbackScoreId(key, 1))).toBe(false);
     expect(categoryValues()).toEqual(expected([]));
-    expect(writer.log.filter((c) => c.op === "remove").map((c) => c.id)).toEqual([scoreId]); // categories never deleted
-    expect(row()).toMatchObject({ sync_pending: 0, delete_unconfirmed: 0 });
+    expect(writer.log.filter((c) => c.op === "remove")).toHaveLength(11);
+    expect(row()).toMatchObject({ sync_pending: 0, sync_state: "accepted" });
   });
 
   it("a polarity flip sets the old polarity's category scores to 0", async () => {
@@ -111,7 +103,7 @@ describe("feedback category sync", () => {
     q.messageFeedbackQueries.upsert(key, 1, null, ["well_sourced"]);
     expect(await sync.sync(key)).toBe("synced");
     expect(categoryValues()).toEqual(expected(["well_sourced"]));
-    expect(writer.remote.get(scoreId)?.metadata).toMatchObject({ categories: ["well_sourced"] });
+    expect(writer.remote.get(scoreId())?.metadata).toMatchObject({ categories: ["well_sourced"] });
   });
 
   it("upsert path: a failed category write fails the push, keeps the row pending, and reconciliation retries it", async () => {
@@ -121,7 +113,7 @@ describe("feedback category sync", () => {
     writer.failWhen = (_op, id) => (id === categoryId("off_target") && failures-- > 0 ? new TypeError("fetch failed") : null);
 
     expect(await sync.sync(key)).toBe("failed");
-    expect(writer.remote.get(scoreId)?.value).toBe(0); // the main score landed, but the row is not synced
+    expect(writer.remote.get(scoreId())?.value).toBe(0);
     expect(row()).toMatchObject({ sync_pending: 1, synced_revision: null });
 
     clock += 60_000;
@@ -130,7 +122,7 @@ describe("feedback category sync", () => {
     expect(categoryValues()).toEqual(expected(["off_target"]));
   });
 
-  it("tombstone path: a failed category write keeps the row pending and delete_unconfirmed set; the retry confirms", async () => {
+  it("tombstone path: a failed category write keeps the row pending and a durable pending state; reconciliation retries", async () => {
     const sync = makeSync();
     q.messageFeedbackQueries.upsert(key, 1, null, ["clear"]);
     await sync.sync(key);
@@ -139,20 +131,20 @@ describe("feedback category sync", () => {
     writer.failWhen = (_op, id) => (id === categoryId("clear") && failures-- > 0 ? new TypeError("fetch failed") : null);
 
     expect(await sync.sync(key)).toBe("failed");
-    expect(writer.log.some((c) => c.op === "exists")).toBe(false); // failed before the read-back
-    expect(row()).toMatchObject({ sync_pending: 1, synced_revision: 1, delete_unconfirmed: 1 });
-    expect(writer.remote.get(categoryId("clear"))?.value).toBe(1);
+    expect(writer.log.some((c) => c.op === "exists")).toBe(false);
+    expect(row()).toMatchObject({ sync_pending: 1, synced_revision: 1, sync_state: "pending" });
+    expect(writer.remote.get(categoryId("clear"))).toBeUndefined();
 
     clock += 60_000;
     await sync.reconcile();
-    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 2, delete_unconfirmed: 0 });
-    expect(writer.remote.has(scoreId)).toBe(false);
+    expect(row()).toMatchObject({ sync_pending: 0, synced_revision: 2, sync_state: "accepted" });
+    expect(writer.remote.has(feedbackScoreId(key, 1))).toBe(false);
     expect(categoryValues()).toEqual(expected([]));
   });
 
   it("a push settles only once every category request settled; the queued newer revision wins everywhere", async () => {
     writer.mode = "manual";
-    writer.hold = (_op, id) => id === categoryId("factually_incorrect");
+    writer.hold = (op, id) => op === "upsert" && id === categoryId("factually_incorrect");
     let failures = 1;
     writer.failWhen = (_op, id) => (id === categoryId("wrong_citation") && failures-- > 0 ? new TypeError("fetch failed") : null);
     const sync = makeSync();
@@ -169,9 +161,9 @@ describe("feedback category sync", () => {
     q.messageFeedbackQueries.upsert(key, 1, null, ["accurate"]);
     const second = sync.sync(key);
     await Bun.sleep(5);
-    expect(failures).toBe(0); // the sibling write already rejected...
-    expect(firstSettled).toBe(false); // ...but the push waits for the held request
-    expect(writer.log.filter((c) => c.id === scoreId)).toHaveLength(1); // and the newer push has not started
+    expect(failures).toBe(0);
+    expect(firstSettled).toBe(false);
+    expect(writer.log.filter((c) => c.op === "upsert" && c.id.startsWith("fb-"))).toHaveLength(1);
 
     stale.resolve();
     expect(await first).toBe("failed");
@@ -180,7 +172,7 @@ describe("feedback category sync", () => {
     fresh.resolve();
     expect(await second).toBe("synced");
 
-    expect(writer.remote.get(scoreId)).toMatchObject({ value: 1, metadata: { categories: ["accurate"] } });
+    expect(writer.remote.get(scoreId())).toMatchObject({ value: 1, metadata: { categories: ["accurate"] } });
     expect(categoryValues()).toEqual(expected(["accurate"]));
     expect(row()).toMatchObject({ revision: 2, sync_pending: 0, synced_revision: 2 });
   });

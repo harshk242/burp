@@ -1,13 +1,8 @@
-/**
- * Config: the embedding block is validated again after env overrides, booleans
- * parse strictly, and the embeddings index path doesn't depend on cwd.
- */
 import { describe, expect, it } from "bun:test";
 import { tmpdir } from "os";
 import { join } from "path";
 import { APP_DIR, loadConfig as loadFromYaml, parseBooleanEnv } from "../config";
 
-// Sections without schema defaults; everything else comes from built-in defaults.
 const loadConfig = (env: Record<string, string | undefined>, raw: Record<string, unknown>) =>
   loadFromYaml(env, { llm: { effort: "medium" }, server: {}, tool_search: {}, ...raw });
 
@@ -83,6 +78,17 @@ describe("context budget", () => {
 
   it.each(["0", "-1", "1.5", "12abc"])("rejects invalid LLM_MAX_CONTEXT_TOKENS=%s", (value) => {
     expect(() => loadConfig({ LLM_MAX_CONTEXT_TOKENS: value }, {})).toThrow(/max_context_tokens/);
+  });
+});
+
+describe("MCP tool timeout", () => {
+  it("defaults to 60s and applies a valid MCP_TOOL_TIMEOUT_MS override", () => {
+    expect(loadConfig({}, {}).server.mcp_tool_timeout_ms).toBe(60_000);
+    expect(loadConfig({ MCP_TOOL_TIMEOUT_MS: "45000" }, {}).server.mcp_tool_timeout_ms).toBe(45_000);
+  });
+
+  it.each(["", "0", "-1", "1.5", "abc", "12abc", "Infinity"])("rejects invalid MCP_TOOL_TIMEOUT_MS=%p", (value) => {
+    expect(() => loadConfig({ MCP_TOOL_TIMEOUT_MS: value }, {})).toThrow(/mcp_tool_timeout_ms/);
   });
 });
 

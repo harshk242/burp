@@ -1,20 +1,15 @@
-/**
- * Every eval YAML validates; ids unique; rubric files exist; the loader fails fast
- * with file:line:col errors (plans/eval-pipeline-langfuse-plan.md, Phase 1b).
- */
 import { afterEach, describe, expect, it } from "bun:test";
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EVALS_DIR, EvalLoadError, loadEvalHome } from "../lib/load";
-import { countsTowardScores } from "../lib/schema";
+import { isEligibleForPassFail } from "../lib/schema";
 
 const tempDirs: string[] = [];
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-/** Copy of the real eval home with `edit` applied to one file. */
 function homeWith(file: string, edit: (text: string) => string): string {
   const dir = mkdtempSync(join(tmpdir(), "evals-"));
   tempDirs.push(dir);
@@ -71,9 +66,9 @@ describe("eval home", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("keeps all AI-drafted items out of scoring until reviewed", () => {
+  it("keeps all AI-drafted items out of pass/fail until reviewed", () => {
     const items = home.datasets.flatMap((d) => d.dataset.items);
-    expect(items.filter(countsTowardScores)).toEqual([]);
+    expect(items.filter(isEligibleForPassFail)).toEqual([]);
   });
 
   it("starts every deep turn 1 with the shared instructions; 05 has no preamble on turn 2", () => {
@@ -126,7 +121,6 @@ describe("loader errors", () => {
 
   it("rejects duplicate item ids across datasets", () => {
     const dir = homeWith("datasets/deep-v0.yaml", (t) => t.replace("id: ts-02-psoriasis", "id: brca1-uniprot-lookup"));
-    // Files load in name order, so the later file (smoke-v0) carries the error.
     const line = lineOf(dir, SMOKE, "id: brca1-uniprot-lookup");
     expect(problemsOf(dir)).toEqual([
       `${SMOKE}:${line}:9: duplicate item id "brca1-uniprot-lookup" (also in datasets/deep-v0.yaml (deep))`,

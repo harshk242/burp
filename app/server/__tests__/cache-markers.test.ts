@@ -1,8 +1,3 @@
-/**
- * Prompt-cache breakpoints (Anthropic): the system message carries one marker
- * (tools + system); each call marks its last message and the previous call's
- * last message, on a copy. The loop's messages are never modified.
- */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, type ModelMessage } from "ai";
@@ -14,7 +9,7 @@ import { mcpManager } from "../mcp/manager";
 import { ALWAYS_LOADED_TOOLS } from "../mcp/platforms.config";
 import { toolRegistry } from "../mcp/registry";
 import { applyCacheMarkers, cachedInstructions, EPHEMERAL_5M } from "../orchestration/context/cache-markers";
-import { SYSTEM_PROMPT } from "../orchestration/context/system-prompt";
+import { buildSystemPrompt } from "../orchestration/context/system-prompt";
 
 type LanguageModelV4StreamPart =
   Awaited<ReturnType<MockLanguageModelV4["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never;
@@ -86,7 +81,6 @@ describe("applyCacheMarkers", () => {
     expect(out).not.toBe(input);
     expect(input).toEqual(snapshot);
     expect(input.every((message, i) => message === originals[i])).toBe(true);
-    // Unmarked messages are shared, marked ones are copies that keep other options.
     expect(out[0]).toBe(input[0]!);
     expect(out[2]).not.toBe(input[2]!);
     expect(out[4]!.providerOptions).toEqual({
@@ -124,8 +118,7 @@ describe("Anthropic request body", () => {
     const markedBlocks = body!.messages.flatMap((message, m) =>
       message.content.flatMap((block, b) => (block.cache_control ? [[m, b, block.cache_control]] : []))
     );
-    // Anthropic merges consecutive same-role messages; the request has
-    // user, assistant, user(question), assistant(tool_use), user(tool_result).
+    // Anthropic merges consecutive same-role messages.
     expect(markedBlocks).toEqual([
       [2, 0, cacheControl],
       [4, 0, cacheControl],
@@ -187,11 +180,9 @@ describe("processChat cache markers", () => {
 
     expect(prompts).toHaveLength(3);
     for (const prompt of prompts) {
-      expect(prompt[0]).toMatchObject({ role: "system", content: SYSTEM_PROMPT, providerOptions: MARK });
+      expect(prompt[0]).toMatchObject({ role: "system", content: buildSystemPrompt(), providerOptions: MARK });
     }
     const messageMarks = prompts.map((prompt) => prompt.slice(1).map(marked));
-    // Call 1: [user]. Call 2: + assistant(tool_use), tool. Call 3: + assistant, tool.
-    // Earlier markers don't linger: the loop's own messages were never marked.
     expect(messageMarks).toEqual([
       [true],
       [true, false, true],

@@ -1,18 +1,8 @@
-/**
- * Minimal SQLite tokenizer for schema introspection (introspect.ts).
- *
- * Only what is needed to read DDL out of `sqlite_master.sql` reliably: comments
- * are dropped, string literals and quoted identifiers are kept intact, so a
- * keyword inside a string or a `"check"` column never looks like a constraint.
- */
-
 export type TokenKind = "string" | "ident" | "number" | "punct";
 
 export interface Token {
   kind: TokenKind;
-  /** Source text (strings keep their quotes; quoted identifiers are unquoted). */
   text: string;
-  /** True for `"x"`, `` `x` `` and `[x]` identifiers (never keywords). */
   quoted?: boolean;
 }
 
@@ -62,7 +52,6 @@ export function tokenize(sql: string): Token[] {
   return tokens;
 }
 
-/** Index of the closing quote, honouring doubled-quote escapes. */
 function closingQuote(sql: string, start: number, quote: string): number {
   let i = start + 1;
   while (i < sql.length) {
@@ -76,12 +65,10 @@ function closingQuote(sql: string, start: number, quote: string): number {
   return sql.length;
 }
 
-/** Unquoted identifier/keyword match (case-insensitive). */
 export function isKeyword(token: Token | undefined, word: string): boolean {
   return token?.kind === "ident" && !token.quoted && token.text.toUpperCase() === word;
 }
 
-/** Tokens between the parenthesis at `open` and its match; returns [inner, indexAfterClose]. */
 export function balancedParens(tokens: Token[], open: number): [Token[], number] {
   let depth = 0;
   for (let i = open; i < tokens.length; i++) {
@@ -93,15 +80,9 @@ export function balancedParens(tokens: Token[], open: number): [Token[], number]
   return [tokens.slice(open + 1), tokens.length];
 }
 
-/**
- * Canonical text for an SQL expression: identifiers unquoted, case-folded and
- * stripped of table qualifiers; keywords case-folded; string literals verbatim;
- * operator aliases unified; redundant outer parens dropped; single spaces.
- */
 export function normalizeExpression(input: Token[] | string): string {
   let tokens = typeof input === "string" ? tokenize(input) : input;
   tokens = tokens.filter((t, i) => {
-    // Drop `qualifier .` when followed by another identifier (`users.role` → `role`).
     const next = tokens[i + 1];
     const after = tokens[i + 2];
     return !(t.kind === "ident" && next?.kind === "punct" && next.text === "." && after?.kind === "ident") &&

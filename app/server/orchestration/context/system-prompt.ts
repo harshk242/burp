@@ -1,63 +1,77 @@
-/**
- * System prompt for the chat loop.
- *
- * Kept as a module constant (no dates, IDs or per-request data) so it is
- * byte-identical on every request — a prerequisite for prompt caching.
- */
+import { enabledPlatforms, type PlatformConfig } from "../../mcp/platforms.config";
+import { toolRegistry, type MCPTool } from "../../mcp/registry";
 
-// The `uniprot` platform is disabled in config.yaml (`enabled: false`), so its
-// tools are never registered. The UniProt lines below stay in source but are
-// commented out so they are never sent; restore them if the platform is
-// re-enabled (plan Q1).
+const PLATFORM_SUMMARIES: Record<string, string> = {
+  chembl: "**ChEMBL** - Drug compounds, bioactivity, and pharmacology data",
+  pubchem: "**PubChem** - Chemical structures, properties, and bioassays",
+  ensembl: "**Ensembl** - Genomic sequences, gene annotations, and variants",
+  clinvar: "**ClinVar** - Clinical significance of genetic variants",
+  "open-targets": "**Open Targets** - Drug-target associations and disease evidence",
+  reactome: "**Reactome** - Biological pathways and reactions",
+  clinicaltrials: "**ClinicalTrials** - Clinical trial registrations and results",
+  pubmed: "**PubMed** - Biomedical literature and abstracts",
+  clinpgx: "**ClinPGx (PharmGKB)** - Pharmacogenomics data",
+  uniprot: "**UniProt** - Protein sequences, functions, and annotations",
+};
 
-const DATABASES = [
-  // "**UniProt** - Protein sequences, structures, and annotations",
-  "**ChEMBL** - Drug compounds, bioactivity, and pharmacology data",
-  "**PubChem** - Chemical structures, properties, and bioassays",
-  "**Ensembl** - Genomic sequences, gene annotations, and variants",
-  "**ClinVar** - Clinical significance of genetic variants",
-  "**Open Targets** - Drug-target associations and disease evidence",
-  "**Reactome** - Biological pathways and reactions",
-  "**ClinicalTrials** - Clinical trial registrations and results",
-  "**PubMed** - Biomedical literature and abstracts",
-  "**ClinPGx (PharmGKB)** - Pharmacogenomics data",
-];
+const CORE_TOOL_SUMMARIES: Record<string, string> = {
+  ensembl__search_genes: "Convert gene symbols (TP53, BRCA1) → Ensembl IDs (ENSG...)",
+  "open-targets__search_entities": "Find genes/diseases → ENSG/EFO IDs (main hub)",
+  ensembl__get_xrefs: "Ensembl → UniProt/HGNC cross-references",
+  chembl__search_compounds: "Drug/compound name → ChEMBL ID",
+  pubchem__search_by_smiles: "SMILES structure → PubChem CID",
+  clinvar__lookup_by_rsid: "rsID → clinical significance and gene",
+  pubmed__search_pubmed: "Quick literature search → PMIDs",
+  clinicaltrials__search_by_intervention: "Drug → clinical trials (NCT IDs)",
+  clinicaltrials__search_by_condition: "Condition → clinical trials (NCT IDs)",
+};
 
-const CORE_TOOLS = [
-  "- **ensembl__search_genes** - Convert gene symbols (TP53, BRCA1) → Ensembl IDs (ENSG...)",
-  "- **open-targets__search_entities** - Find genes/diseases → ENSG/EFO IDs (main hub)",
-  // "- **uniprot__search_by_gene** - Gene symbol → UniProt accession (protein ID)",
-  // "- **uniprot__get_external_references** - UniProt → Ensembl/PDB cross-references",
-  "- **ensembl__get_xrefs** - Ensembl → UniProt/HGNC cross-references",
-  "- **chembl__search_compounds** - Drug/compound name → ChEMBL ID",
-  "- **pubchem__search_by_smiles** - SMILES structure → PubChem CID",
-  "- **clinvar__lookup_by_rsid** - rsID → clinical significance and gene",
-  "- **pubmed__search_pubmed** - Quick literature search → PMIDs",
-  "- **clinicaltrials__search_by_intervention** - Drug → clinical trials (NCT IDs)",
-  "- **clinicaltrials__search_by_condition** - Condition → clinical trials (NCT IDs)",
-];
+const ID_RESOLUTION_PATTERNS: Record<string, string> = {
+  ensembl__search_genes: '- Gene symbol → ENSG: Use ensembl__search_genes("TP53")',
+  chembl__search_compounds: '- Drug name → ChEMBL: Use chembl__search_compounds("imatinib")',
+  clinvar__lookup_by_rsid: '- rsID → Gene: Use clinvar__lookup_by_rsid("rs1042522")',
+};
 
-const ID_RESOLUTION_PATTERNS = [
-  `- Gene symbol → ENSG: Use ensembl__search_genes("TP53")`,
-  // `- Gene → Protein: Use uniprot__search_by_gene("TP53")`,
-  `- Drug name → ChEMBL: Use chembl__search_compounds("imatinib")`,
-  `- rsID → Gene: Use clinvar__lookup_by_rsid("rs1042522")`,
-];
+const byCodePoint = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 
-export const SYSTEM_PROMPT = `You are a biomedical research assistant with access to ${DATABASES.length} specialized databases:
+function curatedOrder(order: Record<string, string>): (a: string, b: string) => number {
+  const rank = (key: string) => {
+    const index = Object.keys(order).indexOf(key);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  return (a, b) => rank(a) - rank(b) || byCodePoint(a, b);
+}
 
-${DATABASES.map((db, i) => `${i + 1}. ${db}`).join("\n")}
+const fullName = (tool: MCPTool) => tool.server + "__" + tool.name;
+
+export function buildSystemPrompt(
+  platforms: readonly PlatformConfig[] = enabledPlatforms,
+  catalog: readonly MCPTool[] = toolRegistry.getAll(),
+): string {
+  const enabled = platforms.filter((p) => p.enabled).map((p) => p.name).sort(curatedOrder(PLATFORM_SUMMARIES));
+  const platformNames = new Set(enabled);
+  const tools = catalog.filter((t) => platformNames.has(t.server));
+  const coreNames = new Set(platforms.filter((p) => p.enabled)
+    .flatMap((p) => (p.alwaysLoadedTools ?? []).map((name) => p.name + "__" + name)));
+  const core = tools.map(fullName).filter((name) => coreNames.has(name)).sort(curatedOrder(CORE_TOOL_SUMMARIES));
+  const descriptions = new Map(tools.map((t) => [fullName(t), t.description]));
+  const coreLines = core.map((name) => "- **" + name + "** - " + (CORE_TOOL_SUMMARIES[name] ?? descriptions.get(name)));
+  const patterns = core.flatMap((name) => ID_RESOLUTION_PATTERNS[name] ?? []);
+  return `You are a biomedical research assistant with access to ${enabled.length} specialized databases:
+
+${enabled.map((name, i) => (i + 1) + ". " + (PLATFORM_SUMMARIES[name] ?? "**" + name + "**")).join("\n")}
 
 ## Available Tools
 
-You have 210+ specialized tools available, organized in two tiers:
+You have ${tools.length} specialized tools available, organized in two tiers:
 
 ### Always-Available Core Tools (use directly without searching):
-${CORE_TOOLS.join("\n")}
+${coreLines.join("\n") || "No core database tools are configured in the current catalog."}
 
 ### Additional Specialized Tools (use system__search_available_tools to discover):
 For specialized queries (protein structure, pathway analysis, bioactivity data, etc.),
 use the system__search_available_tools tool to find relevant tools by describing what you need.
+Use system__inspect_artifact with jq_filter for JSON artifacts or text_range for text artifacts.
 
 ## Workflow Guidelines
 
@@ -83,6 +97,7 @@ use the system__search_available_tools tool to find relevant tools by describing
 
 ## Common ID Resolution Patterns
 
-${ID_RESOLUTION_PATTERNS.join("\n")}
+${patterns.join("\n")}
 
 Always use tools over your training knowledge for biomedical facts.`;
+}

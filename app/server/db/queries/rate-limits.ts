@@ -6,7 +6,6 @@ type RateLimitRole = typeof rateLimits.$inferSelect["role"];
 
 export function createRateLimitQueries(db: DrizzleDb) {
   return {
-    /** Daily query limit for a role; falls back to -1 (unlimited) for admin, 50 otherwise. */
     getForRole(role: string): number {
       const row = db
         .select({ daily_limit: rateLimits.daily_limit })
@@ -20,7 +19,6 @@ export function createRateLimitQueries(db: DrizzleDb) {
     update(role: string, dailyLimit: number) {
       return db
         .insert(rateLimits)
-        // The CHECK constraint rejects anything outside the enum.
         .values({ role: role as RateLimitRole, daily_limit: dailyLimit, updated_at: sql`(unixepoch())` })
         .onConflictDoUpdate({
           target: rateLimits.role,

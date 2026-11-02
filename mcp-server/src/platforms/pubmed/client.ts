@@ -1,18 +1,5 @@
-// PubMed API Client with rate limiting and caching
-
-import axios, { AxiosInstance, AxiosError } from 'axios';
-import {
-  NetworkError,
-  NCBIAPIError,
-  RateLimitError,
-} from './exceptions.js';
-import {
-  filterNoneValues,
-  generateCacheKey,
-  sleep,
-  calculateBackoff,
-  isRetryableStatus,
-} from './utils.js';
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { filterNoneValues, generateCacheKey } from './utils.js';
 import {
   parseESearchResult,
   parseESummaryResult,
@@ -20,6 +7,8 @@ import {
   parseELinkResult,
 } from './xml-parser.js';
 import { TokenBucketRateLimiter, createNcbiRateLimiter } from '../../shared/rate-limiter.js';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
+import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import type {
   CacheEntry,
   PubMedClientOptions,
@@ -30,9 +19,38 @@ import type {
 } from './types.js';
 
 const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
-const DEFAULT_CACHE_TTL = 3600 * 1000; // 1 hour
-const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_CACHE_TTL = 3600 * 1000;
+const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY = 1000;
+
+function exponentialBackoff(baseMs: number): (attempt: number) => number {
+  return (attempt) => 2 ** (attempt - 1) * baseMs;
+}
+
+export const PUBMED_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: DEFAULT_MAX_ATTEMPTS,
+  backoffMs: exponentialBackoff(DEFAULT_RETRY_DELAY),
+  retryOn: isRetryableTransportOr5xx,
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+  on429: 'fail',
+  fallbackReportedRetryAfterMs: 5_000,
+});
+
+export interface PubMedHttpOptions {
+  policy?: RetryPolicy;
+  adapter?: AxiosAdapter;
+  retryDeps?: RetryDeps;
+}
+
+export function createPubMedHttp(options: PubMedHttpOptions = {}): AxiosInstance {
+  const instance = axios.create({
+    baseURL: NCBI_BASE_URL,
+    timeout: 30000,
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(instance, options.policy ?? PUBMED_POLICY, 'pubmed', options.retryDeps);
+}
 
 export interface ESearchParams {
   db?: string;
@@ -71,41 +89,42 @@ export interface ELinkParams {
 export class PubMedClient {
   private readonly apiKey?: string;
   private readonly cacheTtl: number;
-  private readonly maxRetries: number;
+  private readonly maxAttempts: number;
   private readonly retryDelay: number;
   private readonly cache: Map<string, CacheEntry>;
   private readonly rateLimiter: TokenBucketRateLimiter;
-  private axiosInstance: AxiosInstance;
+  private readonly axiosInstance: AxiosInstance;
 
   constructor(options: PubMedClientOptions = {}) {
     this.apiKey = options.apiKey || process.env.NCBI_API_KEY;
     this.cacheTtl = options.cacheTtl || DEFAULT_CACHE_TTL;
-    this.maxRetries = options.maxRetries || DEFAULT_MAX_RETRIES;
+    this.maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
-    this.rateLimiter = createNcbiRateLimiter(!!this.apiKey);
+    this.rateLimiter = options.rateLimiter ?? createNcbiRateLimiter(!!this.apiKey);
 
-    this.axiosInstance = axios.create({
-      baseURL: NCBI_BASE_URL,
-      timeout: 30000,
+    this.axiosInstance = createPubMedHttp({
+      policy: {
+        ...PUBMED_POLICY,
+        maxAttempts: this.maxAttempts,
+        backoffMs: exponentialBackoff(this.retryDelay),
+        beforeAttempt: (signal) => this.rateLimiter.waitForToken(signal),
+      },
+      adapter: options.adapter,
+      retryDeps: options.retryDeps,
     });
   }
 
-  /**
-   * Execute a request with rate limiting, caching, and retries
-   */
   private async request<T>(
     endpoint: string,
     params: Record<string, unknown>,
     parser: (xml: string) => T
   ): Promise<T> {
-    // Add API key if available
     const fullParams: Record<string, unknown> = {
       ...filterNoneValues(params),
       ...(this.apiKey ? { api_key: this.apiKey } : {}),
     };
 
-    // Check cache
     const cacheKey = generateCacheKey(endpoint, fullParams);
     const cachedEntry = this.cache.get(cacheKey);
 
@@ -113,72 +132,21 @@ export class PubMedClient {
       return cachedEntry.data as T;
     }
 
-    // Execute with retries
-    let lastError: Error | undefined;
+    const response = await this.axiosInstance.get(endpoint, {
+      params: fullParams,
+      responseType: 'text',
+    });
 
-    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      try {
-        // Wait for rate limiter
-        await this.rateLimiter.waitForToken();
+    const data = parser(response.data);
 
-        const response = await this.axiosInstance.get(endpoint, {
-          params: fullParams,
-          responseType: 'text',
-        });
+    this.cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    });
 
-        const data = parser(response.data);
-
-        // Cache result
-        this.cache.set(cacheKey, {
-          data,
-          timestamp: Date.now(),
-        });
-
-        return data;
-      } catch (error) {
-        lastError = error as Error;
-
-        if (axios.isAxiosError(error)) {
-          const axiosError = error as AxiosError;
-          const status = axiosError.response?.status;
-
-          if (status === 429) {
-            const retryAfter = parseInt(
-              axiosError.response?.headers['retry-after'] || '5',
-              10
-            );
-            throw new RateLimitError(
-              'NCBI rate limit exceeded',
-              retryAfter * 1000
-            );
-          }
-
-          if (status && !isRetryableStatus(status)) {
-            throw new NetworkError(
-              `HTTP error ${status}: ${axiosError.message}`,
-              status
-            );
-          }
-
-          if (attempt < this.maxRetries - 1) {
-            const delay = calculateBackoff(attempt, this.retryDelay);
-            console.warn(
-              `Request failed (attempt ${attempt + 1}/${this.maxRetries}), retrying in ${delay}ms...`
-            );
-            await sleep(delay);
-          }
-        } else {
-          throw error;
-        }
-      }
-    }
-
-    throw lastError || new NetworkError('Request failed after all retries');
+    return data;
   }
 
-  /**
-   * ESearch - Search and retrieve UIDs
-   */
   async esearch(params: ESearchParams): Promise<ESearchResult> {
     return this.request(
       'esearch.fcgi',
@@ -199,9 +167,6 @@ export class PubMedClient {
     );
   }
 
-  /**
-   * ESummary - Retrieve document summaries
-   */
   async esummary(params: ESummaryParams): Promise<ArticleSummary[]> {
     return this.request(
       'esummary.fcgi',
@@ -214,9 +179,6 @@ export class PubMedClient {
     );
   }
 
-  /**
-   * EFetch - Retrieve full records
-   */
   async efetch(params: EFetchParams): Promise<PubMedArticle[]> {
     return this.request(
       'efetch.fcgi',
@@ -230,9 +192,6 @@ export class PubMedClient {
     );
   }
 
-  /**
-   * ELink - Find related records
-   */
   async elink(params: ELinkParams): Promise<LinkResult> {
     return this.request(
       'elink.fcgi',
@@ -248,9 +207,6 @@ export class PubMedClient {
     );
   }
 
-  /**
-   * Search PubMed with a query string
-   */
   async search(
     query: string,
     options?: {
@@ -277,17 +233,11 @@ export class PubMedClient {
     };
   }
 
-  /**
-   * Fetch article details by PMID(s)
-   */
   async fetchArticles(pmids: string | string[]): Promise<PubMedArticle[]> {
     const idString = Array.isArray(pmids) ? pmids.join(',') : pmids;
     return this.efetch({ id: idString });
   }
 
-  /**
-   * Get article summaries by PMID(s)
-   */
   async getArticleSummaries(
     pmids: string | string[]
   ): Promise<ArticleSummary[]> {
@@ -295,9 +245,6 @@ export class PubMedClient {
     return this.esummary({ id: idString });
   }
 
-  /**
-   * Find related articles
-   */
   async findRelatedArticles(pmid: string): Promise<string[]> {
     const result = await this.elink({
       id: pmid,
@@ -310,9 +257,6 @@ export class PubMedClient {
     return relatedLinks?.link.map((l) => l.id) || [];
   }
 
-  /**
-   * Get articles that cite the given article
-   */
   async getCitingArticles(pmid: string): Promise<string[]> {
     const result = await this.elink({
       id: pmid,
@@ -325,9 +269,6 @@ export class PubMedClient {
     return citedInLinks?.link.map((l) => l.id) || [];
   }
 
-  /**
-   * Get references (articles cited by the given article)
-   */
   async getReferences(pmid: string): Promise<string[]> {
     const result = await this.elink({
       id: pmid,
@@ -340,16 +281,10 @@ export class PubMedClient {
     return refsLinks?.link.map((l) => l.id) || [];
   }
 
-  /**
-   * Clear the cache
-   */
   clearCache(): void {
     this.cache.clear();
   }
 
-  /**
-   * Get cache statistics
-   */
   getCacheStats(): { size: number; entries: number } {
     return {
       size: this.cache.size,
@@ -357,28 +292,18 @@ export class PubMedClient {
     };
   }
 
-  /**
-   * Check if API key is configured
-   */
   hasApiKey(): boolean {
     return !!this.apiKey;
   }
 }
 
-// Global client instance
 let _client: PubMedClient | null = null;
 
-/**
- * Initialize the global client
- */
 export function initializeClient(options?: PubMedClientOptions): PubMedClient {
   _client = new PubMedClient(options);
   return _client;
 }
 
-/**
- * Get the global client instance
- */
 export function getClient(): PubMedClient {
   if (!_client) {
     throw new Error('PubMedClient not initialized. Call initializeClient() first.');
@@ -386,9 +311,6 @@ export function getClient(): PubMedClient {
   return _client;
 }
 
-/**
- * Close the global client (cleanup)
- */
 export function closeClient(): void {
   if (_client) {
     _client.clearCache();

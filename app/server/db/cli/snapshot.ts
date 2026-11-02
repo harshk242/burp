@@ -1,14 +1,6 @@
 /**
- * Write a consistent copy of a (possibly live, WAL-mode) database.
- *
- *   bun run db:snapshot <out> [source]     # source defaults to $DATABASE_URL
- *
  * `VACUUM INTO` reads one consistent snapshot including committed pages still in
  * the -wal file, unlike copying `app.db` alone (plans/drizzle-orm-migration.md §6).
- *
- * Deliberately standalone: only `bun:sqlite`, no app config/client import, so it
- * never opens a second app connection or runs migrations. Relative paths resolve
- * against the current directory.
  */
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync } from "fs";

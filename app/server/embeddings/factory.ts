@@ -1,9 +1,3 @@
-/**
- * Builds an Embedder from config: a thin layer over the AI SDK that adds what
- * the SDK doesn't — provider task types, the API-key check, a query deadline,
- * response validation, and a stable identity for matching the index file.
- */
-
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { embed, embedMany, type EmbeddingModel } from "ai";
@@ -25,23 +19,18 @@ type Env = Record<string, string | undefined>;
 type ProviderOptions = Parameters<typeof embed>[0]["providerOptions"];
 
 export interface EmbedderOptions {
-  /** Deadline for one query embedding. */
   queryTimeoutMs?: number;
-  /** Where API keys are read from. Defaults to process.env. */
   env?: Env;
-  /** HTTP override, used by tests to stub provider calls. */
   fetch?: typeof globalThis.fetch;
 }
 
 interface ProviderAdapter {
-  /** Env vars that can hold the key, in priority order. */
   keyEnv: readonly string[];
   model(modelId: string, apiKey: string, fetch?: typeof globalThis.fetch): EmbeddingModel;
   queryOptions?: ProviderOptions;
   documentOptions?: ProviderOptions;
 }
 
-// Adding a provider means one entry here and one value in EMBEDDING_PROVIDERS.
 const ADAPTERS: Record<EmbeddingProviderName, ProviderAdapter> = {
   openai: {
     keyEnv: ["OPENAI_API_KEY"],
@@ -55,10 +44,6 @@ const ADAPTERS: Record<EmbeddingProviderName, ProviderAdapter> = {
   },
 };
 
-/**
- * Create the configured embedder, or null (logged once) when the provider's
- * API key is missing, so search never makes calls that are bound to fail.
- */
 export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {}): Embedder | null {
   const adapter = ADAPTERS[spec.provider];
   const env = options.env ?? process.env;
@@ -74,7 +59,6 @@ export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {
 
   const model = adapter.model(spec.model, apiKey, options.fetch);
   const queryTimeoutMs = options.queryTimeoutMs ?? DEFAULT_QUERY_TIMEOUT_MS;
-  // Copy only the spec fields; callers may pass the whole config block.
   const frozenSpec: EmbeddingSpec = Object.freeze({
     provider: spec.provider,
     model: spec.model,
@@ -94,7 +78,7 @@ export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {
           dimensions: spec.dimensions,
           providerOptions: adapter.queryOptions,
           abortSignal,
-          maxRetries: 0, // a slow query falls back to keyword search instead of retrying
+          maxRetries: 0,
         });
         return validateVectors([embedding], 1, spec.dimensions)[0];
       }, { signal, timeoutError });
@@ -115,10 +99,6 @@ export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {
   };
 }
 
-/**
- * Check count, length, and finiteness. Without a requested size the first
- * vector's length is the expected one, so a batch is always internally consistent.
- */
 function validateVectors(vectors: unknown[], count: number, dimensions?: number): Float32Array[] {
   if (vectors.length !== count) {
     throw new EmbeddingResponseError(`expected ${count} embeddings, got ${vectors.length}`);

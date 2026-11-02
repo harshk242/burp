@@ -1,10 +1,3 @@
-/**
- * Comparison report (plan 2.4) from saved run results: per-arm aggregates,
- * "within noise" from the repeat spread, deltas only on the items both arms
- * scored, per-item disagreements, skipped arms, and determinism. Fixture:
- * 2 items × 2 repeats for a complete arm, an arm whose second repeat the
- * budget cut (item y skipped) and an arm the budget never reached.
- */
 import { describe, expect, it } from "bun:test";
 import type { ItemRun } from "../lib/aggregate";
 import { buildComparison, saveItemRun, type SavedComparison, type SavedItemRun } from "../lib/compare";
@@ -14,7 +7,6 @@ import fixture from "./fixtures/comparison-runs.json";
 const saved = fixture as SavedComparison;
 const [sonnet, haiku, opus] = ["claude-sonnet-5-5-low", "claude-haiku-5-5-low", "claude-opus-5-5-low"];
 
-/** The fixture with haiku's budget-skipped run of y scored instead: both arms ran everything twice. */
 function bothComplete(): SavedComparison {
   const full = structuredClone(saved);
   const arm = full.arms[1]!;
@@ -56,7 +48,6 @@ describe("comparison report", () => {
       mean_tool_calls_per_item: 2.25,
       reviewed: { items: 2, passed: 1 },
     });
-    // Budget-skipped item runs: listed and paid for, never scored.
     expect(arm(haiku)).toMatchObject({
       status: "partial_budget",
       item_runs: 4,
@@ -87,7 +78,6 @@ describe("comparison report", () => {
   });
 
   it("a repeat the budget cut short is left out of the delta, not averaged over fewer items", () => {
-    // Haiku's repeat 2 scored only x: its own mean mixes item sets, so the delta uses repeat 1 (both items).
     expect(report.deltas.map((d) => [d.arm, d.score, d.shared_items, d.repeats_compared, d.baseline_mean, d.arm_mean, d.delta, d.verdict])).toEqual([
       [haiku, "answer_truncated", 2, { baseline: 2, arm: 1 }, 0, 0.5, 0.5, "no_repeat_spread"],
       [haiku, "checkpoint_recall", 2, { baseline: 2, arm: 1 }, 0.75, 1, 0.25, "no_repeat_spread"],
@@ -97,14 +87,12 @@ describe("comparison report", () => {
   });
 
   it("arms that scored different items are compared on the shared items only", () => {
-    // Haiku's only repeat scored x; y was budget-skipped. Sonnet's y (id_grounding 0.5) must not enter the delta.
     const cut = structuredClone(saved);
     const arm = cut.arms[1]!;
     arm.experiments = [arm.experiments[1]!];
     const report = buildComparison(cut);
     const d = report.deltas.find((x) => x.score === "id_grounding")!;
     expect(d).toEqual({ arm: haiku, score: "id_grounding", shared_items: 1, repeats_compared: { baseline: 2, arm: 1 }, baseline_mean: 1, arm_mean: 1, delta: 0, noise: null, verdict: "no_repeat_spread" });
-    // The arm's own mean stays visible, labelled with its coverage.
     expect(report.arms[1]!.coverage).toEqual({ items: 2, scored_every_repeat: 1 });
     expect(comparisonMarkdown(report)).toContain("| 1.000 {1/2 items} (Δ +0.000 on 1/2 shared items, no repeat spread (repeats 2 vs 1)) |");
   });

@@ -1,11 +1,3 @@
-/**
- * Zod schemas for eval datasets and the metrics registry: the single source of truth.
- * The YAML files under app/evals/ are validated against these by load.ts, and sync.ts
- * pushes the parsed objects to Langfuse unchanged (plus content_hash).
- *
- * `input`, `expected_output` and `metadata` stay separate (Langfuse dataset rule):
- * reviewer notes and checkpoints never go in `input`.
- */
 import { z } from "zod";
 
 const slug = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "lower-case kebab-case slug");
@@ -21,7 +13,6 @@ export const CATEGORIES = [
   "target-selection",
 ] as const;
 
-/** One checkpoint: `any_of` is a list of alias groups; a group hits when any alias appears. */
 export const CheckpointSchema = z
   .object({
     turn: z.number().int().min(1),
@@ -36,7 +27,6 @@ export const CheckpointSchema = z
 
 export const ItemInputSchema = z
   .object({
-    /** One entry = single-turn; each entry is sent as one user message, in order. */
     turns: z.array(z.string().min(1)).min(1),
   })
   .strict();
@@ -44,11 +34,8 @@ export const ItemInputSchema = z
 export const ExpectedOutputSchema = z
   .object({
     checkpoints: z.array(CheckpointSchema),
-    /** Tool-name globs; calling any one satisfies `expected_tool_coverage`. */
     expected_tools_any: z.array(z.string().min(1)).optional(),
-    /** Human/judge notes for now; not machine-scored in v0. */
     must_not: z.array(z.string().min(1)).optional(),
-    /** Sources a reviewer expects to see (e.g. "PMID:28304224"). Informational. */
     key_references: z.array(z.string().min(1)).optional(),
     reference_answer: z.string().min(1).nullable(),
   })
@@ -59,7 +46,6 @@ export const ItemMetadataSchema = z
     category: z.enum(CATEGORIES),
     turns: z.enum(["single", "multi"]),
     difficulty: z.enum(["easy", "medium", "hard"]),
-    /** true = live data changes (trial counts, approvals): checkpoints only. */
     volatile: z.boolean(),
     source: z
       .string()
@@ -67,7 +53,6 @@ export const ItemMetadataSchema = z
         /^(hand-written|prod-trace|target-selection-pack|trace:[A-Za-z0-9_-]+)$/,
         "hand-written | prod-trace | target-selection-pack | trace:<id>",
       ),
-    /** An item counts toward scores only once a human has reviewed it. */
     reviewed_by: z.string().min(1).nullable(),
     notes: z.string(),
     prompt_version: z.string().min(1).optional(),
@@ -77,7 +62,6 @@ export const ItemMetadataSchema = z
 
 export const DatasetItemSchema = z
   .object({
-    /** Stable; becomes the Langfuse dataset item id (unique across the whole project). */
     id: slug.max(100),
     input: ItemInputSchema,
     expected_output: ExpectedOutputSchema,
@@ -107,10 +91,8 @@ export const DatasetItemSchema = z
 
 export const DatasetFileSchema = z
   .object({
-    /** Langfuse dataset name. */
     name: slug,
     description: z.string().min(1),
-    /** Runner hints (Phase 2); stored in dataset metadata. */
     run_defaults: z
       .object({
         concurrency: z.number().int().min(1).optional(),
@@ -122,7 +104,6 @@ export const DatasetFileSchema = z
   })
   .strict();
 
-/** Langfuse config names: max 35 chars; we further restrict to snake_case. */
 const metricName = z
   .string()
   .max(35)
@@ -130,7 +111,6 @@ const metricName = z
 
 export const MetricSchema = z
   .object({
-    /** Score name in Langfuse. A changed definition needs a new name, never an edit. */
     name: metricName,
     description: z.string().min(1),
     method: z.enum(["code", "semantic", "judge", "human"]),
@@ -139,7 +119,6 @@ export const MetricSchema = z
     min: z.number().optional(),
     max: z.number().optional(),
     scope: z.array(z.enum(["online", "offline"])).min(1),
-    /** Path relative to app/evals/, or null for objective metrics. */
     rubric: z
       .string()
       .regex(/^rubrics\/[a-z0-9-]+\.md$/, "rubrics/<slug>.md")
@@ -166,7 +145,6 @@ export type DatasetItem = z.infer<typeof DatasetItemSchema>;
 export type DatasetFile = z.infer<typeof DatasetFileSchema>;
 export type Metric = z.infer<typeof MetricSchema>;
 
-/** Unreviewed items still run, but never count toward pass/fail. */
-export function countsTowardScores(item: DatasetItem): boolean {
+export function isEligibleForPassFail(item: DatasetItem): boolean {
   return item.metadata.reviewed_by !== null;
 }

@@ -1,16 +1,3 @@
-/**
- * Feedback category scores: one BOOLEAN score per category id (both
- * polarities, 10 in total) on the turn's trace, so traces can be filtered on
- * `scores.feedback_<id>:true` (Langfuse filters by score name + value, not by
- * metadata).
- *
- * - Id `fbc-` + sha256(`message_id:user_id:<id>`), stable per category, so a
- *   write overwrites the previous one.
- * - Never deleted: deselect, polarity flip and clear all upsert 0. Only
- *   upserts ever exist for `fbc-*` ids, so they stay out of the main score's
- *   delete-ordering protocol and the last write wins.
- */
-
 import { createHash } from "node:crypto";
 import type { FeedbackKey } from "../db/queries";
 import { logger } from "../logger";
@@ -24,23 +11,23 @@ export function feedbackCategoryScoreName(category: FeedbackCategory): string {
   return `${FEEDBACK_CATEGORY_SCORE_PREFIX}${category}`;
 }
 
-/** Stable score id for one category of a user's feedback on a message. */
-export function feedbackCategoryScoreId({ messageId, userId }: FeedbackKey, category: FeedbackCategory): string {
+export function feedbackCategoryScoreId({ messageId, userId }: FeedbackKey, category: FeedbackCategory, revision = 0): string {
   const hash = createHash("sha256").update(`${messageId}:${userId}:${category}`).digest("hex");
-  return `fbc-${hash.slice(0, 32)}`;
+  const base = `fbc-${hash.slice(0, 32)}`;
+  return revision === 0 ? base : `${base}-r${revision}`;
 }
 
-/** The full category state: every category, 1 if selected, else 0. */
 export function categoryScoreUpserts(
   key: FeedbackKey,
   traceId: string,
   selected: readonly FeedbackCategory[],
-  environment: string
+  environment: string,
+  revision = 0
 ): ScoreUpsert[] {
   return ALL_CATEGORY_IDS.map((category) => {
     const name = feedbackCategoryScoreName(category);
     return {
-      id: feedbackCategoryScoreId(key, category),
+      id: feedbackCategoryScoreId(key, category, revision),
       traceId,
       name,
       value: selected.includes(category) ? 1 : 0,
@@ -52,11 +39,6 @@ export function categoryScoreUpserts(
   });
 }
 
-/**
- * Sends every upsert and waits for all of them to settle (allSettled, never
- * all: a push must not end while a sibling request is still in flight, or a
- * later push's write could land before it). True only if all succeeded.
- */
 export async function writeCategoryScores(writer: ScoreWriter, scores: ScoreUpsert[]): Promise<boolean> {
   const results = await Promise.allSettled(scores.map((score) => writer.upsert(score)));
   let ok = true;

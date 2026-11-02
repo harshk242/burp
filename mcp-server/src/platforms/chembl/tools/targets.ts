@@ -2,8 +2,6 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
 
-// ── Tool definitions ───────────────────────────────────────────────────────
-
 export const tools: Tool[] = [
   {
     name: 'search_targets',
@@ -67,8 +65,6 @@ export const tools: Tool[] = [
     },
   },
 ];
-
-// ── Handlers ───────────────────────────────────────────────────────────────
 
 async function handleSearchTargets(args: Record<string, unknown>) {
   const client = getClient();

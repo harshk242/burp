@@ -1,6 +1,5 @@
-import axios, { type AxiosInstance } from 'axios';
-
-// ── Ensembl API interfaces ──────────────────────────────────────────────────
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 
 export interface EnsemblGene {
   id: string;
@@ -140,7 +139,37 @@ export interface EnsemblAssemblyInfo {
   karyotype: string[];
 }
 
-// ── Singleton axios client ──────────────────────────────────────────────────
+export const ENSEMBL_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: 3,
+  backoffMs: [1_000, 3_000],
+  jitter: 0.25,
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+  on429: 'wait',
+  rateLimitResetHeader: { name: 'x-ratelimit-reset', semantics: 'relative-seconds' as const },
+});
+
+export const ENSEMBL_BASE_URL = 'https://rest.ensembl.org';
+
+export interface EnsemblClientOptions {
+  policy?: RetryPolicy;
+  adapter?: AxiosAdapter;
+  retryDeps?: RetryDeps;
+}
+
+export function createEnsemblClient(options: EnsemblClientOptions = {}): AxiosInstance {
+  const client = axios.create({
+    baseURL: ENSEMBL_BASE_URL,
+    timeout: 30_000,
+    headers: {
+      'User-Agent': 'Ensembl-MCP-Server/1.0.0',
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(client, options.policy ?? ENSEMBL_POLICY, 'ensembl', options.retryDeps);
+}
 
 let apiClient: AxiosInstance | null = null;
 
@@ -151,34 +180,14 @@ export function getClient(): AxiosInstance {
   return apiClient;
 }
 
-export function init(_env: Record<string, string | undefined>): void {
-  apiClient = axios.create({
-    baseURL: 'https://rest.ensembl.org',
-    timeout: 30_000,
-    headers: {
-      'User-Agent': 'Ensembl-MCP-Server/1.0.0',
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-  });
+export function init(_env: Record<string, string | undefined>, options: EnsemblClientOptions = {}): void {
+  apiClient = createEnsemblClient(options);
 }
 
-export function cleanup(): void {
+export function resetClient(): void {
   apiClient = null;
 }
 
-// ── Shared utility helpers ──────────────────────────────────────────────────
-
 export function getDefaultSpecies(species?: string): string {
   return species || 'homo_sapiens';
-}
-
-export function formatGenomicRegion(region: string): string {
-  // Support formats: chr1:1000-2000, 1:1000-2000, ENSG00000139618
-  if (region.includes(':') && region.includes('-')) {
-    return region;
-  } else if (region.startsWith('ENS')) {
-    return region;
-  }
-  return region;
 }

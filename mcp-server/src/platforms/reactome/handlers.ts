@@ -1,7 +1,6 @@
 import type { ToolHandler } from '../../types.js';
+import { isRejectedLookup } from '../../shared/exceptions.js';
 import { getClient } from './client.js';
-
-// Validation helpers
 
 const isValidSearchArgs = (
   args: Record<string, unknown>,
@@ -38,7 +37,6 @@ const isValidInteractionArgs = (
       args.interactionType as string,
     ));
 
-// Resolve a name/ID to a Reactome stable identifier
 async function resolvePathwayId(identifier: string): Promise<string | null> {
   if (/^R-[A-Z]{3}-\d+$/.test(identifier)) return identifier;
 
@@ -50,8 +48,8 @@ async function resolvePathwayId(identifier: string): Promise<string | null> {
 
     const firstEntry = res.data?.results?.[0]?.entries?.[0];
     if (firstEntry?.stId) return firstEntry.stId as string;
-  } catch {
-    /* resolution failure is non-fatal */
+  } catch (error) {
+    if (!isRejectedLookup(error)) throw error;
   }
 
   return null;
@@ -118,11 +116,11 @@ async function handleGetPathwayDetails(args: Record<string, unknown>) {
   try {
     const eventsResponse = await api.get(`/data/events/${pathwayId}`);
     components = eventsResponse.data;
-  } catch { /* non-fatal */ }
+  } catch { }
   try {
     const participantsResponse = await api.get(`/data/participants/${pathwayId}`);
     participants = participantsResponse.data;
-  } catch { /* non-fatal */ }
+  } catch { }
   return {
     id: pathwayId,
     originalQuery: args.id,
@@ -481,8 +479,6 @@ async function handleGetProteinInteractions(args: Record<string, unknown>) {
         : 'Showing all available interaction types',
   };
 }
-
-// Handler registry
 
 export const handlers: Record<string, ToolHandler> = {
   search_pathways: handleSearchPathways,

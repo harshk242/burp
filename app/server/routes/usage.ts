@@ -1,3 +1,5 @@
+import type { UsageResponse } from "../../shared/usage";
+import { UNLIMITED } from "../../shared/limits";
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { UsageSchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
@@ -12,12 +14,7 @@ import {
 
 const usage = new OpenAPIHono<AppEnv>();
 
-// Apply auth middleware
 usage.use("*", clerkAuth, requireDbUser, requireUser);
-
-// ============================================
-// GET /api/usage - Current user's usage and limits
-// ============================================
 
 const getUsageRoute = createRoute({
   method: "get",
@@ -51,7 +48,7 @@ A limit of -1 means unlimited (admin users).`,
 usage.openapi(getUsageRoute, async (c) => {
   const userId = c.get("userId") as string;
   const role = c.get("role") as string;
-  const dbUser = c.get("dbUser")!; // non-null: requireDbUser runs before this handler
+  const dbUser = c.get("dbUser")!;
 
   const limits = resolveEffectiveLimits(dbUser, role, rateLimitQueries.getForRole(role));
   const dailyLimit = limits.daily_query_limit;
@@ -60,12 +57,11 @@ usage.openapi(getUsageRoute, async (c) => {
   const resetAt = getNextUtcMidnight();
   const monthlyResetAt = getNextUtcMonthStart();
 
-  const remaining = dailyLimit === -1 ? -1 : Math.max(0, dailyLimit - todayFull.query_count);
+  const remaining = dailyLimit === UNLIMITED ? UNLIMITED : Math.max(0, dailyLimit - todayFull.query_count);
 
-  // Token budget
   const tokenLimit = limits.daily_token_limit;
   const tokensUsedToday = todayFull.input_tokens + todayFull.output_tokens;
-  const tokensRemaining = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - tokensUsedToday);
+  const tokensRemaining = tokenLimit === UNLIMITED ? UNLIMITED : Math.max(0, tokenLimit - tokensUsedToday);
   const dailyCostLimit = limits.daily_cost_limit_microusd;
   const monthlyCostLimit = limits.monthly_cost_limit_microusd;
   const todayCost = usageEventQueries.getTotalsForDate(userId).cost_microusd;
@@ -96,7 +92,7 @@ usage.openapi(getUsageRoute, async (c) => {
         monthly_remaining_microusd: getRemainingMicrousd(monthlyCostLimit, monthCost),
         monthly_reset_at: monthlyResetAt,
       },
-    },
+    } satisfies UsageResponse,
     200
   );
 });

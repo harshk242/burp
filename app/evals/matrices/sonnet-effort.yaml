@@ -1,7 +1,3 @@
-# Sonnet 5.5 across every effort level (plan 2.4).
-#   bun run eval --dataset smoke --matrix sonnet-effort
-# Arms without max_output_tokens get the raised arm default (64k, capped at the
-# model's output limit), so xhigh/max answers aren't cut by the 16k production cap.
 description: Sonnet 5.5 effort sweep
 arms:
   - { model: claude-sonnet-5-5, effort: low }

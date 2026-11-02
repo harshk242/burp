@@ -2,8 +2,6 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
 
-// ── Tool definitions ───────────────────────────────────────────────────────
-
 export const tools: Tool[] = [
   {
     name: 'search_drugs',
@@ -56,8 +54,6 @@ export const tools: Tool[] = [
   },
 ];
 
-// ── Handlers ───────────────────────────────────────────────────────────────
-
 async function handleSearchDrugs(args: Record<string, unknown>) {
   if (!args || typeof args.query !== 'string') {
     throw new Error('Invalid drug search arguments');
@@ -87,20 +83,13 @@ async function handleGetDrugInfo(args: Record<string, unknown>) {
 
   const client = getClient();
 
-  // Get molecule information
   const moleculeResponse = await client.get(`/molecule/${args.chembl_id}.json`);
   const molecule = moleculeResponse.data;
 
-  // Get drug indication data if available
-  let indications: unknown[] = [];
-  try {
-    const indicationResponse = await client.get('/drug_indication.json', {
-      params: { molecule_chembl_id: args.chembl_id, limit: 50 },
-    });
-    indications = indicationResponse.data.drug_indications || [];
-  } catch {
-    // Indications may not be available for all compounds
-  }
+  const indicationResponse = await client.get('/drug_indication.json', {
+    params: { molecule_chembl_id: args.chembl_id, limit: 50 },
+  });
+  const indications = indicationResponse.data.drug_indications || [];
 
   return {
     chembl_id: args.chembl_id,

@@ -1,9 +1,3 @@
-/**
- * Signal-safe cleanup: SIGINT during a slow turn (real item task and
- * processChat, mock model) aborts the turn and waits for its `finally` (root
- * span end, online scores) before tracing is shut down and MCP stopped. A
- * second signal exits at once.
- */
 import { afterAll, afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { MockLanguageModelV4 } from "ai/test";
 import type { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-base";
@@ -111,7 +105,6 @@ it("SIGINT during a slow turn: the turn's finally runs before tracing shutdown",
       "stopMcp",
       "exit:130",
     ]);
-    // Only the first turn ran; no new turn launched after the signal.
     expect(t.sqlite.query<{ n: number }, []>("SELECT count(*) AS n FROM chat_turns").get()!.n).toBe(1);
   } finally {
     removeHandlers();

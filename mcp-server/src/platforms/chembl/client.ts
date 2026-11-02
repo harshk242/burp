@@ -1,6 +1,5 @@
-import axios, { type AxiosInstance } from 'axios';
-
-// ── ChEMBL API interfaces ──────────────────────────────────────────────────
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 
 export interface CompoundSearchResult {
   molecule_chembl_id: string;
@@ -62,7 +61,33 @@ export interface AssayInfo {
   confidence_score?: number;
 }
 
-// ── Singleton axios client ─────────────────────────────────────────────────
+export const CHEMBL_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: 1,
+  backoffMs: [0],
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+});
+
+export const CHEMBL_BASE_URL = 'https://www.ebi.ac.uk/chembl/api/data';
+
+export interface ChemblClientOptions {
+  policy?: RetryPolicy;
+  adapter?: AxiosAdapter;
+  retryDeps?: RetryDeps;
+}
+
+export function createChemblClient(options: ChemblClientOptions = {}): AxiosInstance {
+  const client = axios.create({
+    baseURL: CHEMBL_BASE_URL,
+    timeout: 30_000,
+    headers: {
+      'User-Agent': 'ChEMBL-MCP-Server/1.0.0',
+      Accept: 'application/json',
+    },
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(client, options.policy ?? CHEMBL_POLICY, 'chembl', options.retryDeps);
+}
 
 let apiClient: AxiosInstance | null = null;
 
@@ -73,22 +98,13 @@ export function getClient(): AxiosInstance {
   return apiClient;
 }
 
-export function init(_env: Record<string, string | undefined>): void {
-  apiClient = axios.create({
-    baseURL: 'https://www.ebi.ac.uk/chembl/api/data',
-    timeout: 30_000,
-    headers: {
-      'User-Agent': 'ChEMBL-MCP-Server/1.0.0',
-      Accept: 'application/json',
-    },
-  });
+export function init(_env: Record<string, string | undefined>, options: ChemblClientOptions = {}): void {
+  apiClient = createChemblClient(options);
 }
 
-export function cleanup(): void {
+export function resetClient(): void {
   apiClient = null;
 }
-
-// ── Shared validation helpers ──────────────────────────────────────────────
 
 export const isValidChemblIdArgs = (
   args: any,
@@ -100,8 +116,6 @@ export const isValidChemblIdArgs = (
     args.chembl_id.length > 0
   );
 };
-
-// ── Shared assessment helpers ──────────────────────────────────────────────
 
 export function assessAbsorption(props: any): string {
   const mw = props.full_mwt || props.molecular_weight || 0;

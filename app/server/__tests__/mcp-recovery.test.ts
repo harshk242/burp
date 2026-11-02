@@ -1,9 +1,3 @@
-/**
- * An MCP server that fails at boot and later recovers fires onToolsChanged,
- * and the reindex wired to it makes the recovered tools searchable and syncs
- * their embeddings. A running server that goes down fires it too, so search
- * stops offering tools whose calls would fail.
- */
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
@@ -45,7 +39,7 @@ describe("MCP recovery", () => {
 
     await manager.start("flaky");
     expect(manager.getStatus("flaky")?.status).toBe("error");
-    reindexToolSearch(toolRegistry, search); // boot indexing, with nothing discovered
+    reindexToolSearch(toolRegistry, search);
     expect(await search.search("frobnicate widgets")).toEqual([]);
 
     rmSync(marker);
@@ -80,7 +74,7 @@ describe("MCP recovery", () => {
     manager.onToolsChanged = reindex;
 
     await manager.start("flaky");
-    reindex(); // boot: nothing discovered, nothing to embed
+    reindex();
     await sync.idle();
     expect(embedded).toEqual([]);
     expect(search.embeddingsLoaded).toBe(false);
@@ -119,7 +113,6 @@ describe("MCP recovery", () => {
       reindex();
     };
 
-    // Boot: server up, tools discovered, indexed and embedded.
     await manager.start("flaky");
     await toolRegistry.discoverTools(manager);
     reindex();
@@ -127,7 +120,6 @@ describe("MCP recovery", () => {
     expect((await search.search("frobnicate widgets"))[0]).toMatchObject({ fullName: "demo__frobnicate_widgets", semanticRank: 1 });
     const file = readFileSync(path, "utf-8");
 
-    // The running server crashes, and restarts keep failing.
     writeFileSync(marker, "");
     process.kill(manager.getStatus("flaky")!.transport!.pid!, "SIGKILL");
     while (manager.getStatus("flaky")?.status !== "error") await Bun.sleep(10);
@@ -136,15 +128,13 @@ describe("MCP recovery", () => {
     expect(changes).toBe(1);
     expect(toolRegistry.availableCount).toBe(0);
     expect(await search.search("frobnicate widgets")).toEqual([]);
-    // The sync of the empty snapshot carries the platform over: no API call, no write.
     expect(embedded).toHaveLength(1);
     expect(readFileSync(path, "utf-8")).toBe(file);
 
-    await manager.retryDueServers(new Date(Date.now() + 120_000)); // fails again
+    await manager.retryDueServers(new Date(Date.now() + 120_000));
     expect(manager.getStatus("flaky")?.status).toBe("error");
     expect(changes).toBe(1);
 
-    // Recovery: tools come back with their stored vectors, still no API call.
     rmSync(marker);
     await manager.retryDueServers(new Date(Date.now() + 120_000));
     await sync.idle();

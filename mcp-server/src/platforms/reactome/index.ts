@@ -1,5 +1,5 @@
 import type { PlatformModule } from '../../types.js';
-import { initClient, cleanupClient } from './client.js';
+import { initClient, resetClient } from './client.js';
 import { tools } from './tools.js';
 import { handlers } from './handlers.js';
 
@@ -13,6 +13,6 @@ export const platform: PlatformModule = {
   },
 
   cleanup(): void {
-    cleanupClient();
+    resetClient();
   },
 };

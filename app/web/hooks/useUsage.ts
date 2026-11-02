@@ -5,35 +5,8 @@ import { useApi } from "@/hooks/useApi";
 import { useUserStore, type UsageInfo } from "@/stores/userStore";
 import { useChatStore } from "@/stores/chatStore";
 
-interface UsageResponse {
-  used: number;
-  limit: number;
-  remaining: number;
-  resetAt: number;
-  total_queries: number;
-  role: string;
-  tokens?: {
-    used_today: number;
-    limit: number;
-    remaining: number;
-    input_today: number;
-    output_today: number;
-  };
-  cost?: {
-    daily_used_microusd: number;
-    daily_limit_microusd: number;
-    daily_remaining_microusd: number;
-    daily_reset_at: number;
-    monthly_used_microusd: number;
-    monthly_limit_microusd: number;
-    monthly_remaining_microusd: number;
-    monthly_reset_at: number;
-  };
-}
+import type { UsageResponse } from "../../shared/usage";
 
-/**
- * Fetches usage info on mount and re-fetches each time streaming ends.
- */
 export function useUsage() {
   const { get } = useApi();
   const setUsage = useUserStore((s) => s.setUsage);
@@ -54,16 +27,13 @@ export function useUsage() {
       };
       setUsage(info);
     } catch {
-      // Silently ignore — usage indicator just stays stale
     }
   }, [get, setUsage, user]);
 
-  // Fetch on mount
   useEffect(() => {
     fetchUsage();
   }, [fetchUsage]);
 
-  // Re-fetch when streaming ends (isStreaming goes from true → false)
   useEffect(() => {
     if (!isStreaming) {
       fetchUsage();

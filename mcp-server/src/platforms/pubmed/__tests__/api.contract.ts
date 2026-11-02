@@ -1,29 +1,32 @@
-/**
- * PubMed (NCBI E-utilities) API contract tests.
- * Uses JSON output mode (retmode=json) for schema extraction.
- * The NCBI API key is optional but reduces rate limit risk in CI.
- *
- * Note: efetch.fcgi does NOT support retmode=json for PubMed — omitted here.
- * XML parsing is covered by unit tests.
- *
- * Run:  bun run --filter bio-mcp-unified test:contracts
- * Init: UPDATE_SNAPSHOTS=true bun run --filter bio-mcp-unified test:contracts
- */
-
 import { describe, it } from 'vitest';
-import axios from 'axios';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
+import { createNcbiRateLimiter } from '../../../shared/rate-limiter.js';
+import { PUBMED_POLICY, createPubMedHttp } from '../client.js';
 
-const BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
 const NCBI_API_KEY = process.env.NCBI_API_KEY;
+const PUBMED_CONTRACT_TIMEOUT_MS = 150_000;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const CONTRACT_OVERRIDES = {
+  maxAttempts: 4,
+  backoffMs: [2_000, 5_000, 10_000],
+  totalBudgetMs: 120_000,
+  jitter: 0,
+  on429: 'retry' as const,
+};
+
+const rateLimiter = createNcbiRateLimiter(!!NCBI_API_KEY);
+const http = createPubMedHttp({
+  policy: {
+    ...PUBMED_POLICY,
+    ...CONTRACT_OVERRIDES,
+    beforeAttempt: (signal) => rateLimiter.waitForToken(signal),
+  },
+});
 
 async function ncbiGet(
   endpoint: string,
   params: Record<string, string | number>,
 ): Promise<unknown> {
-  // NCBI rate limit: 3 req/s without API key. Space requests to ~2 req/s to stay safe.
   const delayMs = NCBI_API_KEY ? 100 : 500;
   await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
 
@@ -33,18 +36,16 @@ async function ncbiGet(
     ...params,
     ...(NCBI_API_KEY ? { api_key: NCBI_API_KEY } : {}),
   };
-  const res = await axios.get(`${BASE}/${endpoint}`, {
-    params: fullParams,
-    timeout: 20_000,
-  });
+  const res = await http.get(endpoint, { params: fullParams });
   return res.data;
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+function pubmedContractTest(name: string, test: () => Promise<void>): void {
+  it(name, { timeout: PUBMED_CONTRACT_TIMEOUT_MS, retry: 0 }, test);
+}
 
 describe('PubMed NCBI E-utilities API Contracts', () => {
-  // 1. esearch — used by searchPubmed, searchWithFilters, searchByAuthor, searchByJournal
-  it('esearch.fcgi schema is stable (CRISPR search)', async () => {
+  pubmedContractTest('esearch.fcgi schema is stable (CRISPR search)', async () => {
     const data = await ncbiGet('esearch.fcgi', {
       term: 'CRISPR',
       retmax: 5,
@@ -52,16 +53,14 @@ describe('PubMed NCBI E-utilities API Contracts', () => {
     await assertSchemaStable('pubmed/esearch-pubmed.schema.json', data);
   });
 
-  // 2. esummary — used by getArticleSummary, batchGetSummaries
-  it('esummary.fcgi schema is stable (PMID 28485846)', async () => {
+  pubmedContractTest('esummary.fcgi schema is stable (PMID 28485846)', async () => {
     const data = await ncbiGet('esummary.fcgi', {
       id: '28485846',
     });
     await assertSchemaStable('pubmed/esummary-pubmed.schema.json', data);
   });
 
-  // 3. elink neighbor — used by findRelatedArticles
-  it('elink.fcgi (neighbor) schema is stable (PMID 28485846)', async () => {
+  pubmedContractTest('elink.fcgi (neighbor) schema is stable (PMID 28485846)', async () => {
     const data = await ncbiGet('elink.fcgi', {
       id: '28485846',
       cmd: 'neighbor',
@@ -69,8 +68,7 @@ describe('PubMed NCBI E-utilities API Contracts', () => {
     await assertSchemaStable('pubmed/elink-related.schema.json', data);
   });
 
-  // 4. elink citedin — used by getCitations
-  it('elink.fcgi (citedin) schema is stable (PMID 28485846)', async () => {
+  pubmedContractTest('elink.fcgi (citedin) schema is stable (PMID 28485846)', async () => {
     const data = await ncbiGet('elink.fcgi', {
       id: '28485846',
       linkname: 'pubmed_pubmed_citedin',

@@ -1,9 +1,3 @@
-/**
- * Code evaluators against fixtures. `tp53-uniprot.json` is a real dev turn
- * (model_transcript of a TP53 UniProt lookup: ensembl__search_genes then
- * ensembl__get_xrefs); the multi-turn cases are built from it so their tool
- * outputs stay real.
- */
 import { describe, expect, it } from "bun:test";
 import tp53 from "./fixtures/tp53-uniprot.json";
 import { checkpointRecall, aliasHits } from "../checkpoint-recall";
@@ -77,7 +71,6 @@ describe("id_grounding", () => {
     const e = single(idGrounding(out, item()));
     expect(e.value).toBe(0);
     expect(e.comment).toBe("ungrounded: turn 2: P04637");
-    // The same evidence from an ok turn 1 grounds it.
     const okFirst = output([{ ...realTurn }, out.turns[1]!]);
     expect(single(idGrounding(okFirst, item())).value).toBe(1);
   });

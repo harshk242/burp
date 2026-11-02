@@ -1,10 +1,5 @@
-/**
- * Feedback routes: ownership, upsert, categories, clear, clear → re-create
- * keeping the score id, Langfuse failures not failing requests, and feedback
- * in the session history. Auth is stubbed: `x-test-user` is the signed-in user.
- */
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
-import { Hono, type Context, type Next } from "hono";
+import { Hono } from "hono";
 import { createTestDb } from "../__test-utils__/db";
 import { createQueries } from "../db/queries";
 import { createFeedbackSync, feedbackScoreId, setFeedbackSyncForTests, type FeedbackSync } from "../observability/feedback-sync";
@@ -14,20 +9,22 @@ import type { AppEnv } from "../types";
 const t = createTestDb();
 const q = createQueries(t.db);
 mock.module("../db", () => ({ db: t.db, sqlite: t.sqlite, ...q }));
-mock.module("../middleware/clerk", () => ({
-  clerkAuth: async (c: Context<AppEnv>, next: Next) => {
-    c.set("userId", c.req.header("x-test-user") ?? null);
-    await next();
-  },
-  requireDbUser: async (_c: Context, next: Next) => next(),
-  requireUser: async (_c: Context, next: Next) => next(),
-}));
 
 const { feedback } = await import("../routes/feedback");
 const { sessions } = await import("../routes/sessions");
 const app = new Hono<AppEnv>().route("/messages", feedback).route("/sessions", sessions);
 
 seedTracedTurn(q);
+
+const savedEnv = { DEV_AGENT_TOKEN: process.env.DEV_AGENT_TOKEN, DEV_AGENT_EMAIL: process.env.DEV_AGENT_EMAIL };
+const agentToken = "feedback-routes-test-agent-token-0123456789";
+process.env.DEV_AGENT_TOKEN = agentToken;
+
+function authAs(userId: string) {
+  process.env.DEV_AGENT_EMAIL = q.userQueries.findById(userId)!.email;
+  return { authorization: `Bearer ${agentToken}` };
+}
+
 const key = { messageId: ids.assistantMessage, userId: ids.user };
 
 let writer: FakeScoreWriter;
@@ -36,7 +33,7 @@ let sync: FeedbackSync;
 function send(method: "PUT" | "DELETE", messageId: string, user = ids.user, body?: unknown) {
   return app.request(`/messages/${messageId}/feedback`, {
     method,
-    headers: { "x-test-user": user, "content-type": "application/json" },
+    headers: { ...authAs(user), "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
@@ -44,11 +41,17 @@ function send(method: "PUT" | "DELETE", messageId: string, user = ids.user, body
 beforeEach(() => {
   t.sqlite.run("DELETE FROM message_feedback");
   writer = new FakeScoreWriter();
-  sync = createFeedbackSync({ queries: q.messageFeedbackQueries, writer, environment: "test", sleep: async () => {} });
+  sync = createFeedbackSync({ queries: q.messageFeedbackQueries, writer, environment: "test" });
   setFeedbackSyncForTests(sync);
 });
 
-afterAll(() => setFeedbackSyncForTests(null));
+afterAll(() => {
+  setFeedbackSyncForTests(null);
+  for (const [name, value] of Object.entries(savedEnv)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+});
 
 describe("feedback routes", () => {
   it("rejects other users, unknown messages, user messages and bad values", async () => {
@@ -66,13 +69,13 @@ describe("feedback routes", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ feedback: { value: 0, comment: "wrong variant", categories: [] } });
     await sync.idle();
-    expect(writer.remote.get(feedbackScoreId(key))).toMatchObject({ traceId: ids.traceId, value: 0, comment: "wrong variant" });
+    expect(writer.remote.get(feedbackScoreId(key, q.messageFeedbackQueries.find(key)!.revision))).toMatchObject({ traceId: ids.traceId, value: 0, comment: "wrong variant" });
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: 0, revision: 1, sync_pending: 0 });
 
     await send("PUT", ids.assistantMessage, ids.user, { value: 1 });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: 1, comment: null, revision: 2, sync_pending: 0 });
-    expect(writer.remote.get(feedbackScoreId(key))?.value).toBe(1);
+    expect(writer.remote.get(feedbackScoreId(key, q.messageFeedbackQueries.find(key)!.revision))?.value).toBe(1);
   });
 
   it("persists categories deduped and sorted, and returns them", async () => {
@@ -84,12 +87,10 @@ describe("feedback routes", () => {
     expect(await res.json()).toEqual({ feedback: { value: 1, comment: null, categories: ["accurate", "well_sourced"] } });
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ categories: ["accurate", "well_sourced"], revision: 1 });
 
-    // Changing only the categories is a write like any other (revision bump → re-sync).
     await send("PUT", ids.assistantMessage, ids.user, { value: 1, categories: ["clear"] });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ categories: ["clear"], revision: 2, synced_revision: 2 });
 
-    // Omitted categories default to [] (a thumb click never keeps old ones).
     await send("PUT", ids.assistantMessage, ids.user, { value: 0 });
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: 0, categories: [] });
   });
@@ -110,24 +111,24 @@ describe("feedback routes", () => {
     expect(await res.json()).toEqual({ feedback: null });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ value: null, categories: [], revision: 2, sync_pending: 0 });
-    expect(writer.remote.has(feedbackScoreId(key))).toBe(false);
-    expect([...writer.remote.values()].map((s) => s.value)).toEqual(Array(10).fill(0)); // category scores stay, as false
-    // Clearing again (or without feedback) writes nothing.
+    expect(writer.remote.has(feedbackScoreId(key, 1))).toBe(false);
+    expect([...writer.remote.values()].map((s) => s.value)).toEqual(Array(10).fill(0));
     expect((await send("DELETE", ids.assistantMessage)).status).toBe(200);
     expect(q.messageFeedbackQueries.find(key)?.revision).toBe(2);
   });
 
-  it("clear → re-create keeps the row and the score id", async () => {
+  it("clear → re-create keeps the row and advances the remote generation", async () => {
     await send("PUT", ids.assistantMessage, ids.user, { value: 0 });
     const first = q.messageFeedbackQueries.find(key)!;
     await send("DELETE", ids.assistantMessage);
     await send("PUT", ids.assistantMessage, ids.user, { value: 1 });
     await sync.idle();
     expect(q.messageFeedbackQueries.find(key)).toMatchObject({ id: first.id, value: 1, revision: 3, sync_pending: 0 });
-    const main = writer.log.filter((c) => c.id === feedbackScoreId(key));
-    expect(main.map((c) => c.op)).toEqual(["upsert", "remove", "exists", "upsert"]);
+    const main = writer.log.filter((c) => c.id.startsWith("fb-"));
+    expect(main.some((c) => c.op === "exists")).toBe(false);
+    expect(main.filter((c) => c.op === "upsert").map((c) => c.id)).toEqual([feedbackScoreId(key, 1), feedbackScoreId(key, 3)]);
     expect(main.filter((c) => c.op === "upsert").map((c) => c.value)).toEqual([0, 1]);
-    expect(writer.remote.get(feedbackScoreId(key))?.value).toBe(1);
+    expect(writer.remote.get(feedbackScoreId(key, q.messageFeedbackQueries.find(key)!.revision))?.value).toBe(1);
   });
 
   it("succeeds when Langfuse is unreachable; the row stays pending", async () => {
@@ -142,7 +143,7 @@ describe("feedback routes", () => {
     await send("PUT", ids.assistantMessage, ids.user, { value: 0, comment: "too long", categories: ["incomplete"] });
     q.messageFeedbackQueries.upsert({ ...key, userId: ids.otherUser }, 1, null);
     const history = async () => {
-      const res = await app.request(`/sessions/${ids.session}`, { headers: { "x-test-user": ids.user } });
+      const res = await app.request(`/sessions/${ids.session}`, { headers: authAs(ids.user) });
       return ((await res.json()) as { messages: { id: string; feedback?: unknown }[] }).messages;
     };
     const messages = await history();

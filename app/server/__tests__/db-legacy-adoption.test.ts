@@ -25,7 +25,6 @@ import { diffFingerprints, fingerprintSchema } from "../db/introspect";
 import { isLegacyDatabase, runMigrations } from "../db/migrate";
 import { MIGRATIONS_FOLDER } from "../db/paths";
 
-/** Columns 0004_usage_cache_columns / 0005_usage_status_estimated add to usage_events, as legacy rows read back. */
 const LEGACY_USAGE_DEFAULTS = {
   cache_read_tokens: 0,
   cache_write_5m_tokens: 0,
@@ -78,7 +77,7 @@ describe("legacy adoption — happy path", () => {
 
         const result = runMigrations(sqlite);
         expect(result.adopted).toBe(true);
-        expect(result.applied.map((m) => m.tag)).toEqual(["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns", "0005_usage_status_estimated", "0006_artifacts", "0007_chat_turns", "0008_model_transcript", "0009_chat_turns_last_prompt_tokens", "0010_chat_turns_trace_id", "0011_chat_turns_turn_signals", "0012_message_feedback", "0013_message_feedback_delete_unconfirmed", "0014_message_feedback_categories"]);
+        expect(result.applied.map((m) => m.tag)).toEqual(["0001_tool_search_fts", "0002_seed_and_data_fixes", "0003_tighten_not_null", "0004_usage_cache_columns", "0005_usage_status_estimated", "0006_artifacts", "0007_chat_turns", "0008_model_transcript", "0009_chat_turns_last_prompt_tokens", "0010_chat_turns_trace_id", "0011_chat_turns_turn_signals", "0012_message_feedback", "0013_message_feedback_delete_unconfirmed", "0014_message_feedback_categories", "0015_feedback_sync_outbox", "0016_artifact_utf8_bytes", "0017_turn_usage_identity", "0018_drop_redundant_user_indexes"]);
         expect(result.transactionMs).toBeGreaterThan(0);
 
         expect(schemaSnapshot(sqlite)).toEqual(schemaSnapshot(fresh));
@@ -98,10 +97,9 @@ describe("legacy adoption — happy path", () => {
 
       it("replaces anonymous UNIQUE autoindexes with the named baseline indexes", () => {
         const sqlite = legacyDb(fixture);
-        expect(autoindexes(sqlite)).toContain("sqlite_autoindex_users_2"); // inline UNIQUE clerk_id
+        expect(autoindexes(sqlite)).toContain("sqlite_autoindex_users_2");
         runMigrations(sqlite);
 
-        // Only the autoindexes backing text PKs remain — same as a fresh DB.
         expect(autoindexes(sqlite)).toEqual(autoindexes(fresh));
         for (const name of autoindexes(sqlite)) {
           const table = sqlite.query<{ tbl_name: string }, [string]>("SELECT tbl_name FROM sqlite_master WHERE name = ?").get(name)!.tbl_name;
@@ -130,15 +128,12 @@ describe("legacy adoption — happy path", () => {
         runMigrations(sqlite);
 
         const expected = structuredClone(before);
-        // Frozen catch-up / 0002 retire the waitlist role.
         for (const u of expected.users!) if (u.role === "waitlist") u.role = "user";
-        // 0004 adds the cache/cost columns, 0005 status/usage_estimated, 0007 turn_id; legacy rows read back with defaults.
-        for (const e of expected.usage_events!) Object.assign(e, LEGACY_USAGE_DEFAULTS);
+        for (const e of expected.usage_events!) Object.assign(e, LEGACY_USAGE_DEFAULTS, { reconciliation_state: "none" });
         expect(dumpRows(sqlite)).toEqual(expected);
         expect(expected.users!.some((u) => u.id === "u-wait")).toBe(true);
         expect(sequenceOf(sqlite, "daily_usage")).toBe(3);
 
-        // New rows continue after the old high-water mark, not after max(id).
         sqlite.run("INSERT INTO daily_usage (user_id, date) VALUES ('u-user', '2026-02-01')");
         expect(sqlite.query("SELECT max(id) AS id FROM daily_usage").get()).toEqual({ id: 4 });
         expect(sqlite.query("SELECT count(*) AS n FROM tool_search_fts").get()).toEqual({ n: 1 });
@@ -157,7 +152,7 @@ describe("legacy adoption — happy path", () => {
   it("fixtures really differ from each other in representation before adoption", () => {
     const oldProd = legacyDb("old-prod");
     const sql = oldProd.query<{ sql: string }, []>("SELECT sql FROM sqlite_master WHERE name = 'daily_usage'").get()!.sql;
-    expect(sql).toContain("DEFAULT (unixepoch()), input_tokens INTEGER DEFAULT 0, output_tokens"); // ALTER-appended
+    expect(sql).toContain("DEFAULT (unixepoch()), input_tokens INTEGER DEFAULT 0, output_tokens");
     expect(schemaSnapshot(oldProd)).not.toEqual(schemaSnapshot(legacyDb("current")));
 
     const columns = (db: Database) =>
@@ -239,7 +234,6 @@ describe("unique-constraint parity (fresh vs adopted)", () => {
       expect(applied.map((m) => m.tag)).toEqual(["0900_test_drop_clerk_unique"]);
       insertUser(sqlite, "p2", "p2@example.com");
       expect(sqlite.query("SELECT count(*) AS n FROM users WHERE clerk_id = 'dup_clerk'").get()).toEqual({ n: 2 });
-      // Email uniqueness is untouched.
       expect(() => insertUser(sqlite, "p3", "p1@example.com")).toThrow(/UNIQUE constraint failed: users\.email/);
     });
   }

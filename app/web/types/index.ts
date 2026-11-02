@@ -1,8 +1,5 @@
+import type { RateLimitErrorCode } from "../../shared/rate-limit";
 import type { FeedbackCategoryId } from "@/lib/feedback-categories";
-
-// ============================================
-// User Types
-// ============================================
 
 export interface User {
   id: string;
@@ -22,10 +19,6 @@ export interface User {
   monthly_cost_limit_microusd?: number | null;
 }
 
-// ============================================
-// Session Types
-// ============================================
-
 export interface Session {
   id: string;
   user_id: string;
@@ -33,10 +26,6 @@ export interface Session {
   created_at: number;
   updated_at: number | null;
 }
-
-// ============================================
-// Message Types
-// ============================================
 
 export interface ToolCall {
   id: string;
@@ -49,28 +38,21 @@ export interface ToolCall {
   status: "pending" | "running" | "complete" | "error";
 }
 
-/** 👍 = 1, 👎 = 0 on an assistant message (the current user's) */
 export interface Feedback {
   value: 0 | 1;
   comment: string | null;
-  /** Selected category ids of the rating's polarity (lib/feedback-categories), sorted; [] when none */
   categories: FeedbackCategoryId[];
 }
 
 export interface Message {
-  /** Server message id when `persisted`, else a client-only id */
   id: string;
   role: "user" | "assistant";
   content: string;
   toolCalls?: ToolCall[];
   createdAt: number;
-  /** Token counts — set from the usage SSE event or loaded from history */
   tokenUsage?: { input: number; output: number };
-  /** Pre-tool-call reasoning text (separate from final response) */
   reasoning?: string;
-  /** Saved on the server under `id` (loaded from history or confirmed by the done event); feedback needs it */
   persisted?: boolean;
-  /** The user's feedback (assistant messages) */
   feedback?: Feedback | null;
 }
 
@@ -81,20 +63,12 @@ export interface DbMessage {
   content: string | null;
   tool_calls: ToolCall[] | null;
   created_at: number;
-  /** Token counts stored with the assistant message (0 for user messages) */
   input_tokens?: number;
   output_tokens?: number;
-  /** Main chat model cost stored in microdollars */
   cost_microusd?: number;
-  /** Pre-tool-call reasoning text stored separately to avoid model context contamination */
   reasoning?: string | null;
-  /** The current user's feedback (assistant messages only) */
   feedback?: Feedback | null;
 }
-
-// ============================================
-// Tool Types
-// ============================================
 
 export interface Tool {
   name: string;
@@ -103,10 +77,6 @@ export interface Tool {
   inputSchema: Record<string, unknown>;
   available: boolean;
 }
-
-// ============================================
-// API Response Types
-// ============================================
 
 export interface SessionListResponse {
   sessions: Session[];
@@ -126,27 +96,18 @@ export interface UserResponse {
   user: User;
 }
 
-// ============================================
-// Rate Limit Types
-// ============================================
-
 export class RateLimitError extends Error {
   constructor(
     message: string,
     public limit: number,
     public used: number,
     public resetAt: number,
-    /** "query_limit_exceeded" | "token_limit_exceeded" | "cost_limit_exceeded" */
-    public errorCode?: string
+    public errorCode?: RateLimitErrorCode
   ) {
     super(message);
     this.name = "RateLimitError";
   }
 }
-
-// ============================================
-// SSE Event Types
-// ============================================
 
 export type SSEEventType =
   | "start"
@@ -157,7 +118,6 @@ export type SSEEventType =
   | "reasoning"
   | "title"
   | "done"
-  | "usage"
   | "error";
 
 export interface SSEEvent {

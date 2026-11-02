@@ -1,39 +1,10 @@
-/**
- * Schema-based API contract validation utilities.
- *
- * Snapshots the *structure* (type + key presence) of an API response, not the
- * values. This naturally handles volatile fields (timestamps, counts, IDs) —
- * they always have a stable type even when their values change.
- *
- * Drift semantics:
- *   removed key → ERROR   (handler may depend on it)
- *   type changed → ERROR  (silent breakage — e.g. string → number)
- *   added key   → WARNING (non-breaking, logged but test passes)
- *   null drift on a path listed in `nullablePaths` → ignored (the upstream
- *   contract, e.g. a GraphQL schema, declares the field nullable)
- *
- * Array sampling:
- *   Up to MAX_SAMPLE_ITEMS elements are inspected and their schemas are merged.
- *   Keys present in only some items are marked optional in the merged schema.
- *   Optional keys in the baseline are not flagged as errors if absent in a later
- *   snapshot — preventing false positives from naturally sparse paginated data.
- */
-
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { expect } from 'vitest';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface SchemaNode {
-  type: 'string' | 'number' | 'boolean' | 'null' | 'object' | 'array' | 'union' | 'unknown';
-  path: string;
-  properties?: Record<string, SchemaNode>; // present when type === 'object'
-  items?: SchemaNode | null;               // present when type === 'array'; null if empty array
-  variants?: SchemaNode[];                 // present when type === 'union'
-  optional?: boolean;
-}
+import { extractSchema, getVariants, type SchemaNode } from '../../shared/schema.js';
+export { extractSchema, type SchemaNode } from '../../shared/schema.js';
 
 export interface SchemaDiff {
   removedKeys: string[];
@@ -41,141 +12,7 @@ export interface SchemaDiff {
   addedKeys: string[];
 }
 
-// ── Schema extraction ─────────────────────────────────────────────────────────
-
-/** Maximum number of array elements sampled when extracting a schema. */
-const MAX_SAMPLE_ITEMS = 5;
-
-/**
- * Recursively walk a JSON value and produce a structural SchemaNode.
- * For arrays, up to MAX_SAMPLE_ITEMS elements are sampled and their schemas
- * are merged so that keys present in any element are captured.
- */
-export function extractSchema(value: unknown, path = '$'): SchemaNode {
-  if (value === null) return { type: 'null', path };
-
-  if (Array.isArray(value)) {
-    return {
-      type: 'array',
-      path,
-      items: value.length > 0 ? mergeItemSchemas(value, path) : null,
-    };
-  }
-
-  if (typeof value === 'object') {
-    const node: SchemaNode = { type: 'object', path, properties: {} };
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      node.properties![k] = extractSchema(v, `${path}.${k}`);
-    }
-    return node;
-  }
-
-  if (typeof value === 'string') return { type: 'string', path };
-  if (typeof value === 'number') return { type: 'number', path };
-  if (typeof value === 'boolean') return { type: 'boolean', path };
-  return { type: 'unknown', path };
-}
-
-/**
- * Extract and merge schemas for up to MAX_SAMPLE_ITEMS elements of an array.
- * Keys that appear in only some elements are marked `optional: true` in the
- * resulting merged schema.
- */
-function mergeItemSchemas(items: unknown[], arrayPath: string): SchemaNode {
-  const sample = items.slice(0, MAX_SAMPLE_ITEMS);
-  const schemas = sample.map((item) => extractSchema(item, `${arrayPath}[]`));
-  // Array.reduce on a single-element array returns that element without calling
-  // the reducer, so this is safe for length === 1.
-  return schemas.reduce((merged, next) => mergeNodes(merged, next));
-}
-
-/**
- * Merge two SchemaNodes produced from different elements of the same array.
- * - Same type, both objects: union their properties; keys missing from either
- *   side are marked optional.
- * - Same type, both arrays: recurse into items.
- * - Same primitive type: return node `a` unchanged.
- * - Mismatched types: retain every observed type as an explicit union.
- */
-function mergeNodes(a: SchemaNode, b: SchemaNode): SchemaNode {
-  if (a.type === 'union' || b.type === 'union') {
-    return mergeUnionNodes(a, b);
-  }
-
-  if (a.type !== b.type) {
-    return { type: 'union', path: a.path, variants: [a, b] };
-  }
-
-  if (a.type === 'object' && b.type === 'object') {
-    const aProps = a.properties ?? {};
-    const bProps = b.properties ?? {};
-    const merged: Record<string, SchemaNode> = {};
-    const allKeys = new Set([...Object.keys(aProps), ...Object.keys(bProps)]);
-
-    for (const key of allKeys) {
-      if (key in aProps && key in bProps) {
-        // Present in both — recurse, preserve optional if either side says so
-        const mergedChild = mergeNodes(aProps[key], bProps[key]);
-        if (aProps[key].optional || bProps[key].optional) {
-          merged[key] = { ...mergedChild, optional: true };
-        } else {
-          merged[key] = mergedChild;
-        }
-      } else if (key in aProps) {
-        // Only in `a` — missing from `b`, so it's optional
-        merged[key] = { ...aProps[key], optional: true };
-      } else {
-        // Only in `b` — missing from `a`, so it's optional
-        merged[key] = { ...bProps[key], optional: true };
-      }
-    }
-
-    return { type: 'object', path: a.path, properties: merged };
-  }
-
-  if (a.type === 'array' && b.type === 'array') {
-    const items =
-      a.items && b.items ? mergeNodes(a.items, b.items) : (a.items ?? b.items ?? null);
-    return { type: 'array', path: a.path, items };
-  }
-
-  // Primitive with same type — nothing to merge
-  return a;
-}
-
-/**
- * Flatten and normalize a union. Variants of the same type are merged so an
- * object or array alternative retains its nested structural contract.
- */
-function mergeUnionNodes(a: SchemaNode, b: SchemaNode): SchemaNode {
-  const variants = [...getVariants(a), ...getVariants(b)];
-  const merged: SchemaNode[] = [];
-
-  for (const variant of variants) {
-    const matchingIndex = merged.findIndex((candidate) => candidate.type === variant.type);
-    if (matchingIndex === -1) {
-      merged.push(variant);
-    } else {
-      merged[matchingIndex] = mergeNodes(merged[matchingIndex], variant);
-    }
-  }
-
-  return { type: 'union', path: a.path, variants: merged };
-}
-
-function getVariants(node: SchemaNode): SchemaNode[] {
-  return node.type === 'union' ? (node.variants ?? []) : [node];
-}
-
-// ── Schema comparison ─────────────────────────────────────────────────────────
-
 export interface CompareOptions {
-  /**
-   * Paths whose values the API contract allows to be `null` (e.g. derived
-   * from a GraphQL schema). On these paths a change to or from `null` is not
-   * reported: a sampled baseline cannot distinguish "nullable" from "happened
-   * to be populated", so only the upstream contract can settle it.
-   */
   nullablePaths?: ReadonlySet<string>;
 }
 
@@ -186,13 +23,6 @@ interface CompareContext {
   nullablePaths: ReadonlySet<string>;
 }
 
-/**
- * Compare a baseline schema against a current schema.
- * Returns lists of removed keys, type changes, and newly added keys.
- *
- * A key that is marked `optional` in the baseline is allowed to be absent in
- * the current snapshot without triggering a "removed key" error.
- */
 export function compareSchemas(
   baseline: SchemaNode,
   current: SchemaNode,
@@ -210,7 +40,6 @@ export function compareSchemas(
   return { removedKeys: ctx.removedKeys, typeChanges: ctx.typeChanges, addedKeys: ctx.addedKeys };
 }
 
-/** True when a baseline/current type mismatch is only null drift on a nullable path. */
 function isToleratedNull(path: string, baselineType: string, currentType: string, ctx: CompareContext): boolean {
   return (baselineType === 'null' || currentType === 'null') && ctx.nullablePaths.has(path);
 }
@@ -234,12 +63,11 @@ function compareNodes(baseline: SchemaNode, current: SchemaNode, ctx: CompareCon
   }
 
   if (baseline.type === 'object' && current.type === 'object') {
-    const baseProps = baseline.properties ?? {};
-    const currProps = current.properties ?? {};
+    const baseProps = baseline.properties;
+    const currProps = current.properties;
 
     for (const key of Object.keys(baseProps)) {
       if (!(key in currProps)) {
-        // Only flag as removed if the baseline considered the key required.
         if (!baseProps[key].optional) {
           ctx.removedKeys.push(`${baseline.path}.${key}`);
         }
@@ -262,7 +90,7 @@ function compareNodes(baseline: SchemaNode, current: SchemaNode, ctx: CompareCon
   }
 }
 
-function compareUnionBaseline(baseline: SchemaNode, current: SchemaNode, ctx: CompareContext): void {
+function compareUnionBaseline(baseline: Extract<SchemaNode, { type: 'union' }>, current: SchemaNode, ctx: CompareContext): void {
   for (const currentVariant of getVariants(current)) {
     const baselineVariant = getVariants(baseline)
       .find((variant) => variant.type === currentVariant.type);
@@ -279,7 +107,7 @@ function compareUnionBaseline(baseline: SchemaNode, current: SchemaNode, ctx: Co
   }
 }
 
-function compareUnionCurrent(baseline: SchemaNode, current: SchemaNode, ctx: CompareContext): void {
+function compareUnionCurrent(baseline: SchemaNode, current: Extract<SchemaNode, { type: 'union' }>, ctx: CompareContext): void {
   for (const currentVariant of getVariants(current)) {
     if (currentVariant.type !== baseline.type) {
       if (!isToleratedNull(baseline.path, baseline.type, currentVariant.type, ctx)) {
@@ -296,8 +124,6 @@ function compareUnionCurrent(baseline: SchemaNode, current: SchemaNode, ctx: Com
 function describeVariants(node: SchemaNode): string {
   return getVariants(node).map((variant) => `'${variant.type}'`).join(' | ');
 }
-
-// ── Fixture I/O ───────────────────────────────────────────────────────────────
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.join(__dirname, 'fixtures');
@@ -327,21 +153,6 @@ export function saveFixture(fixturePath: string, schema: SchemaNode): void {
   fs.writeFileSync(fullPath, JSON.stringify(schema, null, 2) + '\n');
 }
 
-// ── Contract assertion helper ─────────────────────────────────────────────────
-
-/**
- * Assert that a live API response matches a committed schema fixture.
- *
- * Behaviour:
- *   UPDATE_SNAPSHOTS=true  → overwrite fixture with current schema and pass.
- *   fixture missing        → FAIL with a clear message (not auto-create).
- *                            Run UPDATE_SNAPSHOTS=true once to seed the fixture.
- *   fixture present        → compare; fail on removed keys or type changes.
- *                            `options.nullablePaths` tolerates null drift.
- *
- * The "fail on missing" rule is intentional: a renamed, deleted, or
- * never-committed fixture must not silently become a no-op test.
- */
 export async function assertSchemaStable(
   fixtureName: string,
   data: unknown,

@@ -1,7 +1,3 @@
-/**
- * The item evaluators the runner applies, in score order. Each is a pure
- * function of `(taskOutput, item)`; `evaluateItem` runs them all.
- */
 import { checkpointRecall } from "./checkpoint-recall";
 import { idGrounding } from "./id-grounding";
 import { toolCoverage } from "./tool-coverage";
@@ -15,7 +11,6 @@ export const ITEM_EVALUATORS: Record<string, ItemEvaluator> = {
   turn_signals: turnSignalScores,
 };
 
-/** Every evaluation for one item; evaluators that return null contribute nothing. */
 export function evaluateItem(output: TaskOutput, item: EvalItem): Evaluation[] {
   return Object.values(ITEM_EVALUATORS).flatMap((evaluate) => {
     const result = evaluate(output, item);

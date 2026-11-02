@@ -8,18 +8,14 @@ import { processChat, generateSessionTitle } from "../orchestration/chat-v2";
 import { chatSessionQueries, messageQueries } from "../db";
 import { logger } from "../logger";
 import { appConfig } from "../config";
+import { userCostBudgets } from "../orchestration/user-cost-budget";
 import { encodeSSE } from "./sse-encode";
 
 import type { AppEnv } from "../types";
 
 const chat = new OpenAPIHono<AppEnv>();
 
-// Apply Clerk auth and user role check to all chat routes
 chat.use("*", clerkAuth, requireDbUser, requireUser, rateLimitMiddleware);
-
-// ============================================
-// POST /api/chat - Chat with SSE streaming
-// ============================================
 
 const chatRoute = createRoute({
   method: "post",
@@ -47,8 +43,7 @@ The agent can query 10 biomedical databases:
 - \`text_block_end\` - Preceding text was pre-tool-call reasoning
 - \`tool_start\` - Tool execution started
 - \`tool_end\` - Tool execution completed
-- \`done\` - Response complete
-- \`usage\` - Token totals for the turn
+- \`done\` - Response complete (\`{ messageId, inputTokens, outputTokens }\`)
 - \`title\` - Generated session title
 - \`error\` - Turn failed (\`{ error, code? }\`; \`code\` is e.g. \`turn_in_progress\` when a reply is already running in the session, or \`refusal\`)`,
   security: [{ bearerAuth: [] }],
@@ -84,7 +79,7 @@ event: text
 data: "Found 5 proteins related to EGFR..."
 
 event: done
-data: {"messageId":"0b6c1f5e-6a1d-4e5b-9d65-0f2a4c8e7a11"}`,
+data: {"messageId":"0b6c1f5e-6a1d-4e5b-9d65-0f2a4c8e7a11","inputTokens":100,"outputTokens":50}`,
           }),
         },
       },
@@ -130,7 +125,6 @@ chat.openapi(chatRoute, async (c) => {
     );
   }
 
-  // Generate session ID if not provided
   const sessionId = providedSessionId || uuidv4();
 
   const existingSession = chatSessionQueries.findById(sessionId);
@@ -147,14 +141,11 @@ chat.openapi(chatRoute, async (c) => {
     (existingMessages.length === 0 || Boolean(firstUserMessage));
 
   return streamSSE(c, async (stream) => {
-    // A closed tab / dropped connection cancels the running turn.
     const abortController = new AbortController();
     stream.onAbort(() => abortController.abort());
 
+    const costBudget = userCostBudgets.acquire(userId, c.get("effectiveLimits"));
     try {
-      // Fire title generation in parallel with chat processing.
-      // The title only depends on the user's question, not the response,
-      // so we don't need to wait for chat completion.
       const titlePromise = shouldGenerateTitle
         ? generateSessionTitle(sessionId, firstUserMessage || message).catch(
             (err) => {
@@ -164,13 +155,12 @@ chat.openapi(chatRoute, async (c) => {
           )
         : null;
 
-      // Process chat through Claude with tool calling
-      for await (const event of processChat(sessionId, userId, message, abortController.signal)) {
+      for await (const event of processChat(sessionId, userId, message, abortController.signal, {
+        costBudget, onUsageRecorded: () => costBudget.release(),
+      })) {
         await stream.writeSSE(encodeSSE(event.type, event.data));
       }
 
-      // Emit the title after streaming completes.
-      // The API call likely finished long ago; this just awaits the stored result.
       if (titlePromise && !abortController.signal.aborted) {
         const title = await titlePromise;
         if (title) {
@@ -181,6 +171,8 @@ chat.openapi(chatRoute, async (c) => {
       if (abortController.signal.aborted) return;
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       await stream.writeSSE(encodeSSE("error", { error: errorMsg }));
+    } finally {
+      costBudget.release();
     }
   });
 });

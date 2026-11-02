@@ -1,11 +1,3 @@
-/**
- * MCPManager.callTool deadlines: a timed-out or aborted call is cancelled in
- * the MCP client (the server sees notifications/cancelled and its handler's
- * signal aborts), and a call that answers in time leaves no timer behind.
- *
- * The manager's "unified" server is wired to a real McpServer over the SDK's
- * in-memory transport.
- */
 import { afterEach, describe, expect, it } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -18,9 +10,9 @@ afterEach(async () => {
   cleanup = null;
 });
 
-/** A manager whose unified server has `demo__hang` (never answers until cancelled) and `demo__ok`. */
 async function connectedManager() {
   const cancelled: AbortSignal[] = [];
+  const requestMeta: unknown[] = [];
   const server = new McpServer({ name: "test", version: "1.0.0" });
   server.registerTool("demo__hang", { description: "never answers" }, (extra) => {
     cancelled.push(extra.signal);
@@ -29,6 +21,10 @@ async function connectedManager() {
   server.registerTool("demo__ok", { description: "answers" }, async () => ({
     content: [{ type: "text", text: "ok" }],
   }));
+  server.registerTool("demo__meta", { description: "answers with _meta" }, async (extra) => {
+    requestMeta.push(extra._meta);
+    return { content: [{ type: "text", text: "failed" }], isError: true, _meta: { retry: { attempts: 3 } } };
+  });
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "1.0.0" });
@@ -43,7 +39,7 @@ async function connectedManager() {
   const unified = manager.getStatus("unified")!;
   unified.client = client;
   unified.status = "running";
-  return { manager, serverSignals: cancelled };
+  return { manager, serverSignals: cancelled, requestMeta };
 }
 
 async function waitFor(check: () => boolean, ms = 1_000) {
@@ -78,6 +74,15 @@ describe("MCPManager.callTool deadlines", () => {
     expect((error as Error).message).not.toContain("Tool call timed out");
     await waitFor(() => serverSignals[0]?.aborted === true);
     expect(serverSignals[0].aborted).toBe(true);
+  });
+
+  it("sends the deadline as _meta.deadline_ms and keeps the result's _meta", async () => {
+    const { manager, requestMeta } = await connectedManager();
+
+    const result = await manager.callTool("demo", "meta", {}, 12_345);
+
+    expect(requestMeta[0]).toMatchObject({ deadline_ms: 12_345 });
+    expect(result).toEqual({ content: "failed", isError: true, meta: { retry: { attempts: 3 } } });
   });
 
   it("leaves no deadline timer pending when the call answers in time", async () => {

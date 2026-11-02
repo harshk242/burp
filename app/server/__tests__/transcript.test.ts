@@ -1,8 +1,3 @@
-/**
- * model_transcript building blocks: cache markers are stripped (and nothing
- * else is touched), tool_names_json comes from tool-call and tool-reference
- * parts, the table is append-only, and tool results carry fetched_at.
- */
 import { afterAll, describe, expect, it, mock } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -143,7 +138,6 @@ describe("model_transcript is append-only", () => {
   };
   const tag = { provider: "anthropic", model: "m", contextVersion: "v" };
 
-  // An update in Drizzle or SQL. Map.set in the replay loader isn't a DB write.
   const UPDATE_PATH = /\.update\(|UPDATE\s+[`"]?model_transcript/i;
 
   it("has no update path in its queries", () => {

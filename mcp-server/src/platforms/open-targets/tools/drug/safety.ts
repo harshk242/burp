@@ -1,10 +1,5 @@
-// Drug Safety API Tools
-
 import { getClient } from '../../client.js';
 
-/**
- * Retrieve adverse event signals associated with a drug.
- */
 export async function getDrugAdverseEvents(
   chemblId: string,
   pageIndex: number = 0,
@@ -32,9 +27,6 @@ export async function getDrugAdverseEvents(
   return client.query(query, { chemblId, pageIndex, pageSize });
 }
 
-/**
- * Summarise high-level pharmacovigilance data for a drug.
- */
 export async function getDrugPharmacovigilance(chemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -58,9 +50,6 @@ export async function getDrugPharmacovigilance(chemblId: string): Promise<unknow
   return client.query(query, { chemblId });
 }
 
-/**
- * Fetch detailed regulatory warnings, including withdrawals and boxed labels.
- */
 export async function getDrugWarnings(chemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `

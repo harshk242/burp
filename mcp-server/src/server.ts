@@ -6,27 +6,9 @@ import {
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { createCallToolHandler } from './call-tool.js';
 import type { PlatformModule, ToolHandler } from './types.js';
 
-// ── Layer 1 of 3: Prevent process death (5MB) ──────────────────────
-//
-// Tool output flows through three size guardrails, each with a distinct job:
-//
-//   MCP server  (5MB)  → prevent process death / stdio pressure
-//       ↓
-//   App manager (1MB)  → prevent LLM context blow-up
-//       ↓
-//   handleLargeOutput (15K) → noise reduce, then artifact if still big
-//
-// This layer is the coarsest — set high so it only fires on genuinely
-// pathological responses (e.g. size=10000). No silent truncation: data
-// is either sent intact or explicitly rejected with a structured error.
-const SERVER_HARD_CAP_BYTES = parseInt(
-  process.env.MCP_SERVER_HARD_CAP_BYTES ?? '5242880',
-  10,
-);
-
-// Import all platform modules
 import { platform as ensembl } from './platforms/ensembl/index.js';
 import { platform as openTargets } from './platforms/open-targets/index.js';
 import { platform as chembl } from './platforms/chembl/index.js';
@@ -51,7 +33,6 @@ const PLATFORMS: PlatformModule[] = [
   uniprot,
 ];
 
-/** Build the combined tool list and handler map (prefixed with platform name) */
 export function buildToolRegistry(platforms: PlatformModule[]) {
   const allTools: Tool[] = [];
   const allHandlers = new Map<string, ToolHandler>();
@@ -90,64 +71,12 @@ export function createServer(
     tools: allTools,
   }));
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
-    const handler = allHandlers.get(name);
-
-    if (!handler) {
-      return {
-        content: [{ type: 'text', text: `Unknown tool: ${name}` }],
-        isError: true,
-      };
-    }
-
-    try {
-      const result = await handler(args ?? {});
-      const serialized = JSON.stringify(result, null, 2);
-      const sizeBytes = Buffer.byteLength(serialized, 'utf-8');
-
-      // Crash-prevention guard: reject before sending over stdio.
-      // This prevents multi-MB payloads from pressuring transport/memory.
-      // NOT silent truncation — returns an explicit error with diagnostics.
-      if (sizeBytes > SERVER_HARD_CAP_BYTES) {
-        const actualMB = (sizeBytes / 1024 / 1024).toFixed(2);
-        const capMB = (SERVER_HARD_CAP_BYTES / 1024 / 1024).toFixed(1);
-        console.error(
-          `[WARN] Tool "${name}" output ${actualMB}MB exceeds server hard cap ${capMB}MB — returning error instead`,
-        );
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              error: 'output_too_large',
-              tool: name,
-              output_bytes: sizeBytes,
-              cap_bytes: SERVER_HARD_CAP_BYTES,
-              message: `Tool "${name}" returned ${actualMB}MB which exceeds the server-side ${capMB}MB safety cap. The data was NOT truncated — nothing was sent. To fix: use more specific query parameters (e.g., smaller 'size', narrower filters) to reduce the result set.`,
-            }),
-          }],
-          isError: true,
-        };
-      }
-
-      return {
-        content: [{ type: 'text', text: serialized }],
-      };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return {
-        content: [{ type: 'text', text: `Error: ${msg}` }],
-        isError: true,
-      };
-    }
-  });
+  server.setRequestHandler(CallToolRequestSchema, createCallToolHandler(allHandlers));
 
   return server;
 }
 
 export async function runServer(): Promise<void> {
-  // Filter platforms based on ENABLED_PLATFORMS env var from the app.
-  // If not set, all platforms are enabled (backwards-compatible default).
   const enabledNames = process.env.ENABLED_PLATFORMS
     ? new Set(process.env.ENABLED_PLATFORMS.split(',').map((s: string) => s.trim()).filter(Boolean))
     : null;
@@ -163,7 +92,6 @@ export async function runServer(): Promise<void> {
     }
   }
 
-  // Initialise only active platforms
   const env = process.env as Record<string, string | undefined>;
   for (const p of activePlatforms) {
     try {
@@ -181,7 +109,7 @@ export async function runServer(): Promise<void> {
 
   const cleanup = () => {
     for (const p of activePlatforms) {
-      try { p.cleanup(); } catch { /* ignore */ }
+      try { p.cleanup(); } catch { }
     }
     process.exit(0);
   };

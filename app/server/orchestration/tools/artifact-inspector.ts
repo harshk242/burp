@@ -1,27 +1,11 @@
-/**
- * inspect_artifact Tool
- *
- * Vercel AI SDK tool that allows the LLM to query stored artifacts
- * using jq filter expressions. Always declared in the tool catalog
- * (context/tool-catalog.ts), so the tool list never changes mid-turn.
- *
- * The sessionId is bound at creation time (closure) so the tool
- * can only access artifacts belonging to the current session.
- */
-
 import { tool } from "ai";
 import { z } from "zod";
-import { artifactStore } from "./artifact-store";
+import { artifactStore, MAX_TEXT_RANGE_CHARS } from "./artifact-store";
 
-/**
- * Create a session-bound inspect_artifact tool.
- *
- * @param sessionId - The chat session this tool is scoped to
- */
 export function createInspectArtifactTool(sessionId: string) {
   return tool({
     description:
-      "Query a stored data artifact using a jq filter expression. " +
+      "Inspect a stored artifact: use jq_filter for JSON or text_range for text. " +
       "Use this to extract specific fields, filter arrays, or reshape data " +
       "from large tool outputs that were too big to include inline. " +
       "The artifact_id and available structure are shown in the tool result preview. " +
@@ -32,7 +16,7 @@ export function createInspectArtifactTool(sessionId: string) {
         .string()
         .describe("The artifact ID from the preview (e.g. art_a1b2c3d4)"),
       jq_filter: z
-        .string()
+        .string().optional()
         .describe(
           "A jq filter expression to extract/reshape the data. Examples: " +
             "'.results[] | .name' — extract names; " +
@@ -41,22 +25,31 @@ export function createInspectArtifactTool(sessionId: string) {
             "'[.results[] | select(.type == \"gene\")]' — filter by field; " +
             "'.results | length' — count items",
         ),
+      text_range: z.object({
+        start: z.number().int().nonnegative().describe("Zero-based UTF-16 code-unit offset"),
+        length: z.number().int().min(1).max(MAX_TEXT_RANGE_CHARS).describe("Maximum UTF-16 code units to read"),
+      }).optional(),
     }),
-    execute: async ({ artifact_id, jq_filter }, { abortSignal }) => {
+    execute: async ({ artifact_id, jq_filter, text_range }, { abortSignal }) => {
       abortSignal?.throwIfAborted();
+      if ((jq_filter === undefined) === (text_range === undefined)) {
+        return JSON.stringify({ error: "Provide exactly one of jq_filter or text_range." });
+      }
+      if (text_range) {
+        return JSON.stringify(artifactStore.readText(artifact_id, sessionId, text_range.start, text_range.length));
+      }
       const result = await artifactStore.query(
         artifact_id,
         sessionId,
-        jq_filter,
+        jq_filter!,
+        abortSignal,
       );
-      // jq can't be cancelled mid-run; drop a result that lands after an abort.
       abortSignal?.throwIfAborted();
 
       if (result.error) {
         return JSON.stringify({ error: result.error });
       }
 
-      // Strings are returned as-is; stringifying would quote and escape them.
       const output =
         typeof result.result === "string"
           ? result.result

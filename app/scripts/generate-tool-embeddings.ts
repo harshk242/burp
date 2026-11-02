@@ -1,16 +1,3 @@
-/**
- * Rebuild the tool embeddings index from scratch.
- *
- * Spawns the unified MCP server, lists all tools, embeds them with the
- * embedder configured in config.yaml (`embedding:`), and writes the v2 index
- * to `tool_search.embeddings_path`. No model names live here: to try another
- * model, override provider AND model, e.g.
- *   EMBEDDING_PROVIDER=google EMBEDDING_MODEL=gemini-embedding-001 bun run generate:embeddings
- *
- * Usage: bun run generate:embeddings   (from repo root or app/)
- * Env: the configured provider's key (OPENAI_API_KEY by default; GEMINI_API_KEY for google)
- */
-
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { join } from "path";
@@ -39,7 +26,6 @@ async function main() {
   console.log(`Found ${tools.length} tools`);
   if (tools.length === 0) throw new Error("MCP server listed no tools");
 
-  // The unified server returns full names ("chembl__search_compounds"), matching the registry.
   const texts = tools.map((t) => toolEmbeddingText(t.name, t.description || ""));
 
   console.log(`Embedding with ${embedder.id}...`);

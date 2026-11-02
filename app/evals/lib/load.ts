@@ -1,10 +1,3 @@
-/**
- * YAML → validated objects. Fails fast with `file:line:col` errors: YAML syntax errors
- * and schema issues are mapped back to the source position of the offending node.
- *
- * Cross-file checks: dataset names unique, item ids unique across ALL datasets
- * (Langfuse item ids are project-wide), metric names unique, rubric files exist.
- */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { isNode, LineCounter, parseDocument, type Document } from "yaml";
@@ -21,7 +14,6 @@ export class EvalLoadError extends Error {
 }
 
 export interface LoadedDataset {
-  /** Path relative to app/evals/, e.g. "datasets/smoke-v0.yaml". */
   file: string;
   dataset: DatasetFile;
 }
@@ -48,7 +40,6 @@ export function parseYaml(absPath: string, rootDir: string): { parsed?: ParsedYa
   return { parsed: problems.length ? undefined : { doc, lines, file }, problems };
 }
 
-/** Source position of the deepest existing node on `path`. */
 function locate({ doc, lines, file }: ParsedYaml, path: ReadonlyArray<string | number>): string {
   for (let depth = path.length; depth >= 0; depth--) {
     const node = depth === 0 ? doc.contents : doc.getIn(path.slice(0, depth), true);
@@ -74,7 +65,6 @@ export function validate<S extends z.ZodTypeAny>(
   return undefined;
 }
 
-/** Loads and validates every eval file under `rootDir`. Throws EvalLoadError listing all problems. */
 export function loadEvalHome(rootDir: string = EVALS_DIR): EvalHome {
   const problems: string[] = [];
   const datasets: LoadedDataset[] = [];

@@ -1,19 +1,9 @@
-/**
- * Per-call usage meter: splits each LLM call's input into cache categories,
- * prices it on its own (usage.ts cost engine), logs it, and turns the calls
- * into the turn's usage_events fields.
- *
- * The meter lives outside the success path of the chat loop, so whatever calls
- * finished can be recorded even when the turn fails or is aborted.
- */
-
 import type { LanguageModelUsage, ProviderMetadata } from "ai";
 import { appConfig, type AppConfig } from "../config";
 import type { DbUsageEvent } from "../types";
 import { logger, type LogContext } from "../logger";
 import { priceCall, resolvePricing, summarizeTurnCost, type CallCost, type CallUsage, type ChatCost } from "../usage";
 
-/** Per-call details that only go to the `llm_response_received` log. */
 export interface CallLogInfo {
   iteration: number;
   durationMs: number;
@@ -23,7 +13,6 @@ export interface CallLogInfo {
   systemPrompt: string;
 }
 
-/** The usage_events columns the meter owns. */
 export type UsageLedgerFields = Pick<
   DbUsageEvent,
   | "input_tokens"
@@ -44,7 +33,6 @@ export type UsageLedgerFields = Pick<
   | "usage_estimated"
 >;
 
-/** Short sha1, enough to spot a changed cache prefix between calls. */
 export function shortHash(text: string): string {
   return new Bun.CryptoHasher("sha1").update(text).digest("hex").slice(0, 8);
 }
@@ -60,18 +48,14 @@ function count(value: unknown): number {
 }
 
 /**
- * Splits one call's usage into categories. `inputTokenDetails` gives the
- * Anthropic and Google split; the 5m/1h write split exists only in Anthropic's
- * raw usage (`providerMetadata.anthropic.usage.cache_creation`). Without it,
- * every write counts as 5m, the TTL we send. Google never reports writes.
- *
- * `gap` = reported input minus the categories; a positive gap is charged as
- * uncached input so a provider change can't silently undercharge.
+ * `inputTokenDetails` gives the Anthropic and Google split; the 5m/1h write
+ * split exists only in Anthropic's raw usage
+ * (`providerMetadata.anthropic.usage.cache_creation`). Google never reports writes.
  */
 export function splitCallUsage(
   usage: LanguageModelUsage | undefined,
   providerMetadata: ProviderMetadata | undefined
-): { usage: CallUsage; inputTokens: number; gap: number } {
+): { usage: CallUsage; inputTokens: number; gap: number; policy: string } {
   const details = usage?.inputTokenDetails;
   const noCache = count(details?.noCacheTokens);
   const cacheRead = count(details?.cacheReadTokens);
@@ -82,12 +66,14 @@ export function splitCallUsage(
   const write1h = Math.min(count(cacheCreation?.ephemeral_1h_input_tokens), cacheWrite);
 
   const gap = inputTokens - (noCache + cacheRead + cacheWrite);
+  const overflow = gap < 0;
   return {
+    policy: overflow ? "discard_inconsistent_split_as_uncached" : "fill_missing_as_uncached",
     usage: {
-      noCacheTokens: noCache + Math.max(0, gap),
-      cacheReadTokens: cacheRead,
-      cacheWrite5mTokens: cacheWrite - write1h,
-      cacheWrite1hTokens: write1h,
+      noCacheTokens: overflow ? inputTokens : noCache + Math.max(0, gap),
+      cacheReadTokens: overflow ? 0 : cacheRead,
+      cacheWrite5mTokens: overflow ? 0 : cacheWrite - write1h,
+      cacheWrite1hTokens: overflow ? 0 : write1h,
       outputTokens: count(usage?.outputTokens),
     },
     inputTokens,
@@ -95,7 +81,6 @@ export function splitCallUsage(
   };
 }
 
-/** Exact pico-USD as a decimal µUSD number, for logs only. */
 function picoToMicrousd(pico: number): number {
   return pico / 1_000_000;
 }
@@ -115,7 +100,6 @@ export class UsageMeter {
     return this.calls.length;
   }
 
-  /** Records one finished call from the SDK's usage and provider metadata. */
   record(
     usage: LanguageModelUsage | undefined,
     providerMetadata: ProviderMetadata | undefined,
@@ -132,6 +116,7 @@ export class UsageMeter {
           cache_read: usage?.inputTokenDetails?.cacheReadTokens,
           cache_write: usage?.inputTokenDetails?.cacheWriteTokens,
           gap: split.gap,
+          policy: split.policy,
         },
       });
     }
@@ -171,10 +156,6 @@ export class UsageMeter {
     return call;
   }
 
-  /**
-   * Prices and keeps an already-split call. `estimated`: the usage is an
-   * estimate for a call cut off mid-stream; the ledger row gets flagged.
-   */
   add(usage: CallUsage, { estimated = false }: { estimated?: boolean } = {}): CallCost {
     const call = priceCall(this.provider, this.model, usage, this.config);
     this.calls.push(call);
@@ -186,7 +167,6 @@ export class UsageMeter {
     return summarizeTurnCost(this.calls);
   }
 
-  /** The usage_events columns for every call recorded so far. */
   ledgerFields(cost: ChatCost = this.summary()): UsageLedgerFields {
     const pricing = resolvePricing(this.provider, this.model, this.config);
     return {
@@ -209,7 +189,6 @@ export class UsageMeter {
     };
   }
 
-  /** Turn totals for the `process_complete` log. */
   logFields(cost: ChatCost = this.summary()): Record<string, unknown> {
     return {
       llm_calls: cost.llmCalls,

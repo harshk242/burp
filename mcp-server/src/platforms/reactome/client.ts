@@ -1,23 +1,40 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 
-let client: AxiosInstance | null = null;
+export const REACTOME_POLICY: RetryPolicy = Object.freeze({
+  maxAttempts: 1,
+  backoffMs: [0],
+  totalBudgetMs: 40_000,
+  perAttemptTimeoutMs: 30_000,
+});
 
-/**
- * Initialise (or re-initialise) the Reactome Content Service API client.
- * Called once from the platform module's `init()`.
- */
-export function initClient(_env: Record<string, string | undefined>): void {
-  client = axios.create({
-    baseURL: 'https://reactome.org/ContentService',
+export const REACTOME_BASE_URL = 'https://reactome.org/ContentService';
+
+export interface ReactomeClientOptions {
+  policy?: RetryPolicy;
+  adapter?: AxiosAdapter;
+  retryDeps?: RetryDeps;
+}
+
+export function createReactomeClient(options: ReactomeClientOptions = {}): AxiosInstance {
+  const instance = axios.create({
+    baseURL: REACTOME_BASE_URL,
     timeout: 30_000,
     headers: {
       'User-Agent': 'Reactome-MCP-Server/1.0.0',
       'Content-Type': 'application/json',
     },
+    ...(options.adapter ? { adapter: options.adapter } : {}),
   });
+  return attachRetry(instance, options.policy ?? REACTOME_POLICY, 'reactome', options.retryDeps);
 }
 
-/** Return the shared Axios instance. Throws if called before `initClient`. */
+let client: AxiosInstance | null = null;
+
+export function initClient(_env: Record<string, string | undefined>, options: ReactomeClientOptions = {}): void {
+  client = createReactomeClient(options);
+}
+
 export function getClient(): AxiosInstance {
   if (!client) {
     throw new Error('Reactome API client not initialised – call initClient() first');
@@ -25,7 +42,6 @@ export function getClient(): AxiosInstance {
   return client;
 }
 
-/** Tear down the client (cancel pending requests, release references). */
-export function cleanupClient(): void {
+export function resetClient(): void {
   client = null;
 }

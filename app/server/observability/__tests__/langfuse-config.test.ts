@@ -1,4 +1,3 @@
-/** observability.langfuse config + env overrides, and how `release` is resolved. */
 import { describe, expect, it } from "bun:test";
 import { loadConfig } from "../../config";
 import { resolveRelease } from "../langfuse";

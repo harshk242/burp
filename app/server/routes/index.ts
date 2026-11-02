@@ -12,7 +12,6 @@ import type { AppEnv } from "../types";
 
 const api = new OpenAPIHono<AppEnv>();
 
-// Mount route modules
 api.route("/users", users);
 api.route("/waitlist", waitlist);
 api.route("/sessions", sessions);
@@ -22,7 +21,6 @@ api.route("/chat", chat);
 api.route("/usage", usage);
 api.route("/admin", admin);
 
-// Generate OpenAPI spec
 api.doc("/doc", {
   openapi: "3.1.0",
   info: {
@@ -104,7 +102,6 @@ Authorization: Bearer <your-jwt-token>
   security: [{ bearerAuth: [] }],
 });
 
-// Register security scheme
 api.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
   type: "http",
   scheme: "bearer",
@@ -112,7 +109,6 @@ api.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
   description: "Clerk JWT token",
 });
 
-// Swagger UI
 api.get(
   "/swagger",
   swaggerUI({
@@ -121,7 +117,6 @@ api.get(
   })
 );
 
-// API root - redirect to swagger
 api.get("/", (c) => {
   return c.redirect("/api/swagger");
 });

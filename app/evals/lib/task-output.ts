@@ -1,12 +1,5 @@
-/**
- * Builds the experiment task output from an item session's persisted rows
- * (plan 2.1 step 3): chat_turns, the user/assistant messages, model_transcript
- * and usage_events. Tool calls and their outputs come from model_transcript, so
- * evaluators see exactly what the model saw. Pure: the runner reads the rows.
- */
 import type { TaskOutput, TaskToolCall, TaskTurn } from "../evaluators/types";
 
-/** The chat_turns columns used. */
 export interface TurnRow {
   id: string;
   user_message_id: string;
@@ -34,16 +27,11 @@ export interface UsageRow {
 export interface SessionRows {
   itemId: string;
   sessionId: string;
-  /** In turn order. */
   turns: TurnRow[];
-  /** Message content by message id. */
   messages: Map<string, string | null>;
-  /** In seq order. */
   transcript: TranscriptRow[];
   usage: UsageRow[];
-  /** Wall-clock drain time per turn, in turn order. */
   durationsMs: number[];
-  /** Transcript tool names → registered names (Gemini sanitizes `-`). */
   toolName?: (name: string) => string;
 }
 
@@ -56,7 +44,6 @@ interface Part {
   text?: string;
 }
 
-/** A tool result as the text the model saw. */
 export function outputText(output: Part["output"]): string {
   if (!output) return "";
   const { type, value } = output;
@@ -72,7 +59,6 @@ function partsOf(row: TranscriptRow): Part[] {
   return Array.isArray(message.content) ? (message.content as Part[]) : [];
 }
 
-/** Tool calls of one turn, in call order, joined with their results. */
 function toolCallsOf(rows: TranscriptRow[], toolName: (name: string) => string): TaskToolCall[] {
   const calls = new Map<string, TaskToolCall>();
   for (const row of rows) {
