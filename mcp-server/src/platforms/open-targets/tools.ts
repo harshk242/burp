@@ -234,7 +234,7 @@ export const toolDefinitions: Tool[] = [
   },
   {
     name: 'get_target_tep',
-    description: 'Fetch Target Enabling Package (TEP) information for a gene.',
+    description: 'Check target identity and report TEP availability. Target Enabling Packages were removed from the upstream API.',
     inputSchema: {
       type: 'object',
       properties: {

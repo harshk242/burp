@@ -2,13 +2,18 @@
 export function paginateTargetLists(
   data: unknown, paths: string[], index: number, size: number, root = 'target',
 ): unknown {
-  const result = structuredClone(data) as Record<string, any>;
+  const result = structuredClone(data);
   for (const path of paths) {
-    const keys = path.split('.');
-    let parent = result?.[root];
-    for (const key of keys.slice(0, -1)) parent = parent?.[key];
+    const keys = [root, ...path.split('.')];
+    let parent: unknown = result;
+    for (const key of keys.slice(0, -1)) {
+      parent = parent && typeof parent === 'object' ? (parent as Record<string, unknown>)[key] : undefined;
+    }
     const key = keys[keys.length - 1];
-    if (Array.isArray(parent?.[key])) parent[key] = parent[key].slice(index * size, (index + 1) * size);
+    if (parent && typeof parent === 'object') {
+      const record = parent as Record<string, unknown>;
+      if (Array.isArray(record[key])) record[key] = record[key].slice(index * size, (index + 1) * size);
+    }
   }
   return result;
 }
