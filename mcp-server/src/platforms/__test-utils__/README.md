@@ -36,3 +36,7 @@ to introspection ordering.
 CI automatically discovers `__tests__/tool-handlers.contract.ts` for changed
 platforms; shared helper changes select all platform contracts. The changed
 platform job intentionally warns through `continue-on-error: true`.
+
+The unfiltered Open Targets credible-set handler first checks the count: the
+upstream nested study resolver can time out even for an empty collection.
+The contract exercises this path rather than skipping the required-only case.
