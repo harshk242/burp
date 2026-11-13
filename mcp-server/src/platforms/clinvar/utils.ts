@@ -179,7 +179,8 @@ export function buildClinVarSearchTerm(params: {
   }
   if (params.clinicalSignificance) {
     const significance = params.clinicalSignificance.trim().toLowerCase().replace(/\s+/g, '_');
-    terms.push(`clinsig_${significance}[prop]`);
+    // NCBI's property vocabulary abbreviates uncertain significance as VUS.
+    terms.push(`clinsig_${significance === 'uncertain_significance' ? 'vus' : significance}[prop]`);
   }
   if (params.molecularConsequence) {
     // ClinVar indexes donor and acceptor consequences separately.
