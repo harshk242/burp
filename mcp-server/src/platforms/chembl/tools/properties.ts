@@ -29,9 +29,8 @@ export const tools: Tool[] = [
       type: 'object',
       properties: {
         chembl_id: { type: 'string', description: 'ChEMBL compound ID' },
-        smiles: { type: 'string', description: 'SMILES string (alternative to ChEMBL ID)' },
       },
-      required: [],
+      required: ['chembl_id'],
     },
   },
   {
@@ -41,9 +40,8 @@ export const tools: Tool[] = [
       type: 'object',
       properties: {
         chembl_id: { type: 'string', description: 'ChEMBL compound ID' },
-        smiles: { type: 'string', description: 'SMILES string (alternative to ChEMBL ID)' },
       },
-      required: [],
+      required: ['chembl_id'],
     },
   },
   {
@@ -53,9 +51,8 @@ export const tools: Tool[] = [
       type: 'object',
       properties: {
         chembl_id: { type: 'string', description: 'ChEMBL compound ID' },
-        smiles: { type: 'string', description: 'SMILES string (alternative to ChEMBL ID)' },
       },
-      required: [],
+      required: ['chembl_id'],
     },
   },
 ];
@@ -97,16 +94,10 @@ async function handleAnalyzeAdmetProperties(args: Record<string, unknown>) {
 }
 
 async function handleCalculateDescriptors(args: Record<string, unknown>) {
-  if (!args || (!args.chembl_id && !args.smiles)) {
+  if (!isValidChemblIdArgs(args)) {
     throw new Error('Invalid descriptor calculation arguments');
   }
 
-  if (!args.chembl_id) {
-    return {
-      message: 'SMILES-based descriptor calculation requires ChEMBL ID',
-      smiles: args.smiles,
-    };
-  }
 
   const client = getClient();
   const response = await client.get(`/molecule/${args.chembl_id}.json`);
@@ -154,16 +145,10 @@ async function handleCalculateDescriptors(args: Record<string, unknown>) {
 }
 
 async function handlePredictSolubility(args: Record<string, unknown>) {
-  if (!args || (!args.chembl_id && !args.smiles)) {
+  if (!isValidChemblIdArgs(args)) {
     throw new Error('Invalid solubility prediction arguments');
   }
 
-  if (!args.chembl_id) {
-    return {
-      message: 'SMILES-based solubility prediction requires ChEMBL ID',
-      smiles: args.smiles,
-    };
-  }
 
   const client = getClient();
   const response = await client.get(`/molecule/${args.chembl_id}.json`);
@@ -220,16 +205,10 @@ async function handlePredictSolubility(args: Record<string, unknown>) {
 }
 
 async function handleAssessDrugLikeness(args: Record<string, unknown>) {
-  if (!args || (!args.chembl_id && !args.smiles)) {
+  if (!isValidChemblIdArgs(args)) {
     throw new Error('Invalid drug-likeness assessment arguments');
   }
 
-  if (!args.chembl_id) {
-    return {
-      message: 'SMILES-based drug-likeness assessment requires ChEMBL ID',
-      smiles: args.smiles,
-    };
-  }
 
   const client = getClient();
   const response = await client.get(`/molecule/${args.chembl_id}.json`);
