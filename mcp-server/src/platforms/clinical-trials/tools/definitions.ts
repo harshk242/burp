@@ -3,7 +3,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 const PHASE_PROP = {
   type: 'string' as const,
   description: 'Study phase filter',
-  enum: ['PHASE1', 'PHASE2', 'PHASE3', 'PHASE4', 'NA'],
+  enum: ['EARLY_PHASE1', 'PHASE1', 'PHASE2', 'PHASE3', 'PHASE4', 'NA'],
 };
 
 const PAGE_SIZE_100 = {
@@ -74,7 +74,6 @@ export const tools: Tool[] = [
         state: { type: 'string', description: 'State or province' },
         city: { type: 'string', description: 'City name' },
         facilityName: { type: 'string', description: 'Name of medical facility or institution' },
-        distance: { type: 'number', description: 'Search radius in miles (when using city)', minimum: 1, maximum: 500 },
         pageSize: PAGE_SIZE_100,
       },
     },
