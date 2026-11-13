@@ -237,8 +237,8 @@ export class ClinVarClient {
     options?: { maxResults?: number }
   ): Promise<{ count: number; ids: string[] }> {
     const coordTerm = stop
-      ? `${chromosome}[chr] AND ${start}:${stop}[chrpos37]`
-      : `${chromosome}[chr] AND ${start}[chrpos37]`;
+      ? `${chromosome}[chr] AND ${start}:${stop}[cpos]`
+      : `${chromosome}[chr] AND ${start}[cpos]`;
 
     return this.search(coordTerm, { maxResults: options?.maxResults });
   }
