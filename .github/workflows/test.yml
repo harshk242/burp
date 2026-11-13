@@ -112,3 +112,53 @@ jobs:
           name: contract-drift-report
           path: mcp-server/src/platforms/__test-utils__/fixtures/
           retention-days: 14
+
+  # Unit tests mock HTTP, so they cannot tell whether the live API accepts a request
+  # (e.g. ClinicalTrials.gov rejecting `filter.phase` with HTTP 400). Run the live
+  # contract tests of any platform a PR touches, instead of waiting for the nightly run.
+  changed-platform-contracts:
+    name: Contract Tests (changed platforms)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 30
+    # Live APIs can be flaky; surface failures as a warning instead of blocking merges.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Find changed platforms
+        id: changed
+        run: |
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- mcp-server/src/platforms/)
+          if echo "$changed" | grep -q '^mcp-server/src/platforms/__test-utils__/'; then
+            dirs="src/platforms"
+          else
+            dirs=$(echo "$changed" | sed -n 's#^mcp-server/\(src/platforms/[^/]*\)/.*#\1#p' | sort -u \
+              | while read -r d; do ls "mcp-server/$d"/__tests__/*.contract.ts >/dev/null 2>&1 && echo "$d"; done | xargs)
+          fi
+          echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
+          echo "Platforms with contract tests to run: ${dirs:-none}"
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.changed.outputs.dirs != ''
+        with:
+          bun-version: 1.4.4
+
+      - uses: actions/setup-node@v7
+        if: steps.changed.outputs.dirs != ''
+        with:
+          node-version: '24'
+
+      - name: Install mcp-server dependencies
+        if: steps.changed.outputs.dirs != ''
+        working-directory: mcp-server
+        run: bun install
+
+      - name: Run contract tests for changed platforms
+        if: steps.changed.outputs.dirs != ''
+        working-directory: mcp-server
+        run: bunx vitest run --config vitest.contracts.config.ts --reporter=verbose ${{ steps.changed.outputs.dirs }}
+        env:
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}

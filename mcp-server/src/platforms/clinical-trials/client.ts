@@ -130,7 +130,7 @@ function apiErrorMessage(cause: unknown): string | undefined {
  * else with HTTP 400, so field filters (phase, sex, age, dates, ...) must go
  * through `filter.advanced` — see advanced-filter.ts.
  */
-const STUDIES_PARAMS = new Set([
+export const STUDIES_PARAMS: ReadonlySet<string> = new Set([
   'format', 'markupFormat',
   'query.cond', 'query.term', 'query.locn', 'query.titles', 'query.intr',
   'query.outc', 'query.spons', 'query.lead', 'query.id', 'query.patient',
