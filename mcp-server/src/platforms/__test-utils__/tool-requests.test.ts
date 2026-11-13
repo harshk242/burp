@@ -1,0 +1,33 @@
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { expect, it } from 'vitest';
+import { argVariants } from './tool-args.js';
+import { assertArgsAffectRequests, assertHandlerCoverage, assertMakesRequest, assertRequestValues } from './tool-requests.js';
+
+const tool: Tool = { name: 'fixture', inputSchema: { type: 'object', required: ['id'], properties: {
+  id: { type: 'string' }, modes: { type: 'array', items: { type: 'string', enum: ['a', 'b', 'c'] } }, flag: { type: 'boolean' },
+} } };
+it('covers array enum values and required-only args', () => {
+  expect(argVariants(tool, { id: 'real' }).map((v) => v.args)).toEqual([
+    { id: 'real', modes: ['a'], flag: true }, { id: 'real', modes: ['b'], flag: true },
+    { id: 'real', modes: ['c'], flag: true }, { id: 'real' },
+  ]);
+});
+it('rejects silently ignored args and enums', async () => {
+  await expect(assertArgsAffectRequests(tool, {}, async () => [])).rejects.toThrow();
+});
+it('rejects missing handlers and missing requests unless declared local', () => {
+  expect(() => assertHandlerCoverage([tool], {})).toThrow();
+  expect(() => assertMakesRequest([])).toThrow();
+  assertMakesRequest([], 'Computes a local summary.');
+});
+it.each([undefined, null, '[object Object]', { nested: [undefined] }, { nested: 'undefined' }])('rejects malformed values: %j', (value) => {
+  expect(() => assertRequestValues(value)).toThrow();
+});
+it('covers enums nested in object and array arguments', () => {
+  const nested: Tool = { name: 'nested', inputSchema: { type: 'object', properties: {
+    filter: { type: 'object', properties: { mode: { type: 'string', enum: ['a', 'b'] } } },
+  } } };
+  expect(argVariants(nested).map((v) => v.args)).toEqual([
+    { filter: { mode: 'a' } }, { filter: { mode: 'b' } }, {},
+  ]);
+});
