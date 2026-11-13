@@ -2,8 +2,8 @@
 // a fresh volume at the [mounts] path, NODE_ENV=production. Covers what the source-level bundle
 // test (app/server/__tests__/server-bundle.test.ts) cannot: alpine/musl, node_modules installed
 // in the image (node-jq's jq binary), the MCP server under node, the real web export, Dockerfile
-// COPY coverage, and a clean SIGTERM exit within kill_timeout. Only unauthenticated routes are
-// checked: the dev-agent token is disabled in production.
+// COPY coverage, a real MCP tool call over stdio, and a clean SIGTERM exit within kill_timeout.
+// Only unauthenticated routes are checked: the dev-agent token is disabled in production.
 // Usage: bun scripts/smoke-image.ts [--image <tag>]   (default: build ./Dockerfile)
 import { join } from "path";
 
@@ -91,6 +91,14 @@ async function checkBoot(container: string, label: string): Promise<void> {
   check(jq === "2", "node-jq's jq binary runs in the image");
 }
 
+// Spawns the image's MCP server (node, built dist) over stdio as the app does, calls a tool
+// against a stub API, and fails if stdout carries anything but JSON-RPC.
+function checkMcpStdio(container: string): void {
+  docker("cp", join(REPO_ROOT, "mcp-server", "scripts", "stdio-probe.ts"), `${container}:/tmp/stdio-probe.ts`);
+  docker("exec", container, "bun", "/tmp/stdio-probe.ts", "--", "node", "/app/mcp-server/dist/index.js");
+  check(true, "MCP tool call over stdio keeps stdout pure JSON-RPC (node, built dist)");
+}
+
 function checkStop(container: string): void {
   const started = performance.now();
   docker("stop", "-t", String(killTimeoutSec), container);
@@ -116,6 +124,7 @@ try {
     image);
 
   await checkBoot(container, "Fresh volume");
+  checkMcpStdio(container);
   checkStop(container);
   // Same container and volume: boots against the already-migrated database.
   docker("start", container);
