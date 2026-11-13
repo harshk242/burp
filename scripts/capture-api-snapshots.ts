@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -24,12 +23,13 @@ function save(fixturePath: string, schema: SchemaNode): void {
 const NCBI_API_KEY = process.env.NCBI_API_KEY;
 
 async function getJson(url: string, params?: Record<string, string | number>): Promise<unknown> {
-  const res = await axios.get(url, {
-    params,
+  const qs = params ? `?${new URLSearchParams(Object.entries(params).map(([k, v]): [string, string] => [k, String(v)]))}` : '';
+  const res = await fetch(`${url}${qs}`, {
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    timeout: 25_000,
+    signal: AbortSignal.timeout(25_000),
   });
-  return res.data;
+  if (!res.ok) throw new Error(`GET ${url} failed: ${res.status} ${res.statusText}`);
+  return res.json();
 }
 
 async function graphql(
@@ -37,15 +37,18 @@ async function graphql(
   query: string,
   variables: Record<string, unknown>,
 ): Promise<unknown> {
-  const res = await axios.post(
-    url,
-    { query, variables },
-    { headers: { 'Content-Type': 'application/json' }, timeout: 25_000 },
-  );
-  if (res.data.errors?.length) {
-    throw new Error(`GraphQL errors: ${JSON.stringify(res.data.errors)}`);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+    signal: AbortSignal.timeout(25_000),
+  });
+  if (!res.ok) throw new Error(`POST ${url} failed: ${res.status} ${res.statusText}`);
+  const json = (await res.json()) as { data?: unknown; errors?: unknown[] };
+  if (json.errors?.length) {
+    throw new Error(`GraphQL errors: ${JSON.stringify(json.errors)}`);
   }
-  return res.data.data;
+  return json.data;
 }
 
 async function ncbiGet(

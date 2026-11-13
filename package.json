@@ -16,9 +16,12 @@
     "eval": "bun run --filter burp eval",
     "test": "bun run --filter bio-mcp-unified test && bun run --filter burp test",
     "test:contracts": "bun run --filter bio-mcp-unified test:contracts",
-    "smoke:image": "bun scripts/smoke-image.ts"
+    "smoke:image": "bun scripts/smoke-image.ts",
+    "typecheck": "tsc"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@types/bun": "^1.1.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
   }
 }

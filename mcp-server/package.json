@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
+    "typecheck": "tsc --noEmit --project tsconfig.json && tsc --project tsconfig.scripts.json",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test": "vitest run",
@@ -19,6 +20,7 @@
     "fuzzball": "^2.1.2"
   },
   "devDependencies": {
+    "@types/bun": "^1.1.0",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^2.0.0",
     "graphql": "^17.0.2",

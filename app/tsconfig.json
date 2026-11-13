@@ -13,6 +13,6 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["server/**/*.ts", "evals/**/*.ts"],
+  "include": ["server/**/*.ts", "evals/**/*.ts", "scripts/**/*.ts", "shared/**/*.ts", "drizzle.config.ts"],
   "exclude": ["node_modules"]
 }

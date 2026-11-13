@@ -12,6 +12,8 @@
 //   bun scripts/stdio-probe.ts -- bun src/index.ts
 //   bun /tmp/stdio-probe.ts -- node /app/mcp-server/dist/index.js
 
+export {}; // module scope, so top-level await type-checks
+
 const CANONICAL_ID = 'ENSG00000142515';
 const CALL_TIMEOUT_MS = { stub: 15_000, live: 120_000 };
 

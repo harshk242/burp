@@ -27,14 +27,14 @@ let last: Capture | null = null;
 
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  fetch: async (url, init) => {
+  fetch: (async (url, init) => {
     const body = JSON.parse(String(init?.body));
     const headers = new Headers(init?.headers);
     const res = await fetch(url, init);
     last = { status: res.status, beta: headers.get("anthropic-beta"), body };
     if (!res.ok) last.errorText = await res.clone().text();
     return res;
-  },
+  }) as typeof fetch,
 });
 
 type Mode = "core-only" | "deferred" | "all-loaded";
@@ -50,7 +50,7 @@ function buildCatalog(mode: Mode, nonce: string): Record<string, Tool> {
     [SEARCH]: createSearchTool(),
     [INSPECT]: createInspectArtifactTool("phase0-session"),
   });
-  system[SEARCH] = { ...system[SEARCH], description: `${system[SEARCH].description} (gate run ${nonce})` };
+  system[SEARCH] = { ...system[SEARCH], description: `${system[SEARCH].description} (gate run ${nonce})` } as Tool;
   const names = toolRegistry.getAll().map((t) => `${t.server}__${t.name}`);
   const entries: [string, Tool][] = [...Object.entries(system)];
   for (const name of names) {
@@ -99,7 +99,7 @@ async function runCall(
   const instructions: SystemModelMessage | string = opts.cacheSystem
     ? { role: "system", content: buildSystemPrompt(), providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } } }
     : buildSystemPrompt();
-  last = null;
+  last = null as Capture | null; // the fetch hook sets it during the call; keep TS from narrowing to null
   let text = "";
   let r: CallResult & { responseMessages: ModelMessage[] };
   try {
@@ -394,7 +394,7 @@ async function main() {
   return failed.length ? 1 : 0;
 }
 
-let tools: ToolsBoot | null = null;
+let tools = null as ToolsBoot | null; // assigned inside main(); the cast keeps TS from narrowing it to null
 let code = 0;
 try {
   code = await main();
