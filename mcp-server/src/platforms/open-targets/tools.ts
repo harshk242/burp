@@ -50,7 +50,7 @@ export const toolDefinitions: Tool[] = [
   },
   {
     name: 'get_target_expression',
-    description: 'Return RNA and protein expression profiles for a target across tissues.',
+    description: 'Return baseline expression measurements for a target across tissues and cell types.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -483,7 +483,7 @@ export const toolDefinitions: Tool[] = [
       type: 'object',
       properties: {
         variant_id: { type: 'string', description: 'Variant identifier' },
-        study_types: { type: 'array', items: { type: 'string' }, description: 'Filter by study types' },
+        study_types: { type: 'array', items: { type: 'string', enum: ['eqtl', 'gwas', 'pqtl', 'sceqtl', 'scpqtl', 'scsqtl', 'sctuqtl', 'sqtl', 'tuqtl'] }, description: 'Filter by study types' },
         page_index: { type: 'number', description: 'Page index (default 0)' },
         page_size: { type: 'number', description: 'Page size (default 10)' },
       },
@@ -615,7 +615,7 @@ export const toolDefinitions: Tool[] = [
         study_locus_ids: { type: 'array', items: { type: 'string' }, description: 'Filter by credible set IDs' },
         study_ids: { type: 'array', items: { type: 'string' }, description: 'Filter by study IDs' },
         variant_ids: { type: 'array', items: { type: 'string' }, description: 'Filter by variant IDs' },
-        study_types: { type: 'array', items: { type: 'string' }, description: 'Filter by study types' },
+        study_types: { type: 'array', items: { type: 'string', enum: ['eqtl', 'gwas', 'pqtl', 'sceqtl', 'scpqtl', 'scsqtl', 'sctuqtl', 'sqtl', 'tuqtl'] }, description: 'Filter by study types' },
         regions: { type: 'array', items: { type: 'string' }, description: 'Filter by genomic regions' },
         page_index: { type: 'number', description: 'Page index (default 0)' },
         page_size: { type: 'number', description: 'Page size (default 10)' },

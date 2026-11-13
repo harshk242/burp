@@ -55,7 +55,6 @@ export async function getTargetChemicalProbes(ensemblId: string): Promise<unknow
           mechanismOfAction
           origin
           probesDrugsScore
-          probeMinerScore
           scoreInCells
           scoreInOrganisms
           targetFromSourceId
@@ -74,15 +73,12 @@ export async function getTargetTep(ensemblId: string): Promise<unknown> {
       target(ensemblId: $ensemblId) {
         id
         approvedSymbol
-        tep {
-          name
-          therapeuticArea
-          uri
-        }
+        # Target enabling packages were removed from the upstream schema.
       }
     }
   `;
-  return client.query(query, { ensemblId });
+  const result = await client.query<Record<string, unknown>>(query, { ensemblId });
+  return { ...result, availability: 'Target enabling packages are no longer provided by the Open Targets API.' };
 }
 
 export async function getTargetPrioritization(ensemblId: string): Promise<unknown> {
