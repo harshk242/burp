@@ -335,7 +335,7 @@ export async function getCredibleSets(
   // expensive selection, preserving the complete response for nonempty results.
   if (![studyLocusIds, studyIds, variantIds, studyTypes, regions].some((ids) => ids?.length)) {
     const summary = await client.query<{ credibleSets?: { count: number } }>(
-      'query CredibleSetsCount { credibleSets { count } }',
+      'query CredibleSetsCount { credibleSets(page: {index: 0, size: 10}) { count } }',
     );
     if (summary.credibleSets?.count === 0) return { credibleSets: { count: 0, rows: [] } };
   }
