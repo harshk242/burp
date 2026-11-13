@@ -36,7 +36,6 @@ export function createOpenTargetsHttp(options: OpenTargetsHttpOptions = {}): Axi
     baseURL: options.baseUrl ?? OPEN_TARGETS_GRAPHQL_URL,
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
     },
     timeout: 30000,
     ...(options.adapter ? { adapter: options.adapter } : {}),
