@@ -5,19 +5,21 @@ import {
   resultMeta,
   filteredResultMeta,
 } from '../client.js';
+import { ageOverlap, applyAdvancedFilter, area, areaText, range, sexEligible } from '../advanced-filter.js';
 
 export const handleGetStudiesWithResults: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
     pageSize: (args.pageSize as number) || 10,
     'filter.overallStatus': 'COMPLETED',
-    'filter.hasResults': true,
   };
 
   if (args.condition) params['query.cond'] = args.condition;
   if (args.intervention) params['query.intr'] = args.intervention;
-  if (args.completedAfter)
-    params['filter.primaryCompletionDateFrom'] = args.completedAfter;
+  applyAdvancedFilter(params, [
+    'AREA[HasResults]true',
+    range('PrimaryCompletionDate', args.completedAfter),
+  ]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -79,34 +81,27 @@ export const handleSearchRareDiseases: ToolHandler = async (args) => {
   };
 };
 
+const PEDIATRIC_AGE_RANGES: Record<string, [string, string]> = {
+  INFANT: ['0 years', '2 years'],
+  CHILD: ['2 years', '12 years'],
+  ADOLESCENT: ['12 years', '18 years'],
+};
+
 export const handleGetPediatricStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
     pageSize: (args.pageSize as number) || 10,
-    'filter.stdAge': 'CHILD',
   };
 
   if (args.condition) params['query.cond'] = args.condition;
-
-  if (args.ageRange) {
-    switch (args.ageRange) {
-      case 'INFANT':
-        params['filter.minimumAge'] = '0 Years';
-        params['filter.maximumAge'] = '2 Years';
-        break;
-      case 'CHILD':
-        params['filter.minimumAge'] = '2 Years';
-        params['filter.maximumAge'] = '12 Years';
-        break;
-      case 'ADOLESCENT':
-        params['filter.minimumAge'] = '12 Years';
-        params['filter.maximumAge'] = '18 Years';
-        break;
-    }
-  }
-
   if (args.recruitmentStatus)
     params['filter.overallStatus'] = args.recruitmentStatus;
+
+  const ageWindow = PEDIATRIC_AGE_RANGES[args.ageRange as string];
+  applyAdvancedFilter(params, [
+    'AREA[StdAge]CHILD',
+    ageWindow ? ageOverlap(ageWindow[0], ageWindow[1]) : [],
+  ]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -191,7 +186,7 @@ export const handleGetSimilarStudies: ToolHandler = async (args) => {
     case 'PHASE': {
       const phase =
         referenceStudy.protocolSection.designModule?.phases?.[0];
-      if (phase) searchParams['filter.phase'] = phase;
+      applyAdvancedFilter(searchParams, [area('Phase', phase)]);
       break;
     }
   }
@@ -228,7 +223,7 @@ export const handleSearchByPrimaryOutcome: ToolHandler = async (args) => {
   };
 
   if (args.condition) params['query.cond'] = args.condition;
-  if (args.phase) params['filter.phase'] = args.phase;
+  applyAdvancedFilter(params, [area('Phase', args.phase)]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -250,14 +245,13 @@ export const handleSearchByEligibilityCriteria: ToolHandler = async (args) => {
     pageSize: (args.pageSize as number) || 10,
   };
 
-  if (args.minAge) params['filter.minimumAge'] = args.minAge;
-  if (args.maxAge) params['filter.maximumAge'] = args.maxAge;
-  if (args.sex) params['filter.sex'] = args.sex;
-  if (args.healthyVolunteers !== undefined)
-    params['filter.healthyVolunteers'] = args.healthyVolunteers;
   if (args.condition) params['query.cond'] = args.condition;
-  if (args.inclusionKeywords)
-    params['query.eligibility'] = args.inclusionKeywords;
+  applyAdvancedFilter(params, [
+    ageOverlap(args.minAge, args.maxAge),
+    sexEligible(args.sex),
+    area('HealthyVolunteers', args.healthyVolunteers),
+    areaText('EligibilityCriteria', args.inclusionKeywords),
+  ]);
 
   const data = await fetchStudies(params);
   let studies = data.studies || [];
@@ -315,9 +309,9 @@ export const handleGetStudyTimeline: ToolHandler = async (args) => {
 
   if (args.condition) params['query.cond'] = args.condition;
   if (args.sponsor) params['query.spons'] = args.sponsor;
-  if (args.phase) params['filter.phase'] = args.phase;
 
   const timelineType = (args.timelineType as string) || 'CURRENT';
+  let startFrom: string | undefined;
 
   switch (timelineType) {
     case 'CURRENT':
@@ -331,12 +325,11 @@ export const handleGetStudyTimeline: ToolHandler = async (args) => {
       params['filter.overallStatus'] = 'NOT_YET_RECRUITING';
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 30);
-      params['filter.studyStartDateFrom'] = futureDate
-        .toISOString()
-        .split('T')[0];
+      startFrom = futureDate.toISOString().split('T')[0];
       break;
     }
   }
+  applyAdvancedFilter(params, [area('Phase', args.phase), range('StartDate', startFrom)]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -377,8 +370,8 @@ export const handleSearchInternationalStudies: ToolHandler = async (args) => {
   };
 
   if (args.condition) params['query.cond'] = args.condition;
-  if (args.phase) params['filter.phase'] = args.phase;
   if (args.includeCountry) params['query.locn'] = args.includeCountry;
+  applyAdvancedFilter(params, [area('Phase', args.phase)]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];

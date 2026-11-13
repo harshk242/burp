@@ -126,11 +126,30 @@ function apiErrorMessage(cause: unknown): string | undefined {
 }
 
 /**
+ * Query params accepted by `GET /studies` (API v2). The API rejects anything
+ * else with HTTP 400, so field filters (phase, sex, age, dates, ...) must go
+ * through `filter.advanced` — see advanced-filter.ts.
+ */
+const STUDIES_PARAMS = new Set([
+  'format', 'markupFormat',
+  'query.cond', 'query.term', 'query.locn', 'query.titles', 'query.intr',
+  'query.outc', 'query.spons', 'query.lead', 'query.id', 'query.patient',
+  'filter.overallStatus', 'filter.geo', 'filter.ids', 'filter.advanced', 'filter.synonyms',
+  'postFilter.overallStatus', 'postFilter.geo', 'postFilter.ids',
+  'postFilter.advanced', 'postFilter.synonyms',
+  'aggFilters', 'geoDecay', 'fields', 'sort', 'countTotal', 'pageSize', 'pageToken',
+]);
+
+/**
  * `countTotal` is opt-in on the v2 API; without it `totalCount` is omitted.
  */
 export async function fetchStudies(
   params: Record<string, unknown>,
 ): Promise<StudySearchResponse> {
+  const unknown = Object.keys(params).filter((key) => !STUDIES_PARAMS.has(key));
+  if (unknown.length) {
+    throw new Error(`Unsupported ClinicalTrials.gov /studies params: ${unknown.join(', ')}`);
+  }
   try {
     const response: AxiosResponse<StudySearchResponse> = await getClient().get(
       '/studies',

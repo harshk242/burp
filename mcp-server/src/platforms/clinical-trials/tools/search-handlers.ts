@@ -6,6 +6,7 @@ import {
   calculateStatistics,
   resultMeta,
 } from '../client.js';
+import { applyAdvancedFilter, area, range, sexEligible } from '../advanced-filter.js';
 
 export const handleSearchStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
@@ -17,10 +18,12 @@ export const handleSearchStudies: ToolHandler = async (args) => {
   if (args.condition) params['query.cond'] = args.condition;
   if (args.intervention) params['query.intr'] = args.intervention;
   if (args.location) params['query.locn'] = args.location;
-  if (args.phase) params['filter.phase'] = args.phase;
   if (args.status) params['filter.overallStatus'] = args.status;
-  if (args.sex) params['filter.sex'] = args.sex;
-  if (args.age) params['filter.stdAge'] = args.age;
+  applyAdvancedFilter(params, [
+    area('Phase', args.phase),
+    sexEligible(args.sex),
+    area('StdAge', args.age),
+  ]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -65,13 +68,12 @@ export const handleSearchByLocation: ToolHandler = async (args) => {
     locationQuery += (locationQuery ? ', ' : '') + args.facilityName;
 
   if (locationQuery) params['query.locn'] = locationQuery;
-  if (args.distance && args.city) params['filter.distance'] = args.distance;
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
 
   return {
-    searchCriteria: { locationQuery, distance: args.distance },
+    searchCriteria: { locationQuery },
     ...resultMeta(data, studies.length),
     studies: studies.map((study) => ({
       ...formatStudySummary(study),
@@ -93,9 +95,9 @@ export const handleSearchByCondition: ToolHandler = async (args) => {
     'query.cond': args.condition,
   };
 
-  if (args.phase) params['filter.phase'] = args.phase;
   if (args.recruitmentStatus)
     params['filter.overallStatus'] = args.recruitmentStatus;
+  applyAdvancedFilter(params, [area('Phase', args.phase)]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -133,8 +135,8 @@ export const handleGetTrialStatistics: ToolHandler = async (args) => {
     | Record<string, unknown>
     | undefined;
   if (filters?.condition) params['query.cond'] = filters.condition;
-  if (filters?.phase) params['filter.phase'] = filters.phase;
   if (filters?.status) params['filter.overallStatus'] = filters.status;
+  applyAdvancedFilter(params, [area('Phase', filters?.phase)]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -160,7 +162,7 @@ export const handleSearchBySponsor: ToolHandler = async (args) => {
     'query.spons': args.sponsor,
   };
 
-  if (args.sponsorType) params['filter.leadSponsorClass'] = args.sponsorType;
+  applyAdvancedFilter(params, [area('LeadSponsorClass', args.sponsorType)]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -187,9 +189,10 @@ export const handleSearchByIntervention: ToolHandler = async (args) => {
     'query.intr': args.intervention,
   };
 
-  if (args.interventionType)
-    params['filter.interventionType'] = args.interventionType;
-  if (args.phase) params['filter.phase'] = args.phase;
+  applyAdvancedFilter(params, [
+    area('InterventionType', args.interventionType),
+    area('Phase', args.phase),
+  ]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -214,7 +217,7 @@ export const handleGetRecruitingStudies: ToolHandler = async (args) => {
 
   if (args.condition) params['query.cond'] = args.condition;
   if (args.location) params['query.locn'] = args.location;
-  if (args.ageGroup) params['filter.stdAge'] = args.ageGroup;
+  applyAdvancedFilter(params, [area('StdAge', args.ageGroup)]);
 
   const data = await fetchStudies(params);
   const studies = data.studies || [];
@@ -251,13 +254,10 @@ export const handleSearchByDateRange: ToolHandler = async (args) => {
     pageSize: (args.pageSize as number) || 10,
   };
 
-  if (args.startDateFrom)
-    params['filter.studyStartDateFrom'] = args.startDateFrom;
-  if (args.startDateTo) params['filter.studyStartDateTo'] = args.startDateTo;
-  if (args.completionDateFrom)
-    params['filter.primaryCompletionDateFrom'] = args.completionDateFrom;
-  if (args.completionDateTo)
-    params['filter.primaryCompletionDateTo'] = args.completionDateTo;
+  applyAdvancedFilter(params, [
+    range('StartDate', args.startDateFrom, args.startDateTo),
+    range('PrimaryCompletionDate', args.completionDateFrom, args.completionDateTo),
+  ]);
   if (args.condition) params['query.cond'] = args.condition;
 
   const data = await fetchStudies(params);
