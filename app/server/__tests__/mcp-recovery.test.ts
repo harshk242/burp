@@ -89,6 +89,27 @@ describe("MCP recovery", () => {
     expect(results[0]).toMatchObject({ fullName: "demo__frobnicate_widgets", semanticRank: 1 });
   }, 20_000);
 
+  it("keeps the server and its tools when stdout carries a stray non-JSON line", async () => {
+    manager = new MCPManager();
+    manager.register({ name: "unified", command: process.execPath, args: [FIXTURE], env: { FLAKY_NOISY: "1" } });
+    let changes = 0;
+    manager.onToolsChanged = () => changes++;
+
+    await manager.start("unified");
+    await toolRegistry.discoverTools(manager);
+    const available = toolRegistry.availableCount;
+    expect(available).toBeGreaterThan(0);
+
+    const noisy = await manager.callTool("demo", "noisy", {});
+    expect(noisy.isError).toBe(false);
+    const next = await manager.callTool("demo", "frobnicate_widgets", {});
+    expect(next.isError).toBe(false);
+
+    expect(manager.getStatus("unified")?.status).toBe("running");
+    expect(toolRegistry.availableCount).toBe(available);
+    expect(changes).toBe(0);
+  }, 20_000);
+
   it("drops a crashed server's tools from search, notifies once, and restores them on recovery", async () => {
     manager = new MCPManager();
     manager.register({ name: "flaky", command: process.execPath, args: [FIXTURE], env: { FLAKY_FAIL_MARKER: marker } });

@@ -11,4 +11,14 @@ server.registerTool(
   { description: "Frobnicate widgets for recovery tests" },
   async () => ({ content: [{ type: "text", text: "ok" }] })
 );
+if (process.env.FLAKY_NOISY) {
+  server.registerTool(
+    "demo__noisy",
+    { description: "Writes a stray non-JSON line to stdout before answering" },
+    async () => {
+      process.stdout.write("Resolving 'KLK3' to canonical match\n");
+      return { content: [{ type: "text", text: "ok" }] };
+    }
+  );
+}
 await server.connect(new StdioServerTransport());

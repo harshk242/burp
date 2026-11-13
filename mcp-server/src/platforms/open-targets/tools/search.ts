@@ -88,8 +88,8 @@ export async function searchEntities(
       bestMappedHit.id !== directTopHitId &&
       bestMappedHit.score === 1.0 &&
       directResults?.search?.hits?.length) {
-    console.log(
-      `Resolving '${queryString}' to canonical match: '${bestMappedHit.name}' (${bestMappedHit.id})`
+    console.error(
+      `[INFO] Resolving '${queryString}' to canonical match: '${bestMappedHit.name}' (${bestMappedHit.id})`
     );
     try {
       const canonicalResults = await searchDirect(bestMappedHit.id, entityNames, pageIndex, pageSize) as SearchResult;
