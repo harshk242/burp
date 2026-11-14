@@ -42,7 +42,7 @@ const validDoc = () => ({
   generated_at: "2026-10-09T00:00:00.000Z",
   tools: [
     { full_name: "chembl__get_admet", text: "chembl__get_admet: ADMET", embedding: [0.1, 0.2, 0.3] },
-    { full_name: "pubchem__get_toxicity_info", text: "pubchem__get_toxicity_info: tox", embedding: [0.3, 0.2, 0.1] },
+    { full_name: "pubchem__get_compound_properties", text: "pubchem__get_compound_properties: tox", embedding: [0.3, 0.2, 0.1] },
   ],
 });
 
@@ -54,7 +54,7 @@ describe("readToolEmbeddings", () => {
   it("accepts a valid v2 file from the expected embedder", async () => {
     const index = await readToolEmbeddings(writeRaw(validDoc()), ID);
     expect(index).toMatchObject({ embedder: ID, dimension: 3 });
-    expect(index!.entries.map((e) => e.fullName)).toEqual(["chembl__get_admet", "pubchem__get_toxicity_info"]);
+    expect(index!.entries.map((e) => e.fullName)).toEqual(["chembl__get_admet", "pubchem__get_compound_properties"]);
     expect(index!.entries[0].text).toBe("chembl__get_admet: ADMET");
     expect(index!.entries[0].vector).toBeInstanceOf(Float32Array);
   });

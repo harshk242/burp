@@ -18,10 +18,10 @@
 | `chembl` | 1,971 | 1 | 27 | ChEMBL REST |
 | `clinical-trials` | 1,935 | 1 | 18 | ClinicalTrials.gov v2 |
 | `ensembl` | 1,647 | 1 | 25 | Ensembl REST |
-| `pubchem` | 1,237 | 1 | 24 | PubChem PUG REST |
+| `pubchem` | 1,237 | 1 | 11 | PubChem PUG REST |
 | `reactome` | 1,073 | 1 | 8 | Reactome Content Service |
 
-**Total:** 210+ tools across all servers
+**Total:** 200+ tools across all servers
 
 ## Architecture Patterns
 

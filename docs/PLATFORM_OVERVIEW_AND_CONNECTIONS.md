@@ -39,7 +39,7 @@
 **Purpose**: Chemical compound database with 110M+ compounds (NCBI)
 **Data**: Chemical structures, 2D/3D conformers, bioassay results, toxicity, patents, safety data
 **Use Cases**: Chemical property screening, bioassay mining, drug-likeness prediction, safety assessment
-**Key Tools**: 24 tools for chemical search, structure analysis, properties, bioassays, safety/toxicity
+**Key Tools**: 11 tools for compound search, records, synonyms, similarity, 3D properties, stereochemistry, property tables, assay records, classifications, and batch lookup. Unimplemented tools are hidden.
 
 ---
 
@@ -312,7 +312,7 @@ Start: Aspirin (compound)
       - ClinicalTrials.search_by_intervention("Aspirin") → Trials
 
   ↓ Get bioactivity:
-    • PubChem.get_compound_bioactivities(CID 2244) → Assays
+    • PubChem.get_assay_info(aid=1) → Assay record (requires a known AID)
     • ChEMBL.search_activities(molecule_id=CHEMBL25) → Activities
 
   ↓ Get pharmacogenomics:
