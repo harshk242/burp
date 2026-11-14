@@ -10,7 +10,7 @@ const isValidSequenceArgs = (
   species?: string;
   format?: string;
   mask?: string;
- 
+
 } => {
   return (
     typeof args === 'object' &&

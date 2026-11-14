@@ -125,7 +125,7 @@ async function handleGetGeneTree(args: Record<string, unknown>) {
     params.clusterset_id = args.clusterset_id;
   }
   if (format !== 'json') {
-    params.format = format;
+    params["content-type"] = format === "newick" ? "text/x-nh" : "text/x-phyloxml+xml";
   }
 
   const response = await getClient().get(endpoint, { params, headers: { 'Content-Type': String(params['content-type'] || 'application/json'), Accept: String(params['content-type'] || 'application/json') } });
