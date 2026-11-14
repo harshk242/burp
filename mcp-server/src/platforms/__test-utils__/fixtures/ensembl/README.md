@@ -2,7 +2,7 @@
 arguments, and POST body fields exercised by Ensembl tool handlers. Retrieved
 2026-11-13 from the official REST documentation; each entry links its source.
 `content-type` is the REST serialization override documented in the example
-requests and user guide. POST lookup/id and vep/:species/id take an `ids` array.
+requests and user guide. POST lookup/id and vep/:species/id take an `ids` array. VEP HGVS and region requests require `hgvs_notations` and `variants`, respectively. Each route records enum/boolean value constraints and required body arrays. The binding matrix route supplements region-based motif overlap.
 
 Ensembl ignores unknown query parameters, so the offline allowlist is paired
 with live handler tests that verify narrowing and format changes. Regulatory
