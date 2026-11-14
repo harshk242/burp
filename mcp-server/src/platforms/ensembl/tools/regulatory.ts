@@ -29,6 +29,18 @@ const isValidMotifArgs = (
 
 export const tools: Tool[] = [
   {
+    name: 'get_binding_matrix',
+    description: 'Retrieve a transcription factor position frequency binding matrix by Ensembl matrix ID',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        binding_matrix: { type: 'string', description: 'Binding matrix ID (e.g., ENSPFM0001)' },
+        species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
+      },
+      required: ['binding_matrix'],
+    },
+  },
+  {
     name: 'get_regulatory_features',
     description:
       'Get regulatory elements (enhancers, promoters, TFBS) in genomic region',
@@ -99,6 +111,12 @@ async function handleGetMotifFeatures(args: Record<string, unknown>) {
 }
 
 export const handlers: Record<string, ToolHandler> = {
+  get_binding_matrix: async args => {
+    if (typeof args.binding_matrix !== 'string' || !args.binding_matrix.trim()) {
+      throw new Error('binding_matrix must be an Ensembl matrix ID (e.g., ENSPFM0001)');
+    }
+    return (await getClient().get('/species/' + getDefaultSpecies(args.species as string | undefined) + '/binding_matrix/' + args.binding_matrix + '/')).data;
+  },
   get_regulatory_features: handleGetRegulatoryFeatures,
   get_motif_features: handleGetMotifFeatures,
 };

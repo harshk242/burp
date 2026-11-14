@@ -470,5 +470,19 @@
     "body": [
       "variants"
     ]
+  },
+  {
+    "method": "get",
+    "path": "/species/:species/binding_matrix/:id/",
+    "documentation": "https://rest.ensembl.org/documentation/info/species_binding_matrix",
+    "pathParams": [
+      "species",
+      "id"
+    ],
+    "query": [
+      "content-type",
+      "unit"
+    ],
+    "body": []
   }
 ]

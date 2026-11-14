@@ -1,7 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { argVariants as variants, type Samples } from '../../__test-utils__/tool-args.js';
 export const samples: Samples = {
-  gene_id: 'ENSG00000141510', gene_ids: ['ENSG00000141510'], species: 'homo_sapiens',
+  binding_matrix: 'ENSPFM0001', gene_id: 'ENSG00000141510', gene_ids: ['ENSG00000141510'], species: 'homo_sapiens',
   transcript_id: 'ENST00000269305', query: 'TP53', biotype: 'protein_coding',
   region: '17:7674000-7675000', regions: ['17:7674000-7674100', 'ENST00000269305'],
   sequence: 'ATGTTTTAA', variants: ['rs699'], consequence_type: ['missense_variant'],
