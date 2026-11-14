@@ -31,3 +31,21 @@ it('covers enums nested in object and array arguments', () => {
     { filter: { mode: 'a' } }, { filter: { mode: 'b' } }, {},
   ]);
 });
+
+it('records form bodies and resolves absolute URLs without duplicating the base', async () => {
+  const { requestRecorder } = await import('./tool-requests.js');
+  const recorder = requestRecorder();
+  const axios = (await import('axios')).default;
+  const http = axios.create({ baseURL: 'https://example.org/api', adapter: recorder.adapter });
+  await http.post('https://example.org/api/search', new URLSearchParams({ smiles: 'C/C=C\\C' }).toString(), {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+  expect(recorder.requests[0]).toMatchObject({ url: 'https://example.org/api/search', body: { smiles: 'C/C=C\\C' } });
+});
+it('preserves axios base path joining for relative resource URLs', async () => {
+  const { requestRecorder } = await import('./tool-requests.js');
+  const recorder = requestRecorder();
+  const axios = (await import('axios')).default;
+  await axios.create({ baseURL: 'https://example.org/api/data', adapter: recorder.adapter }).get('/molecule.json');
+  expect(recorder.requests[0].url).toBe('https://example.org/api/data/molecule.json');
+});

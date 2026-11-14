@@ -5,7 +5,7 @@
   `minimalArgs` are available separately. Supply real IDs and sensible sizes
   in a platform-owned `Samples` map. Enum values come from the input schema.
 - `requestRecorder(response)` returns an axios `adapter` and captured
-  `requests` (method, URL, query params, parsed body). Inject the adapter into
+  `requests` (method, axios-resolved URL, query params, parsed JSON or form body). Inject the adapter into
   the real platform client. Reset client caches between invocations.
 - `assertHandlerCoverage(tools, handlers)` checks registry parity.
   `assertMakesRequest(requests, localOnlyReason?)` checks request presence and

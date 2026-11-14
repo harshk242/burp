@@ -1,5 +1,5 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
-import type { AxiosAdapter } from 'axios';
+import axios, { type AxiosAdapter } from 'axios';
 import { expect } from 'vitest';
 import { argVariants, fullArgs, type Samples, type ToolArgs } from './tool-args.js';
 
@@ -12,9 +12,10 @@ export function requestRecorder(response: unknown = { data: {} }) {
   const requests: RecordedRequest[] = [];
   const adapter: AxiosAdapter = async (config) => {
     requests.push({
-      method: config.method ?? 'get', url: `${config.baseURL ?? ''}${config.url ?? ''}`,
+      method: config.method ?? 'get', url: axios.getUri({ baseURL: config.baseURL, url: config.url }),
       params: config.params ?? {},
-      body: typeof config.data === 'string' ? JSON.parse(config.data) : config.data ?? {},
+      body: typeof config.data === 'string' ? String(config.headers?.['Content-Type'] ?? '').includes('application/x-www-form-urlencoded')
+        ? Object.fromEntries(new URLSearchParams(config.data)) : JSON.parse(config.data) : config.data ?? {},
     });
     return { data: response, status: 200, statusText: 'OK', headers: {}, config };
   };
