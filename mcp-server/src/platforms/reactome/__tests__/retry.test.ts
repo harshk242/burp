@@ -55,11 +55,12 @@ describe('Reactome tools on the shared retry', () => {
 });
 
 describe('pathway name resolution', () => {
-  it('still reports "No pathway found" when the search has no hits (404)', async () => {
+  it('propagates a search route HTTP 404 instead of reporting no results', async () => {
     const calls = stubReactome([404]);
     const result = await callTool(handlers, 'get_pathway_details', { id: 'not a pathway' });
     expect(calls).toHaveLength(1);
-    expect(toolText(result)).toMatch(/^Error: No pathway found for identifier: not a pathway\./);
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(toolText(result))).toMatchObject({ status: 404, platform: 'reactome' });
   });
 
   it('returns the structured error on an outage instead of "No pathway found"', async () => {
