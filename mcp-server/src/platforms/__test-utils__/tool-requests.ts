@@ -15,7 +15,7 @@ export function requestRecorder(response: unknown = { data: {} }) {
       method: config.method ?? 'get', url: axios.getUri({ baseURL: config.baseURL, url: config.url }),
       params: config.params ?? {},
       body: typeof config.data === 'string' ? String(config.headers?.['Content-Type'] ?? '').includes('application/x-www-form-urlencoded')
-        ? Object.fromEntries(new URLSearchParams(config.data)) : JSON.parse(config.data) : config.data ?? {},
+        ? Object.fromEntries(new URLSearchParams(config.data)) : String(config.headers?.["Content-Type"] ?? "").includes("text/plain") ? config.data : JSON.parse(config.data) : config.data ?? {},
     });
     return { data: response, status: 200, statusText: 'OK', headers: {}, config };
   };

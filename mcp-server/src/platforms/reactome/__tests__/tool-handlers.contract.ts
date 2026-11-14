@@ -108,3 +108,19 @@ it('resolves a pathway name through the real handler', async () => {
   const result = await invoke('get_pathway_participants', { id: 'Depolymerization of the Nuclear Lamina' });
   expect(result.pathwayId).toBe('R-HSA-4419969');
 });
+it('batches Cell Cycle accessions live with bounded work', async () => {
+  let batches = 0;
+  initClient({}, { adapter: async config => {
+    if (config.method === 'post') {
+      batches++;
+      expect(config.url).toBe('/interactors/static/molecules/details');
+      expect(String(config.data).split(',').length).toBeLessThanOrEqual(100);
+    }
+    return transport(config);
+  } });
+  const result: any = await handlers.get_protein_interactions({ pathwayId: 'R-HSA-164017' });
+  expect(result.queriedAccessions).toBeGreaterThan(100);
+  expect(batches).toBe(Math.ceil(result.queriedAccessions / 100));
+  expect(batches).toBeLessThanOrEqual(10);
+  expect(result.interactionCount).toBeGreaterThan(0);
+});

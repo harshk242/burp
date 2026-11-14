@@ -1,5 +1,6 @@
 import type { ToolHandler } from '../../types.js';
 import { UpstreamError } from '../../shared/exceptions.js';
+import { getToolCallContext } from '../../shared/tool-call-context.js';
 import { getClient } from './client.js';
 
 export const SEARCH_TYPES = ['Pathway', 'Reaction', 'Protein', 'Complex'] as const;
@@ -39,9 +40,9 @@ const participants = async (id: string): Promise<any[]> =>
 const events = async (id: string): Promise<any[]> =>
   (await getClient().get(`/data/pathway/${encodeURIComponent(id)}/containedEvents`)).data;
 
-async function interactors(acc: string): Promise<any | null> {
+async function interactors(accessions: string[]): Promise<any | null> {
   try {
-    return (await getClient().get(`/interactors/static/molecule/${encodeURIComponent(acc)}/details`)).data;
+    return (await getClient().post('/interactors/static/molecules/details', accessions.join(','), { headers: { 'Content-Type': 'text/plain' } })).data;
   } catch (error) {
     if (error instanceof UpstreamError && error.status === 404) {
       const raw = (error.cause as { response?: { data?: unknown } })?.response?.data;
@@ -49,8 +50,9 @@ async function interactors(acc: string): Promise<any | null> {
       if (typeof raw === 'string' && raw.trim().startsWith('{')) {
         try { data = JSON.parse(raw); } catch (parseError) { throw error; }
       }
-      if (data?.code === 404 && data?.messages?.length === 1 &&
-          data.messages[0] === `No interactors found for accession: ${acc}`) return null;
+      if (data?.code === 404 && Array.isArray(data.messages) && data.messages.length > 0 &&
+          data.messages.every((message: string) => message.startsWith('No interactors found for accession: ') &&
+            [...accessions, accessions.join(",")].includes(message.slice('No interactors found for accession: '.length)))) return null;
     }
     throw error;
   }
@@ -110,12 +112,25 @@ async function handleGetProteinInteractions(args: Record<string, unknown>) {
   const ids = new Set(proteins.map(p => p.identifier));
   const interactions = new Map<string, unknown>();
   const noInteractorsFor: string[] = [];
-  // Query each accession once, sequentially. Both endpoints of each pair must
-  // belong to this pathway, avoiding unrelated proteins or species from search.
-  for (const acc of ids) {
-    const data = await interactors(acc);
-    if (data === null) { noInteractorsFor.push(acc); continue; }
+  const context = getToolCallContext();
+  const accessions = [...ids];
+  const skippedAccessions = accessions.slice(1000);
+  let queriedAccessions = 0;
+  // At most ten batches; shared HTTP context also bounds each request by the deadline.
+  for (let offset = 0; offset < Math.min(accessions.length, 1000); offset += 100) {
+    if (context && (context.remainingMs() <= 0 || context.cancelled)) {
+      skippedAccessions.push(...accessions.slice(offset, 1000));
+      break;
+    }
+    const batch = accessions.slice(offset, Math.min(offset + 100, 1000));
+    const data = await interactors(batch);
+    queriedAccessions += batch.length;
+    if (data === null) { noInteractorsFor.push(...batch); continue; }
+    // Successful batch responses omit accessions with no interactors.
+    const returned = new Set((data.entities ?? []).map((source: any) => source.acc));
+    noInteractorsFor.push(...batch.filter(acc => !returned.has(acc)));
     for (const source of data.entities ?? []) {
+      if (!ids.has(source.acc)) continue;
       for (const partner of source.interactors ?? []) {
         if (!ids.has(partner.acc)) continue;
         const key = [source.acc, partner.acc].sort().join(':');
@@ -127,8 +142,8 @@ async function handleGetProteinInteractions(args: Record<string, unknown>) {
   return { pathwayId, originalQuery: args.pathwayId, basicInfo: entity(info),
     proteinCount: proteins.length, proteins: proteins.map(p => ({ identifier: p.identifier, name: clean(p.name) })),
     interactionCount: interactions.size, interactions: [...interactions.values()],
-    noInteractorsFor,
-    note: 'Static Reactome interactors restricted to pairs of UniProt accessions participating in this pathway. An empty list means no pairs were returned. noInteractorsFor lists accessions explicitly reported as having no interactors; other HTTP failures propagate.' };
+    noInteractorsFor, queriedAccessions, skippedAccessions, truncated: skippedAccessions.length > 0,
+    note: 'Static Reactome interactors restricted to pairs of UniProt accessions participating in this pathway. An empty list means no pairs were returned. At most 1000 unique accessions in batches of 100; skippedAccessions reports work omitted by the cap or deadline. noInteractorsFor lists queried accessions with no interactors; other HTTP failures propagate.' };
 }
 export const handlers: Record<string, ToolHandler> = {
   search_pathways: handleSearchPathways, get_pathway_details: handleGetPathwayDetails,

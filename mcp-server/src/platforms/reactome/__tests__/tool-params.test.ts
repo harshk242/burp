@@ -1,6 +1,7 @@
 import { AxiosError, type AxiosAdapter } from 'axios';
 import { afterEach, describe, expect, it } from 'vitest';
 import { initClient, resetClient } from '../client.js';
+import { runWithToolCallContext } from "../../../shared/tool-call-context.js";
 import { handlers, SEARCH_TYPES } from '../handlers.js';
 import { tools } from '../tools.js';
 import { assertArgsAffectRequests, assertHandlerCoverage, assertMakesRequest, requestRecorder } from '../../__test-utils__/tool-requests.js';
@@ -80,9 +81,9 @@ it('reports a genuine empty search explicitly without inventing pathway particip
 it.each([true, false])('recognizes only an accession-specific not-found body (matching=%s)', async matching => {
   initClient({}, { adapter: async config => {
     if (config.url!.includes('/interactors/')) {
-      const acc = config.url!.split('/').at(-2);
-      const data = JSON.stringify({ code: 404, messages: [matching
-        ? `No interactors found for accession: ${acc}` : 'Could not find the Interactor Resource'] });
+      const acc = config.data;
+      const data = JSON.stringify({ code: 404, messages: matching
+        ? String(acc).split(',').map(id => 'No interactors found for accession: ' + id) : ['Could not find the Interactor Resource'] });
       throw new AxiosError('not found', 'ERR_BAD_REQUEST', config, undefined,
         { data, status: 404, statusText: 'Not Found', headers: {}, config });
     }
@@ -93,4 +94,38 @@ it.each([true, false])('recognizes only an accession-specific not-found body (ma
     interactionCount: 0, noInteractorsFor: ['P04637', 'Q00987'],
   });
   else await expect(result).rejects.toThrow();
+});
+it('batches unique accessions and caps total work at 1000', async () => {
+  const requests: any[] = [];
+  initClient({}, { adapter: async config => {
+    const data = config.url!.endsWith('/referenceEntities')
+      ? Array.from({ length: 1200 }, (_, i) => ({ identifier: 'P' + i, databaseName: 'UniProt' }))
+      : config.method === 'post' ? { entities: [] } : molecule;
+    const recorder = requestRecorder(data);
+    const result = await recorder.adapter(config);
+    requests.push(...recorder.requests);
+    return result;
+  } });
+  const result: any = await handlers.get_protein_interactions({ pathwayId: samples.pathwayId });
+  const batches = requests.filter(r => r.method === 'post');
+  expect(batches).toHaveLength(10);
+  expect(batches.every(r => r.body.split(',').length === 100)).toBe(true);
+  expect(result).toMatchObject({ queriedAccessions: 1000, truncated: true });
+  expect(result.skippedAccessions).toHaveLength(200);
+  expect(result.noInteractorsFor).toHaveLength(1000);
+});
+it('stops before interactor batches when the tool deadline expires', async () => {
+  let now = 0;
+  const requests: any[] = [];
+  initClient({}, { adapter: async config => {
+    const recorder = requestRecorder(response(config.url!));
+    const result = await recorder.adapter(config);
+    requests.push(...recorder.requests);
+    if (config.url!.endsWith("/referenceEntities")) now = 1000;
+    return result;
+  } });
+  const result: any = await runWithToolCallContext({ timeoutMs: 1000, now: () => now }, () =>
+    handlers.get_protein_interactions({ pathwayId: samples.pathwayId }));
+  expect(requests.filter(r => r.method === 'post')).toHaveLength(0);
+  expect(result).toMatchObject({ queriedAccessions: 0, truncated: true, skippedAccessions: ['P04637', 'Q00987'] });
 });

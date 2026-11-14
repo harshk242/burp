@@ -7,6 +7,14 @@ import { assertRequestValues, type RecordedRequest } from '../../__test-utils__/
 export { parameters };
 export function assertReactomeRequest(request: RecordedRequest) {
   assertRequestValues(request);
+  if (request.method === 'post') {
+    expect(new URL(request.url).pathname).toBe('/ContentService/interactors/static/molecules/details');
+    expect(typeof request.body).toBe('string');
+    const ids = (request.body as string).split(',');
+    expect(ids.length).toBeLessThanOrEqual(100);
+    ids.forEach(id => expect(id).toMatch(/^[A-Z0-9]+(?:-[0-9]+)?$/));
+    return;
+  }
   expect(request.method).toBe('get');
   const url = new URL(request.url);
   expect(url.origin).toBe('https://reactome.org');
