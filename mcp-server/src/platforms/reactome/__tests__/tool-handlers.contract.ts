@@ -118,7 +118,7 @@ it('batches Cell Cycle accessions live with bounded work', async () => {
     }
     return transport(config);
   } });
-  const result: any = await handlers.get_protein_interactions({ pathwayId: 'R-HSA-164017' });
+  const result: any = await handlers.get_protein_interactions({ pathwayId: 'R-HSA-1640170' });
   expect(result.queriedAccessions).toBeGreaterThan(100);
   expect(batches).toBe(Math.ceil(result.queriedAccessions / 100));
   expect(batches).toBeLessThanOrEqual(10);

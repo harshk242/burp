@@ -83,7 +83,7 @@ it.each([true, false])('recognizes only an accession-specific not-found body (ma
     if (config.url!.includes('/interactors/')) {
       const acc = config.data;
       const data = JSON.stringify({ code: 404, messages: matching
-        ? String(acc).split(',').map(id => 'No interactors found for accession: ' + id) : ['Could not find the Interactor Resource'] });
+        ? ['No interactors found for accession: ' + acc] : ['Could not find the Interactor Resource'] });
       throw new AxiosError('not found', 'ERR_BAD_REQUEST', config, undefined,
         { data, status: 404, statusText: 'Not Found', headers: {}, config });
     }
