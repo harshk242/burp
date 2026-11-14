@@ -174,6 +174,12 @@ const handleCompareProteins: ToolHandler = async (args) => {
       domains: protein.features?.filter((f: any) => f.type === 'Domain').length || 0,
     });
   }
+  if (optString(args, 'format') === 'tsv') {
+    const columns = ['accession', 'name', 'organism', 'length', 'mass', 'features', 'domains'] as const;
+    return [columns.join('\t'), ...comparisons.map(row =>
+      columns.map(column => String(row[column] ?? '').replace(/[\t\r\n]/g, ' ')).join('\t'),
+    )].join('\n');
+  }
   return { comparison: comparisons };
 };
 

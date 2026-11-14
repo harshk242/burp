@@ -305,12 +305,12 @@ export const tools: Tool[] = [
 
   {
     name: 'export_protein_data',
-    description: 'Export data in specialized formats (GFF, GenBank, etc.)',
+    description: 'Export protein data as GFF, UniProt flat text, or XML',
     inputSchema: {
       type: 'object',
       properties: {
         accession: { type: 'string', description: 'UniProt accession number' },
-        format: { type: 'string', enum: ['gff', 'genbank', 'embl', 'xml'], description: 'Export format' },
+        format: { type: 'string', enum: ['gff', 'txt', 'xml'], description: 'Export format' },
       },
       required: ['accession', 'format'],
     },
