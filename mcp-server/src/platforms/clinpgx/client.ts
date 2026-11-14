@@ -341,6 +341,11 @@ export class PharmGKBClient {
     return Array.from(interactionMap.values());
   }
 
+  async getClinicalAnnotationsForVariant(fingerprint: string): Promise<ClinicalAnnotation[]> {
+    const response = await this.request('/data/clinicalAnnotation', { 'location.fingerprint': fingerprint });
+    return list(response.data).map(parseClinicalAnnotation);
+  }
+
   async getStarAlleles(gene: string): Promise<VariantInfo[]> {
     const response = await this.request('/data/haplotype', { 'gene.symbol': gene });
     return list(response.data).map(parseVariantInfo).filter(allele => allele.name?.includes('*'));
