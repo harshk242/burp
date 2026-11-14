@@ -38,13 +38,13 @@ describe('PharmGKBClient on the shared retry', () => {
     expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1_000, 2_000]);
   });
 
-  it('turns a 404 into an empty result / null with a single request', async () => {
+  it('preserves a 404 with a single request', async () => {
     const search = stubClinPGx([404, 200]);
-    await expect(search.client.searchGenes('NOPE')).resolves.toEqual({ totalCount: 0, results: [], query: 'NOPE' });
+    await expect(search.client.searchGenes('NOPE')).rejects.toMatchObject({ status: 404 });
     expect(search.calls).toHaveLength(1);
 
     const lookup = stubClinPGx([404, 200]);
-    await expect(lookup.client.getGeneInfo('PA999999')).resolves.toBeNull();
+    await expect(lookup.client.getGeneInfo('PA999999')).rejects.toMatchObject({ status: 404 });
     expect(lookup.calls).toHaveLength(1);
     expect(lookup.sleep).not.toHaveBeenCalled();
   });
