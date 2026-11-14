@@ -10,7 +10,6 @@ const isValidSequenceArgs = (
   species?: string;
   format?: string;
   mask?: string;
-
 } => {
   return (
     typeof args === 'object' &&
@@ -38,7 +37,7 @@ const isValidCdsArgs = (
 
 const isValidTranslateArgs = (
   args: any,
-): args is { sequence: string; } => {
+): args is { sequence: string } => {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -107,7 +106,7 @@ export const tools: Tool[] = [
   },
   {
     name: 'translate_sequence',
-    description: 'Translate DNA sequence to protein sequence',
+    description: 'Translate DNA sequence to protein sequence using the standard genetic code',
     inputSchema: {
       type: 'object',
       properties: {

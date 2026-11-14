@@ -4,7 +4,7 @@ import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidRegulatoryArgs = (
   args: any,
-): args is { region: string; species?: string; feature_type?: string; } => {
+): args is { region: string; species?: string; feature_type?: string } => {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -17,7 +17,7 @@ const isValidRegulatoryArgs = (
 
 const isValidMotifArgs = (
   args: any,
-): args is { region: string; species?: string; } => {
+): args is { region: string; species?: string } => {
   return (
     typeof args === 'object' &&
     args !== null &&

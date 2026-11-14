@@ -4,7 +4,7 @@ import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidVariantArgs = (
   args: any,
-): args is { region: string; species?: string; format?: string; consequence_type?: string[] } => {
+): args is { region: string; species?: string; consequence_type?: string[] } => {
   return (
     typeof args === 'object' &&
     args !== null &&

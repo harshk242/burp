@@ -5,15 +5,14 @@ import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidGeneArgs = (
   args: any,
-): args is { gene_id: string; species?: string; expand?: boolean; format?: string } => {
+): args is { gene_id: string; species?: string; expand?: boolean } => {
   return (
     typeof args === 'object' &&
     args !== null &&
     typeof args.gene_id === 'string' &&
     args.gene_id.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.expand === undefined || typeof args.expand === 'boolean') &&
-    (args.format === undefined || ['json'].includes(args.format))
+    (args.expand === undefined || typeof args.expand === 'boolean')
   );
 };
 
@@ -32,7 +31,7 @@ const isValidTranscriptArgs = (
 
 const isValidSearchArgs = (
   args: any,
-): args is { query: string; species?: string; biotype?: string; limit?: number } => {
+): args is { query: string; species?: string; biotype?: string } => {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -45,7 +44,7 @@ const isValidSearchArgs = (
 
 const isValidBatchArgs = (
   args: any,
-): args is { gene_ids: string[]; species?: string; format?: string } => {
+): args is { gene_ids: string[]; species?: string } => {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -53,8 +52,7 @@ const isValidBatchArgs = (
     args.gene_ids.length > 0 &&
     args.gene_ids.length <= 200 &&
     args.gene_ids.every((id: any) => typeof id === 'string' && id.length > 0) &&
-    (args.species === undefined || typeof args.species === 'string') &&
-    (args.format === undefined || ['json'].includes(args.format))
+    (args.species === undefined || typeof args.species === 'string')
   );
 };
 
@@ -75,11 +73,6 @@ export const tools: Tool[] = [
         expand: {
           type: 'boolean',
           description: 'Include transcript and exon details (default: false)',
-        },
-        format: {
-          type: 'string',
-          enum: ['json'],
-          description: 'Output format (default: json)',
         },
       },
       required: ['gene_id'],
@@ -136,11 +129,6 @@ export const tools: Tool[] = [
           maxItems: 200,
         },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
-        format: {
-          type: 'string',
-          enum: ['json'],
-          description: 'Output format (default: json)',
-        },
       },
       required: ['gene_ids'],
     },
@@ -153,15 +141,11 @@ async function handleLookupGene(args: Record<string, unknown>) {
   }
 
   const species = getDefaultSpecies(args.species);
-  const format = args.format || 'json';
   const endpoint = `/lookup/id/${args.gene_id}`;
   const params: Record<string, unknown> = { species };
 
   if (args.expand) {
     params.expand = 1;
-  }
-  if (format !== 'json') {
-    params.format = format;
   }
 
   const response = await getClient().get(endpoint, { params });
@@ -226,14 +210,8 @@ async function handleBatchGeneLookup(args: Record<string, unknown>) {
   }
 
   const species = getDefaultSpecies(args.species);
-  const format = args.format || 'json';
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (format === 'xml') {
-    headers['Accept'] = 'text/xml';
-  } else {
-    headers['Accept'] = 'application/json';
-  }
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
 
   const response = await getClient().post(
     '/lookup/id',
