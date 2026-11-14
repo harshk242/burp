@@ -1,4 +1,5 @@
 import type { ToolHandler } from '../../types.js';
+import { UpstreamError } from '../../shared/exceptions.js';
 import { getClient } from './client.js';
 
 export const SEARCH_TYPES = ['Pathway', 'Reaction', 'Protein', 'Complex'] as const;
@@ -37,6 +38,23 @@ const participants = async (id: string): Promise<any[]> =>
   (await getClient().get(`/data/participants/${encodeURIComponent(id)}/participatingPhysicalEntities`)).data;
 const events = async (id: string): Promise<any[]> =>
   (await getClient().get(`/data/pathway/${encodeURIComponent(id)}/containedEvents`)).data;
+
+async function interactors(acc: string): Promise<any | null> {
+  try {
+    return (await getClient().get(`/interactors/static/molecule/${encodeURIComponent(acc)}/details`)).data;
+  } catch (error) {
+    if (error instanceof UpstreamError && error.status === 404) {
+      const raw = (error.cause as { response?: { data?: unknown } })?.response?.data;
+      let data: any = raw;
+      if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+        try { data = JSON.parse(raw); } catch (parseError) { throw error; }
+      }
+      if (data?.code === 404 && data?.messages?.length === 1 &&
+          data.messages[0] === `No interactors found for accession: ${acc}`) return null;
+    }
+    throw error;
+  }
+}
 
 async function handleSearchPathways(args: Record<string, unknown>) {
   const query = required(args, 'query');
@@ -91,10 +109,12 @@ async function handleGetProteinInteractions(args: Record<string, unknown>) {
   const proteins = refs.filter(p => p.databaseName === 'UniProt');
   const ids = new Set(proteins.map(p => p.identifier));
   const interactions = new Map<string, unknown>();
+  const noInteractorsFor: string[] = [];
   // Query each accession once, sequentially. Both endpoints of each pair must
   // belong to this pathway, avoiding unrelated proteins or species from search.
   for (const acc of ids) {
-    const data = (await api.get(`/interactors/static/molecule/${encodeURIComponent(acc)}/details`)).data;
+    const data = await interactors(acc);
+    if (data === null) { noInteractorsFor.push(acc); continue; }
     for (const source of data.entities ?? []) {
       for (const partner of source.interactors ?? []) {
         if (!ids.has(partner.acc)) continue;
@@ -107,7 +127,8 @@ async function handleGetProteinInteractions(args: Record<string, unknown>) {
   return { pathwayId, originalQuery: args.pathwayId, basicInfo: entity(info),
     proteinCount: proteins.length, proteins: proteins.map(p => ({ identifier: p.identifier, name: clean(p.name) })),
     interactionCount: interactions.size, interactions: [...interactions.values()],
-    note: 'Static Reactome interactors restricted to pairs of UniProt accessions participating in this pathway. An empty list means no pairs were returned; HTTP failures propagate.' };
+    noInteractorsFor,
+    note: 'Static Reactome interactors restricted to pairs of UniProt accessions participating in this pathway. An empty list means no pairs were returned. noInteractorsFor lists accessions explicitly reported as having no interactors; other HTTP failures propagate.' };
 }
 export const handlers: Record<string, ToolHandler> = {
   search_pathways: handleSearchPathways, get_pathway_details: handleGetPathwayDetails,
