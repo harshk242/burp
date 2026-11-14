@@ -7,8 +7,11 @@ import { assertRequestValues, type RecordedRequest } from '../../__test-utils__/
 export { parameters };
 export function assertReactomeRequest(request: RecordedRequest) {
   assertRequestValues(request);
+  expect(new URL(request.url).origin).toBe('https://reactome.org');
   if (request.method === 'post') {
     expect(new URL(request.url).pathname).toBe('/ContentService/interactors/static/molecules/details');
+    expect(request.params).toEqual({});
+    expect(parameters['/interactors/static/molecules/details'].post.requestBody.required).toBe(true);
     expect(typeof request.body).toBe('string');
     const ids = (request.body as string).split(',');
     expect(ids.length).toBeLessThanOrEqual(100);
@@ -22,7 +25,7 @@ export function assertReactomeRequest(request: RecordedRequest) {
   const route = Object.keys(parameters).find(route =>
     new RegExp('^' + route.replace(/\{[^}]+\}/g, '[^/]+') + '$').test(path));
   expect(route, path).toBeDefined();
-  const allowed = parameters[route as keyof typeof parameters].get.parameters;
+  const allowed = (parameters[route as keyof typeof parameters] as { get: { parameters: any[] } }).get.parameters;
   const params = { ...Object.fromEntries(url.searchParams), ...request.params as object };
   for (const [name, value] of Object.entries(params)) {
     const param = allowed.find(p => p.in === 'query' && p.name === name);

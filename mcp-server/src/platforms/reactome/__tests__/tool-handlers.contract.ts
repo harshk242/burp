@@ -81,8 +81,10 @@ it('compares the allowlist with the live spec and exact facets', async () => {
   await pace(350);
   const spec = (await http.get('/v3/api-docs')).data;
   for (const [route, saved] of Object.entries(parameters)) {
-    const live = spec.paths[route].get.parameters.map(({ name, schema, required, ...p }: any) => ({ name, in: p.in, required, schema }));
-    expect(live, route).toEqual(saved.get.parameters);
+    const method = 'get' in saved ? 'get' : 'post';
+    const live = spec.paths[route][method].parameters.map(({ name, schema, required, ...p }: any) => ({ name, in: p.in, required, schema }));
+    expect(live, route).toEqual(('get' in saved ? saved.get : saved.post).parameters);
+    if ('post' in saved) expect(spec.paths[route].post.requestBody).toEqual(saved.post.requestBody);
   }
   await pace(350);
   const facets = (await http.get('/search/facet_query', { params: { query: 'TP53' } })).data;
