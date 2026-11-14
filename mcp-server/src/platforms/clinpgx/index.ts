@@ -286,9 +286,10 @@ const TOOLS: Tool[] = [
       properties: {
         query: {
           type: 'string',
-          description: 'Gene symbol for pathways (defaults to CYP2D6; results are scoped to that gene)',
+          description: 'Required gene symbol; results are scoped to that gene',
         },
       },
+      required: ['query'],
     },
   },
 
@@ -397,8 +398,9 @@ const handlers: Record<string, ToolHandler> = {
   },
 
   get_pathways: async (args) => {
+    if (typeof args.query !== "string" || !args.query.trim()) throw new Error("get_pathways requires a nonblank gene symbol in query");
     const client = getClient();
-    return client.getPathways(args.query as string | undefined);
+    return client.getPathways(args.query as string);
   },
 
   get_database_stats: async () => {

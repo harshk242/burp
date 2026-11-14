@@ -137,3 +137,7 @@ it('rejects invalid routes, path IDs and parameters', () => {
     expect(() => assertClinPGxRequest({ method: 'get', url: `https://api.clinpgx.org/v1${path}`, params, body: {} })).toThrow();
   }
 });
+
+it.each([{}, { query: '' }, { query: '   ' }])('requires a gene for pathways: %j', async args => {
+  await expect(platform.handlers.get_pathways(args)).rejects.toThrow('requires a nonblank gene');
+});

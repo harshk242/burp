@@ -286,8 +286,9 @@ export class PharmGKBClient {
     return data.map((label) => parseDrugLabel(label));
   }
 
-  async getPathways(query?: string): Promise<Pathway[]> {
-    const params = { 'genes.symbol': query ?? 'CYP2D6' };
+  async getPathways(query: string): Promise<Pathway[]> {
+    if (typeof query !== 'string' || !query.trim()) throw new Error('get_pathways requires a nonblank gene symbol in query');
+    const params = { 'genes.symbol': query.trim() };
     const response = await this.request('/data/pathway', params);
 
     const data = list(response.data);

@@ -86,3 +86,7 @@ it('relationship criteria are applied rather than silently ignored', async () =>
     expect(response.data.data.errors).toEqual([{ message: 'No results matching criteria.' }]);
   }
 });
+
+it('rejects an unscoped pathway request before contacting upstream', async () => {
+  await expect(platform.handlers.get_pathways({})).rejects.toThrow('requires a nonblank gene');
+});
