@@ -1,15 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { expect } from 'vitest';
+import { ncbiFields } from '../../__test-utils__/ncbi.js';
 import type { RecordedRequest } from '../../__test-utils__/tool-requests.js';
 
 export const fields: Array<{ name: string; fullname: string }> = JSON.parse(
   readFileSync(new URL('../../__test-utils__/fixtures/clinvar/fields.json', import.meta.url), 'utf8'),
 );
-const names = new Set(fields.flatMap(f => [f.name, f.fullname].map(s => s.toLowerCase())));
-export const tags = (term: string) => [...term.matchAll(/\[([^\]]+)\]/g)].map(m => m[1].toLowerCase());
-// NCBI expands CPOS ranges using the CHRPOS alias in QueryTranslation.
-export const canonicalField = (tag: string) => tag.toLowerCase() === 'chrpos' ? 'cpos' : fields.find(f =>
-  [f.name.toLowerCase(), f.fullname.toLowerCase()].includes(tag.toLowerCase()))?.name.toLowerCase();
+export const { canonicalField, assertFieldTags, assertSearchAccepted } = ncbiFields(fields, { chrpos: 'cpos' });
 
 export function assertNcbiRequest(request: RecordedRequest) {
   const params = request.params as Record<string, unknown>;
@@ -29,7 +26,7 @@ export function assertNcbiRequest(request: RecordedRequest) {
     expect(Number.isInteger(params.retmax)).toBe(true);
     expect(Number(params.retmax)).toBeGreaterThan(0);
     expect(params.retstart).toBe(0);
-    for (const tag of tags(String(params.term))) expect(names.has(tag), tag).toBe(true);
+    assertFieldTags(String(params.term));
     // A valid field can still contain an invalid property token.
     for (const token of String(params.term).matchAll(/(\S+)\[prop\]/g)) {
       expect(['clinsig_pathogenic', 'clinsig_likely_pathogenic', 'clinsig_vus',

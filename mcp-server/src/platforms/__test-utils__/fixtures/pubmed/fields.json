@@ -1,0 +1,194 @@
+[
+  {
+    "name": "ALL",
+    "fullname": "All Fields"
+  },
+  {
+    "name": "UID",
+    "fullname": "UID"
+  },
+  {
+    "name": "FILT",
+    "fullname": "Filter"
+  },
+  {
+    "name": "TITL",
+    "fullname": "Title"
+  },
+  {
+    "name": "MESH",
+    "fullname": "MeSH Terms"
+  },
+  {
+    "name": "MAJR",
+    "fullname": "MeSH Major Topic"
+  },
+  {
+    "name": "JOUR",
+    "fullname": "Journal"
+  },
+  {
+    "name": "AFFL",
+    "fullname": "Affiliation"
+  },
+  {
+    "name": "ECNO",
+    "fullname": "EC/RN Number"
+  },
+  {
+    "name": "SUBS",
+    "fullname": "Supplementary Concept"
+  },
+  {
+    "name": "PDAT",
+    "fullname": "Date - Publication"
+  },
+  {
+    "name": "EDAT",
+    "fullname": "Date - Entry"
+  },
+  {
+    "name": "VOL",
+    "fullname": "Volume"
+  },
+  {
+    "name": "PAGE",
+    "fullname": "Pagination"
+  },
+  {
+    "name": "PTYP",
+    "fullname": "Publication Type"
+  },
+  {
+    "name": "LANG",
+    "fullname": "Language"
+  },
+  {
+    "name": "ISS",
+    "fullname": "Issue"
+  },
+  {
+    "name": "SUBH",
+    "fullname": "MeSH Subheading"
+  },
+  {
+    "name": "SI",
+    "fullname": "Secondary Source ID"
+  },
+  {
+    "name": "MHDA",
+    "fullname": "Date - MeSH"
+  },
+  {
+    "name": "TIAB",
+    "fullname": "Title/Abstract"
+  },
+  {
+    "name": "OTRM",
+    "fullname": "Other Term"
+  },
+  {
+    "name": "COLN",
+    "fullname": "Author - Corporate"
+  },
+  {
+    "name": "CNTY",
+    "fullname": "Place of Publication"
+  },
+  {
+    "name": "PAPX",
+    "fullname": "Pharmacological Action"
+  },
+  {
+    "name": "GRNT",
+    "fullname": "Grants and Funding"
+  },
+  {
+    "name": "MDAT",
+    "fullname": "Date - Modification"
+  },
+  {
+    "name": "CDAT",
+    "fullname": "Date - Completion"
+  },
+  {
+    "name": "PID",
+    "fullname": "Publisher ID"
+  },
+  {
+    "name": "FAUT",
+    "fullname": "Author - First"
+  },
+  {
+    "name": "FULL",
+    "fullname": "Author"
+  },
+  {
+    "name": "FINV",
+    "fullname": "Investigator"
+  },
+  {
+    "name": "TT",
+    "fullname": "Transliterated Title"
+  },
+  {
+    "name": "LAUT",
+    "fullname": "Author - Last"
+  },
+  {
+    "name": "PPDT",
+    "fullname": "Print Publication Date"
+  },
+  {
+    "name": "EPDT",
+    "fullname": "Electronic Publication Date"
+  },
+  {
+    "name": "LID",
+    "fullname": "Location ID"
+  },
+  {
+    "name": "CRDT",
+    "fullname": "Date - Create"
+  },
+  {
+    "name": "BOOK",
+    "fullname": "Book"
+  },
+  {
+    "name": "ED",
+    "fullname": "Editor"
+  },
+  {
+    "name": "ISBN",
+    "fullname": "ISBN"
+  },
+  {
+    "name": "PUBN",
+    "fullname": "Publisher"
+  },
+  {
+    "name": "AUCL",
+    "fullname": "Author Cluster ID"
+  },
+  {
+    "name": "EID",
+    "fullname": "Extended PMID"
+  },
+  {
+    "name": "AUID",
+    "fullname": "Author - Identifier"
+  },
+  {
+    "name": "PS",
+    "fullname": "Subject - Personal Name"
+  },
+  {
+    "name": "COIS",
+    "fullname": "Conflict of Interest Statements"
+  },
+  {
+    "name": "WORD",
+    "fullname": "Text Word"
+  }
+]

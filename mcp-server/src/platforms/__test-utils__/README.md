@@ -41,3 +41,18 @@ platform job intentionally warns through `continue-on-error: true`.
 The unfiltered Open Targets credible-set handler first checks the count: the
 upstream nested study resolver can time out even for an empty collection.
 The contract exercises this path rather than skipping the required-only case.
+
+## NCBI E-utilities
+
+`ncbi.ts` shares EInfo field canonicalization (with explicit database aliases),
+ESearch warning/error and query-translation checks, field-list comparison,
+and per-request pacing (350 ms without `NCBI_API_KEY`, 110 ms with it).
+Use strict All Fields rejection for fully fielded searches; mixed free-text
+queries may legitimately translate unfielded words to All Fields, but must
+retain each requested field. ClinVar and PubMed reuse these checks.
+
+`fixtures/pubmed/fields.json` saves every `{name, fullname}` from the live
+`einfo.fcgi?db=pubmed&retmode=json` field list fetched on 2026-11-13.
+The PubMed handler contract compares this list including additions. To refresh,
+fetch EInfo and save only those two properties for every field, then review
+changes. PubMed's documented `sb` subset tag aliases the EInfo `FILT` field.
