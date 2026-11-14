@@ -286,7 +286,7 @@ const TOOLS: Tool[] = [
       properties: {
         query: {
           type: 'string',
-          description: 'Optional search query for pathways',
+          description: 'Gene symbol for pathways (defaults to CYP2D6; results are scoped to that gene)',
         },
       },
     },
@@ -294,7 +294,7 @@ const TOOLS: Tool[] = [
 
   {
     name: 'get_database_stats',
-    description: 'Get scoped sample counts for CPIC genes/pathways and CYP2D6 annotations/guidelines/labels; drugs and variants are unsupported. Counts describe returned records, not database totals. Each sample reports available or failed status.',
+    description: 'Get scoped sample counts for CPIC genes and CYP2D6 pathways/annotations/guidelines/labels; drugs and variants are unsupported. Counts describe returned records, not database totals. Each sample reports available or failed status.',
     inputSchema: {
       type: 'object' as const,
       properties: {},
@@ -377,15 +377,14 @@ const handlers: Record<string, ToolHandler> = {
     const drug = args.drug as string | undefined;
     const source = args.source as 'CPIC' | 'DPWG' | undefined;
 
-    if (gene && source) {
-      return tools.getGuidelinesBySource(gene, source);
-    } else if (gene) {
-      return tools.getDosingGuidelinesForGene(gene);
-    } else if (drug) {
-      return tools.getDosingGuidelinesForDrug(drug);
-    } else {
-      throw new Error('Either gene or drug must be provided');
-    }
+    if (!gene && !drug) throw new Error('Either gene or drug must be provided');
+    const guidelines = gene
+      ? await tools.getDosingGuidelinesForGene(gene)
+      : await tools.getDosingGuidelinesForDrug(drug!);
+    return guidelines.filter(guideline =>
+      (!drug || guideline.drugs.some(name => name.toLowerCase() === drug.toLowerCase())) &&
+      (!source || guideline.source === source)
+    );
   },
   get_guidelines_for_pair: async (args) => {
     return tools.getGuidelinesForDrugGenePair(

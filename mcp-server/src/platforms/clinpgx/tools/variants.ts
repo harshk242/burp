@@ -55,9 +55,5 @@ export async function getVariantsWithAnnotations(
 
 export async function getStarAlleles(gene: string): Promise<VariantInfo[]> {
   const client = getClient();
-  const result = await client.searchVariants(`${gene}*`, 100);
-  return result.results.filter(variant =>
-    variant.name?.includes('*') &&
-    variant.gene?.toLowerCase() === gene.toLowerCase()
-  );
+  return client.getStarAlleles(gene);
 }
