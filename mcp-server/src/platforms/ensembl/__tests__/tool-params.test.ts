@@ -69,3 +69,17 @@ it.each([true, false])('sends multiple_sequences=%s for IDs', async multiple_seq
 it('rejects multiple_sequences on genomic regions', async () => {
   await expect(handlers.get_sequence({ region: samples.region, multiple_sequences: true })).rejects.toThrow('ID-based');
 });
+it.each([
+  ['/sequence/id/ENST00000269305', { mask: 'bogus' }],
+  ['/sequence/id/ENST00000269305', { multiple_sequences: 'yes' }],
+  ['/sequence/id/ENST00000269305', { type: 'bogus' }],
+  ['/lookup/id/ENSG00000141510', { expand: 2 }],
+  ['/overlap/region/human/1:1-2', { feature: 'bogus' }],
+])('rejects invalid outgoing values on %s', (path, params) => {
+  expect(() => assertEnsemblRequest({ method: 'get', url: 'https://rest.ensembl.org' + path, params, body: {} })).toThrow();
+});
+it.each(['/lookup/id', '/vep/human/id', '/vep/human/hgvs', '/vep/human/region'])('requires nonempty body arrays on %s', path => {
+  for (const body of [{}, { ids: [] }, { ids: 'rs699' }]) {
+    expect(() => assertEnsemblRequest({ method: 'post', url: 'https://rest.ensembl.org' + path, params: {}, body })).toThrow();
+  }
+});
