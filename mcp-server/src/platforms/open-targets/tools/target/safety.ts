@@ -66,21 +66,6 @@ export async function getTargetChemicalProbes(ensemblId: string): Promise<unknow
   return client.query(query, { ensemblId });
 }
 
-export async function getTargetTep(ensemblId: string): Promise<unknown> {
-  const client = getClient();
-  const query = `
-    query TargetTEP($ensemblId: String!) {
-      target(ensemblId: $ensemblId) {
-        id
-        approvedSymbol
-        # Target enabling packages were removed from the upstream schema.
-      }
-    }
-  `;
-  const result = await client.query<Record<string, unknown>>(query, { ensemblId });
-  return { ...result, availability: 'Target enabling packages are no longer provided by the Open Targets API.' };
-}
-
 export async function getTargetPrioritization(ensemblId: string): Promise<unknown> {
   const client = getClient();
   const query = `

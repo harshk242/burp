@@ -73,7 +73,6 @@ export const toolHandlers: Record<string, ToolHandler> = {
   get_target_safety_information: (args) => targetSafety.getTargetSafetyInformation(args.ensembl_id as string),
   get_target_tractability: (args) => targetSafety.getTargetTractability(args.ensembl_id as string),
   get_target_chemical_probes: (args) => targetSafety.getTargetChemicalProbes(args.ensembl_id as string),
-  get_target_tep: (args) => targetSafety.getTargetTep(args.ensembl_id as string),
   get_target_prioritization: (args) => targetSafety.getTargetPrioritization(args.ensembl_id as string),
 
   get_disease_info: (args) => disease.getDiseaseInfo(args.efo_id as string),

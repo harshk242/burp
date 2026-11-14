@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { buildClientSchema } from 'graphql';
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { initializeClient, closeClient } from '../client.js';
 import { toolDefinitions as tools, toolHandlers as handlers } from '../tools.js';
 import { assertArgsAffectRequests, assertHandlerCoverage, assertMakesRequest, requestRecorder } from '../../__test-utils__/tool-requests.js';
@@ -23,4 +23,9 @@ describe.each(tools)('$name requests', (tool) => {
   it('uses every argument and enum value', async () => {
     await assertArgsAffectRequests(tool, samples, (args) => capture(tool.name, args), clientSideArgs[tool.name]);
   });
+});
+
+it('does not advertise or handle the removed TEP capability', () => {
+  expect(tools.some(t => t.name === 'get_target_tep')).toBe(false);
+  expect(handlers).not.toHaveProperty('get_target_tep');
 });

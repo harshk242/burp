@@ -219,17 +219,6 @@ export const definitions: Tool[] = [
     },
   },
   {
-    name: 'get_target_tep',
-    description: 'Check target identity and report TEP availability. Target Enabling Packages were removed from the upstream API.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        ensembl_id: { type: 'string', description: 'Target identifier' },
-      },
-      required: ['ensembl_id'],
-    },
-  },
-  {
     name: 'get_target_prioritization',
     description: 'Return target prioritisation scores compiled across data sources.',
     inputSchema: {
