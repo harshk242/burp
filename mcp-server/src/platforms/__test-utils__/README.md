@@ -12,7 +12,8 @@
   recursively rejects missing values and accidental object stringification.
 - `assertArgsAffectRequests(tool, samples, capture, clientSideReasons)` changes
   each argument independently and compares the requests, then checks each
-  extra enum value. `capture(args)` must reset the client and return requests.
+  extra enum value. Scalar enum mutations use another allowed value; singleton
+  enums have no alternative to mutate. `capture(args)` must reset the client and return requests.
   Document client-side filters by argument, with a reason; test their output
   filtering separately using populated fixtures.
 - `assertGraphQLRequest(schema, request)` validates query fields, argument

@@ -52,8 +52,10 @@ export async function assertArgsAffectRequests(
   const baseline = JSON.stringify(await capture(full));
   for (const name of Object.keys(tool.inputSchema.properties ?? {})) {
     if (clientSide[name]) { expect(clientSide[name].trim().length).toBeGreaterThan(0); continue; }
+    const prop = (tool.inputSchema.properties ?? {})[name] as { enum?: unknown[] };
+    if (prop.enum?.length === 1) continue; // No alternative allowed by the schema.
     const value = full[name];
-    const alternative = typeof value === 'boolean' ? !value : typeof value === 'number' ? value + 1
+    const alternative = prop.enum?.length ? prop.enum.find(item => JSON.stringify(item) !== JSON.stringify(value)) : typeof value === 'boolean' ? !value : typeof value === 'number' ? value + 1
       : Array.isArray(value) ? [...value, ...value] : typeof value === 'object' ? {} : `${value}-alternate`;
     expect(JSON.stringify(await capture({ ...full, [name]: alternative })), name).not.toBe(baseline);
   }

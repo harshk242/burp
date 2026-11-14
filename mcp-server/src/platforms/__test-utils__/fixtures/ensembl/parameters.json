@@ -1,0 +1,316 @@
+[
+  {
+    "method": "get",
+    "path": "/lookup/id/:id",
+    "documentation": "https://rest.ensembl.org/documentation/info/lookup",
+    "pathParams": [
+      "id"
+    ],
+    "query": [
+      "callback",
+      "db_type",
+      "expand",
+      "format",
+      "mane",
+      "phenotypes",
+      "species",
+      "utr",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "post",
+    "path": "/lookup/id",
+    "documentation": "https://rest.ensembl.org/documentation/info/lookup_post",
+    "pathParams": [],
+    "query": [
+      "callback",
+      "db_type",
+      "expand",
+      "format",
+      "object_type",
+      "species",
+      "content-type"
+    ],
+    "body": [
+      "ids"
+    ]
+  },
+  {
+    "method": "get",
+    "path": "/lookup/symbol/:species/:symbol",
+    "documentation": "https://rest.ensembl.org/documentation/info/symbol_lookup",
+    "pathParams": [
+      "species",
+      "symbol"
+    ],
+    "query": [
+      "callback",
+      "expand",
+      "format",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "get",
+    "path": "/overlap/region/:species/:region",
+    "documentation": "https://rest.ensembl.org/documentation/info/overlap_region",
+    "pathParams": [
+      "species",
+      "region"
+    ],
+    "query": [
+      "feature",
+      "biotype",
+      "callback",
+      "db_type",
+      "logic_name",
+      "misc_set",
+      "so_term",
+      "species_set",
+      "trim_downstream",
+      "trim_upstream",
+      "variant_set",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "get",
+    "path": "/sequence/id/:id",
+    "documentation": "https://rest.ensembl.org/documentation/info/sequence_id",
+    "pathParams": [
+      "id"
+    ],
+    "query": [
+      "callback",
+      "db_type",
+      "end",
+      "expand_3prime",
+      "expand_5prime",
+      "format",
+      "mask",
+      "mask_feature",
+      "multiple_sequences",
+      "object_type",
+      "species",
+      "start",
+      "type",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "get",
+    "path": "/sequence/region/:species/:region",
+    "documentation": "https://rest.ensembl.org/documentation/info/sequence_region",
+    "pathParams": [
+      "species",
+      "region"
+    ],
+    "query": [
+      "callback",
+      "coord_system",
+      "coord_system_version",
+      "expand_3prime",
+      "expand_5prime",
+      "format",
+      "mask",
+      "mask_feature",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "get",
+    "path": "/homology/id/:species/:id",
+    "documentation": "https://rest.ensembl.org/documentation/info/homology_species_gene_id",
+    "pathParams": [
+      "species",
+      "id"
+    ],
+    "query": [
+      "aligned",
+      "callback",
+      "cigar_line",
+      "compara",
+      "format",
+      "sequence",
+      "target_species",
+      "target_taxon",
+      "type",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "get",
+    "path": "/genetree/member/id/:species/:id",
+    "documentation": "https://rest.ensembl.org/documentation/info/genetree_species_member_id",
+    "pathParams": [
+      "species",
+      "id"
+    ],
+    "query": [
+      "aligned",
+      "callback",
+      "cigar_line",
+      "clusterset_id",
+      "compara",
+      "db_type",
+      "nh_format",
+      "object_type",
+      "prune_species",
+      "prune_taxon",
+      "sequence",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "get",
+    "path": "/xrefs/id/:id",
+    "documentation": "https://rest.ensembl.org/documentation/info/xref_id",
+    "pathParams": [
+      "id"
+    ],
+    "query": [
+      "all_levels",
+      "callback",
+      "db_type",
+      "external_db",
+      "object_type",
+      "species",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "get",
+    "path": "/map/:species/:asm_one/:region/:asm_two",
+    "documentation": "https://rest.ensembl.org/documentation/info/assembly_map",
+    "pathParams": [
+      "species",
+      "asm_one",
+      "region",
+      "asm_two"
+    ],
+    "query": [
+      "callback",
+      "coord_system",
+      "target_coord_system",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "get",
+    "path": "/info/species",
+    "documentation": "https://rest.ensembl.org/documentation/info/species",
+    "pathParams": [],
+    "query": [
+      "callback",
+      "division",
+      "hide_strain_info",
+      "strain_collection",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "get",
+    "path": "/info/assembly/:species",
+    "documentation": "https://rest.ensembl.org/documentation/info/assembly_info",
+    "pathParams": [
+      "species"
+    ],
+    "query": [
+      "bands",
+      "callback",
+      "synonyms",
+      "content-type"
+    ],
+    "body": []
+  },
+  {
+    "method": "post",
+    "path": "/vep/:species/id",
+    "documentation": "https://rest.ensembl.org/documentation/info/vep_id_post",
+    "pathParams": [
+      "species"
+    ],
+    "query": [
+      "AlphaMissense",
+      "AncestralAllele",
+      "Blosum62",
+      "CADD",
+      "ClinPred",
+      "ClinVar_SV",
+      "DosageSensitivity",
+      "EVE",
+      "Enformer",
+      "GO",
+      "GeneSplicer",
+      "Geno2MP",
+      "IntAct",
+      "LOEUF",
+      "LoF",
+      "MaveDB",
+      "MaxEntScan",
+      "NMD",
+      "OpenTargets",
+      "Paralogues",
+      "Phenotypes",
+      "ProtVar",
+      "REVEL",
+      "RiboseqORFs",
+      "SpliceAI",
+      "UTRAnnotator",
+      "appris",
+      "callback",
+      "canonical",
+      "ccds",
+      "dbNSFP",
+      "dbscSNV",
+      "distance",
+      "domains",
+      "failed",
+      "flag_pick",
+      "flag_pick_allele",
+      "flag_pick_allele_gene",
+      "ga4gh_vrs",
+      "gencode_basic",
+      "gencode_primary",
+      "gnomAD_SV",
+      "hgvs",
+      "mane",
+      "merged",
+      "minimal",
+      "mirna",
+      "mutfunc",
+      "numbers",
+      "per_gene",
+      "pick",
+      "pick_allele",
+      "pick_allele_gene",
+      "pick_order",
+      "protein",
+      "refseq",
+      "shift_3prime",
+      "shift_genomic",
+      "transcript_id",
+      "transcript_version",
+      "tsl",
+      "uniprot",
+      "variant_class",
+      "vcf_string",
+      "xref_refseq",
+      "content-type"
+    ],
+    "body": [
+      "ids"
+    ]
+  }
+]

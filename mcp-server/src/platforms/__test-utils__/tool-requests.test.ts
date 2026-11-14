@@ -49,3 +49,14 @@ it('preserves axios base path joining for relative resource URLs', async () => {
   await axios.create({ baseURL: 'https://example.org/api/data', adapter: recorder.adapter }).get('/molecule.json');
   expect(recorder.requests[0].url).toBe('https://example.org/api/data/molecule.json');
 });
+
+it('uses valid enum alternatives and accepts singleton enums', async () => {
+  const enumTool: Tool = { name: 'enum', inputSchema: { type: 'object', properties: {
+    format: { type: 'string', enum: ['json', 'fasta'] }, only: { type: 'string', enum: ['json'] },
+  } } };
+  await assertArgsAffectRequests(enumTool, {}, async args => {
+    expect(['json', 'fasta']).toContain(args.format);
+    expect(args.only).toBe('json');
+    return [{ method: 'get', url: 'https://example.org', params: args, body: {} }];
+  });
+});
