@@ -60,3 +60,12 @@ it.each([['rs699', 'id', 'ids'], ['ENST00000269305.9:c.215C>G', 'hgvs', 'hgvs_no
   expect(requests[0].body).toEqual({ [key]: [variant] });
   requests.forEach(assertEnsemblRequest);
 });
+it.each([true, false])('sends multiple_sequences=%s for IDs', async multiple_sequences => {
+  const requests = setup();
+  await handlers.get_sequence({ region: samples.transcript_id, multiple_sequences });
+  expect(requests[0].params).toMatchObject({ multiple_sequences: multiple_sequences ? 1 : 0 });
+  requests.forEach(assertEnsemblRequest);
+});
+it('rejects multiple_sequences on genomic regions', async () => {
+  await expect(handlers.get_sequence({ region: samples.region, multiple_sequences: true })).rejects.toThrow('ID-based');
+});

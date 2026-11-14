@@ -9,7 +9,7 @@ export const samples: Samples = {
   external_db: 'HGNC', source_assembly: 'GRCh38', target_assembly: 'GRCh37', division: 'EnsemblVertebrates',
 };
 export const toolSamples = (tool: Tool): Samples => ["get_regulatory_features", "get_motif_features"].includes(tool.name)
-  ? { ...samples, region: "17:7661779-7687550" } : samples;
+  ? { ...samples, region: "17:7661779-7687550" } : tool.name === 'get_sequence' ? { ...samples, region: samples.transcript_id } : samples;
 export const argVariants = (tool: Tool) => variants(tool, toolSamples(tool));
 export const clientSide: Record<string, Record<string, string>> = {
   get_transcripts: { canonical_only: 'Filters is_canonical locally; populated fixture tested.' },

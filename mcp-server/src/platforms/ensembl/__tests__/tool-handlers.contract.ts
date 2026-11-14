@@ -27,7 +27,7 @@ async function invoke(name: string, args: Record<string, unknown>): Promise<any>
     if (args.format !== 'json') expect(row.data).toMatch(/^>/);
   });
   if (['get_sequence', 'get_cds_sequence'].includes(name)) {
-    if (args.format === 'json') expect(result.seq).toMatch(/^[ACGTNacgtn]+$/);
+    if (args.format === 'json') expect((Array.isArray(result) ? result[0] : result).seq).toMatch(/^[ACGTNacgtn]+$/);
     else expect(result).toMatch(/^>/);
   }
   if (name === 'get_gene_tree' && args.format && args.format !== 'json') {
@@ -71,4 +71,10 @@ it('motif region and local gene/transcript filters change the output', async () 
 it.each(['rs699', 'ENST00000269305.9:c.215C>G', '7 140753336 140753336 A/T 1'])('predicts VEP input %s live', async variant => {
   const result = await invoke('get_variant_consequences', { variants: [variant] });
   expect(result[0].transcript_consequences.length).toBeGreaterThan(0);
+});
+
+it('multiple_sequences changes the ID response shape live', async () => {
+  const args = { region: samples.transcript_id, format: 'json' };
+  expect(Array.isArray(await invoke('get_sequence', { ...args, multiple_sequences: true }))).toBe(true);
+  expect(Array.isArray(await invoke('get_sequence', { ...args, multiple_sequences: false }))).toBe(false);
 });

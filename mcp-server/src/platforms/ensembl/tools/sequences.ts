@@ -10,6 +10,7 @@ const isValidSequenceArgs = (
   species?: string;
   format?: string;
   mask?: string;
+  multiple_sequences?: boolean;
 } => {
   return (
     typeof args === 'object' &&
@@ -18,7 +19,8 @@ const isValidSequenceArgs = (
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
     (args.format === undefined || ['json', 'fasta'].includes(args.format)) &&
-    (args.mask === undefined || ['hard', 'soft'].includes(args.mask))
+    (args.mask === undefined || ['hard', 'soft'].includes(args.mask)) &&
+    (args.multiple_sequences === undefined || typeof args.multiple_sequences === 'boolean')
   );
 };
 
@@ -77,6 +79,10 @@ export const tools: Tool[] = [
           type: 'string',
           enum: ['json', 'fasta'],
           description: 'Output format (default: fasta)',
+        },
+        multiple_sequences: {
+          type: 'boolean',
+          description: 'Return all matching sequences for an ID (default: false); only valid for ID requests',
         },
         mask: {
           type: 'string',
@@ -156,8 +162,10 @@ async function fetchSingleSequence(args: {
   if (region.startsWith('ENS')) {
     endpoint = `/sequence/id/${region}`;
     params.type = 'genomic';
+    if (args.multiple_sequences !== undefined) params.multiple_sequences = args.multiple_sequences ? 1 : 0;
     params.species = species;
   } else {
+    if (args.multiple_sequences !== undefined) throw new Error('multiple_sequences is only supported for ID-based sequence requests');
     endpoint = `/sequence/region/${species}/${region}`;
   }
 
