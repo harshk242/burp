@@ -4,28 +4,26 @@ import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidRegulatoryArgs = (
   args: any,
-): args is { region: string; species?: string; feature_type?: string; cell_type?: string } => {
+): args is { region: string; species?: string; feature_type?: string; } => {
   return (
     typeof args === 'object' &&
     args !== null &&
     typeof args.region === 'string' &&
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.feature_type === undefined || typeof args.feature_type === 'string') &&
-    (args.cell_type === undefined || typeof args.cell_type === 'string')
+    (args.feature_type === undefined || typeof args.feature_type === 'string')
   );
 };
 
 const isValidMotifArgs = (
   args: any,
-): args is { region: string; species?: string; binding_matrix?: string } => {
+): args is { region: string; species?: string; } => {
   return (
     typeof args === 'object' &&
     args !== null &&
     typeof args.region === 'string' &&
     args.region.length > 0 &&
-    (args.species === undefined || typeof args.species === 'string') &&
-    (args.binding_matrix === undefined || typeof args.binding_matrix === 'string')
+    (args.species === undefined || typeof args.species === 'string')
   );
 };
 
@@ -41,9 +39,8 @@ export const tools: Tool[] = [
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
         feature_type: {
           type: 'string',
-          description: 'Regulatory feature type (optional)',
+          description: 'Filter locally by feature description, e.g., promoter or enhancer (case insensitive)',
         },
-        cell_type: { type: 'string', description: 'Cell type context (optional)' },
       },
       required: ['region'],
     },
@@ -56,10 +53,6 @@ export const tools: Tool[] = [
       properties: {
         region: { type: 'string', description: 'Genomic region (chr:start-end)' },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
-        binding_matrix: {
-          type: 'string',
-          description: 'Specific binding matrix (optional)',
-        },
       },
       required: ['region'],
     },
@@ -75,16 +68,12 @@ async function handleGetRegulatoryFeatures(args: Record<string, unknown>) {
   const region = args.region;
   const params: Record<string, unknown> = { feature: 'regulatory' };
 
-  if (args.feature_type) {
-    params.feature_type = args.feature_type;
-  }
-  if (args.cell_type) {
-    params.cell_type = args.cell_type;
-  }
-
   const response = await getClient().get(`/overlap/region/${species}/${region}`, { params });
 
-  if (Array.isArray(response.data) && response.data.length === 0) {
+  const data = args.feature_type ? response.data.filter((row: any) =>
+    String(row.description).toLowerCase() === args.feature_type!.toLowerCase()) : response.data;
+
+  if (Array.isArray(data) && data.length === 0) {
     return {
       message: 'No regulatory features found in this region',
       region,
@@ -93,7 +82,7 @@ async function handleGetRegulatoryFeatures(args: Record<string, unknown>) {
     };
   }
 
-  return response.data;
+  return data;
 }
 
 async function handleGetMotifFeatures(args: Record<string, unknown>) {
@@ -103,21 +92,9 @@ async function handleGetMotifFeatures(args: Record<string, unknown>) {
 
   const species = getDefaultSpecies(args.species);
 
-  if (!args.binding_matrix) {
-    return {
-      error: 'Region-based motif search not available in REST API',
-      message:
-        'The Ensembl REST API only supports retrieval of specific binding matrices by ID',
-      solution: 'Provide a binding_matrix parameter with a valid binding matrix stable ID',
-      alternative:
-        'Use the Variant Effect Predictor (VEP) tool for comprehensive region analysis',
-      example_id: 'ENSPFM0001',
-    };
-  }
-
-  const response = await getClient().get(
-    `/species/${species}/binding_matrix/${args.binding_matrix}/`,
-  );
+  const response = await getClient().get(`/overlap/region/${species}/${args.region}`, {
+    params: { feature: 'motif' },
+  });
   return response.data;
 }
 

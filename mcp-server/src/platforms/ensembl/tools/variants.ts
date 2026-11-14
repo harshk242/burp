@@ -11,7 +11,6 @@ const isValidVariantArgs = (
     typeof args.region === 'string' &&
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.format === undefined || ['json', 'vcf'].includes(args.format)) &&
     (args.consequence_type === undefined ||
       (Array.isArray(args.consequence_type) &&
         args.consequence_type.every((c: any) => typeof c === 'string')))
@@ -40,11 +39,6 @@ export const tools: Tool[] = [
       properties: {
         region: { type: 'string', description: 'Genomic region (chr:start-end)' },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
-        format: {
-          type: 'string',
-          enum: ['json', 'vcf'],
-          description: 'Output format (default: json)',
-        },
         consequence_type: {
           type: 'array',
           items: { type: 'string' },
@@ -63,7 +57,7 @@ export const tools: Tool[] = [
         variants: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Variant IDs or HGVS notation',
+          description: 'Variant identifiers (e.g., rs699); HGVS notations are not supported by this tool',
         },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
       },
@@ -81,8 +75,16 @@ async function handleGetVariants(args: Record<string, unknown>) {
   const region = args.region;
   const params: Record<string, unknown> = { feature: 'variation' };
 
-  if (args.consequence_type && args.consequence_type.length > 0) {
-    params.consequence_type = args.consequence_type.join(',');
+  if (args.consequence_type?.length) {
+    // The overlap endpoint accepts one SO term per request; union multiple terms.
+    const rows = [];
+    for (const term of args.consequence_type) {
+      const response = await getClient().get(`/overlap/region/${species}/${region}`, {
+        params: { ...params, so_term: term },
+      });
+      rows.push(...response.data);
+    }
+    return [...new Map(rows.map(row => [JSON.stringify([row.id, row.start, row.end, row.alleles]), row])).values()];
   }
 
   const response = await getClient().get(`/overlap/region/${species}/${region}`, { params });
@@ -97,8 +99,8 @@ async function handleGetVariantConsequences(args: Record<string, unknown>) {
   const species = getDefaultSpecies(args.species);
 
   const response = await getClient().post(
-    `/vep/${species}/region`,
-    { variants: args.variants },
+    `/vep/${species}/id`,
+    { ids: args.variants },
     { headers: { 'Content-Type': 'application/json' } },
   );
 
