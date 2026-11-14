@@ -11,7 +11,7 @@ function setup(data: unknown = gene) {
   return recorder.requests;
 }
 async function capture(name: string, args: Record<string, unknown>) {
-  const requests = setup(['get_variants', 'get_regulatory_features'].includes(name)
+  const requests = setup(['get_variant_consequences', 'get_variants', 'get_regulatory_features'].includes(name)
     ? [{ id: 'v1', description: 'enhancer' }, { id: 'v2', description: 'promoter' }] : gene);
   await handlers[name](args);
   assertMakesRequest(requests, name === 'translate_sequence' ? 'Local standard genetic code translation.' : undefined);
@@ -51,4 +51,12 @@ it('rejects unknown routes, parameters and missing path segments', () => {
   for (const [path, params] of [['/map/coords/human/GRCh37/1:1-2', {}], ['/overlap/region/human/1:1-2', { consequence_type: 'missense_variant' }], ['/sequence/region/human/', {}]]) {
     expect(() => assertEnsemblRequest({ method: 'get', url: `https://rest.ensembl.org${path}`, params, body: {} })).toThrow();
   }
+});
+
+it.each([['rs699', 'id', 'ids'], ['ENST00000269305.9:c.215C>G', 'hgvs', 'hgvs_notations'], ['7 140753336 140753336 A/T 1', 'region', 'variants']])('routes VEP %s', async (variant, endpoint, key) => {
+  const requests = setup([]);
+  await handlers.get_variant_consequences({ variants: [variant] });
+  expect(requests[0].url).toContain('/vep/homo_sapiens/' + endpoint);
+  expect(requests[0].body).toEqual({ [key]: [variant] });
+  requests.forEach(assertEnsemblRequest);
 });

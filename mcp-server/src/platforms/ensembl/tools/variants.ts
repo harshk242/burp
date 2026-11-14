@@ -50,14 +50,14 @@ export const tools: Tool[] = [
   },
   {
     name: 'get_variant_consequences',
-    description: 'Predict consequences of variants on genes and transcripts',
+    description: 'Predict consequences of variant IDs (rs699), HGVS (ENST00000269305.9:c.215C>G), or VEP region/allele strings (7 140753336 140753336 A/T 1). Mixed forms are supported.',
     inputSchema: {
       type: 'object',
       properties: {
         variants: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Variant identifiers (e.g., rs699); HGVS notations are not supported by this tool',
+          description: 'Variant IDs, HGVS notations, or space-separated VEP region/allele strings',
         },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
       },
@@ -98,13 +98,19 @@ async function handleGetVariantConsequences(args: Record<string, unknown>) {
 
   const species = getDefaultSpecies(args.species);
 
-  const response = await getClient().post(
-    `/vep/${species}/id`,
-    { ids: args.variants },
-    { headers: { 'Content-Type': 'application/json' } },
-  );
-
-  return response.data;
+  const results = [];
+  for (const form of ['id', 'hgvs', 'region'] as const) {
+    const variants = args.variants.filter(v =>
+      (/\s/.test(v.trim()) ? 'region' : v.includes(':') ? 'hgvs' : 'id') === form);
+    if (!variants.length) continue;
+    const key = form === 'id' ? 'ids' : form === 'hgvs' ? 'hgvs_notations' : 'variants';
+    const response = await getClient().post(
+      "/vep/" + species + "/" + form, { [key]: variants },
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+    results.push(...response.data);
+  }
+  return results;
 }
 
 export const handlers: Record<string, ToolHandler> = {

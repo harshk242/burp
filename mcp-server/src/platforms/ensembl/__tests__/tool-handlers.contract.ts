@@ -36,7 +36,7 @@ async function invoke(name: string, args: Record<string, unknown>): Promise<any>
   }
   if (name === 'get_homologs' && args.format === 'xml') expect(result).toMatch(/<.*data/);
   if (name === 'search_genes') expect(result.result.biotype).toBe('protein_coding');
-  if (name === 'get_variant_consequences') expect(result[0].input).toBe('rs699');
+  if (name === 'get_variant_consequences') expect(result.map((r: any) => r.input)).toEqual(expect.arrayContaining(args.variants as string[]));
   if (name === 'map_coordinates') expect(result.mappings.length).toBeGreaterThan(0);
   if (['get_variants', 'get_regulatory_features', 'get_motif_features'].includes(name)) expect(result.length).toBeGreaterThan(0);
   return result;
@@ -66,4 +66,9 @@ it('motif region and local gene/transcript filters change the output', async () 
   canonical.transcripts.forEach((row: any) => expect(row.is_canonical).toBe(1));
   init({}, { adapter: async config => { await pace(200); return transport(config); } });
   expect((await handlers.search_genes({ query: 'TP53', biotype: 'lncRNA' }) as any).result).toBeNull();
+});
+
+it.each(['rs699', 'ENST00000269305.9:c.215C>G', '7 140753336 140753336 A/T 1'])('predicts VEP input %s live', async variant => {
+  const result = await invoke('get_variant_consequences', { variants: [variant] });
+  expect(result[0].transcript_consequences.length).toBeGreaterThan(0);
 });
