@@ -33,7 +33,7 @@ const A_CHANGED = { ...A, description: "First alpha tool, now paginated" };
 function fakeEmbedder(id = "fake:model@3") {
   const batches: string[][] = [];
   const held: Array<() => void> = [];
-  const state = { fail: null as unknown, defer: false };
+  const state = { fail: null as Error | null, defer: false };
   const embedder: Embedder = {
     id,
     spec: { provider: "openai", model: id, dimensions: DIM },

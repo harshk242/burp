@@ -130,6 +130,8 @@ export class CallTracker {
       case "tool-input-delta":
         call.streamedChars += chunk.delta.length;
         break;
+      default:
+        break;
     }
   };
 

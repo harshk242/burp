@@ -32,7 +32,7 @@ const B1 = tool("beta__one", "First beta tool");
 function fakeEmbedder(id = "fake:model@3") {
   const batches: string[][] = [];
   const held: Array<() => void> = [];
-  const state = { fail: null as unknown, failures: [] as unknown[], defer: false };
+  const state = { fail: null as Error | null, failures: [] as Error[], defer: false };
   const embedder: Embedder = {
     id,
     spec: { provider: "openai", model: id, dimensions: DIM },

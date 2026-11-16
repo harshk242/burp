@@ -2,6 +2,7 @@
   "name": "burp",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "workspaces": [
     "app",
     "app/web",
@@ -18,6 +19,8 @@
     "test:contracts": "bun run --filter bio-mcp-unified test:contracts",
     "smoke:image": "bun scripts/smoke-image.ts",
     "typecheck": "tsc",
+    "typecheck:all": "bun run typecheck && bun run --cwd mcp-server typecheck && bun run --cwd app typecheck && bun run --cwd app/web typecheck && bun run typecheck:coverage",
+    "typecheck:coverage": "bun scripts/check-typecheck-coverage.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
   },

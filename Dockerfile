@@ -6,6 +6,7 @@ RUN apk add --no-cache nodejs npm
 FROM base AS mcp-build
 COPY mcp-server/package.json mcp-server/bun.lock ./mcp-server/
 RUN cd mcp-server && bun install
+COPY tsconfig.base.json ./
 COPY mcp-server ./mcp-server
 RUN cd mcp-server && bun run build
 
@@ -16,11 +17,13 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-COPY app/web/package.json app/web/bun.lock ./web/
-RUN cd web && bun install
-COPY app/shared ./shared
-COPY app/web ./web
-RUN cd web && bun run build
+# Mirror the repo layout so app/web/tsconfig.json can extend ../../tsconfig.base.json.
+COPY app/web/package.json app/web/bun.lock ./app/web/
+RUN cd app/web && bun install
+COPY tsconfig.base.json ./
+COPY app/shared ./app/shared
+COPY app/web ./app/web
+RUN cd app/web && bun run build
 
 FROM base AS server-build
 COPY app/package.json app/bun.lock ./
@@ -34,7 +37,7 @@ FROM base AS runner
 
 COPY --from=mcp-build /app/mcp-server ./mcp-server
 
-COPY --from=web-build /app/web/out ./public
+COPY --from=web-build /app/app/web/out ./public
 
 # The bundle must stay at server/index.js: APP_DIR resolves config.yaml and migrations from it.
 COPY --from=server-build /app/dist/server ./server

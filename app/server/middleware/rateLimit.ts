@@ -148,5 +148,5 @@ export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
   c.header("X-RateLimit-Cost-Monthly-Used", String(monthCost));
   c.header("X-RateLimit-Monthly-Reset", String(monthlyResetAt));
 
-  await next();
+  return next();
 }

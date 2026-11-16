@@ -38,7 +38,6 @@ uniprot-tool-output-analysis.md
 .mcp.json.example
 .github
 
-run_use_case_2.ts
 test_failed_cases.py
 test_failed_cases.sh
 scripts

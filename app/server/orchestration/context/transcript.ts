@@ -117,6 +117,7 @@ function incompatibility(rows: DbTranscriptRow[], current: TranscriptCompatibili
     }
   }
   if (missing.size) return { reason: "missing_tools", missing_tools: [...missing].sort() };
+  return undefined;
 }
 
 export function loadTranscript(sessionId: string, current?: TranscriptCompatibility): TranscriptContext {

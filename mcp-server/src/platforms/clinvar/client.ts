@@ -11,7 +11,8 @@ import {
   parseESummaryResult,
   parseVCVRecord,
 } from './xml-parser.js';
-import { TokenBucketRateLimiter, createNcbiRateLimiter } from '../../shared/rate-limiter.js';
+import type { TokenBucketRateLimiter} from '../../shared/rate-limiter.js';
+import { createNcbiRateLimiter } from '../../shared/rate-limiter.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import type {

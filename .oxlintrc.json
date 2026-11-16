@@ -27,6 +27,12 @@
     "typescript/no-misused-promises": "error",
     "typescript/await-thenable": "error",
     "typescript/no-base-to-string": "error",
+    "typescript/ban-ts-comment": ["error", { "ts-expect-error": "allow-with-description", "minimumDescriptionLength": 10 }],
+    "typescript/switch-exhaustiveness-check": ["error", { "considerDefaultExhaustiveForUnions": true }],
+    "typescript/only-throw-error": "error",
+    "typescript/prefer-promise-reject-errors": ["error", { "allowThrowingAny": true, "allowThrowingUnknown": true }],
+    "typescript/return-await": ["error", "in-try-catch"],
+    "typescript/consistent-type-imports": "error",
     "typescript/restrict-template-expressions": "off",
     "typescript/no-unsafe-type-assertion": "off",
 
