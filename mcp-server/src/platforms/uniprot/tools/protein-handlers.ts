@@ -1,9 +1,11 @@
 import type { ToolHandler } from '../../../types.js';
 import { isRejectedLookup } from '../../../shared/exceptions.js';
-import { SEARCH_FIELDS, summarizeSearch, quoteQuery, reviewedQuery, searchSummaries } from '../search-fields.js';
-import { getClient } from '../client.js';
+import { quoteQuery, reviewedQuery, searchSummaries } from '../search-fields.js';
 import { XMLBuilder } from 'fast-xml-parser';
-import { fetchProtein, stripEvidences, variantSummary, FEATURE_FIELDS, COMMENT_FIELDS, CROSS_REFERENCE_FIELDS, INFO_FIELDS } from '../entry-fields.js';
+import { ENTRY_FIELDS, EXPORT_FORMATS, fetchProtein, slimProteinInfo, stripEvidences } from '../entry-fields.js';
+import { variantSummary } from '../variants.js';
+import { batchLookup } from '../batch.js';
+import { resolveOrganismFilter } from '../extractors.js';
 
 function requireString(args: Record<string, unknown>, key: string, label: string): string {
   const v = args[key];
@@ -22,12 +24,9 @@ const handleGetProteinInfo: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_info');
   const format = optString(args, 'format') ?? 'json';
   const data = await fetchProtein(accession, format === 'xml' ? 'json' : format,
-    ['json', 'xml', 'tsv'].includes(format) ? INFO_FIELDS : undefined);
+    ['json', 'xml', 'tsv'].includes(format) ? ENTRY_FIELDS.info : undefined);
   if (format === 'json' || format === 'xml') {
-    const slim = stripEvidences(data);
-    delete slim.references;
-    delete slim.sequence?.value;
-    slim.detailTools = { literature: 'get_literature_references', sequence: 'get_protein_sequence', features: 'get_protein_features', externalReferences: 'get_external_references' };
+    const slim = slimProteinInfo(data);
     return format === 'xml' ? new XMLBuilder({ format: false }).build({ protein: slim }) : slim;
   }
   return String(data);
@@ -36,13 +35,13 @@ const handleGetProteinInfo: ToolHandler = async (args) => {
 const handleGetProteinSequence: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_sequence');
   const format = optString(args, 'format') ?? 'fasta';
-  const data = await fetchProtein(accession, format, format === 'json' ? 'accession,sequence,mass,length' : undefined);
+  const data = await fetchProtein(accession, format, format === 'json' ? ENTRY_FIELDS.sequence : undefined);
   return format === 'json' ? { accession: data.primaryAccession, ...data.sequence } : String(data);
 };
 
 const handleGetProteinFeatures: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_features');
-  const protein = stripEvidences(await fetchProtein(accession, 'json', `accession,id,${FEATURE_FIELDS},${COMMENT_FIELDS},keyword`));
+  const protein = stripEvidences(await fetchProtein(accession, 'json'));
   return {
     accession: protein.primaryAccession,
     name: protein.uniProtkbId,
@@ -57,7 +56,7 @@ const handleGetProteinFeatures: ToolHandler = async (args) => {
 
 const handleGetProteinStructure: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_structure');
-  const protein = await fetchProtein(accession, 'json', 'accession,xref_pdb,ft_turn,ft_helix,ft_strand,cc_subunit');
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.structure);
   return {
     accession: protein.primaryAccession,
     pdbReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'PDB') || [],
@@ -71,7 +70,7 @@ const handleGetProteinStructure: ToolHandler = async (args) => {
 
 const handleGetProteinDomainsDetailed: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_domains_detailed');
-  const protein = await fetchProtein(accession, 'json', 'accession,ft_domain,ft_region,ft_repeat,xref_interpro,xref_pfam,xref_smart');
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.domains);
   return {
     accession: protein.primaryAccession,
     domains: protein.features?.filter((f: any) => f.type === 'Domain') || [],
@@ -85,13 +84,13 @@ const handleGetProteinDomainsDetailed: ToolHandler = async (args) => {
 
 const handleGetProteinVariants: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_variants');
-  const protein = await fetchProtein(accession, 'json', 'accession,ft_variant,ft_mutagen,cc_disease,cc_polymorphism');
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.variants);
   return variantSummary(protein);
 };
 
 const handleAnalyzeSequenceComposition: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'analyze_sequence_composition');
-  const protein = await fetchProtein(accession, 'json', 'accession,sequence,mass');
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.composition);
   const sequence: string = protein.sequence?.value || '';
 
   const aaCount: Record<string, number> = {};
@@ -120,7 +119,7 @@ const handleAnalyzeSequenceComposition: ToolHandler = async (args) => {
 
 const handleGetProteinPathways: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_pathways');
-  const protein = await fetchProtein(accession, 'json', 'accession,xref_kegg,xref_reactome,cc_pathway,cc_function');
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.pathways);
   return {
     accession: protein.primaryAccession,
     keggReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'KEGG') || [],
@@ -132,7 +131,7 @@ const handleGetProteinPathways: ToolHandler = async (args) => {
 
 const handleGetProteinInteractions: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_interactions');
-  const protein = await fetchProtein(accession, 'json', 'accession,xref_string,xref_intact,cc_interaction,cc_subunit');
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.interactions);
   return {
     accession: protein.primaryAccession,
     stringReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'STRING') || [],
@@ -155,7 +154,7 @@ const handleCompareProteins: ToolHandler = async (args) => {
 
   const comparisons = [];
   for (const acc of accessions as string[]) {
-    const protein = await fetchProtein(acc, 'json', 'accession,id,organism_name,length,mass,feature_count');
+    const protein = await fetchProtein(acc, 'json', ENTRY_FIELDS.compare);
     const counts: Record<string, number> = protein.extraAttributes?.countByFeatureType || {};
     comparisons.push({
       accession: protein.primaryAccession,
@@ -170,43 +169,45 @@ const handleCompareProteins: ToolHandler = async (args) => {
   return { comparison: comparisons };
 };
 
+// Without a name or gene to match on, the query would degrade to "every reviewed
+// protein except this one", so return an explicit empty result instead.
+function noMatchKey(accession: string, missing: string) {
+  return {
+    totalResults: 0, results: [],
+    hint: `${accession} has no ${missing} to match on, so no candidates were searched. Try search_proteins or search_by_gene with a known name.`,
+  };
+}
+
 const handleGetProteinHomologs: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_homologs');
   const organism = optString(args, 'organism');
-  const size = args.size;
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.homologName);
+  const description = protein.proteinDescription;
+  const name = description?.recommendedName?.fullName?.value ?? description?.submissionNames?.[0]?.fullName?.value;
+  if (!name) return noMatchKey(accession, 'protein name');
 
-  const protein = await fetchProtein(accession, 'json', 'protein_name');
-
-  let query = reviewedQuery(args);
-  if (protein.proteinDescription?.recommendedName?.fullName?.value) {
-    query += ` AND protein_name:${quoteQuery(protein.proteinDescription.recommendedName.fullName.value)}`;
-  }
-  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
+  let query = `${reviewedQuery(args)} AND protein_name:${quoteQuery(name)}`;
+  if (organism) query += ` AND ${resolveOrganismFilter(organism)}`;
   query += ` NOT accession:${quoteQuery(accession)}`;
-
-  return searchSummaries(query, size);
+  return searchSummaries(query, args.size);
 };
 
 const handleGetProteinOrthologs: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_orthologs');
   const organism = optString(args, 'organism');
-  const size = args.size;
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.orthologGene);
+  const gene = protein.genes?.[0]?.geneName?.value;
+  if (!gene) return noMatchKey(accession, 'primary gene name');
 
-  const protein = await fetchProtein(accession, 'json', 'gene_primary');
-
-  let query = reviewedQuery(args);
-  if (protein.genes?.[0]?.geneName?.value) {
-    query += ` AND gene:${quoteQuery(protein.genes[0].geneName.value)}`;
-  }
-  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
+  let query = `${reviewedQuery(args)} AND gene:${quoteQuery(gene)}`;
+  if (organism) query += ` AND ${resolveOrganismFilter(organism)}`;
   query += ` NOT accession:${quoteQuery(accession)}`;
-
-  return searchSummaries(query, size);
+  return searchSummaries(query, args.size);
 };
 
 const handleGetPhylogeneticInfo: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_phylogenetic_info');
-  const protein = await fetchProtein(accession, 'json', 'accession,organism_name,organism_id,lineage');
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.taxonomy);
   return {
     accession: protein.primaryAccession,
     organism: protein.organism,
@@ -218,39 +219,12 @@ const handleGetPhylogeneticInfo: ToolHandler = async (args) => {
   };
 };
 
-const handleBatchProteinLookup: ToolHandler = async (args) => {
-  const accessions = args.accessions;
-  if (
-    !Array.isArray(accessions) ||
-    accessions.length === 0 ||
-    accessions.length > 25 ||
-    !accessions.every((a: unknown) => typeof a === 'string' && (a as string).length > 0)
-  ) {
-    throw new Error('batch_protein_lookup: accessions must be an array of 1-25 non-empty strings');
-  }
-  const format = optString(args, 'format') ?? 'json';
-
-  if (!['json', 'tsv', 'fasta'].includes(format)) throw new Error('Unsupported batch format');
-  if (format === 'fasta' && accessions.length > 10) throw new Error('FASTA batches are limited to 10 accessions');
-  const response = await getClient().get('/uniprotkb/search', {
-    params: {
-      query: accessions.map(acc => `accession:${quoteQuery(acc)}`).join(' OR '),
-      size: 25, format,
-      ...(format === 'fasta' ? {} : { fields: format === 'tsv' ? SEARCH_FIELDS.replace(',cc_function', '') : SEARCH_FIELDS }),
-    },
-  });
-  if (format !== 'json') return String(response.data);
-  const summaries = summarizeSearch(response.data).results;
-  return { batchResults: accessions.map(accession => {
-    const data = summaries.find((entry: any) => entry.accession === accession);
-    return data ? { accession, data, success: true }
-      : { accession, error: 'Accession not found in batch search', success: false };
-  }) };
-};
+const handleBatchProteinLookup: ToolHandler = async (args) =>
+  batchLookup(args.accessions, optString(args, 'format') ?? 'json');
 
 const handleGetExternalReferences: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_external_references');
-  const protein = await fetchProtein(accession, 'json', `accession,${CROSS_REFERENCE_FIELDS}`);
+  const protein = await fetchProtein(accession, 'json');
   const refs = protein.uniProtKBCrossReferences || [];
   return {
     accession: protein.primaryAccession,
@@ -265,7 +239,7 @@ const handleGetExternalReferences: ToolHandler = async (args) => {
 
 const handleGetLiteratureReferences: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_literature_references');
-  const protein = await fetchProtein(accession, 'json', 'accession,lit_pubmed_id,lit_doi_id');
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.literature);
   return {
     accession: protein.primaryAccession,
     references: protein.references || [],
@@ -276,7 +250,7 @@ const handleGetLiteratureReferences: ToolHandler = async (args) => {
 
 const handleGetAnnotationConfidence: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_annotation_confidence');
-  const protein = await fetchProtein(accession, 'json', `accession,reviewed,protein_existence,annotation_score,lit_pubmed_id,${FEATURE_FIELDS}`);
+  const protein = await fetchProtein(accession, 'json');
   const evidenceCodes: Record<string, number> = {};
   for (const feature of protein.features || []) {
     for (const evidence of feature.evidences || []) {
@@ -297,6 +271,9 @@ const handleGetAnnotationConfidence: ToolHandler = async (args) => {
 const handleExportProteinData: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'export_protein_data');
   const format = requireString(args, 'format', 'export_protein_data');
+  if (!EXPORT_FORMATS.includes(format)) {
+    throw new Error(`export_protein_data: format must be one of ${EXPORT_FORMATS.join(', ')}`);
+  }
   const data = await fetchProtein(accession, format);
   return String(data);
 };
@@ -304,7 +281,7 @@ const handleExportProteinData: ToolHandler = async (args) => {
 const handleValidateAccession: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'validate_accession');
   try {
-    const data = await fetchProtein(accession, 'json', 'accession,reviewed');
+    const data = await fetchProtein(accession, 'json', ENTRY_FIELDS.validate);
     return {
       accession,
       isValid: true,
@@ -324,7 +301,7 @@ const handleValidateAccession: ToolHandler = async (args) => {
 
 const handleGetTaxonomyInfo: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_taxonomy_info');
-  const protein = await fetchProtein(accession, 'json', 'accession,organism_name,organism_id,lineage');
+  const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.taxonomy);
   return {
     accession: protein.primaryAccession,
     organism: protein.organism,

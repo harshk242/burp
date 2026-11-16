@@ -25,20 +25,34 @@ export function searchSize(value: unknown): number {
   return value;
 }
 
-export function reviewedQuery(args: Record<string, unknown>): string {
+// A query that already constrains `reviewed:` wins over the default filter;
+// adding ours would AND two contradictory terms and always return nothing.
+export function reviewedQuery(args: Record<string, unknown>): string;
+export function reviewedQuery(args: Record<string, unknown>, userQuery: string | undefined): string | undefined;
+export function reviewedQuery(args: Record<string, unknown>, userQuery?: string): string | undefined {
   if (args.reviewed !== undefined && typeof args.reviewed !== 'boolean') {
     throw new Error('reviewed must be a boolean');
   }
+  if (userQuery && /(^|[^A-Za-z0-9_])reviewed\s*:/i.test(userQuery)) return undefined;
   return `reviewed:${args.reviewed !== false}`;
 }
+
+export function andQuery(parts: (string | undefined)[]): string {
+  return parts.filter(Boolean).join(' AND ');
+}
+
+export const UNREVIEWED_HINT = 'No reviewed (Swiss-Prot) entries matched; retry with reviewed: false to search unreviewed (TrEMBL) entries.';
 
 function snippet(value: string | undefined, limit: number): string | undefined {
   if (!value) return undefined;
   return value.length > limit ? value.slice(0, limit - 1) + '…' : value;
 }
 
-export function summarizeSearch(data: any) {
+export function summarizeSearch(data: any, totalResults?: number): {
+  totalResults?: number; results: any[]; hint?: string;
+} {
   return {
+    ...(totalResults === undefined ? {} : { totalResults }),
     results: (data.results ?? []).map((entry: any) => ({
       accession: entry.primaryAccession,
       entryId: entry.uniProtkbId,
@@ -60,6 +74,15 @@ export function summarizeSearch(data: any) {
   };
 }
 
+// UniProt reports the full hit count in X-Total-Results; without it the agent
+// cannot tell whether a page of summaries is complete.
+export function totalResultsHeader(headers: any): number | undefined {
+  const raw = headers?.['x-total-results'];
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  const total = Number(raw);
+  return Number.isInteger(total) && total >= 0 ? total : undefined;
+}
+
 export async function searchSummaries(query: string, size: unknown, format = 'json') {
   const boundedSize = searchSize(size);
   if (!['json', 'tsv', 'fasta', 'xml'].includes(format)) throw new Error('Unsupported search format');
@@ -74,8 +97,12 @@ export async function searchSummaries(query: string, size: unknown, format = 'js
       }),
     },
   });
+  if (format !== 'json' && format !== 'xml') return String(response.data);
+  const summary = summarizeSearch(response.data, totalResultsHeader(response.headers));
+  if (summary.results.length === 0 && /(^|[^A-Za-z0-9_])reviewed:true\b/i.test(query)) summary.hint = UNREVIEWED_HINT;
   if (format === 'xml') {
-    return new XMLBuilder({ format: false }).build({ search: summarizeSearch(response.data) });
+    const { results, ...rest } = summary;
+    return new XMLBuilder({ format: false }).build({ search: { ...rest, results: { entry: results } } });
   }
-  return format === 'json' ? summarizeSearch(response.data) : String(response.data);
+  return summary;
 }

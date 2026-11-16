@@ -1,6 +1,6 @@
 import type { ToolHandler } from '../../../types.js';
-import { quoteQuery, reviewedQuery, searchSummaries } from '../search-fields.js';
-import { resolveSpeciesFilter } from '../extractors.js';
+import { andQuery, quoteQuery, reviewedQuery, searchSummaries } from '../search-fields.js';
+import { resolveOrganismFilter, resolveSpeciesFilter } from '../extractors.js';
 
 function requireString(args: Record<string, unknown>, key: string, label: string): string {
   const v = args[key];
@@ -31,10 +31,10 @@ const handleSearchProteins: ToolHandler = async (args) => {
   const size = args.size;
   const format = optString(args, 'format') ?? 'json';
 
-  let query = `${reviewedQuery(args)} AND (${query_base})`;
-  if (organism) {
-    query += ` AND organism_name:${quoteQuery(organism)}`;
-  }
+  const query = andQuery([
+    reviewedQuery(args, query_base), `(${query_base})`,
+    organism ? resolveOrganismFilter(organism) : undefined,
+  ]);
 
   return searchSummaries(query, size, format);
 };
@@ -66,7 +66,7 @@ const handleSearchByFunction: ToolHandler = async (args) => {
   let query = reviewedQuery(args);
   if (goTerm) query += ` AND go:${quoteQuery(goTerm.replace(/^GO:/i, ''))}`;
   if (func) query += ` AND (cc_function:${quoteQuery(func)} OR ft_act_site:${quoteQuery(func)})`;
-  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
+  if (organism) query += ` AND ${resolveOrganismFilter(organism)}`;
 
   return searchSummaries(query, size);
 };
@@ -77,7 +77,7 @@ const handleSearchByLocalization: ToolHandler = async (args) => {
   const size = args.size;
 
   let query = `${reviewedQuery(args)} AND cc_subcellular_location:${quoteQuery(localization)}`;
-  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
+  if (organism) query += ` AND ${resolveOrganismFilter(organism)}`;
 
   return searchSummaries(query, size);
 };
@@ -108,9 +108,10 @@ const handleAdvancedSearch: ToolHandler = async (args) => {
   const keywords = optStringArray(args, 'keywords');
   const size = args.size;
 
-  let query = reviewedQuery(args);
-  if (baseQuery) query += ` AND (${baseQuery})`;
-  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
+  let query = andQuery([
+    reviewedQuery(args, baseQuery), baseQuery ? `(${baseQuery})` : undefined,
+    organism ? resolveOrganismFilter(organism) : undefined,
+  ]);
 
   if (minLength !== undefined || maxLength !== undefined) {
     const lo = minLength ?? '*';

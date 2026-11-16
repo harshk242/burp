@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
-import { UNIPROT_BASE_URL, UNIPROT_POLICY, createUniProtClient } from '../client.js';
+import { UNIPROT_BASE_URL, UNIPROT_POLICY, createUniProtClient, initClient, resetClient } from '../client.js';
 
-import { INFO_FIELDS, stripEvidences } from '../entry-fields.js';
+import { ENTRY_FIELDS, EXPORT_FORMATS, INFO_FIELDS, stripEvidences } from '../entry-fields.js';
 import { SEARCH_FIELDS, summarizeSearch } from '../search-fields.js';
+import { proteinHandlers } from '../tools/protein-handlers.js';
+import { searchHandlers } from '../tools/search-handlers.js';
 
 const BASE = UNIPROT_BASE_URL;
 const JSON_HEADERS = { Accept: 'application/json' };
@@ -16,7 +18,18 @@ const CONTRACT_OVERRIDES = {
   jitter: 0,
 };
 
-const http = createUniProtClient({ policy: { ...UNIPROT_POLICY, ...CONTRACT_OVERRIDES } });
+const CONTRACT_POLICY = { ...UNIPROT_POLICY, ...CONTRACT_OVERRIDES };
+const http = createUniProtClient({ policy: CONTRACT_POLICY });
+
+// Run a handler against live UniProt with the contract retry policy.
+async function liveHandler(handler: (args: Record<string, unknown>) => Promise<unknown>, args: Record<string, unknown>): Promise<any> {
+  initClient({}, { policy: CONTRACT_POLICY });
+  try {
+    return await handler(args);
+  } finally {
+    resetClient();
+  }
+}
 
 async function fetchJson(url: string, params?: Record<string, string>): Promise<unknown> {
   const res = await http.get(url, { params, headers: JSON_HEADERS });
@@ -34,7 +47,7 @@ describe('UniProt REST API Contracts', () => {
   });
 
   uniprotContractTest('GET /uniprotkb/{accession} schema is stable (P69905, HBA1)', async () => {
-    const data = await fetchJson(`${BASE}/uniprotkb/P69905`, { format: 'json', fields: 'accession,sequence,mass' });
+    const data = await fetchJson(`${BASE}/uniprotkb/P69905`, { format: 'json', fields: ENTRY_FIELDS.sequence });
     await assertSchemaStable('uniprot/protein-entry-minimal.schema.json', data);
   });
 
@@ -76,5 +89,53 @@ describe('UniProt REST API Contracts', () => {
     expect(summary.results.length).toBeGreaterThan(0);
     expect(summary.results.every((entry: any) => entry.accession && entry.reviewed)).toBe(true);
     await assertSchemaStable('uniprot/search-by-function.schema.json', summary);
+  });
+
+  // UniProt rejects a whole request for one unknown return field, so every field
+  // list the tools send must exist in the live result-fields configuration.
+  uniprotContractTest('every requested return field is accepted by UniProt', async () => {
+    const config = await fetchJson(`${BASE}/configure/uniprotkb/result-fields`) as any[];
+    const known = new Set(config.flatMap(group => group.fields.map((field: any) => field.name)));
+    const used = [...new Set([SEARCH_FIELDS, ...Object.values(ENTRY_FIELDS)].flatMap(list => list.split(',')))];
+    expect(used.filter(field => !known.has(field))).toEqual([]);
+    const res = await http.get(`${BASE}/uniprotkb/P69905`, { params: { format: 'json', fields: used.join(',') } });
+    expect(res.status).toBe(200);
+  });
+
+  uniprotContractTest('search reports X-Total-Results and summaries are bounded', async () => {
+    const result = await liveHandler(searchHandlers.search_by_function, { goTerm: 'GO:0004672', organism: '9606', size: 3 });
+    expect(result.totalResults).toBeGreaterThan(100);
+    expect(result.results).toHaveLength(3);
+    expect(result.results.every((entry: any) => entry.taxonId === 9606 && entry.reviewed)).toBe(true);
+  });
+
+  uniprotContractTest('batch lookup handles case, isoforms, merged and malformed accessions', async () => {
+    const result = await liveHandler(proteinHandlers.batch_protein_lookup, {
+      accessions: ['p04637', 'P04637-2', 'Q16535', 'XYZ!!', 'P00001'],
+    });
+    expect(result.batchResults).toMatchObject([
+      { accession: 'p04637', success: true, data: { accession: 'P04637', entryId: 'P53_HUMAN' } },
+      { accession: 'P04637-2', success: true, data: { accession: 'P04637-2' } },
+      { accession: 'Q16535', success: true, mergedInto: 'P04637' },
+      { accession: 'XYZ!!', success: false },
+      { accession: 'P00001', success: false, inactiveReason: 'DEMERGED' },
+    ]);
+  });
+
+  uniprotContractTest('variant descriptions still state clinical significance (BRCA1)', async () => {
+    const result = await liveHandler(proteinHandlers.get_protein_variants, { accession: 'P38398' });
+    expect(result.significanceCounts.benign).toBeGreaterThan(0);
+    expect(result.significanceCounts['uncertain significance']).toBeGreaterThan(0);
+    expect(result.excludedDiseaseMentionCount).toBeGreaterThan(0);
+    expect(result.diseaseVariantCount).toBeGreaterThan(0);
+    expect(result.diseaseVariants.every((v: any) => !['benign', 'likely benign', 'uncertain significance'].includes(v.clinicalSignificance))).toBe(true);
+  });
+
+  uniprotContractTest('every advertised export format is accepted', async () => {
+    for (const format of EXPORT_FORMATS) {
+      const res = await http.get(`${BASE}/uniprotkb/P69905`, { params: { format }, responseType: 'text' });
+      expect(res.status, format).toBe(200);
+      expect(String(res.data).length, format).toBeGreaterThan(0);
+    }
   });
 });

@@ -85,7 +85,7 @@ describe('search_by_function', () => {
     expect(result.isError).toBeUndefined();
     expect(calls).toHaveLength(1);
     expect(calls[0].params).toEqual({
-      query: 'reviewed:true AND go:"0005524" AND (cc_function:"ATP binding" OR ft_act_site:"ATP binding") AND organism_name:"Homo sapiens"',
+      query: 'reviewed:true AND go:"0005524" AND (cc_function:"ATP binding" OR ft_act_site:"ATP binding") AND organism_id:9606',
       format: 'json',
       size: 10,
       fields: SEARCH_FIELDS,

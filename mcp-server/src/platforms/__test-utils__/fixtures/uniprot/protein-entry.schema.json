@@ -275,37 +275,6 @@
         }
       }
     },
-    "lineages": {
-      "type": "array",
-      "path": "$.lineages",
-      "items": {
-        "type": "object",
-        "path": "$.lineages[]",
-        "properties": {
-          "scientificName": {
-            "type": "string",
-            "path": "$.lineages[].scientificName"
-          },
-          "taxonId": {
-            "type": "number",
-            "path": "$.lineages[].taxonId"
-          },
-          "rank": {
-            "type": "string",
-            "path": "$.lineages[].rank"
-          },
-          "hidden": {
-            "type": "boolean",
-            "path": "$.lineages[].hidden"
-          },
-          "commonName": {
-            "type": "string",
-            "path": "$.lineages[].commonName",
-            "optional": true
-          }
-        }
-      }
-    },
     "extraAttributes": {
       "type": "object",
       "path": "$.extraAttributes",

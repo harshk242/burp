@@ -3,8 +3,7 @@ import type { InternalAxiosRequestConfig } from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { initClient, resetClient } from '../client.js';
 import { proteinHandlers as handlers } from '../tools/protein-handlers.js';
-import { FEATURE_FIELDS, COMMENT_FIELDS, CROSS_REFERENCE_FIELDS, INFO_FIELDS } from '../entry-fields.js';
-import { SEARCH_FIELDS } from '../search-fields.js';
+import { ENTRY_FIELDS, INFO_FIELDS } from '../entry-fields.js';
 
 const evidence = { evidenceCode: 'ECO:0000269', source: 'PubMed', id: '123' };
 const entry = {
@@ -27,7 +26,8 @@ const entry = {
     { type: 'Helix' }, { type: 'Beta strand' }, { type: 'Turn' },
   ],
   references: [{ citation: { citationCrossReferences: [{ database: 'PubMed', id: '123' }] } }],
-  uniProtKBCrossReferences: [{ database: 'PDB', id: '1ABC' }, { database: 'GO', id: 'GO:123' }],
+  uniProtKBCrossReferences: [{ database: 'PDB', id: '1ABC', properties: [{ key: 'Method', value: 'X-ray' }] },
+    { database: 'GO', id: 'GO:123' }],
 };
 function mock(data: unknown = entry) {
   const calls: InternalAxiosRequestConfig[] = [];
@@ -39,28 +39,37 @@ function mock(data: unknown = entry) {
 }
 afterEach(resetClient);
 
-const fields: [string, string][] = [
-  ['get_protein_features', `accession,id,${FEATURE_FIELDS},${COMMENT_FIELDS},keyword`],
-  ['get_protein_structure', 'accession,xref_pdb,ft_turn,ft_helix,ft_strand,cc_subunit'],
-  ['get_protein_domains_detailed', 'accession,ft_domain,ft_region,ft_repeat,xref_interpro,xref_pfam,xref_smart'],
-  ['get_protein_variants', 'accession,ft_variant,ft_mutagen,cc_disease,cc_polymorphism'],
-  ['analyze_sequence_composition', 'accession,sequence,mass'],
-  ['get_protein_pathways', 'accession,xref_kegg,xref_reactome,cc_pathway,cc_function'],
-  ['get_protein_interactions', 'accession,xref_string,xref_intact,cc_interaction,cc_subunit'],
-  ['compare_proteins', "accession,id,organism_name,length,mass,feature_count"],
-  ['get_phylogenetic_info', 'accession,organism_name,organism_id,lineage'],
-  ['get_external_references', `accession,${CROSS_REFERENCE_FIELDS}`],
-  ['get_literature_references', 'accession,lit_pubmed_id,lit_doi_id'],
-  ['get_annotation_confidence', `accession,reviewed,protein_existence,annotation_score,lit_pubmed_id,${FEATURE_FIELDS}`],
-  ['validate_accession', 'accession,reviewed'],
-  ['get_taxonomy_info', 'accession,organism_name,organism_id,lineage'],
+// Exhaustive tools fetch the full entry (undefined) so a retired UniProt return
+// field cannot break them; the rest request short verified field lists.
+const fields: [string, string | undefined][] = [
+  ['get_protein_features', undefined],
+  ['get_protein_structure', ENTRY_FIELDS.structure],
+  ['get_protein_domains_detailed', ENTRY_FIELDS.domains],
+  ['get_protein_variants', ENTRY_FIELDS.variants],
+  ['analyze_sequence_composition', ENTRY_FIELDS.composition],
+  ['get_protein_pathways', ENTRY_FIELDS.pathways],
+  ['get_protein_interactions', ENTRY_FIELDS.interactions],
+  ['compare_proteins', ENTRY_FIELDS.compare],
+  ['get_phylogenetic_info', ENTRY_FIELDS.taxonomy],
+  ['get_external_references', undefined],
+  ['get_literature_references', ENTRY_FIELDS.literature],
+  ['get_annotation_confidence', undefined],
+  ['validate_accession', ENTRY_FIELDS.validate],
+  ['get_taxonomy_info', ENTRY_FIELDS.taxonomy],
 ];
 describe('entry field selection', () => {
-  it.each(fields)('%s selects only the required fields', async (tool, fields) => {
+  it.each(fields)('%s requests %s', async (tool, fields) => {
     const calls = mock();
     await handlers[tool]({ accession: 'P04637', accessions: ['P04637', 'P38398'] });
     expect(calls.length).toBe(tool === 'compare_proteins' ? 2 : 1);
-    for (const call of calls) expect(call.params).toEqual({ format: 'json', fields });
+    for (const call of calls) expect(call.params).toEqual(fields ? { format: 'json', fields } : { format: 'json' });
+  });
+  it('returns every comment type, including web resources, from the full entry', async () => {
+    mock({ ...entry, comments: [...entry.comments, { commentType: 'WEB RESOURCE', resourceName: 'Atlas' }] });
+    const result: any = await handlers.get_protein_features({ accession: 'P04637' });
+    expect(result.comments.map((c: any) => c.commentType)).toContain('WEB RESOURCE');
+    expect(result).not.toHaveProperty('references');
+    expect(JSON.stringify(result)).not.toContain('evidences');
   });
   it('keeps all real secondary structure types', async () => {
     mock();
@@ -76,16 +85,6 @@ describe('entry field selection', () => {
       comparison: [{ features: 0, domains: 0 }, { features: 0, domains: 0 }],
     });
   });
-  it('matches whole disease acronyms, excludes generic cancers and strips nested evidences', async () => {
-    mock();
-    const result: any = await handlers.get_protein_variants({ accession: 'P04637' });
-    expect(result.naturalVariantCount).toBe(5);
-    expect(result.diseaseVariantCount).toBe(3);
-    expect(result.diseaseVariants.map((f: any) => f.description)).toEqual(['in LFS; dbSNP:rs123', 'in BROVCA1', 'in A+B']);
-    expect(JSON.stringify(result)).not.toContain('evidences');
-    mock({ features: [{ type: 'Natural variant', description: 'in LFS' }] });
-    expect(await handlers.get_protein_variants({ accession: 'X' })).toMatchObject({ diseaseVariants: [] });
-  });
   it('counts feature ECO annotations without returning individual evidence objects', async () => {
     mock();
     expect(await handlers.get_annotation_confidence({ accession: 'P04637' })).toMatchObject({
@@ -97,7 +96,7 @@ describe('entry field selection', () => {
     expect(await handlers.get_external_references({ accession: 'P04637' })).toEqual({
       accession: 'P04637', referenceCount: 2,
       referencesByDatabase: {
-        PDB: { count: 1, references: [{ database: 'PDB', id: '1ABC' }] },
+        PDB: { count: 1, references: [entry.uniProtKBCrossReferences[0]] },
         GO: { count: 1, references: [{ database: 'GO', id: 'GO:123' }] },
       },
     });
@@ -115,13 +114,16 @@ describe('info and sequence formats', () => {
     expect(result.references).toBeUndefined();
     expect(result.sequence.value).toBeUndefined();
     expect(result.detailTools).toMatchObject({ literature: 'get_literature_references', sequence: 'get_protein_sequence' });
+    expect(result.pdbStructures).toEqual({ count: 1, ids: ['1ABC'], detailTool: 'get_protein_structure' });
+    expect(result.uniProtKBCrossReferences).toEqual([{ database: 'GO', id: 'GO:123' }]);
+    expect(entry.uniProtKBCrossReferences).toHaveLength(2);
     expect(JSON.stringify(result)).not.toContain('evidences');
     expect(entry.sequence.value).toBe('AKD');
   });
   it('returns only sequence data for JSON', async () => {
     const calls = mock();
     expect(await handlers.get_protein_sequence({ accession: 'P04637', format: 'json' })).toEqual({ accession: 'P04637', ...entry.sequence });
-    expect(calls[0].params).toEqual({ format: 'json', fields: 'accession,sequence,mass,length' });
+    expect(calls[0].params).toEqual({ format: 'json', fields: ENTRY_FIELDS.sequence });
   });
   it.each(['get_protein_info', 'get_protein_sequence'])('preserves FASTA for %s', async tool => {
     const calls = mock('>P04637\nAKD\n');
@@ -139,27 +141,15 @@ describe('info and sequence formats', () => {
   });
 });
 
-describe('batch summaries', () => {
-  it('uses one query, preserves input order and duplicates, reports missing entries', async () => {
-    const calls = mock({ results: [entry] });
-    const result: any = await handlers.batch_protein_lookup({ accessions: ['P38398', 'P04637', 'P04637'] });
-    expect(calls).toHaveLength(1);
-    expect(calls[0].params).toEqual({ query: 'accession:"P38398" OR accession:"P04637" OR accession:"P04637"', size: 25, format: 'json', fields: SEARCH_FIELDS });
-    expect(result.batchResults.map((r: any) => r.success)).toEqual([false, true, true]);
-    expect(result.batchResults[1].data).toMatchObject({ accession: 'P04637', entryId: 'P53_HUMAN' });
-    expect(JSON.stringify(result)).not.toContain('references');
+describe('export formats', () => {
+  it.each(['gff', 'txt', 'xml', 'fasta'])('returns raw %s text', async format => {
+    const calls = mock('raw export');
+    expect(await handlers.export_protein_data({ accession: 'P04637', format })).toBe('raw export');
+    expect(calls[0].params).toEqual({ format });
   });
-  it.each(['tsv', 'fasta'])('preserves bounded %s output', async format => {
-    const calls = mock('raw output');
-    expect(await handlers.batch_protein_lookup({ accessions: ['P04637'], format })).toBe('raw output');
-    expect(calls[0].params.fields).toBe(format === 'fasta' ? undefined : SEARCH_FIELDS.replace(',cc_function', ''));
-  });
-  it.each([[], Array(26).fill('P04637'), [''], [123]])('rejects invalid accessions %j', async accessions => {
-    mock();
-    await expect(handlers.batch_protein_lookup({ accessions })).rejects.toThrow('1-25');
-  });
-  it('caps FASTA batches at ten entries', async () => {
-    mock();
-    await expect(handlers.batch_protein_lookup({ accessions: Array(11).fill('P04637'), format: 'fasta' })).rejects.toThrow('10');
+  it.each(['genbank', 'embl', 'rdf'])('rejects %s before calling UniProt', async format => {
+    const calls = mock();
+    await expect(handlers.export_protein_data({ accession: 'P04637', format })).rejects.toThrow('gff, txt, xml, fasta');
+    expect(calls).toHaveLength(0);
   });
 });
