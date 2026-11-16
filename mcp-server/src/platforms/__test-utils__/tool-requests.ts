@@ -44,11 +44,18 @@ export function assertMakesRequest(requests: RecordedRequest[], localOnlyReason?
   requests.forEach((request) => assertRequestValues(request));
 }
 
-/** Reasons are per tool/argument; exceptions remain visible beside platform tests. */
+/**
+ * Reasons are per tool/argument; exceptions remain visible beside platform tests.
+ * Keys are argument names (whole argument is local) or a single variant label such
+ * as `format="xml"` (only that enum value is rendered locally). `alternatives`
+ * overrides the generated alternate value for an argument whose generic
+ * alternative is a no-op by design (e.g. a duplicated array that is de-duplicated).
+ */
 export async function assertArgsAffectRequests(
   tool: Tool, samples: Samples,
   capture: (args: ToolArgs) => Promise<RecordedRequest[]>,
   clientSide: Record<string, string> = {},
+  alternatives: ToolArgs = {},
 ) {
   const full = fullArgs(tool, samples);
   const baseline = JSON.stringify(await capture(full));
@@ -57,13 +64,15 @@ export async function assertArgsAffectRequests(
     const prop = (tool.inputSchema.properties ?? {})[name] as { enum?: unknown[] };
     if (prop.enum?.length === 1) continue; // No alternative allowed by the schema.
     const value = full[name];
-    const alternative = prop.enum?.length ? prop.enum.find(item => JSON.stringify(item) !== JSON.stringify(value)) : typeof value === 'boolean' ? !value : typeof value === 'number' ? value + 1
+    const alternative = Object.hasOwn(alternatives, name) ? alternatives[name] : prop.enum?.length ? prop.enum.find(item => JSON.stringify(item) !== JSON.stringify(value)) : typeof value === 'boolean' ? !value : typeof value === 'number' ? value + 1
       : Array.isArray(value) ? [...value, ...value] : typeof value === 'object' ? {} : typeof value === 'string' ? `${value}-alternate` : 'alternate';
     expect(JSON.stringify(await capture({ ...full, [name]: alternative })), name).not.toBe(baseline);
   }
   for (const variant of argVariants(tool, samples).filter((v) => v.label !== 'all args' && v.label !== 'required only')) {
     const name = variant.label.split(/[.[=]/)[0];
-    if (!clientSide[name]) expect(JSON.stringify(await capture(variant.args)), variant.label).not.toBe(baseline);
+    const reason = clientSide[name] ?? clientSide[variant.label];
+    if (reason) expect(reason.trim().length).toBeGreaterThan(0);
+    else expect(JSON.stringify(await capture(variant.args)), variant.label).not.toBe(baseline);
   }
 }
 

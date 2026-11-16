@@ -254,9 +254,9 @@ Based on the verification report, prioritize fixes in this order:
    - Implement ChEMBL MCP server
    - Affects 8+ documented connections
 
-3. **UniProt** - Platform missing entirely
-   - Implement UniProt MCP server
-   - Affects 9+ documented connections
+3. **UniProt** - Resolved: unified MCP platform enabled with 26 tools.
+   - Reviewed summary searches and focused entry responses replace full-entry downloads.
+   - Live contracts: `bun run test:contracts uniprot`
 
 ### 🟡 MEDIUM (Fix When Possible)
 4. **Open Targets Search** - search_entities failing

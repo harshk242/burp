@@ -25,7 +25,7 @@ const chatRoute = createRoute({
   description: `Send a message to the AI agent and receive a streaming response via Server-Sent Events (SSE).
 
 The agent can query 10 biomedical databases:
-- **UniProt** - Protein sequences and annotations
+- **UniProt** - Reviewed protein summaries, focused annotations, and sequences
 - **ChEMBL** - Drug compounds and bioactivity data
 - **PubChem** - Chemical structures and properties
 - **Ensembl** - Genomic data and gene annotations
@@ -70,13 +70,13 @@ event: text
 data: "Looking up EGFR in UniProt..."
 
 event: tool_start
-data: {"tool":"uniprot__search_proteins","input":{"query":"EGFR"}}
+data: {"tool":"uniprot__search_by_gene","input":{"gene":"EGFR"}}
 
 event: tool_end
-data: {"tool":"uniprot__search_proteins","output":{...}}
+data: {"tool":"uniprot__search_by_gene","output":{"results":[{"accession":"P00533","geneNames":["EGFR"],"reviewed":true}]}}
 
 event: text
-data: "Found 5 proteins related to EGFR..."
+data: "Found reviewed human EGFR (P00533)..."
 
 event: done
 data: {"messageId":"0b6c1f5e-6a1d-4e5b-9d65-0f2a4c8e7a11","inputTokens":100,"outputTokens":50}`,

@@ -12,7 +12,7 @@
 |--------|-------|-------|-------|------------|
 | `open-targets` | 4,678 | 22 | 53 | Open Targets GraphQL |
 | `pubmed` | 2,800 | 13 | 15 | NCBI E-utilities (XML) |
-| `uniprot` | 2,432 | 2 | 26 | UniProt REST |
+| `uniprot` | 1,320 | 11 | 26 | UniProt REST |
 | `clinvar` | 2,260 | 11 | 12 | NCBI ClinVar (XML) |
 | `clinpgx` | 2,224 | 12 | 19 | PharmGKB REST |
 | `chembl` | 1,971 | 1 | 27 | ChEMBL REST |
@@ -25,11 +25,11 @@
 
 ## Architecture Patterns
 
-### Single-file servers (6 servers)
-`chembl`, `clinical-trials`, `ensembl`, `pubchem`, `reactome`, `uniprot` — all logic in one `src/index.ts`. Tool definitions + handlers + API calls in a single module.
+### Single-file servers (5 servers)
+`chembl`, `clinical-trials`, `ensembl`, `pubchem`, `reactome` — all logic in one `src/index.ts`. Tool definitions + handlers + API calls in a single module.
 
-### Multi-file servers (4 servers)
-`open-targets`, `pubmed`, `clinvar`, `clinpgx` — decomposed into:
+### Multi-file servers (5 servers)
+`open-targets`, `pubmed`, `clinvar`, `clinpgx` — decomposed into the layout below. `uniprot` is also multi-file; see [UniProt](#uniprot-mcp-serversrcplatformsuniprot).
 
 ```
 mcp-servers/<name>/
@@ -75,13 +75,48 @@ tools/
     └── safety.ts          # Safety info, mouse phenotypes
 ```
 
+### UniProt (`mcp-server/src/platforms/uniprot/`)
+
+```
+uniprot/
+├── index.ts              # Platform registration
+├── client.ts             # Shared HTTP client and retry policy
+├── search-fields.ts      # Search return fields, query helpers, summary projection, totalResults/hint
+├── extractors.ts         # Species/organism filters (taxonomy IDs and common names → organism_id)
+├── entry-fields.ts       # Per-tool return fields, evidence stripping, slim get_protein_info
+├── variants.ts           # Natural-variant summary and disease-variant classification
+├── batch.ts              # batch_protein_lookup: accession validation, inactive/merged handling
+└── tools/
+    ├── definitions.ts    # Tool descriptions and input schemas
+    ├── search-handlers.ts   # Search tools
+    └── protein-handlers.ts  # Single-entry tools, homologs/orthologs, export
+```
+
+- **Searches** return `{totalResults, results: [...]}` summaries (accession, entryId, reviewed, proteinName, geneNames, organism, taxonId, length, annotationScore, bounded function snippet). The default is reviewed Swiss-Prot entries, size 10 (max 100). An empty reviewed search adds a `hint` to retry with `reviewed: false`. A `reviewed:` term inside a free-text query replaces the default filter. Organism arguments accept taxonomy IDs, common names or scientific names. Gene search defaults to human.
+- **Homologs/orthologs** are name/gene searches, not alignment-based orthology inference. If the source entry has no name or primary gene to match on, they return an explained empty result rather than unrelated proteins.
+- **`get_protein_info`** returns curated annotations without evidence arrays, references or raw sequence. PDB cross-references are reduced to `pdbStructures {count, ids}`; `get_protein_structure` has chains, method and resolution.
+- **Exhaustive tools** (`get_protein_features`, `get_external_references`, `get_annotation_confidence`) fetch the full entry and trim it locally. UniProt rejects a request that names any retired return field, so these tools do not enumerate the ~230 release-dependent feature, comment and cross-reference fields. Other tools request short field lists. `tool-params.test.ts` checks every field and query term a tool sends against the saved `return-fields.json`/`query-fields.json` fixtures, and the live handler contract checks those fixtures against `/configure/uniprotkb/`.
+- **Variants:** `diseaseVariants` names a DISEASE-comment acronym and excludes negated mentions and variants UniProt states as benign, likely benign or uncertain significance. Excluded variants are counted in `excludedDiseaseMentionCount`. Each natural variant keeps its stated `clinicalSignificance`. This is UniProt curation, not a clinical classification.
+- **Batch lookup** validates and upper-cases accessions locally, including isoforms such as `P04637-2`, and uses `/uniprotkb/accessions` (max 25; FASTA max 10). JSON reports each input separately:
+  - invalid format;
+  - not found;
+  - merged (resolved to the current entry, with `mergedInto`);
+  - demerged or deleted (with `replacedBy` where given).
+
+  TSV and FASTA fail with the names of any malformed accessions.
+- **`export_protein_data`** returns raw `gff`, `txt` (flat file), `xml` or `fasta` text. UniProt does not serve GenBank or EMBL.
+- **Not returned:** citations from `get_literature_references` lack consortium author names (`authoringGroup`), because that tool selects `lit_pubmed_id`/`lit_doi_id`. WEB RESOURCE links appear only in `get_protein_features`, which returns full comments; `get_protein_info` and the other focused tools omit them.
+- **Output size and verification:** larger JSON results become jq-inspectable artifacts in the app, and text formats become `text_range` artifacts. `bun run test:contracts` checks live field lists, batch, variant wording and export formats.
+
 ## Always-Loaded Tools (ID Bridge Layer)
 
-8 tools loaded into every Claude prompt (defined in `platforms.config.ts`). These serve as ID-resolution entry points so Claude can convert natural names to database-specific identifiers:
+10 tools loaded into every Claude prompt (selected by `always_loaded_tools` in `app/config.yaml`). These serve as ID-resolution entry points so Claude can convert natural names to database-specific identifiers:
 
 | Tool | Purpose |
 |------|---------|
 | `ensembl__search_genes` | Gene symbol → Ensembl Gene ID (ENSG) |
+| `ensembl__get_xrefs` | Ensembl gene → external IDs (UniProt, HGNC, …) |
+| `uniprot__search_by_gene` | Gene symbol → reviewed UniProt accessions (human by default) |
 | `open-targets__search_entities` | Gene/disease name → Open Targets IDs |
 | `chembl__search_compounds` | Drug name → ChEMBL ID |
 | `pubchem__search_by_smiles` | SMILES structure → PubChem CID |

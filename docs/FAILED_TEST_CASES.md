@@ -52,7 +52,9 @@ cat ~/.config/claude/claude_desktop_config.json | grep -i chembl
 
 ---
 
-### 2. UniProt - Platform Not Available
+### 2. UniProt - Platform Not Available (historical; resolved)
+
+UniProt now provides 26 enabled tools in the unified MCP server. Search returns reviewed summaries, detail tools request selected fields, and large results use artifacts. The investigation below records the original failure.
 
 **Status:** No MCP tools found
 **Impact:** Cannot query protein sequences, functions, or annotations
@@ -906,7 +908,7 @@ python3 test_failed_cases.py
 **Priority Order for Debugging:**
 1. ClinPGx (all tools failing) - CRITICAL
 2. ChEMBL (missing platform) - HIGH
-3. UniProt (missing platform) - HIGH
+3. UniProt (missing platform) - RESOLVED
 4. Open Targets search - MEDIUM
 5. Ensembl search/variants - MEDIUM
 6. Reactome (missing platform) - LOW (workaround exists)

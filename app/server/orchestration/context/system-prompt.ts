@@ -11,12 +11,13 @@ const PLATFORM_SUMMARIES: Record<string, string> = {
   clinicaltrials: "**ClinicalTrials** - Clinical trial registrations and results",
   pubmed: "**PubMed** - Biomedical literature and abstracts",
   clinpgx: "**ClinPGx (PharmGKB)** - Pharmacogenomics data",
-  uniprot: "**UniProt** - Protein sequences, functions, and annotations",
+  uniprot: "**UniProt** - Reviewed protein search summaries; focused annotations and sequence tools",
 };
 
 const CORE_TOOL_SUMMARIES: Record<string, string> = {
   ensembl__search_genes: "Convert gene symbols (TP53, BRCA1) → Ensembl IDs (ENSG...)",
   "open-targets__search_entities": "Find genes/diseases → ENSG/EFO IDs (main hub)",
+  uniprot__search_by_gene: "Gene symbol → reviewed protein summaries and accessions (human by default); use entry tools for details",
   ensembl__get_xrefs: "Ensembl → UniProt/HGNC cross-references",
   chembl__search_compounds: "Drug/compound name → ChEMBL ID",
   pubchem__search_by_smiles: "SMILES structure → PubChem CID",
@@ -28,6 +29,7 @@ const CORE_TOOL_SUMMARIES: Record<string, string> = {
 
 const ID_RESOLUTION_PATTERNS: Record<string, string> = {
   ensembl__search_genes: '- Gene symbol → ENSG: Use ensembl__search_genes("TP53")',
+  uniprot__search_by_gene: '- Gene symbol → protein accession: Use uniprot__search_by_gene({gene: "TP53"}); results[].accession is the entry-tool input',
   chembl__search_compounds: '- Drug name → ChEMBL: Use chembl__search_compounds("imatinib")',
   clinvar__lookup_by_rsid: '- rsID → Gene: Use clinvar__lookup_by_rsid("rs1042522")',
 };

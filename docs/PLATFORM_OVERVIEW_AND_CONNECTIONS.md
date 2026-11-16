@@ -429,7 +429,7 @@ Result: Clinical interpretation with personalized drug recommendations
 ### Gene Symbol → UniProt Accession
 | Starting With | Tool to Use | Example |
 |--------------|-------------|---------|
-| Gene symbol | `UniProt.search_by_gene(gene_name="TP53")` | Returns P04637 |
+| Gene symbol | `UniProt.search_by_gene(gene="TP53")` | Returns P04637 |
 | Gene symbol | `UniProt.search_proteins(query="TP53", reviewed=true)` | Returns reviewed entries |
 
 **Tip:** Always use `reviewed=true` to get Swiss-Prot (curated) entries instead of TrEMBL (unreviewed).
@@ -437,7 +437,7 @@ Result: Clinical interpretation with personalized drug recommendations
 ### UniProt → Ensembl (and vice versa)
 | Direction | Tool to Use | Notes |
 |-----------|-------------|-------|
-| UniProt → Ensembl | `UniProt.get_external_references(accession="P04637")` | Look for Ensembl in xrefs |
+| UniProt → Ensembl | `UniProt.get_external_references(accession="P04637")` | Read referencesByDatabase.Ensembl.references |
 | Ensembl → UniProt | `Ensembl.get_xrefs(id="ENSG00000141510")` | Look for Uniprot_gn entries |
 
 ### Variant IDs
@@ -460,7 +460,7 @@ Result: Clinical interpretation with personalized drug recommendations
 ```
 1. Ensembl.search_genes(query="BRCA1") → Get ENSG00000012048
 2. Ensembl.lookup_gene(gene_id="ENSG00000012048") → Get gene details
-3. UniProt.search_by_gene(gene_name="BRCA1") → Get P38398
+3. UniProt.search_by_gene(gene="BRCA1") → Get P38398
 4. Open Targets.get_target_info(ensembl_id="ENSG00000012048") → Get disease associations
 ```
 
