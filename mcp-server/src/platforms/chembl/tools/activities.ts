@@ -79,7 +79,7 @@ export const tools: Tool[] = [
 
 async function handleSearchActivities(args: Record<string, unknown>) {
   const client = getClient();
-  const params: Record<string, unknown> = { limit: (args.limit as number) || 25 };
+  const params: Record<string, unknown> = { limit: (args.limit) || 25 };
   if (args.assay_chembl_id) params.assay_chembl_id = args.assay_chembl_id;
   if (args.target_chembl_id) params.target_chembl_id = args.target_chembl_id;
   if (args.molecule_chembl_id) params.molecule_chembl_id = args.molecule_chembl_id;
@@ -107,7 +107,7 @@ async function handleSearchByActivityType(args: Record<string, unknown>) {
   const client = getClient();
   const params: Record<string, unknown> = {
     standard_type: args.activity_type,
-    limit: (args.limit as number) || 25,
+    limit: (args.limit) || 25,
   };
 
   if (args.min_value !== undefined) {

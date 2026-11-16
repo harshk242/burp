@@ -11,11 +11,13 @@ export interface RecordedRequest {
 export function requestRecorder(response: unknown = { data: {} }) {
   const requests: RecordedRequest[] = [];
   const adapter: AxiosAdapter = async (config) => {
+    const header: unknown = config.headers?.['Content-Type'];
+    const contentType = typeof header === 'string' ? header : '';
     requests.push({
       method: config.method ?? 'get', url: axios.getUri({ baseURL: config.baseURL, url: config.url }),
       params: config.params ?? {},
-      body: typeof config.data === 'string' ? String(config.headers?.['Content-Type'] ?? '').includes('application/x-www-form-urlencoded')
-        ? Object.fromEntries(new URLSearchParams(config.data)) : String(config.headers?.["Content-Type"] ?? "").includes("text/plain") ? config.data : JSON.parse(config.data) : config.data ?? {},
+      body: typeof config.data === 'string' ? contentType.includes('application/x-www-form-urlencoded')
+        ? Object.fromEntries(new URLSearchParams(config.data)) : contentType.includes('text/plain') ? config.data : JSON.parse(config.data) : config.data ?? {},
     });
     return { data: response, status: 200, statusText: 'OK', headers: {}, config };
   };
@@ -63,11 +65,11 @@ export async function assertArgsAffectRequests(
     if (prop.enum?.length === 1) continue; // No alternative allowed by the schema.
     const value = full[name];
     const alternative = Object.hasOwn(alternatives, name) ? alternatives[name] : prop.enum?.length ? prop.enum.find(item => JSON.stringify(item) !== JSON.stringify(value)) : typeof value === 'boolean' ? !value : typeof value === 'number' ? value + 1
-      : Array.isArray(value) ? [...value, ...value] : typeof value === 'object' ? {} : `${value}-alternate`;
+      : Array.isArray(value) ? [...value, ...value] : typeof value === 'object' ? {} : typeof value === 'string' ? `${value}-alternate` : 'alternate';
     expect(JSON.stringify(await capture({ ...full, [name]: alternative })), name).not.toBe(baseline);
   }
   for (const variant of argVariants(tool, samples).filter((v) => v.label !== 'all args' && v.label !== 'required only')) {
-    const name = variant.label.split(/[.\[=]/)[0];
+    const name = variant.label.split(/[.[=]/)[0];
     const reason = clientSide[name] ?? clientSide[variant.label];
     if (reason) expect(reason.trim().length).toBeGreaterThan(0);
     else expect(JSON.stringify(await capture(variant.args)), variant.label).not.toBe(baseline);

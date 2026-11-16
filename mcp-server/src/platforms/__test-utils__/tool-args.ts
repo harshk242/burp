@@ -39,7 +39,7 @@ function sampleValue(name: string, prop: PropSchema, samples: Samples): unknown 
 }
 
 function properties(tool: Tool): Record<string, PropSchema> {
-  return (tool.inputSchema.properties ?? {}) as Record<string, PropSchema>;
+  return (tool.inputSchema.properties ?? {});
 }
 
 /** Every declared argument populated, enums at their first value. */

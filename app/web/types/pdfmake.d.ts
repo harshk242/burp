@@ -16,7 +16,6 @@ declare module 'pdfmake/build/pdfmake' {
     addFonts(fonts: Record<string, any>): void;
   }
   const pdfMake: PdfMakeInstance;
-  export default pdfMake;
   export = pdfMake;
 }
 

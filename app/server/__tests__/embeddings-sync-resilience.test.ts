@@ -128,7 +128,7 @@ describe("batch failure", () => {
     const tools = Array.from({ length: 2049 }, (_, i) => tool(`alpha__t${i}`, `tool ${i}`));
     let stalled: AbortSignal | undefined;
     const fetch = (async (_url: unknown, init?: RequestInit) => {
-      const inputs: string[] = JSON.parse(String(init?.body)).input;
+      const inputs: string[] = JSON.parse((init?.body as string)).input;
       if (inputs.length === 1) return json({ error: { message: "bad request", type: "invalid_request_error" } }, 400);
       stalled = init!.signal!;
       return new Promise((_, reject) => stalled!.addEventListener("abort", () => reject(stalled!.reason)));

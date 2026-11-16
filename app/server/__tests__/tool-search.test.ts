@@ -124,7 +124,7 @@ describe("runToolSearch", () => {
 
   it("Anthropic: drops hits the turn's catalog doesn't declare (registered mid-turn)", async () => {
     mockSearch();
-    const declared = { [SEARCH]: {}, [HITS[0]!]: {}, [HITS[2]!]: {} };
+    const declared = { [SEARCH]: {}, [HITS[0]]: {}, [HITS[2]]: {} };
     const run = await runToolSearch("q", { provider: "anthropic", sanitize: (n) => n, declared });
     expect(run.hits.map((h) => h.name)).toEqual([HITS[0], HITS[2]]);
     expect(JSON.stringify(run.modelOutput)).not.toContain(HITS[1]);
@@ -155,7 +155,7 @@ describe("search dispatch", () => {
     const activeTools: Record<string, Tool> = {};
     const { result } = await dispatch("google", activeTools);
 
-    const shown = (result.record?.output as { tools: { name: string }[] }).tools.map((x) => x.name);
+    const shown = (result.record!.output as { tools: { name: string }[] }).tools.map((x) => x.name);
     expect(Object.keys(activeTools).sort()).toEqual([...shown].sort());
     expect(shown).toEqual(HITS.map((n) => n.replace(/-/g, "_")));
   });
@@ -169,14 +169,14 @@ describe("Anthropic request body", () => {
     const anthropic = createAnthropic({
       apiKey: "test",
       fetch: (async (_url: unknown, init?: RequestInit) => {
-        body = JSON.parse(String(init?.body));
+        body = JSON.parse((init?.body as string));
         return new Response("{}", { status: 500 });
       }) as typeof fetch,
     });
     const tools: Record<string, Tool> = {};
     for (const name of [SEARCH, ...HITS]) {
       tools[name] = tool({ description: name, inputSchema: jsonSchema(schema) });
-      if (name !== SEARCH && name !== CORE) tools[name]!.providerOptions = { anthropic: { deferLoading: true } };
+      if (name !== SEARCH && name !== CORE) tools[name].providerOptions = { anthropic: { deferLoading: true } };
     }
     const messages: ModelMessage[] = [
       { role: "user", content: "find drug tools" },

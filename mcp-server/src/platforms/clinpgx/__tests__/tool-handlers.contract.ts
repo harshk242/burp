@@ -22,7 +22,7 @@ async function invoke(name: string, args: Record<string, unknown>): Promise<any>
   if (missingCriteria(name, args)) {
     await expect(platform.handlers[name](args)).rejects.toThrow('Either gene or drug');
     expect(calls).toBe(0);
-    return;
+    return undefined;
   }
   const result: any = await platform.handlers[name](args);
   expect(calls).toBeGreaterThan(0);
@@ -45,7 +45,7 @@ async function invoke(name: string, args: Record<string, unknown>): Promise<any>
       const levels = ['1A', '1B', '2A', '2B', '3', '4'];
       const code = row.levelOfEvidence.match(/Level (1A|1B|2A|2B|3|4)\b/)?.[1];
       expect(levels.indexOf(code)).toBeGreaterThanOrEqual(0);
-      expect(levels.indexOf(code)).toBeLessThanOrEqual(levels.indexOf(String(args.minLevel ?? '1A')));
+      expect(levels.indexOf(code)).toBeLessThanOrEqual(levels.indexOf(typeof args.minLevel === 'string' ? args.minLevel : '1A'));
     });
     if (name === 'get_dosing_guidelines') result.forEach(row => {
       if (args.source) expect(row.source).toBe(args.source);

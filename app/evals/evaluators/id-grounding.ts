@@ -43,7 +43,7 @@ export function extractIds(text: string): { id: string; kind: string }[] {
   const found = new Map<string, string>();
   for (const k of ID_KINDS) {
     for (const m of text.matchAll(k.pattern)) {
-      const id = k.normalize(m as RegExpExecArray);
+      const id = k.normalize(m);
       if (!found.has(id)) found.set(id, k.kind);
     }
   }
@@ -55,7 +55,7 @@ const kindOf = new Map(ID_KINDS.map((k) => [k.kind, k]));
 export function evidenceFor(turns: TaskTurn[], k: number): string {
   const parts: string[] = [];
   for (let i = 0; i <= k; i++) {
-    const turn = turns[i]!;
+    const turn = turns[i];
     parts.push(turn.user_message);
     if (i === k || turn.status === "ok") for (const call of turn.tool_calls) parts.push(call.model_output);
   }

@@ -40,8 +40,8 @@ export function buildToolCatalog(
   const hashInput: unknown[] = [];
   for (const key of Object.keys(all).sort(byCodePoint)) {
     const loaded = key in systemTools || ALWAYS_LOADED_TOOLS.has(desanitizeToolName(key, provider));
-    catalog[key] = loaded ? all[key]! : { ...all[key]!, providerOptions: DEFERRED };
-    hashInput.push([key, loaded, all[key]!.description, schemaOf(key)]);
+    catalog[key] = loaded ? all[key] : { ...all[key], providerOptions: DEFERRED };
+    hashInput.push([key, loaded, all[key].description, schemaOf(key)]);
   }
 
   const hash = shortHash(JSON.stringify(hashInput));

@@ -10,7 +10,7 @@ import { ageOverlap, applyAdvancedFilter, area, areaText, range, sexEligible } f
 export const handleGetStudiesWithResults: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
     'filter.overallStatus': 'COMPLETED',
   };
 
@@ -43,15 +43,16 @@ export const handleGetStudiesWithResults: ToolHandler = async (args) => {
 };
 
 export const handleSearchRareDiseases: ToolHandler = async (args) => {
-  if (!args.rareDisease) {
+  const rareDisease = args.rareDisease;
+  if (typeof rareDisease !== 'string' || !rareDisease) {
     throw new Error('Rare disease parameter is required');
   }
 
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
-    'query.cond': args.rareDisease,
-    'query.term': `${args.rareDisease} OR orphan OR rare`,
+    pageSize: (args.pageSize) || 10,
+    'query.cond': rareDisease,
+    'query.term': `${rareDisease} OR orphan OR rare`,
   };
 
   if (args.recruitmentStatus)
@@ -90,7 +91,7 @@ const PEDIATRIC_AGE_RANGES: Record<string, [string, string]> = {
 export const handleGetPediatricStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
   };
 
   if (args.condition) params['query.cond'] = args.condition;
@@ -154,7 +155,7 @@ export const handleGetSimilarStudies: ToolHandler = async (args) => {
 
   const searchParams: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
   };
 
   switch (similarityType) {
@@ -218,7 +219,7 @@ export const handleSearchByPrimaryOutcome: ToolHandler = async (args) => {
 
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
     'query.outc': args.outcome,
   };
 
@@ -242,7 +243,7 @@ export const handleSearchByPrimaryOutcome: ToolHandler = async (args) => {
 export const handleSearchByEligibilityCriteria: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
   };
 
   if (args.condition) params['query.cond'] = args.condition;
@@ -304,7 +305,7 @@ export const handleSearchByEligibilityCriteria: ToolHandler = async (args) => {
 export const handleGetStudyTimeline: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
   };
 
   if (args.condition) params['query.cond'] = args.condition;
@@ -366,7 +367,7 @@ export const handleGetStudyTimeline: ToolHandler = async (args) => {
 export const handleSearchInternationalStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
   };
 
   if (args.condition) params['query.cond'] = args.condition;

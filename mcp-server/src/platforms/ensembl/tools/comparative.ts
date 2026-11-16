@@ -124,11 +124,13 @@ async function handleGetGeneTree(args: Record<string, unknown>) {
   if (args.clusterset_id) {
     params.clusterset_id = args.clusterset_id;
   }
+  let contentType = 'application/json';
   if (format !== 'json') {
-    params["content-type"] = format === "newick" ? "text/x-nh" : "text/x-phyloxml+xml";
+    contentType = format === "newick" ? "text/x-nh" : "text/x-phyloxml+xml";
+    params["content-type"] = contentType;
   }
 
-  const response = await getClient().get(endpoint, { params, headers: { 'Content-Type': String(params['content-type'] || 'application/json'), Accept: String(params['content-type'] || 'application/json') } });
+  const response = await getClient().get(endpoint, { params, headers: { 'Content-Type': contentType, Accept: contentType } });
   return response.data;
 }
 

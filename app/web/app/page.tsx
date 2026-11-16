@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMounted } from "@/hooks/useMounted";
 import { SignedIn, SignedOut } from "@/lib/auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -26,80 +26,76 @@ const databases = [
   { name: "ClinPGx", description: "Pharmacogenomics" },
 ];
 
-export default function HomePage() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const AuthButtons = () => {
-    if (!mounted) {
-      return (
-        <>
-          <Button asChild size="lg">
-            <Link href="/sign-in">
-              Sign In
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-          <Button variant="outline" size="lg" asChild>
-            <Link href="/request-access">Request Access</Link>
-          </Button>
-        </>
-      );
-    }
-
+function AuthButtons({ mounted }: { mounted: boolean }) {
+  if (!mounted) {
     return (
       <>
-        <SignedOut>
-          <Button asChild size="lg">
-            <Link href="/sign-in">
-              Sign In
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-          <Button variant="outline" size="lg" asChild>
-            <Link href="/request-access">Request Access</Link>
-          </Button>
-        </SignedOut>
-
-        <SignedIn>
-          <Button asChild size="lg">
-            <Link href="/chat">
-              <MessageSquare className="mr-2 h-4 w-4" />
-              Start Chatting
-            </Link>
-          </Button>
-        </SignedIn>
+        <Button asChild size="lg">
+          <Link href="/sign-in">
+            Sign In
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Button>
+        <Button variant="outline" size="lg" asChild>
+          <Link href="/request-access">Request Access</Link>
+        </Button>
       </>
     );
-  };
+  }
 
-  const CTAButton = () => {
-    if (!mounted) {
-      return (
+  return (
+    <>
+      <SignedOut>
+        <Button asChild size="lg">
+          <Link href="/sign-in">
+            Sign In
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Button>
+        <Button variant="outline" size="lg" asChild>
+          <Link href="/request-access">Request Access</Link>
+        </Button>
+      </SignedOut>
+
+      <SignedIn>
+        <Button asChild size="lg">
+          <Link href="/chat">
+            <MessageSquare className="mr-2 h-4 w-4" />
+            Start Chatting
+          </Link>
+        </Button>
+      </SignedIn>
+    </>
+  );
+}
+
+function CTAButton({ mounted }: { mounted: boolean }) {
+  if (!mounted) {
+    return (
+      <Button asChild size="lg">
+        <Link href="/request-access">Request Access</Link>
+      </Button>
+    );
+  }
+
+  return (
+    <>
+      <SignedOut>
         <Button asChild size="lg">
           <Link href="/request-access">Request Access</Link>
         </Button>
-      );
-    }
+      </SignedOut>
+      <SignedIn>
+        <Button asChild size="lg">
+          <Link href="/chat">Go to Chat</Link>
+        </Button>
+      </SignedIn>
+    </>
+  );
+}
 
-    return (
-      <>
-        <SignedOut>
-          <Button asChild size="lg">
-            <Link href="/request-access">Request Access</Link>
-          </Button>
-        </SignedOut>
-        <SignedIn>
-          <Button asChild size="lg">
-            <Link href="/chat">Go to Chat</Link>
-          </Button>
-        </SignedIn>
-      </>
-    );
-  };
+export default function HomePage() {
+  const mounted = useMounted();
 
   return (
     <main className="min-h-screen">
@@ -124,7 +120,7 @@ export default function HomePage() {
             </p>
 
             <div className="flex flex-wrap justify-center gap-4">
-              <AuthButtons />
+              <AuthButtons mounted={mounted} />
             </div>
           </div>
         </div>
@@ -201,7 +197,7 @@ export default function HomePage() {
             Join researchers who are saving hours by querying multiple databases
             with natural language.
           </p>
-          <CTAButton />
+          <CTAButton mounted={mounted} />
         </div>
       </section>
 

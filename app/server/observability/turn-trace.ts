@@ -282,7 +282,8 @@ export class TurnTrace {
     const statusMessage = outcome.message ?? (outcome.status === "ok" ? undefined : outcome.status);
     const childLevel = level === "DEFAULT" ? "WARNING" : level;
     const childMessage = statusMessage ?? "turn ended before this observation finished";
-    for (const child of [...this.open]) {
+    // Snapshot: close() removes each child from `open` while we iterate.
+    for (const child of Array.from(this.open)) {
       if (child instanceof GenerationObservation && outcome.cutOffCall) {
         child.closeEstimated(childLevel, childMessage, outcome.cutOffCall);
       } else {

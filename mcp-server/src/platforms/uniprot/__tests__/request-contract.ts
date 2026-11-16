@@ -62,7 +62,8 @@ export function assertUniProtRequest(request: RecordedRequest): void {
     }
   }
   if (params.fields !== undefined) {
-    expect(typeof params.fields).toBe('string');
-    for (const field of String(params.fields).split(',')) expect(returnFields, field).toContain(field);
+    const fields = params.fields;
+    expect(typeof fields).toBe('string');
+    for (const field of typeof fields === 'string' ? fields.split(',') : []) expect(returnFields, field).toContain(field);
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useMounted } from "@/hooks/useMounted";
 import Link from "next/link";
 import { ArrowLeft, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,11 +14,7 @@ import { DATABASE_LABELS, DATABASE_ORDER } from "@/lib/constants";
 import type { ToolListResponse, Tool } from "@/types";
 
 export default function ToolsPage() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useMounted();
 
   if (!mounted) {
     return (
@@ -50,7 +47,6 @@ export default function ToolsPage() {
 function ToolsPageContent() {
   const { get } = useApi();
   const {
-    groupedByServer,
     searchQuery,
     setTools,
     setSearchQuery,
@@ -71,7 +67,7 @@ function ToolsPageContent() {
         setLoading(false);
       }
     }
-    loadTools();
+    void loadTools();
   }, [get, setTools, setLoading]);
 
   const filtered = filteredTools();

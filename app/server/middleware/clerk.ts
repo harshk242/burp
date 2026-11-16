@@ -135,7 +135,7 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
       c.set("role", dbUser.role);
       c.set("dbUser", dbUser);
 
-      trackActivityBestEffort(dbUser.id, userQueries.updateLastActive);
+      trackActivityBestEffort(dbUser.id, (id) => userQueries.updateLastActive(id));
     } else {
       c.set("userId", null);
       c.set("role", "unknown");

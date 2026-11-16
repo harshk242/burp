@@ -80,7 +80,7 @@ class MCPServerProcess {
   }
 
   async start() {
-    const env = { ...process.env, ...(this.config.env || {}) };
+    const env = { ...process.env, ...this.config.env };
     this.proc = spawn(this.config.command, this.config.args || [], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
@@ -98,7 +98,7 @@ class MCPServerProcess {
         try {
           const message = JSON.parse(trimmed);
           this._handleMessage(message);
-        } catch (err) {
+        } catch {
           if (!this.options.quiet) {
             process.stderr.write(`[${this.name}] stdout: ${trimmed}\n`);
           }

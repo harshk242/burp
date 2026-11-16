@@ -25,7 +25,7 @@ mock.module("../llm/provider", () => ({ getChatModel: () => model, getTitleModel
 const { processChat } = await import("../orchestration/chat-v2");
 
 const USER_ID = "44444444-4444-4444-8444-444444444444";
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
 const MARK = { anthropic: { cacheControl: EPHEMERAL_5M } };
 
 const marked = (message: { providerOptions?: Record<string, unknown> }) =>
@@ -55,7 +55,7 @@ describe("applyCacheMarkers", () => {
   it("marks only the last message on a turn's first call", () => {
     const out = applyCacheMarkers(conversation().slice(0, 3));
     expect(out.map(marked)).toEqual([false, false, true]);
-    expect(out[2]!.providerOptions).toEqual(MARK);
+    expect(out[2].providerOptions).toEqual(MARK);
   });
 
   it("marks the last message and the previous call's last message", () => {
@@ -72,7 +72,7 @@ describe("applyCacheMarkers", () => {
 
   it("leaves the input array and its messages unchanged", () => {
     const input = conversation();
-    input[4]!.providerOptions = { anthropic: { other: 1 }, google: { x: true } };
+    input[4].providerOptions = { anthropic: { other: 1 }, google: { x: true } };
     const snapshot = structuredClone(input);
     const originals = [...input];
 
@@ -81,13 +81,13 @@ describe("applyCacheMarkers", () => {
     expect(out).not.toBe(input);
     expect(input).toEqual(snapshot);
     expect(input.every((message, i) => message === originals[i])).toBe(true);
-    expect(out[0]).toBe(input[0]!);
-    expect(out[2]).not.toBe(input[2]!);
-    expect(out[4]!.providerOptions).toEqual({
+    expect(out[0]).toBe(input[0]);
+    expect(out[2]).not.toBe(input[2]);
+    expect(out[4].providerOptions).toEqual({
       anthropic: { other: 1, cacheControl: EPHEMERAL_5M },
       google: { x: true },
     });
-    expect(out[4]!.content).toBe(input[4]!.content);
+    expect(out[4].content).toBe(input[4].content);
   });
 });
 
@@ -98,7 +98,7 @@ describe("Anthropic request body", () => {
     const anthropic = createAnthropic({
       apiKey: "test",
       fetch: (async (_url: unknown, init?: RequestInit) => {
-        body = JSON.parse(String(init?.body));
+        body = JSON.parse((init?.body as string));
         return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "stub" } }), {
           status: 400,
           headers: { "content-type": "application/json" },
@@ -172,7 +172,7 @@ describe("processChat cache markers", () => {
     model = new MockLanguageModelV4({
       doStream: async ({ prompt }) => {
         prompts.push(structuredClone(prompt));
-        return { stream: streamOf(script[prompts.length - 1]!) };
+        return { stream: streamOf(script[prompts.length - 1]) };
       },
     });
 

@@ -14,7 +14,7 @@ it("preflights adaptive thinking and the selected effort using the Models API", 
   let requests = 0;
   const api = (adaptive: boolean, effort: boolean) => ({ apiKey: "offline", fetch: (async (url: string | URL | Request) => {
     requests++;
-    expect(String(url)).toEndWith("/models/fixture-model");
+    expect(url instanceof Request ? url.url : url.toString()).toEndWith("/models/fixture-model");
     return Response.json({ id: "fixture-model", capabilities: { thinking: { types: { adaptive: { supported: adaptive } } }, effort: { supported: true, high: { supported: effort } } } });
   }) as typeof fetch });
   await expect(preflightThinking(config, "high", api(false, true))).rejects.toThrow("adaptive thinking");

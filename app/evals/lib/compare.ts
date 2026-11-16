@@ -151,7 +151,7 @@ function perRepeatMeans(experiments: SavedExperiment[], keep?: Set<string>): Map
   for (const exp of experiments) {
     const items = exp.items.filter((i) => !i.skipped && (!keep || keep.has(i.item_id)));
     const names = new Set(items.flatMap((i) => Object.keys(i.scores).filter((k) => typeof i.scores[k] === "number")));
-    const means: [string, number | null][] = [...names].map((n) => [n, mean(items.flatMap((i) => (typeof i.scores[n] === "number" ? [i.scores[n] as number] : [])))]);
+    const means: [string, number | null][] = [...names].map((n) => [n, mean(items.flatMap((i) => (typeof i.scores[n] === "number" ? [i.scores[n]] : [])))]);
     const outcomes = items.map((i) => i.scores.turn_outcome).filter((v) => v !== undefined);
     if (outcomes.length) means.push(["ok_rate", outcomes.filter((v) => v === "ok").length / outcomes.length]);
     for (const [name, value] of means) if (value !== null) perRepeat.set(name, [...(perRepeat.get(name) ?? []), value]);
@@ -254,7 +254,7 @@ function disagreements(arms: SavedArm[]): Disagreement[] {
       }],
       ["pass_rate", (runs) => round(runs.filter(passes).length / runs.length, 3)],
       ...DISAGREEMENT_SCORES.map((name): [string, (runs: SavedItemRun[]) => number | null] => [name, (runs) => {
-        const m = mean(runs.flatMap((r) => (typeof r.scores[name] === "number" ? [r.scores[name] as number] : [])));
+        const m = mean(runs.flatMap((r) => (typeof r.scores[name] === "number" ? [r.scores[name]] : [])));
         return m === null ? null : round(m, 3);
       }]),
     ];

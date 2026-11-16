@@ -12,5 +12,5 @@ const queries: Record<string, string> = {
 };
 export const argVariants = (tool: Tool) => variants(tool, samples).map(variant => ({
   ...variant, args: tool.name === 'search_compounds'
-    ? { ...variant.args, query: queries[String(variant.args.search_type ?? 'name')] } : variant.args,
+    ? { ...variant.args, query: queries[typeof variant.args.search_type === 'string' ? variant.args.search_type : 'name'] } : variant.args,
 }));

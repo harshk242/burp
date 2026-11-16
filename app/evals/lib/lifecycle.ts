@@ -84,7 +84,7 @@ export class RunLifecycle {
     await this.stage("background stop", () => this.deps.stopBackground?.());
     const drainMs = this.deps.drainTimeoutMs ?? 30_000;
     await this.stage("drain", async () => {
-      if (this.active.size > 0 && !(await bounded(Promise.allSettled([...this.active.keys()]), drainMs))) {
+      if (this.active.size > 0 && !(await bounded(Promise.allSettled(this.active.keys()), drainMs))) {
         this.log(`drain timed out after ${drainMs} ms; still running: ${[...this.active.values()].join(", ")}`);
       }
     });

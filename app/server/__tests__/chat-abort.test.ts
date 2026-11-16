@@ -16,7 +16,7 @@ type LanguageModelV4StreamPart =
   Awaited<ReturnType<MockLanguageModelV4["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never;
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, loadLLMConfig().provider);
 
 const t = createTestDb();
@@ -153,7 +153,7 @@ describe("processChat abort", () => {
     const events = await collect(processChat(sessionId, USER_ID, "hi", turn.signal));
 
     expect(model.doStreamCalls).toHaveLength(2);
-    expect(model.doStreamCalls[1]!.abortSignal?.aborted).toBe(true);
+    expect(model.doStreamCalls[1].abortSignal?.aborted).toBe(true);
     expect(callTool).toHaveBeenCalledTimes(1);
     expect(events.filter((e) => e.type === "tool_start")).toHaveLength(1);
     expect(events.some((e) => e.type === "error" || e.type === "done")).toBe(false);
@@ -161,7 +161,7 @@ describe("processChat abort", () => {
 
     const rows = usageRows();
     expect(rows).toHaveLength(1);
-    const row = rows[0]!;
+    const row = rows[0];
     expect(row).toMatchObject({ status: "error", usage_estimated: 1, llm_calls: 2, cache_read_tokens: 0, message_id: null });
     expect(row.output_tokens).toBe(7);
     expect(row.input_tokens as number).toBeGreaterThan(10);
@@ -179,7 +179,7 @@ describe("processChat abort", () => {
     const rows = usageRows();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ status: "error", usage_estimated: 1, llm_calls: 1, output_tokens: 2 });
-    expect(rows[0]!.input_tokens as number).toBeGreaterThan(100);
+    expect(rows[0].input_tokens as number).toBeGreaterThan(100);
     expect(warn.mock.calls.some(([, event]) => event === "usage_estimated")).toBe(true);
   });
 
@@ -227,7 +227,7 @@ describe("processChat abort", () => {
     const rows = usageRows();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ status: "error", usage_estimated: 1, llm_calls: 1, output_tokens: 0 });
-    expect(rows[0]!.input_tokens as number).toBeGreaterThan(100);
+    expect(rows[0].input_tokens as number).toBeGreaterThan(100);
   });
 
   it("a provider error part fails the turn and estimates the failed call", async () => {
@@ -275,7 +275,7 @@ describe("processChat abort", () => {
       const rows = usageRows();
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({ status: "error", usage_estimated: 1, llm_calls: 1, output_tokens: 0 });
-      expect(rows[0]!.input_tokens as number).toBeGreaterThan(100);
+      expect(rows[0].input_tokens as number).toBeGreaterThan(100);
     });
 
     it("records nothing for a call the provider rejected, retries included", async () => {
@@ -314,7 +314,7 @@ describe("processChat abort", () => {
       if (event.type === "text") break;
     }
 
-    expect(model.doStreamCalls[0]!.abortSignal?.aborted).toBe(true);
+    expect(model.doStreamCalls[0].abortSignal?.aborted).toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(streamedAfterClose).toBe(false);
     expect(usageRows()).toEqual([

@@ -17,7 +17,7 @@ const entity = (item: any) => ({
 
 function required(args: Record<string, unknown>, key: string): string {
   if (typeof args[key] !== 'string' || !args[key]) throw new Error(`${key} is required`);
-  return args[key] as string;
+  return args[key];
 }
 function size(args: Record<string, unknown>, fallback: number): number {
   if (args.size === undefined) return fallback;
@@ -40,7 +40,7 @@ const participants = async (id: string): Promise<any[]> =>
 const events = async (id: string): Promise<any[]> =>
   (await getClient().get(`/data/pathway/${encodeURIComponent(id)}/containedEvents`)).data;
 
-async function interactors(accessions: string[]): Promise<any | null> {
+async function interactors(accessions: string[]): Promise<any> {
   try {
     return (await getClient().post('/interactors/static/molecules/details', accessions.join(','), { headers: { 'Content-Type': 'text/plain' } })).data;
   } catch (error) {
@@ -48,7 +48,7 @@ async function interactors(accessions: string[]): Promise<any | null> {
       const raw = (error.cause as { response?: { data?: unknown } })?.response?.data;
       let data: any = raw;
       if (typeof raw === 'string' && raw.trim().startsWith('{')) {
-        try { data = JSON.parse(raw); } catch (parseError) { throw error; }
+        try { data = JSON.parse(raw); } catch { throw error; }
       }
       if (data?.code === 404 && Array.isArray(data.messages) && data.messages.length > 0 &&
           data.messages.every((message: string) => message.startsWith('No interactors found for accession: ') &&
@@ -133,7 +133,8 @@ async function handleGetProteinInteractions(args: Record<string, unknown>) {
       if (!ids.has(source.acc)) continue;
       for (const partner of source.interactors ?? []) {
         if (!ids.has(partner.acc)) continue;
-        const key = [source.acc, partner.acc].sort().join(':');
+        const pair: string[] = [source.acc, partner.acc];
+        const key = pair.sort().join(':');
         interactions.set(key, { source: source.acc, target: partner.acc, name: clean(partner.alias),
           score: partner.score, evidences: partner.evidences });
       }

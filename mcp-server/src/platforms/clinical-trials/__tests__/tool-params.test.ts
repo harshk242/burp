@@ -69,7 +69,7 @@ describe.each(tools.map((tool) => [tool.name, tool] as const))('%s request param
         expect(String(value), key).not.toMatch(/\bundefined\b|\bnull\b|\[object Object\]/);
       }
       const advanced = params['filter.advanced'];
-      if (advanced !== undefined) expect(String(advanced)).toMatch(/^AREA\[|^\(/);
+      if (advanced !== undefined) expect(advanced).toEqual(expect.stringMatching(/^AREA\[|^\(/));
     }
   });
 });

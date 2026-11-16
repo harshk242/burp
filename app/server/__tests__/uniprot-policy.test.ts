@@ -7,7 +7,7 @@ import { validatePolicies } from "../orchestration/tools/policy-resolver";
 describe("enabled UniProt output policy", () => {
   it("validates all configured jq filters", async () => {
     expect(await validatePolicies()).toEqual({ valid: true, errors: [] });
-    expect(appConfig.platforms.uniprot!.enabled).toBe(true);
+    expect(appConfig.platforms.uniprot.enabled).toBe(true);
     expect(ALWAYS_LOADED_TOOLS.has("uniprot__search_by_gene")).toBe(true);
     expect(ALWAYS_LOADED_TOOLS.has("uniprot__get_external_references")).toBe(false);
   });

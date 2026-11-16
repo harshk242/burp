@@ -7,7 +7,7 @@ function fixture() {
   const io = {
     mkdirSync() {}, existsSync: () => false, statSync: () => ({ size: 100 }),
     renameSync() {}, readdirSync: () => [] as string[], unlinkSync() {},
-    appendFileSync(_file: string, text: string) { writes.push(text); },
+    appendFileSync: (_file: string, text: string) => { writes.push(text); },
   };
   const sink = createFileSink({ directory: "/tmp/m5-sink", fs: io as unknown as FileSinkOptions["fs"], report: (m) => reports.push(m), maxSize: 1, maxBufferBytes: 32 });
   return { io, sink, reports, writes };

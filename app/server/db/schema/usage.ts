@@ -29,7 +29,7 @@ export const rateLimits = sqliteTable(
     daily_limit: integer("daily_limit").notNull(),
     updated_at: integer("updated_at").notNull().default(sql`(unixepoch())`),
   },
-  (t) => [
+  () => [
     check("rate_limits_role_check", sql`role IN ('user', 'admin')`),
   ],
 );

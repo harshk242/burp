@@ -140,13 +140,13 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
     logger.info("TRACE", "feedback_reconcile", { data: { pending: rows.length, due: due.length } });
     let next = 0;
     const worker = async () => {
-      while (next < due.length) await sync(due[next++]!);
+      while (next < due.length) await sync(due[next++]);
     };
     await Promise.all(Array.from({ length: Math.min(RECONCILE_CONCURRENCY, due.length) }, worker));
   }
 
   async function idle(): Promise<void> {
-    while (tails.size > 0) await Promise.all([...tails.values()]);
+    while (tails.size > 0) await Promise.all(tails.values());
   }
 
   return { sync, reconcile, idle };

@@ -173,8 +173,9 @@ async function fetchSingleSequence(args: {
     params.mask = args.mask;
   }
 
-  params['content-type'] = args.format === 'json' ? 'application/json' : 'text/x-fasta';
-  const response = await getClient().get(endpoint, { params, headers: { 'Content-Type': String(params['content-type'] || 'application/json'), Accept: String(params['content-type'] || 'application/json') } });
+  const contentType = args.format === 'json' ? 'application/json' : 'text/x-fasta';
+  params['content-type'] = contentType;
+  const response = await getClient().get(endpoint, { params, headers: { 'Content-Type': contentType, Accept: contentType } });
   return response.data;
 }
 

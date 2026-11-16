@@ -128,10 +128,10 @@ describe("legacy adoption — happy path", () => {
         runMigrations(sqlite);
 
         const expected = structuredClone(before);
-        for (const u of expected.users!) if (u.role === "waitlist") u.role = "user";
-        for (const e of expected.usage_events!) Object.assign(e, LEGACY_USAGE_DEFAULTS, { reconciliation_state: "none" });
+        for (const u of expected.users) if (u.role === "waitlist") u.role = "user";
+        for (const e of expected.usage_events) Object.assign(e, LEGACY_USAGE_DEFAULTS, { reconciliation_state: "none" });
         expect(dumpRows(sqlite)).toEqual(expected);
-        expect(expected.users!.some((u) => u.id === "u-wait")).toBe(true);
+        expect(expected.users.some((u) => u.id === "u-wait")).toBe(true);
         expect(sequenceOf(sqlite, "daily_usage")).toBe(3);
 
         sqlite.run("INSERT INTO daily_usage (user_id, date) VALUES ('u-user', '2026-02-01')");

@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { UserSchema, ErrorSchema, MessageSchema } from "../schemas";
-import { clerkAuth, syncUserToDatabase, requireDbUser } from "../middleware/clerk";
+import { UserSchema, ErrorSchema } from "../schemas";
+import { clerkAuth, syncUserToDatabase } from "../middleware/clerk";
 import type { AppEnv } from "../types";
 
 const users = new OpenAPIHono<AppEnv>();
@@ -44,10 +44,10 @@ The endpoint is idempotent - calling it multiple times for the same user is safe
 });
 
 users.openapi(syncUserRoute, async (c) => {
-  const clerkUserId = c.get("clerkUserId") as string;
-  const email = c.get("email") as string;
-  const name = c.get("clerkName") as string | null;
-  const imageUrl = c.get("clerkImageUrl") as string | null;
+  const clerkUserId = c.get("clerkUserId");
+  const email = c.get("email");
+  const name = c.get("clerkName");
+  const imageUrl = c.get("clerkImageUrl");
 
   const user = syncUserToDatabase(clerkUserId, email, name, imageUrl);
 

@@ -44,7 +44,7 @@ export class UsageRecoveryJournal {
       this.report(error);
       return;
     }
-    for (const job of [...this.jobs]) {
+    for (const job of this.jobs) {
       try {
         this.apply(job);
         this.jobs = this.jobs.filter((pending) => pending.id !== job.id);

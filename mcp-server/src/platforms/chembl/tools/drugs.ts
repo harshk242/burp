@@ -60,13 +60,14 @@ async function handleSearchDrugs(args: Record<string, unknown>) {
   const client = getClient();
   const params: Record<string, unknown> = {
     q: args.query,
-    limit: (args.limit as number) || 25,
+    limit: (args.limit) || 25,
   };
 
   // Filter before pagination so early pages are not depleted by non-drugs.
   const phases: Record<string, number> = { Approved: 4, 'Phase III': 3, 'Phase II': 2, 'Phase I': 1 };
   if (args.development_phase !== undefined) {
-    const phase = phases[String(args.development_phase)];
+    const requested = args.development_phase;
+    const phase = typeof requested === 'string' && Object.hasOwn(phases, requested) ? phases[requested] : undefined;
     if (phase === undefined) throw new Error('Invalid development phase');
     params.max_phase = phase;
   } else {

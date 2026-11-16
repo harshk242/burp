@@ -1,3 +1,4 @@
 export const UNLIMITED = -1;
 
-export type UnlimitedOrNonnegative = typeof UNLIMITED | number;
+/** A non-negative limit, or `UNLIMITED` (-1). */
+export type UnlimitedOrNonnegative = number;

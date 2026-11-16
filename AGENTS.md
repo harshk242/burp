@@ -44,6 +44,10 @@ Then re-clone or `git checkout -- CLAUDE.md`.
 # Package management
 - use bun commands always
 
+# Linting
+- `bun run lint` runs oxlint (type-aware) over all workspaces; config in `.oxlintrc.json`. CI fails on any finding.
+- `bun run lint:fix` applies safe autofixes.
+
 # Langfuse traces
 - Read traces with `scripts/langfuse.sh api ...` (wraps `bunx langfuse-cli`, loads keys from `app/.env`). Never paste keys into chat or commit them.
 - Skill: `langfuse@claude-plugins-official` plugin (enabled in `.claude/settings.json`; source github.com/langfuse/skills).

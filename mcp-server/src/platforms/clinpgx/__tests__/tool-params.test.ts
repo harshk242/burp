@@ -133,7 +133,8 @@ it('filters both guidelines and labels for a pair', async () => {
   }
 });
 it('rejects invalid routes, path IDs and parameters', () => {
-  for (const [path, params] of [['/data/typo', {}], ['/data/gene/bad-id', {}], ['/data/pathway', { cpicGene: true }], ['/data/variant', { bogus: true }]]) {
+  const cases: [string, Record<string, unknown>][] = [['/data/typo', {}], ['/data/gene/bad-id', {}], ['/data/pathway', { cpicGene: true }], ['/data/variant', { bogus: true }]];
+  for (const [path, params] of cases) {
     expect(() => assertClinPGxRequest({ method: 'get', url: `https://api.clinpgx.org/v1${path}`, params, body: {} })).toThrow();
   }
 });

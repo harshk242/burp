@@ -14,7 +14,7 @@ type LanguageModelV4StreamPart =
   Awaited<ReturnType<MockLanguageModelV4["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never;
 
 const USER_ID = "44444444-4444-4444-8444-444444444444";
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, loadLLMConfig().provider);
 
 const t = createTestDb();
@@ -116,11 +116,11 @@ describe("chat_turns lifecycle", () => {
       error_code: null,
       error_message: null,
       iterations: 2,
-      user_message_id: user!.id,
-      assistant_message_id: assistant!.id,
+      user_message_id: user.id,
+      assistant_message_id: assistant.id,
     });
-    expect(turn!.finished_at).toBeNumber();
-    expect(usageRows()).toEqual([expect.objectContaining({ status: "ok", turn_id: turn!.id, message_id: assistant!.id })]);
+    expect(turn.finished_at).toBeNumber();
+    expect(usageRows()).toEqual([expect.objectContaining({ status: "ok", turn_id: turn.id, message_id: assistant.id })]);
     expect(q.chatSessionQueries.findById(sessionId)).toMatchObject({ user_id: USER_ID });
   });
 
@@ -154,10 +154,10 @@ describe("chat_turns lifecycle", () => {
     expect(events.at(-1)).toEqual({ type: "error", data: { error: expect.stringContaining("provider down"), code: "provider_error" } });
     const [turn] = turns(sessionId);
     expect(turn).toMatchObject({ status: "error", error_code: "provider_error", iterations: 2, assistant_message_id: null });
-    expect(turn!.error_message).toContain("provider down");
-    expect(turn!.finished_at).toBeNumber();
+    expect(turn.error_message).toContain("provider down");
+    expect(turn.finished_at).toBeNumber();
     expect(roles(sessionId)).toEqual(["user"]);
-    expect(usageRows()).toEqual([expect.objectContaining({ status: "error", turn_id: turn!.id, llm_calls: 1, message_id: null })]);
+    expect(usageRows()).toEqual([expect.objectContaining({ status: "error", turn_id: turn.id, llm_calls: 1, message_id: null })]);
   });
 
   it("exceeding the tool iteration limit is recorded as max_tool_iterations", async () => {
@@ -171,7 +171,7 @@ describe("chat_turns lifecycle", () => {
     expect(turns(sessionId)).toEqual([
       expect.objectContaining({ status: "error", error_code: "max_tool_iterations", iterations: maxToolIterations }),
     ]);
-    expect(usageRows()).toEqual([expect.objectContaining({ turn_id: turns(sessionId)[0]!.id, llm_calls: maxToolIterations })]);
+    expect(usageRows()).toEqual([expect.objectContaining({ turn_id: turns(sessionId)[0].id, llm_calls: maxToolIterations })]);
   });
 
   it("a client disconnect marks the turn aborted and links its cost", async () => {
@@ -188,8 +188,8 @@ describe("chat_turns lifecycle", () => {
     expect(events.some((e) => e.type === "error" || e.type === "done")).toBe(false);
     const [turn] = turns(sessionId);
     expect(turn).toMatchObject({ status: "aborted", error_code: "aborted", iterations: 1, assistant_message_id: null });
-    expect(turn!.finished_at).toBeNumber();
-    expect(usageRows()).toEqual([expect.objectContaining({ status: "error", turn_id: turn!.id, llm_calls: 1 })]);
+    expect(turn.finished_at).toBeNumber();
+    expect(usageRows()).toEqual([expect.objectContaining({ status: "error", turn_id: turn.id, llm_calls: 1 })]);
   });
 
   it("a consumer that stops reading marks the turn aborted (closed)", async () => {
@@ -297,8 +297,8 @@ describe("refusals", () => {
     expect(roles(sessionId)).toEqual(["user"]);
     const [turn] = turns(sessionId);
     expect(turn).toMatchObject({ status: "error", error_code: "refusal", iterations: 1, assistant_message_id: null });
-    expect(turn!.error_message).toBe("stop_reason=refusal; category=bio; explanation=classifier");
-    expect(usageRows()).toEqual([expect.objectContaining({ status: "error", turn_id: turn!.id, llm_calls: 1, usage_estimated: 0 })]);
+    expect(turn.error_message).toBe("stop_reason=refusal; category=bio; explanation=classifier");
+    expect(usageRows()).toEqual([expect.objectContaining({ status: "error", turn_id: turn.id, llm_calls: 1, usage_estimated: 0 })]);
   });
 
   it("reads the category from a real Anthropic stream", async () => {

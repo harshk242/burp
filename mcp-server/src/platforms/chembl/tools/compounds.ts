@@ -121,7 +121,7 @@ async function handleSearchByInchi(args: Record<string, unknown>) {
 
   const client = getClient();
   const response = await client.get('/molecule/search.json', {
-    params: { q: args.inchi as string, limit: (args.limit as number) || 25 },
+    params: { q: args.inchi, limit: (args.limit as number) || 25 },
   });
   return response.data;
 }

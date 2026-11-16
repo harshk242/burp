@@ -48,7 +48,8 @@ it('translates locally using the standard code', async () => {
   expect(await handlers.translate_sequence({ sequence: 'ATGGGGTAA' })).toMatchObject({ protein_sequence: 'MG*' });
 });
 it('rejects unknown routes, parameters and missing path segments', () => {
-  for (const [path, params] of [['/map/coords/human/GRCh37/1:1-2', {}], ['/overlap/region/human/1:1-2', { consequence_type: 'missense_variant' }], ['/sequence/region/human/', {}]]) {
+  const cases: [string, Record<string, unknown>][] = [['/map/coords/human/GRCh37/1:1-2', {}], ['/overlap/region/human/1:1-2', { consequence_type: 'missense_variant' }], ['/sequence/region/human/', {}]];
+  for (const [path, params] of cases) {
     expect(() => assertEnsemblRequest({ method: 'get', url: `https://rest.ensembl.org${path}`, params, body: {} })).toThrow();
   }
 });

@@ -61,7 +61,7 @@ describe("score writer", () => {
       const { writer, seen } = stub(() => status(code));
       await writer.remove("fb-abc");
       expect(seen[0]).toMatchObject({ url: "https://lf.example.com/api/public/scores/fb-abc", method: "DELETE" });
-      expect(seen[0]!.headers.Authorization).toStartWith("Basic ");
+      expect(seen[0].headers.Authorization).toStartWith("Basic ");
     }
   });
 

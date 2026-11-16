@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMounted } from "@/hooks/useMounted";
 import { SignIn } from "@/lib/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SignInPage() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useMounted();
 
   if (!mounted) {
     return (

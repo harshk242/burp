@@ -122,7 +122,9 @@ export class ArtifactStore {
         break;
       }
     }
-    while (!persisted && this.artifacts.has(id)) id = generateArtifactId();
+    if (!persisted) {
+      while (this.artifacts.has(id)) id = generateArtifactId();
+    }
 
     const artifact: Artifact = {
       type,

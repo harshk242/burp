@@ -6,7 +6,6 @@
     "dev": "next dev --port 3001 --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -34,6 +33,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@types/bun": "^1.1.0",
     "@types/node": "^22.10.5",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",

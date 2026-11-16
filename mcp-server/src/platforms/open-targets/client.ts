@@ -129,7 +129,7 @@ export class OpenTargetsClient {
       timestamp: Date.now(),
     });
 
-    return data as T;
+    return data;
   }
 
   clearCache(): void {

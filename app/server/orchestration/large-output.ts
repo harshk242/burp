@@ -5,13 +5,19 @@ import { applyNoiseReduction } from "./tools/noise-reduction";
 import { generatePreview } from "./tools/schema-preview";
 import { validatePolicies } from "./tools/policy-resolver";
 
-validatePolicies().then(({ valid, errors }) => {
-  if (!valid) {
-    logger.warn("STARTUP", "artifact_policy_validation_warnings", {
-      data: { error_count: errors.length, errors },
+validatePolicies()
+  .then(({ valid, errors }) => {
+    if (!valid) {
+      logger.warn("STARTUP", "artifact_policy_validation_warnings", {
+        data: { error_count: errors.length, errors },
+      });
+    }
+  })
+  .catch((error: unknown) => {
+    logger.error("STARTUP", "artifact_policy_validation_failed", {
+      error: error instanceof Error ? error : String(error),
     });
-  }
-});
+  });
 
 export interface LargeOutputResult {
   output: string;

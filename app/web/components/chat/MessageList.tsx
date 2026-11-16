@@ -31,6 +31,8 @@ export function MessageList({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
+    // The dependencies are scroll triggers: follow the bottom whenever new content arrives.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [messages, streamingContent, pendingToolCalls, reasoningSegments]);
 
   return (

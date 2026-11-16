@@ -41,6 +41,7 @@ async function ncbiGet(
 }
 
 function clinvarContractTest(name: string, test: () => Promise<void>): void {
+  // oxlint-disable-next-line vitest/expect-expect -- assertions live in the callback; call sites are checked as test blocks
   it(name, { timeout: CLINVAR_CONTRACT_TIMEOUT_MS, retry: 0 }, test);
 }
 

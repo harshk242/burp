@@ -135,7 +135,7 @@ describe("legacy adoption — negative cases throw and leave the DB unchanged", 
     const dir = makeTempDir("burp-legacy-neg-");
     tempDirs.push(dir);
     const sqlite = openDatabase(join(dir, "app.db"));
-    buildLegacyDb(sqlite, "current", { schemaSql: CASES[2]!.schemaSql });
+    buildLegacyDb(sqlite, "current", { schemaSql: CASES[2].schemaSql });
     const before = state(sqlite);
     expect(() => runMigrations(sqlite)).toThrow(LegacyAdoptionError);
     expect(state(sqlite)).toEqual(before);

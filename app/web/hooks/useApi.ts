@@ -13,14 +13,11 @@ export function useApi() {
     async <T>(path: string, options?: RequestInit): Promise<T> => {
       const token = await getToken();
 
-      const res = await fetch(buildApiUrl(path, API_BASE), {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...options?.headers,
-        },
-      });
+      const headers = new Headers({ "Content-Type": "application/json" });
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      new Headers(options?.headers).forEach((value, key) => headers.set(key, value));
+
+      const res = await fetch(buildApiUrl(path, API_BASE), { ...options, headers });
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({ error: "Request failed" }));

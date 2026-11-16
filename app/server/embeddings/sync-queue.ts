@@ -19,7 +19,7 @@ export interface EmbeddingSyncOptions {
   embedder: Embedder;
   path: string;
   timeoutMs: number;
-  onReady(embedder: Embedder, vectors: Map<string, Float32Array>): void;
+  onReady: (embedder: Embedder, vectors: Map<string, Float32Array>) => void;
   retryDelaysMs?: readonly number[];
   scheduler?: Scheduler;
   random?: () => number;

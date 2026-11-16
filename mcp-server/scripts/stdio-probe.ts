@@ -12,8 +12,6 @@
 //   bun scripts/stdio-probe.ts -- bun src/index.ts
 //   bun /tmp/stdio-probe.ts -- node /app/mcp-server/dist/index.js
 
-export {}; // module scope, so top-level await type-checks
-
 const CANONICAL_ID = 'ENSG00000142515';
 const CALL_TIMEOUT_MS = { stub: 15_000, live: 120_000 };
 
@@ -94,7 +92,7 @@ if (stub) {
 
 const proc = Bun.spawn(command, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env });
 let stderrTail = '';
-(async () => {
+void (async () => {
   for await (const chunk of proc.stderr) stderrTail = (stderrTail + new TextDecoder().decode(chunk)).slice(-4000);
 })();
 
@@ -102,7 +100,7 @@ type Pending = { resolve: (msg: any) => void; reject: (err: Error) => void };
 const pending = new Map<number, Pending>();
 const violations: string[] = [];
 
-(async () => {
+void (async () => {
   const decoder = new TextDecoder();
   let buffer = '';
   for await (const chunk of proc.stdout) {
@@ -185,7 +183,8 @@ async function main() {
       ok(call.name);
     } catch (error) {
       const msg = `${call.name}: ${(error as Error).message}`;
-      live ? console.error(`  warn ${msg}`) : fail(msg);
+      if (live) console.error(`  warn ${msg}`);
+      else fail(msg);
     }
   }));
 

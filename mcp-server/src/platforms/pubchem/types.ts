@@ -44,7 +44,7 @@ export const isValidCompoundSearchArgs = (
   const a = args as Record<string, unknown>;
   return (
     typeof a.query === 'string' &&
-    (a.query as string).length > 0 &&
+    (a.query).length > 0 &&
     (a.search_type === undefined ||
       ['name', 'smiles', 'inchi', 'sdf', 'cid', 'formula'].includes(a.search_type as string)) &&
     (a.max_records === undefined ||
@@ -72,7 +72,7 @@ export const isValidSmilesArgs = (
   const a = args as Record<string, unknown>;
   return (
     typeof a.smiles === 'string' &&
-    (a.smiles as string).length > 0 &&
+    (a.smiles).length > 0 &&
     (a.threshold === undefined ||
       (typeof a.threshold === 'number' && a.threshold >= 0 && a.threshold <= 100)) &&
     (a.max_records === undefined ||
@@ -89,7 +89,7 @@ export const isValidBatchArgs = (
     Array.isArray(a.cids) &&
     a.cids.length > 0 &&
     a.cids.length <= 200 &&
-    a.cids.every((cid: unknown) => typeof cid === 'number' && (cid as number) > 0) &&
+    a.cids.every((cid: unknown) => typeof cid === 'number' && (cid) > 0) &&
     (a.operation === undefined ||
       ['property', 'synonyms', 'classification', 'description'].includes(a.operation as string))
   );

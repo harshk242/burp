@@ -7,7 +7,7 @@ interface Root {
 }
 
 function makeRoot(...children: any[]): Root {
-  return { type: 'root', children } as Root;
+  return { type: 'root', children };
 }
 
 function text(value: string) {
@@ -146,9 +146,9 @@ describe('lists', () => {
     );
     const outer = result[0] as any;
     expect(outer.ul).toBeDefined();
-    const item = outer.ul[0] as any;
+    const item = outer.ul[0];
     expect(item.stack).toBeDefined();
-    const nestedList = item.stack[1] as any;
+    const nestedList = item.stack[1];
     expect(nestedList.ul).toBeDefined();
     expect(nestedList.ul[0]).toBe('Child');
   });

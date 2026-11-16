@@ -1,6 +1,6 @@
 import { getClient } from '../client.js';
 import { formatPmid, formatCitation as formatCitationUtil } from '../utils.js';
-import type { MeshTerm, PubMedArticle } from '../types.js';
+import type { MeshTerm } from '../types.js';
 
 export async function getMeshTerms(
   pmid: string

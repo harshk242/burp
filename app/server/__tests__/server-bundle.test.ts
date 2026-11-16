@@ -31,7 +31,7 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 function freePort(): number {
   const probe = Bun.serve({ port: 0, fetch: () => new Response() });
   const port = probe.port!;
-  probe.stop(true);
+  void probe.stop(true);
   return port;
 }
 

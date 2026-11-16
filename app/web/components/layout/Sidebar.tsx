@@ -42,7 +42,7 @@ export function Sidebar() {
         setLoading(false);
       }
     }
-    fetchSessions();
+    void fetchSessions();
   }, [get, setSessions, setLoading]);
 
   function handleNewChat() {
@@ -75,7 +75,7 @@ export function Sidebar() {
   function handleRenameKeyDown(e: React.KeyboardEvent, sessionId: string) {
     if (e.key === "Enter") {
       e.preventDefault();
-      handleRenameCommit(sessionId);
+      void handleRenameCommit(sessionId);
     } else if (e.key === "Escape") {
       setEditingSessionId(null);
     }
@@ -163,7 +163,7 @@ export function Sidebar() {
                         className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none border-b border-muted-foreground/40"
                         value={editingTitle}
                         onChange={(e) => setEditingTitle(e.target.value)}
-                        onBlur={() => handleRenameCommit(session.id)}
+                        onBlur={() => void handleRenameCommit(session.id)}
                         onKeyDown={(e) => handleRenameKeyDown(e, session.id)}
                         onClick={(e) => e.stopPropagation()}
                       />
@@ -197,7 +197,7 @@ export function Sidebar() {
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 shrink-0"
-                            onClick={(e) => handleDeleteSession(e, session.id)}
+                            onClick={(e) => void handleDeleteSession(e, session.id)}
                           >
                             <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                           </Button>

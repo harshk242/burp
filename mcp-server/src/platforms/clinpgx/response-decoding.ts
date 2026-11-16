@@ -48,5 +48,5 @@ export function decodeEnvelope(value: unknown): { data: unknown; total?: number 
   if (envelope.total !== undefined && (typeof envelope.total !== 'number' || !Number.isInteger(envelope.total) || envelope.total < 0)) {
     throw new APIError('Invalid ClinPGx response: invalid total');
   }
-  return { data: envelope.data, total: envelope.total as number | undefined };
+  return { data: envelope.data, total: envelope.total };
 }
