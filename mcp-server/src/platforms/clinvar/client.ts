@@ -53,8 +53,8 @@ export const CLINICAL_TABLES_POLICY: RetryPolicy = Object.freeze({
 
 export interface ClinVarHttpOptions {
   policy?: RetryPolicy;
-  adapter?: AxiosAdapter;
-  retryDeps?: RetryDeps;
+  adapter?: AxiosAdapter | undefined;
+  retryDeps?: RetryDeps | undefined;
 }
 
 function createHttp(baseURL: string, defaultPolicy: RetryPolicy, options: ClinVarHttpOptions): AxiosInstance {
@@ -75,7 +75,7 @@ export function createClinicalTablesHttp(options: ClinVarHttpOptions = {}): Axio
 }
 
 export class ClinVarClient {
-  private readonly apiKey?: string;
+  private readonly apiKey?: string | undefined;
   private readonly cacheTtl: number;
   private readonly maxAttempts: number;
   private readonly retryDelay: number;
@@ -182,7 +182,7 @@ export class ClinVarClient {
 
   async search(
     term: string,
-    options?: { maxResults?: number; start?: number }
+    options?: { maxResults?: number | undefined; start?: number }
   ): Promise<{ count: number; ids: string[] }> {
     const result = await this.ncbiRequest(
       'esearch.fcgi',
@@ -204,8 +204,8 @@ export class ClinVarClient {
   async searchByGene(
     gene: string,
     options?: {
-      maxResults?: number;
-      clinicalSignificance?: string;
+      maxResults?: number | undefined;
+      clinicalSignificance?: string | undefined;
     }
   ): Promise<{ count: number; ids: string[] }> {
     const term = buildClinVarSearchTerm({
@@ -219,8 +219,8 @@ export class ClinVarClient {
   async searchByCondition(
     condition: string,
     options?: {
-      maxResults?: number;
-      clinicalSignificance?: string;
+      maxResults?: number | undefined;
+      clinicalSignificance?: string | undefined;
     }
   ): Promise<{ count: number; ids: string[] }> {
     const term = buildClinVarSearchTerm({
@@ -235,7 +235,7 @@ export class ClinVarClient {
     chromosome: string,
     start: number,
     stop?: number,
-    options?: { maxResults?: number }
+    options?: { maxResults?: number | undefined }
   ): Promise<{ count: number; ids: string[] }> {
     const coordTerm = stop
       ? `${chromosome}[chr] AND ${start}:${stop}[cpos]`
@@ -316,8 +316,8 @@ export class ClinVarClient {
   async searchByMolecularConsequence(
     consequence: string,
     options?: {
-      gene?: string;
-      maxResults?: number;
+      gene?: string | undefined;
+      maxResults?: number | undefined;
     }
   ): Promise<{ count: number; ids: string[] }> {
     const term = buildClinVarSearchTerm({
@@ -331,9 +331,9 @@ export class ClinVarClient {
   async searchByReviewStatus(
     reviewStatus: string,
     options?: {
-      gene?: string;
-      clinicalSignificance?: string;
-      maxResults?: number;
+      gene?: string | undefined;
+      clinicalSignificance?: string | undefined;
+      maxResults?: number | undefined;
     }
   ): Promise<{ count: number; ids: string[] }> {
     const term = buildClinVarSearchTerm({

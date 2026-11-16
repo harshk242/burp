@@ -14,7 +14,7 @@ export function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal): Prom
 export async function withDeadline<T>(
   ms: number,
   fn: (signal: AbortSignal) => Promise<T>,
-  options: { signal?: AbortSignal; timeoutError: () => Error }
+  options: { signal?: AbortSignal | undefined; timeoutError: () => Error }
 ): Promise<T> {
   const { signal, timeoutError } = options;
   signal?.throwIfAborted();

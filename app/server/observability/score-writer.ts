@@ -8,7 +8,7 @@ export interface ScoreUpsert {
   dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
   environment: string;
   comment?: string | null;
-  configId?: string;
+  configId?: string | undefined;
   metadata?: Record<string, unknown>;
 }
 

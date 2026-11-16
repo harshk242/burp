@@ -38,7 +38,7 @@ const usage = {
 
 type Finish = Extract<LanguageModelV4StreamPart, { type: "finish" }>;
 function finish(unified: Finish["finishReason"]["unified"], raw: string = unified, providerMetadata?: Finish["providerMetadata"]): LanguageModelV4StreamPart {
-  return { type: "finish", finishReason: { unified, raw }, usage, providerMetadata };
+  return { type: "finish", finishReason: { unified, raw }, usage, ...(providerMetadata && { providerMetadata }) };
 }
 
 const toolCall = (id: string): LanguageModelV4StreamPart => ({ type: "tool-call", toolCallId: id, toolName: TOOL_KEY, input: "{}" });
@@ -302,7 +302,7 @@ describe("refusals", () => {
   });
 
   it("reads the category from a real Anthropic stream", async () => {
-    realModel = (options) => createAnthropic({ apiKey: "test", fetch: options?.fetch })("claude-sonnet-5-5");
+    realModel = (options) => createAnthropic({ apiKey: "test", ...(options?.fetch && { fetch: options.fetch }) })("claude-sonnet-5-5");
     const sse = [
       { type: "message_start", message: { id: "msg_1", type: "message", role: "assistant", model: "claude-sonnet-5-5", content: [], stop_reason: null, usage: { input_tokens: 10, output_tokens: 0 } } },
       { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },

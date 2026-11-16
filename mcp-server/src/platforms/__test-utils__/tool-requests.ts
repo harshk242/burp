@@ -14,7 +14,7 @@ export function requestRecorder(response: unknown = { data: {} }) {
     const header: unknown = config.headers?.['Content-Type'];
     const contentType = typeof header === 'string' ? header : '';
     requests.push({
-      method: config.method ?? 'get', url: axios.getUri({ baseURL: config.baseURL, url: config.url }),
+      method: config.method ?? 'get', url: axios.getUri({ ...(config.baseURL !== undefined && { baseURL: config.baseURL }), ...(config.url !== undefined && { url: config.url }) }),
       params: config.params ?? {},
       body: typeof config.data === 'string' ? contentType.includes('application/x-www-form-urlencoded')
         ? Object.fromEntries(new URLSearchParams(config.data)) : contentType.includes('text/plain') ? config.data : JSON.parse(config.data) : config.data ?? {},

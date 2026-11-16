@@ -28,7 +28,7 @@ const slowModel = new MockLanguageModelV4({
         setTimeout(() => started(), 0);
       },
     });
-    await transport?.("https://model.test/", { signal: abortSignal });
+    await transport?.("https://model.test/", { signal: abortSignal ?? null });
     return { stream };
   },
 });

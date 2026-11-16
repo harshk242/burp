@@ -36,10 +36,10 @@ export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
 
 export interface ProcessChatOptions {
-  traceParent?: TraceParent;
+  traceParent?: TraceParent | undefined;
   costBudget?: CostBudget;
   onUsageRecorded?: () => void;
-  llm?: TurnLLMOverride;
+  llm?: TurnLLMOverride | undefined;
 }
 
 export async function* processChat(

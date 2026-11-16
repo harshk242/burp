@@ -77,7 +77,7 @@ function scriptedModel(calls: StreamFactory[]) {
     doStream: async ({ abortSignal }) => {
       const make = calls[n++] ?? (() => streamOf([...text("final answer"), finish("stop")]));
       const stream = await make(abortSignal);
-      await transport?.("https://model.test/", { signal: abortSignal });
+      await transport?.("https://model.test/", { signal: abortSignal ?? null });
       return { stream };
     },
   });

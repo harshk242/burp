@@ -29,7 +29,7 @@ export interface ParsedYaml {
   file: string;
 }
 
-export function parseYaml(absPath: string, rootDir: string): { parsed?: ParsedYaml; problems: string[] } {
+export function parseYaml(absPath: string, rootDir: string): { parsed?: ParsedYaml | undefined; problems: string[] } {
   const file = relative(rootDir, absPath);
   const lines = new LineCounter();
   const doc = parseDocument(readFileSync(absPath, "utf8"), { lineCounter: lines, prettyErrors: false });

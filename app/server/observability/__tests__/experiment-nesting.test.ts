@@ -11,7 +11,7 @@ it("the experiment task's active span is readable and the turn nests under it", 
   resetTracingForTests();
   initTracing({ spanProcessors: [new SimpleSpanProcessor(exporter)], registerGlobal: true });
 
-  let seen: { traceId?: string; spanId?: string } = {};
+  let seen: { traceId?: string | undefined; spanId?: string | undefined } = {};
   await startActiveObservation("experiment-item-run", async () => {
     await Bun.sleep(1);
     seen = { traceId: getActiveTraceId(), spanId: getActiveSpanId() };

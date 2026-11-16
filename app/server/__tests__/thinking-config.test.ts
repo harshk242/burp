@@ -8,6 +8,7 @@ import { createQueries } from "../db/queries";
 import { chatProviderOptions, loadLLMConfig } from "../llm";
 import { ALWAYS_LOADED_TOOLS } from "../mcp/platforms.config";
 import { toolRegistry } from "../mcp/registry";
+import { omitUndefined } from "../../shared/object";
 
 type CallOptions = Parameters<MockLanguageModelV4["doStream"]>[0];
 type LanguageModelV4StreamPart =
@@ -75,7 +76,7 @@ describe("Anthropic request body", () => {
       model: anthropic("claude-sonnet-5-5"),
       prompt: "hi",
       maxOutputTokens: 16000,
-      providerOptions: chatProviderOptions(loadLLMConfig()),
+      ...omitUndefined({ providerOptions: chatProviderOptions(loadLLMConfig()) }),
       maxRetries: 0,
     }).catch(() => undefined);
 

@@ -43,8 +43,8 @@ export const CLINPGX_POLICY: RetryPolicy = Object.freeze({
 
 export interface ClinPGxHttpOptions {
   policy?: RetryPolicy;
-  adapter?: AxiosAdapter;
-  retryDeps?: RetryDeps;
+  adapter?: AxiosAdapter | undefined;
+  retryDeps?: RetryDeps | undefined;
 }
 
 export function createClinPGxHttp(options: ClinPGxHttpOptions = {}): AxiosInstance {

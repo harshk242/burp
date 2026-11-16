@@ -99,13 +99,13 @@ export function getNestedValue(
 export function buildSearchQuery(
   baseQuery: string,
   filters?: {
-    dateRange?: { start: string; end: string };
-    publicationType?: string[];
-    language?: string;
-    hasAbstract?: boolean;
-    freeFullText?: boolean;
-    humanOnly?: boolean;
-    journalList?: string[];
+    dateRange?: { start: string; end: string } | undefined;
+    publicationType?: string[] | undefined;
+    language?: string | undefined;
+    hasAbstract?: boolean | undefined;
+    freeFullText?: boolean | undefined;
+    humanOnly?: boolean | undefined;
+    journalList?: string[] | undefined;
   }
 ): string {
   const parts = [baseQuery];
@@ -164,7 +164,7 @@ export function formatCitation(
     journal?: { title?: string; volume?: string; issue?: string; pages?: string };
     pubDate?: string;
     pmid?: string;
-    doi?: string;
+    doi?: string | undefined;
   },
   style: 'apa' | 'mla' | 'vancouver' | 'bibtex' = 'vancouver'
 ): string {

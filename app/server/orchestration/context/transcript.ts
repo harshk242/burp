@@ -91,10 +91,10 @@ export function appendTranscript(
 
 export interface TranscriptContext {
   messages: ModelMessage[];
-  previousLastIndex?: number;
-  previousPromptTokens?: number;
-  previousInputIdentity?: string;
-  previousFinishedAt?: number;
+  previousLastIndex?: number | undefined;
+  previousPromptTokens?: number | undefined;
+  previousInputIdentity?: string | undefined;
+  previousFinishedAt?: number | undefined;
 }
 
 export interface TranscriptCompatibility extends TranscriptTag {

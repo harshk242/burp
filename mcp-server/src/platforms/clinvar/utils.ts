@@ -161,9 +161,9 @@ export function normalizeReviewStatus(status: string): string {
 }
 
 export function buildClinVarSearchTerm(params: {
-  gene?: string;
+  gene?: string | undefined;
   condition?: string;
-  clinicalSignificance?: string;
+  clinicalSignificance?: string | undefined;
   molecularConsequence?: string;
   reviewStatus?: string;
   chromosome?: string;

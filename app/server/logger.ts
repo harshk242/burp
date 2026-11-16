@@ -81,7 +81,7 @@ function writeLog(
   opts?: {
     data?: Record<string, unknown>;
     error?: Error | string;
-    duration_ms?: number;
+    duration_ms?: number | undefined;
     ctx?: LogContext;
   }
 ): void {
@@ -132,7 +132,7 @@ function createLogFn(level: LogLevel) {
     opts?: {
       data?: Record<string, unknown>;
       error?: Error | string;
-      duration_ms?: number;
+      duration_ms?: number | undefined;
       ctx?: LogContext;
     }
   ) => writeLog(level, category, event, opts);

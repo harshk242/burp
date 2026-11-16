@@ -9,6 +9,7 @@
     "allowUnusedLabels": false,
     "noUncheckedSideEffectImports": true,
     "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   }

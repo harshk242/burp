@@ -5,6 +5,7 @@ import { toolRegistry } from "./registry";
 import { enabledPlatforms } from "./platforms.config";
 import { logger, startTimer, estimateTokens } from "../logger";
 import { appConfig } from "../config";
+import { omitUndefined } from "../../shared/object";
 
 const MCP_SERVERS_BASE = appConfig.server.mcp_servers_base;
 
@@ -47,9 +48,9 @@ export interface MCPServer {
   client: Client | null;
   transport: StdioClientTransport | null;
   status: ServerStatus;
-  error?: string;
+  error?: string | undefined;
   retryCount: number;
-  nextRetryAt?: Date;
+  nextRetryAt?: Date | undefined;
 }
 
 export interface ToolDefinition {
@@ -111,7 +112,7 @@ export class MCPManager {
         command: server.config.command,
         args: server.config.args,
         env: { ...process.env, ...server.config.env } as Record<string, string>,
-        cwd: server.config.cwd,
+        ...omitUndefined({ cwd: server.config.cwd }),
       });
 
       server.transport = transport;
@@ -309,7 +310,7 @@ export class MCPManager {
 
     return result.tools.map((tool) => ({
       name: tool.name,
-      description: tool.description,
+      ...(tool.description !== undefined && { description: tool.description }),
       inputSchema: tool.inputSchema as Record<string, unknown>,
     }));
   }
@@ -347,7 +348,7 @@ export class MCPManager {
       result = await server.client.callTool(
         { name: prefixedToolName, arguments: args, _meta: { deadline_ms: timeoutMs } },
         undefined,
-        { signal, timeout: timeoutMs }
+        omitUndefined({ signal, timeout: timeoutMs })
       );
     } catch (error) {
       // The client reports an abort as a timeout too.
@@ -430,8 +431,8 @@ export class MCPManager {
     return this.servers.get(name);
   }
 
-  getAllStatuses(): Record<string, { status: ServerStatus; error?: string }> {
-    const statuses: Record<string, { status: ServerStatus; error?: string }> = {};
+  getAllStatuses(): Record<string, { status: ServerStatus; error?: string | undefined }> {
+    const statuses: Record<string, { status: ServerStatus; error?: string | undefined }> = {};
     for (const [name, server] of this.servers) {
       statuses[name] = { status: server.status, error: server.error };
     }

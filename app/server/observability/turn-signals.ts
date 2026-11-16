@@ -68,6 +68,7 @@ export function writeTurnScores(
       ["tool_error_count", signals.tool_error_count, "NUMERIC"],
     ];
     for (const [name, value, dataType] of values) {
+      const configId = scoreConfigId(name);
       client.score.create({
         traceId,
         ...(observationId ? { observationId } : {}),
@@ -76,7 +77,7 @@ export function writeTurnScores(
         name,
         value,
         dataType,
-        configId: scoreConfigId(name),
+        ...(configId ? { configId } : {}),
       });
     }
   } catch (error) {

@@ -6,7 +6,7 @@ export type WriterOp = "upsert" | "remove" | "exists";
 export interface HeldCall {
   op: WriterOp;
   id: string;
-  body?: ScoreUpsert;
+  body?: ScoreUpsert | undefined;
   resolve(): void;
   reject(error: unknown): void;
 }

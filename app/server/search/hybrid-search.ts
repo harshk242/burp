@@ -18,8 +18,8 @@ export interface SearchResult {
   toolName: string;
   description: string;
   score: number;
-  bm25Rank?: number;
-  semanticRank?: number;
+  bm25Rank?: number | undefined;
+  semanticRank?: number | undefined;
 }
 
 export interface ToolInfo {

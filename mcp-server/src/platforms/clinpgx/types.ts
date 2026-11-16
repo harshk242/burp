@@ -9,15 +9,15 @@ export interface CacheEntry {
 export interface GeneInfo {
   id: string;
   symbol: string;
-  name?: string;
+  name?: string | undefined;
   alternateSymbols?: string[];
-  chromosomeLocation?: string;
-  pharmgkbAccessionId?: string;
-  hasVariants?: boolean;
-  hasGuidelines?: boolean;
-  hasClinicalAnnotations?: boolean;
+  chromosomeLocation?: string | undefined;
+  pharmgkbAccessionId?: string | undefined;
+  hasVariants?: boolean | undefined;
+  hasGuidelines?: boolean | undefined;
+  hasClinicalAnnotations?: boolean | undefined;
   crossReferences?: CrossReference[];
-  summary?: string;
+  summary?: string | undefined;
 }
 
 export interface DrugInfo {
@@ -25,25 +25,25 @@ export interface DrugInfo {
   name: string;
   genericNames?: string[];
   brandNames?: string[];
-  drugClass?: string;
+  drugClass?: string | undefined;
   atcCodes?: string[];
-  pharmgkbAccessionId?: string;
-  hasGuidelines?: boolean;
-  hasClinicalAnnotations?: boolean;
-  hasLabels?: boolean;
+  pharmgkbAccessionId?: string | undefined;
+  hasGuidelines?: boolean | undefined;
+  hasClinicalAnnotations?: boolean | undefined;
+  hasLabels?: boolean | undefined;
   crossReferences?: CrossReference[];
-  summary?: string;
+  summary?: string | undefined;
 }
 
 export interface VariantInfo {
   id: string;
-  name?: string;
-  rsid?: string;
-  gene?: string;
-  variantType?: string;
-  location?: string;
-  hasClinicalAnnotations?: boolean;
-  hasGuidelines?: boolean;
+  name?: string | undefined;
+  rsid?: string | undefined;
+  gene?: string | undefined;
+  variantType?: string | undefined;
+  location?: string | undefined;
+  hasClinicalAnnotations?: boolean | undefined;
+  hasGuidelines?: boolean | undefined;
   crossReferences?: CrossReference[];
 }
 
@@ -51,10 +51,10 @@ export interface ClinicalAnnotation {
   id: string;
   gene: string;
   drug: string;
-  variant?: string;
+  variant?: string | undefined;
   phenotypeCategory?: string;
   levelOfEvidence?: string;
-  annotation?: string;
+  annotation?: string | undefined;
   alleles?: string[];
   phenotypes?: string[];
   populations?: string[];
@@ -69,14 +69,14 @@ export interface DosingGuideline {
   source: 'CPIC' | 'DPWG' | 'Other';
   genes: string[];
   drugs: string[];
-  recommendation?: string;
-  hasRecommendation?: boolean;
-  implications?: string;
-  phenotypeCategory?: string;
-  alternateDrug?: string;
+  recommendation?: string | undefined;
+  hasRecommendation?: boolean | undefined;
+  implications?: string | undefined;
+  phenotypeCategory?: string | undefined;
+  alternateDrug?: string | undefined;
   url?: string;
-  version?: string;
-  lastModified?: string;
+  version?: string | undefined;
+  lastModified?: string | undefined;
 }
 
 export interface DrugLabel {
@@ -84,20 +84,20 @@ export interface DrugLabel {
   name: string;
   drug: string;
   source: string;
-  agency?: string;
-  approvalDate?: string;
-  biomarkerCategory?: string;
+  agency?: string | undefined;
+  approvalDate?: string | undefined;
+  biomarkerCategory?: string | undefined;
   genes?: string[];
   variants?: string[];
-  labelText?: string;
-  url?: string;
+  labelText?: string | undefined;
+  url?: string | undefined;
 }
 
 export interface Pathway {
   id: string;
   name: string;
-  type?: string;
-  description?: string;
+  type?: string | undefined;
+  description?: string | undefined;
   genes?: string[];
   drugs?: string[];
   url?: string;
@@ -115,17 +115,17 @@ export interface LiteratureReference {
 export interface CrossReference {
   database: string;
   id: string;
-  url?: string;
+  url?: string | undefined;
 }
 
 export interface DrugGeneInteraction {
   drug: string;
   gene: string;
   interactionType?: string;
-  phenotypeCategory?: string;
+  phenotypeCategory?: string | undefined;
   hasGuideline?: boolean;
   hasClinicalAnnotation?: boolean;
-  evidenceLevel?: string;
+  evidenceLevel?: string | undefined;
 }
 
 export interface VIPAnnotation {

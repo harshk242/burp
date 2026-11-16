@@ -4,7 +4,7 @@ export type EmbeddingProviderName = (typeof EMBEDDING_PROVIDERS)[number];
 export interface EmbeddingSpec {
   provider: EmbeddingProviderName;
   model: string;
-  dimensions?: number;
+  dimensions?: number | undefined;
 }
 
 export interface Embedder {

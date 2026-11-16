@@ -17,7 +17,7 @@ async function pacedTransport(config: Parameters<typeof transport>[0]) {
   return transport(config);
 }
 afterAll(resetClient);
-async function invoke(name: string, args: Record<string, unknown>): Promise<{ result: any; total?: number }> {
+async function invoke(name: string, args: Record<string, unknown>): Promise<{ result: any; total?: number | undefined }> {
   let calls = 0;
   let total: number | undefined;
   initClient({}, { adapter: async config => {

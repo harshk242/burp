@@ -70,7 +70,7 @@ function scriptedModel(calls: StreamFactory[]) {
         finish("stop"),
       ]));
       const stream = await make(abortSignal);
-      await transport?.("https://model.test/", { signal: abortSignal });
+      await transport?.("https://model.test/", { signal: abortSignal ?? null });
       return { stream };
     },
   });
@@ -255,7 +255,7 @@ describe("processChat abort", () => {
 
   describe("with the real Anthropic adapter", () => {
     beforeEach(() => {
-      realModel = (options) => createAnthropic({ apiKey: "test", fetch: options?.fetch })("claude-haiku-4-5");
+      realModel = (options) => createAnthropic({ apiKey: "test", ...(options?.fetch && { fetch: options.fetch }) })("claude-haiku-4-5");
     });
 
     it("estimates a call accepted with a 200 whose body stalls before any SSE data", async () => {

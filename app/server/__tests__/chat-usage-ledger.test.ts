@@ -46,7 +46,7 @@ function finish(
       inputTokens: { total: input.noCache + input.cacheRead + input.cacheWrite, ...input },
       outputTokens: { total: 50, text: 50, reasoning: 0 },
     },
-    providerMetadata: cacheCreation ? { anthropic: { usage: { cache_creation: cacheCreation } } } : undefined,
+    ...(cacheCreation && { providerMetadata: { anthropic: { usage: { cache_creation: cacheCreation } } } }),
   };
 }
 

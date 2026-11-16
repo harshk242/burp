@@ -13,7 +13,7 @@ export interface ModelInfo {
 
 export interface ModelsApiOptions {
   apiKey: string | undefined;
-  baseUrl?: string;
+  baseUrl?: string | undefined;
   fetch?: typeof fetch;
 }
 

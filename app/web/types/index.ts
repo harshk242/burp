@@ -34,7 +34,7 @@ export interface ToolCall {
   toolName: string;
   input: Record<string, unknown>;
   output?: unknown;
-  error?: string;
+  error?: string | undefined;
   status: "pending" | "running" | "complete" | "error";
 }
 
@@ -48,10 +48,10 @@ export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  toolCalls?: ToolCall[];
+  toolCalls?: ToolCall[] | undefined;
   createdAt: number;
-  tokenUsage?: { input: number; output: number };
-  reasoning?: string;
+  tokenUsage?: { input: number; output: number } | undefined;
+  reasoning?: string | undefined;
   persisted?: boolean;
   feedback?: Feedback | null;
 }

@@ -15,6 +15,7 @@ import { MOA_HITS, sha, verdict, verdicts } from "./gate-lib";
 import { coldCacheWritten } from "./gate-config";
 import { check4b, ensureThinkingCapabilities } from "./phase4b-checks";
 import { checkRedactedOffline } from "./phase4b-redacted";
+import { omitUndefined } from "../../shared/object";
 
 const MODEL_ID = loadLLMConfig().chatModel;
 const MAX_OUTPUT = 256;
@@ -26,7 +27,7 @@ interface Capture { status: number; beta: string | null; body: any; errorText?: 
 let last: Capture | null = null;
 
 const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  ...omitUndefined({ apiKey: process.env.ANTHROPIC_API_KEY }),
   fetch: (async (url, init) => {
     const body = JSON.parse(init?.body as string);
     const headers = new Headers(init?.headers);
@@ -76,19 +77,19 @@ interface CallResult {
   status: number;
   toolsSent: number;
   deferredSent: number;
-  inputTokens?: number;
-  noCache?: number;
-  cacheRead?: number;
-  cacheWrite?: number;
+  inputTokens?: number | undefined;
+  noCache?: number | undefined;
+  cacheRead?: number | undefined;
+  cacheWrite?: number | undefined;
   cacheCreation?: unknown;
-  outputTokens?: number;
-  finishReason?: string;
-  toolCalls?: string[];
-  text?: string;
+  outputTokens?: number | undefined;
+  finishReason?: string | undefined;
+  toolCalls?: string[] | undefined;
+  text?: string | undefined;
   beta: string | null;
-  error?: string;
-  toolsHash?: string;
-  systemHash?: string;
+  error?: string | undefined;
+  toolsHash?: string | undefined;
+  systemHash?: string | undefined;
 }
 
 const results: CallResult[] = [];

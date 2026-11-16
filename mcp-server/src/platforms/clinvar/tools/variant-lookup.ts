@@ -5,8 +5,8 @@ import type { VariantInfo, VCVRecord } from '../types.js';
 export async function searchVariantsByGene(
   gene: string,
   options?: {
-    maxResults?: number;
-    clinicalSignificance?: string;
+    maxResults?: number | undefined;
+    clinicalSignificance?: string | undefined;
   }
 ): Promise<{
   gene: string;
@@ -50,7 +50,7 @@ export async function lookupByCoordinates(
   chromosome: string,
   start: number,
   stop?: number,
-  options?: { maxResults?: number }
+  options?: { maxResults?: number | undefined }
 ): Promise<{
   assembly: 'GRCh38';
   coordinates: string;

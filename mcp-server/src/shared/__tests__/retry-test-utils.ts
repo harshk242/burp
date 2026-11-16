@@ -20,7 +20,7 @@ export type Step =
   | { status: number; headers?: Record<string, string>; delayMs?: number; advanceMs?: number };
 
 export function axiosFailure(options: {
-  code?: string;
+  code?: string | undefined;
   message?: string;
   status?: number;
   headers?: Record<string, string>;
@@ -109,7 +109,7 @@ export function stubClient(
   options: { deps?: RetryDeps; clock?: FakeClock; timeout?: number } = {},
 ): { client: AxiosInstance; calls: InternalAxiosRequestConfig[] } {
   const { adapter, calls } = stubAdapter(steps, options.clock);
-  const client = axios.create({ baseURL: 'https://rest.example.org', adapter, timeout: options.timeout });
+  const client = axios.create({ baseURL: 'https://rest.example.org', adapter, ...(options.timeout !== undefined && { timeout: options.timeout }) });
   attachRetry(client, { ...basePolicy, ...policy }, 'ensembl', {
     sleep: async () => {},
     ...(options.clock ? { now: options.clock.now } : {}),

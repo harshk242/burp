@@ -4,6 +4,7 @@ import { providerError, TurnError } from "./chat-turn";
 import type { CallTracker } from "./turn-usage";
 import type { ToolSet } from "./tool-dispatch";
 import type { StreamEvent } from "./types";
+import { omitUndefined } from "../../shared/object";
 
 type StreamResult = ReturnType<typeof streamText<ToolSet>>;
 
@@ -57,8 +58,7 @@ export async function* streamModelCall(req: ModelCallRequest): AsyncGenerator<St
     tools: req.tools,
     maxRetries: llmConfig.maxRetries,
     maxOutputTokens: llmConfig.maxOutputTokens,
-    providerOptions: req.providerOptions,
-    abortSignal: signal,
+    ...omitUndefined({ providerOptions: req.providerOptions, abortSignal: signal }),
     onLanguageModelCallStart: tracker.onRequest,
     onChunk: tracker.onChunk,
     onError: ({ error }) => {

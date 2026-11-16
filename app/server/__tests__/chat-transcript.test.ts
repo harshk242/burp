@@ -368,7 +368,7 @@ describe("model transcript on a real Anthropic stream", () => {
   ]);
 
   it("stores signed and redacted thinking as returned, the final message, and no cache_control", async () => {
-    realModel = (options) => createAnthropic({ apiKey: "test", fetch: options?.fetch })("claude-sonnet-5-5");
+    realModel = (options) => createAnthropic({ apiKey: "test", ...(options?.fetch && { fetch: options.fetch }) })("claude-sonnet-5-5");
     const bodies: string[] = [];
     spyOn(globalThis, "fetch").mockImplementation((async (_url: unknown, init?: RequestInit) => {
       bodies.push((init?.body as string));

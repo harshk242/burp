@@ -44,10 +44,10 @@ export interface AttemptContext {
 
 export interface WithRetryOptions<T> extends RetryDeps {
   platform: string;
-  method?: string;
-  path?: string;
-  signal?: AbortSignal;
-  timeoutMs?: number;
+  method?: string | undefined;
+  path?: string | undefined;
+  signal?: AbortSignal | undefined;
+  timeoutMs?: number | undefined;
   statusOf?: (result: T) => number | null;
 }
 
@@ -278,14 +278,14 @@ export function attachRetry(
   instance.interceptors.request.use((config: RetryRequestConfig) => {
     if (config.signal instanceof AbortSignal) {
       config[CALLER_SIGNAL] = config.signal;
-      config.signal = undefined;
+      delete config.signal;
     }
     return config;
   });
   const retrying = (config: RetryRequestConfig): Promise<AxiosResponse> => {
     const callerSignal =
       config[CALLER_SIGNAL] ?? (config.signal instanceof AbortSignal ? config.signal : undefined);
-    config.signal = undefined;
+    delete config.signal;
     return withRetry(({ signal, timeoutMs }) => adapter({ ...config, signal, timeout: timeoutMs }), policy, {
       ...deps,
       platform,

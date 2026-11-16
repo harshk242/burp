@@ -27,8 +27,8 @@ export const OPEN_TARGETS_POLICY: RetryPolicy = Object.freeze({
 export interface OpenTargetsHttpOptions {
   baseUrl?: string;
   policy?: RetryPolicy;
-  adapter?: AxiosAdapter;
-  retryDeps?: RetryDeps;
+  adapter?: AxiosAdapter | undefined;
+  retryDeps?: RetryDeps | undefined;
 }
 
 export function createOpenTargetsHttp(options: OpenTargetsHttpOptions = {}): AxiosInstance {
@@ -44,7 +44,7 @@ export function createOpenTargetsHttp(options: OpenTargetsHttpOptions = {}): Axi
 }
 
 export interface OpenTargetsClientOptions {
-  baseUrl?: string;
+  baseUrl?: string | undefined;
   cacheTtl?: number;
   maxAttempts?: number;
   retryDelay?: number;

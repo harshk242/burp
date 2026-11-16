@@ -42,7 +42,7 @@ export function child(value: unknown): Record<string, unknown> {
   return value === undefined || value === null ? {} : record(value);
 }
 
-export function decodeEnvelope(value: unknown): { data: unknown; total?: number } {
+export function decodeEnvelope(value: unknown): { data: unknown; total?: number | undefined } {
   const envelope = record(value);
   if (!Object.hasOwn(envelope, 'data')) throw new APIError('Invalid ClinPGx response: missing data');
   if (envelope.total !== undefined && (typeof envelope.total !== 'number' || !Number.isInteger(envelope.total) || envelope.total < 0)) {

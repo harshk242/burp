@@ -8,6 +8,7 @@ import { toDeclarations } from "../../server/orchestration/tool-dispatch";
 import { parseGateEffort, preflightThinking } from "./gate-config";
 import { MOA_HITS, sha, verdict } from "./gate-lib";
 import { checkRedactedOffline, REDACTED_TRIGGER } from "./phase4b-redacted";
+import { omitUndefined } from "../../shared/object";
 
 const config = loadLLMConfig();
 const EFFORT = parseGateEffort(process.env.GATE_EFFORT);
@@ -20,7 +21,7 @@ export function ensureThinkingCapabilities(): Promise<void> {
 
 const providerOptions = chatProviderOptions({ ...config, effort: EFFORT });
 
-interface Req { raw: string; body: any; status: number; errorText?: string; signal?: AbortSignal | null }
+interface Req { raw: string; body: any; status: number; errorText?: string; signal?: AbortSignal | null | undefined }
 const requests: Req[] = [];
 const loggingFetch = (async (url: string | URL | Request, init?: RequestInit) => {
   const req: Req = { raw: (init?.body as string), body: JSON.parse((init?.body as string)), status: -1, signal: init?.signal };
@@ -33,9 +34,9 @@ const loggingFetch = (async (url: string | URL | Request, init?: RequestInit) =>
 const model = getChatModel({ fetch: loggingFetch });
 
 interface Call {
-  label: string; status: number; error?: string; req?: Req; aborted?: boolean;
-  inputTokens?: number; noCache?: number; cacheRead?: number; cacheWrite?: number;
-  outputTokens?: number; reasoningTokens?: number; finishReason?: string;
+  label: string; status: number; error?: string; req?: Req | undefined; aborted?: boolean;
+  inputTokens?: number | undefined; noCache?: number | undefined; cacheRead?: number | undefined; cacheWrite?: number | undefined;
+  outputTokens?: number | undefined; reasoningTokens?: number | undefined; finishReason?: string | undefined;
   toolCalls: { toolCallId: string; toolName: string; input: unknown }[];
   responseMessages: ModelMessage[];
 }
@@ -54,8 +55,7 @@ async function call(label: string, tools: Record<string, Tool>, messages: ModelM
     tools,
     maxRetries: 0,
     maxOutputTokens: config.maxOutputTokens,
-    providerOptions,
-    abortSignal: opts.signal,
+    ...omitUndefined({ providerOptions, abortSignal: opts.signal }),
     onError: ({ error }) => { streamError ??= error; },
   });
   try {

@@ -57,7 +57,7 @@ export function mutateTable(schemaSql: string, table: string, from: string, to: 
 }
 
 export interface BuildLegacyOptions {
-  schemaSql?: string;
+  schemaSql?: string | undefined;
   seed?: boolean;
 }
 
