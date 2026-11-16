@@ -10,7 +10,7 @@ afterEach(async () => {
   cleanup = null;
 });
 
-async function connectedManager() {
+async function connectedManager(text = "ok") {
   const cancelled: AbortSignal[] = [];
   const requestMeta: unknown[] = [];
   const server = new McpServer({ name: "test", version: "1.0.0" });
@@ -19,7 +19,7 @@ async function connectedManager() {
     return new Promise(() => {});
   });
   server.registerTool("demo__ok", { description: "answers" }, async () => ({
-    content: [{ type: "text", text: "ok" }],
+    content: [{ type: "text", text }],
   }));
   server.registerTool("demo__meta", { description: "answers with _meta" }, async (extra) => {
     requestMeta.push(extra._meta);
@@ -46,6 +46,24 @@ async function waitFor(check: () => boolean, ms = 1_000) {
   const deadline = Date.now() + ms;
   while (!check() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
 }
+
+describe("MCPManager result text", () => {
+  it.each(['##gff-version 3\nP38398\tDomain\n', '>P38398\nMÉ🧬\n', '{not JSON}\n', '[not JSON]\n'])(
+    "preserves raw text including invalid JSON prefixes: %j",
+    async (text) => {
+      const { manager } = await connectedManager(text);
+      expect(await manager.callTool("demo", "ok", {})).toEqual({ content: text, isError: false });
+    },
+  );
+
+  it.each([{ nested: { values: [1, 2] } }, [{ ok: true }]])(
+    "parses compact JSON objects and arrays: %j",
+    async (value) => {
+      const { manager } = await connectedManager(JSON.stringify(value));
+      expect(await manager.callTool("demo", "ok", {})).toEqual({ content: value, isError: false });
+    },
+  );
+});
 
 describe("MCPManager.callTool deadlines", () => {
   it("cancels the request on the server when the timeout passes", async () => {

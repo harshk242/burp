@@ -66,6 +66,62 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe('tool result serialization', () => {
+  it.each([{ nested: { values: [1, 'line\nbreak', null] } }, [{ ok: true }]])(
+    'sends compact JSON without changing data: %j',
+    async (value) => {
+      const result = await call(async () => value);
+      expect(result.isError).toBeUndefined();
+      expect(text(result)).toBe(JSON.stringify(value));
+      expect(JSON.parse(text(result))).toEqual(value);
+    },
+  );
+
+  it.each(['', '##gff-version 3\nP38398\tUniProtKB\tDomain\n', '>P38398\nMÉ🧬\n',
+    '<protein id="P38398"/>', 'id\tname\nP38398\tBRCA1\n', '{not JSON}\n', '[not JSON]\n',
+    '{"valid":"json"}', '[1,2]'])(
+    'preserves string results verbatim: %j',
+    async (value) => {
+      const result = await call(async () => value);
+      expect(result.isError).toBeUndefined();
+      expect(text(result)).toBe(value);
+    },
+  );
+
+  it('caps compact JSON rather than its larger pretty representation', async () => {
+    const value = Array.from({ length: 250_000 }, () => ({ value: 1 }));
+    expect(Buffer.byteLength(JSON.stringify(value, null, 2))).toBeGreaterThan(5 * 1024 * 1024);
+    const result = await call(async () => value);
+    expect(result.isError).toBeUndefined();
+    expect(text(result)).toBe(JSON.stringify(value));
+  });
+
+  it('allows raw text exactly at the cap even when JSON escaping would exceed it', async () => {
+    const value = '\n'.repeat(5 * 1024 * 1024);
+    const result = await call(async () => value);
+    expect(result.isError).toBeUndefined();
+    expect(text(result)).toBe(value);
+  });
+
+  it.each([false, true])('rejects excess UTF-8 bytes for JSON=%s', async (json) => {
+    const value = '🧬'.repeat(1_310_721);
+    const payload = json ? { value } : value;
+    const serialized = json ? JSON.stringify(payload) : value;
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const result = await call(async () => payload);
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(text(result))).toMatchObject({
+        error: 'output_too_large',
+        output_bytes: Buffer.byteLength(serialized, 'utf8'),
+        cap_bytes: 5 * 1024 * 1024,
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
 describe('UpstreamError formatting', () => {
   it.each(Object.entries(REASON_TO_KIND) as [UpstreamReason, (typeof REASON_TO_KIND)[UpstreamReason]][])(
     '%s → structured JSON',
