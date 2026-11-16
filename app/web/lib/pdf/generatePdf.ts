@@ -1,9 +1,10 @@
 import { PAGE_MARGINS, pdfStyles, buildTitleBlock, buildFooter } from './styles';
-import { mdastToPdfmakeContent } from './mdastToPdfmake';
+import { mdastToPdfmakeContent, type Root } from './mdastToPdfmake';
 
 function sanitizeFilename(title: string): string {
   const sanitized = title
     .trim()
+    // oxlint-disable-next-line no-control-regex -- strips control characters, which are invalid in filenames
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
     .replace(/\s+/g, '-')
     .slice(0, 100);
@@ -27,7 +28,7 @@ export async function generatePdfFromMarkdown(
   // pdfmake is CJS — Next.js dynamic import wraps it as { default: cjsExports }.
   const pdfMake = (pdfMod as any).default ?? pdfMod;
   const remarkParse = (remarkParseMod as any).default ?? remarkParseMod;
-  const { unified } = unifiedMod as any;
+  const { unified } = unifiedMod;
   const remarkGfm = (remarkGfmMod as any).default ?? remarkGfmMod;
 
   // vfs_fonts.js only self-registers when window.pdfMake exists (UMD side-effect).
@@ -37,9 +38,10 @@ export async function generatePdfFromMarkdown(
   const courier = (courierMod as any).default ?? courierMod;
   pdfMake.addFontContainer(courier);
 
-  const tree = unified().use(remarkParse).use(remarkGfm).parse(markdown);
+  // remark-parse is loaded as `any`, so parse() is typed as a generic unist Node.
+  const tree = unified().use(remarkParse).use(remarkGfm).parse(markdown) as Root;
 
-  const body = mdastToPdfmakeContent(tree as any);
+  const body = mdastToPdfmakeContent(tree);
 
   const date = new Date().toLocaleDateString('en-US', {
     year: 'numeric',

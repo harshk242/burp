@@ -1,6 +1,6 @@
 import { LINK_BLUE, CODE_BG, BLOCKQUOTE_BORDER } from './styles';
 
-interface Root {
+export interface Root {
   type: 'root';
   children: any[];
 }
