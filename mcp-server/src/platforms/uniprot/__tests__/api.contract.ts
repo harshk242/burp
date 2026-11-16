@@ -1,6 +1,9 @@
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
 import { UNIPROT_BASE_URL, UNIPROT_POLICY, createUniProtClient } from '../client.js';
+
+import { INFO_FIELDS, stripEvidences } from '../entry-fields.js';
+import { SEARCH_FIELDS, summarizeSearch } from '../search-fields.js';
 
 const BASE = UNIPROT_BASE_URL;
 const JSON_HEADERS = { Accept: 'application/json' };
@@ -26,41 +29,52 @@ function uniprotContractTest(name: string, test: () => Promise<void>): void {
 
 describe('UniProt REST API Contracts', () => {
   uniprotContractTest('GET /uniprotkb/{accession} schema is stable (P04637, TP53)', async () => {
-    const data = await fetchJson(`${BASE}/uniprotkb/P04637`);
-    await assertSchemaStable('uniprot/protein-entry.schema.json', data);
+    const data = await fetchJson(`${BASE}/uniprotkb/P04637`, { format: 'json', fields: INFO_FIELDS });
+    await assertSchemaStable('uniprot/protein-entry.schema.json', stripEvidences(data));
   });
 
   uniprotContractTest('GET /uniprotkb/{accession} schema is stable (P69905, HBA1)', async () => {
-    const data = await fetchJson(`${BASE}/uniprotkb/P69905`);
+    const data = await fetchJson(`${BASE}/uniprotkb/P69905`, { format: 'json', fields: 'accession,sequence,mass' });
     await assertSchemaStable('uniprot/protein-entry-minimal.schema.json', data);
   });
 
   uniprotContractTest('GET /uniprotkb/search schema is stable (query=kinase)', async () => {
     const data = await fetchJson(`${BASE}/uniprotkb/search`, {
-      query: 'kinase',
+      query: 'reviewed:true AND (kinase) AND organism_name:"Homo sapiens"',
       format: 'json',
+      fields: SEARCH_FIELDS,
       size: '3',
     });
-    await assertSchemaStable('uniprot/search-proteins.schema.json', data);
+    const summary = summarizeSearch(data);
+    expect(summary.results.length).toBeGreaterThan(0);
+    expect(summary.results.every((entry: any) => entry.accession && entry.reviewed)).toBe(true);
+    await assertSchemaStable('uniprot/search-proteins.schema.json', summary);
   });
 
   uniprotContractTest('GET /uniprotkb/search schema is stable (gene:BRCA1)', async () => {
     const data = await fetchJson(`${BASE}/uniprotkb/search`, {
-      query: 'gene:"BRCA1"',
+      query: 'reviewed:true AND gene:"BRCA1" AND organism_name:"Homo sapiens"',
       format: 'json',
+      fields: SEARCH_FIELDS,
       size: '3',
     });
-    await assertSchemaStable('uniprot/search-by-gene.schema.json', data);
+    const summary = summarizeSearch(data);
+    expect(summary.results.length).toBeGreaterThan(0);
+    expect(summary.results.every((entry: any) => entry.accession && entry.reviewed)).toBe(true);
+    await assertSchemaStable('uniprot/search-by-gene.schema.json', summary);
   });
 
-  // UniProt GO queries use bare numeric IDs without "GO:" prefix or quotes.
-  // go:"GO:0006915" returns zero results (false-positive empty fixture).
+  // Match the handler: strip GO: and quote the numeric ID.
   uniprotContractTest('GET /uniprotkb/search schema is stable (reviewed apoptosis GO)', async () => {
     const data = await fetchJson(`${BASE}/uniprotkb/search`, {
-      query: 'reviewed:true AND go:0006915',
+      query: 'reviewed:true AND go:"0006915"',
       format: 'json',
+      fields: SEARCH_FIELDS,
       size: '3',
     });
-    await assertSchemaStable('uniprot/search-by-function.schema.json', data);
+    const summary = summarizeSearch(data);
+    expect(summary.results.length).toBeGreaterThan(0);
+    expect(summary.results.every((entry: any) => entry.accession && entry.reviewed)).toBe(true);
+    await assertSchemaStable('uniprot/search-by-function.schema.json', summary);
   });
 });

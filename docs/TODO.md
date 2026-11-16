@@ -16,7 +16,7 @@ Analyze the two tier system for reducing large tool output. Figure out if we can
 Remove the legacy chat.ts 
 Analyze the platforms tool calls and compare if they give you the same information. For example a open targets tool might give protein interaction data which makes uniprot tool call as duplicate info. 
 
-Analyze uniprot, chembl and any platform which returns large tool output to refine global and platform centric noise filters and tool level policies
+UniProt output size resolved: summary searches, focused entry tools, bounded batches, compact JSON and raw text artifacts; platform filters preserve requested results and sequences. Continue reviewing ChEMBL and other large-output platforms.
 Logo design
 Deployment on public infra
 Users can dynamically select the platforms. Then the agent will only use those platforms and nothing else. 

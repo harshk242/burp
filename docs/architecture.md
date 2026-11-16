@@ -489,7 +489,7 @@ User                  Frontend            Hono Server           Orchestration   
   ║  │   tool                                      │   ║
   ║  │ - del(.. | nulls)                           │   ║
   ║  │ - Platform-specific filters (e.g. strip     │   ║
-  ║  │   sequence.value from UniProt)              │   ║
+  ║  │   redundant evidences from UniProt)              │   ║
   ║  │                                              │   ║
   ║  │ If reduced ≤ 15K → return inline            │   ║
   ║  └──────────────────────┬──────────────────────┘   ║
