@@ -98,7 +98,7 @@ class MCPServerProcess {
         try {
           const message = JSON.parse(trimmed);
           this._handleMessage(message);
-        } catch (err) {
+        } catch {
           if (!this.options.quiet) {
             process.stderr.write(`[${this.name}] stdout: ${trimmed}\n`);
           }

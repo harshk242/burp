@@ -66,6 +66,7 @@ async function fetchJson(
 
 function clinicalTrialsContractTest(name: string, test: () => Promise<void>, requests = 1): void {
   const timeout = CLINICAL_TRIALS_CONTRACT_TIMEOUT_MS + (requests - 1) * CONTRACT_OVERRIDES.totalBudgetMs;
+  // oxlint-disable-next-line vitest/expect-expect -- assertions live in the callback; call sites are checked as test blocks
   it(name, { timeout, retry: 0 }, test);
 }
 

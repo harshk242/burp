@@ -43,15 +43,16 @@ export const handleGetStudiesWithResults: ToolHandler = async (args) => {
 };
 
 export const handleSearchRareDiseases: ToolHandler = async (args) => {
-  if (!args.rareDisease) {
+  const rareDisease = args.rareDisease;
+  if (typeof rareDisease !== 'string' || !rareDisease) {
     throw new Error('Rare disease parameter is required');
   }
 
   const params: Record<string, unknown> = {
     format: 'json',
     pageSize: (args.pageSize) || 10,
-    'query.cond': args.rareDisease,
-    'query.term': `${args.rareDisease} OR orphan OR rare`,
+    'query.cond': rareDisease,
+    'query.term': `${rareDisease} OR orphan OR rare`,
   };
 
   if (args.recruitmentStatus)

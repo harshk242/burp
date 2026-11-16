@@ -8,12 +8,16 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function errorText(error: unknown): string {
+  return typeof error === 'string' ? error : JSON.stringify(error);
+}
+
 export function decodeFrequencySummary(value: unknown, variationId: string): VariantFrequencyResult {
   const response = record(value);
-  if (response.error) throw new NCBIAPIError(String(response.error));
+  if (response.error) throw new NCBIAPIError(errorText(response.error));
   const result = record(response.result);
   const summary = record(result[variationId]);
-  if (summary.error) throw new NCBIAPIError(String(summary.error));
+  if (summary.error) throw new NCBIAPIError(errorText(summary.error));
   if (!Array.isArray(summary.variation_set)) {
     throw new NCBIAPIError('Missing ClinVar variation_set');
   }

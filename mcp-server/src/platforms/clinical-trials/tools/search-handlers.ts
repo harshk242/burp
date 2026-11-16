@@ -60,12 +60,11 @@ export const handleSearchByLocation: ToolHandler = async (args) => {
     pageSize: (args.pageSize) || 10,
   };
 
-  let locationQuery = '';
-  if (args.country) locationQuery += args.country;
-  if (args.state) locationQuery += (locationQuery ? ', ' : '') + args.state;
-  if (args.city) locationQuery += (locationQuery ? ', ' : '') + args.city;
-  if (args.facilityName)
-    locationQuery += (locationQuery ? ', ' : '') + args.facilityName;
+  const locationParts = [args.country, args.state, args.city, args.facilityName];
+  if (locationParts.some((part) => part !== undefined && typeof part !== 'string')) {
+    throw new Error('country, state, city and facilityName must be strings');
+  }
+  const locationQuery = locationParts.filter(Boolean).join(', ');
 
   if (locationQuery) params['query.locn'] = locationQuery;
 

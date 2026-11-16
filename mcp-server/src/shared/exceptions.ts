@@ -2,7 +2,6 @@ export class MCPError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'MCPError';
-    Error.captureStackTrace?.(this, this.constructor);
   }
 }
 
