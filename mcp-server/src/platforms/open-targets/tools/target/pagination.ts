@@ -10,9 +10,10 @@ export function paginateTargetLists(
       parent = parent && typeof parent === 'object' ? (parent as Record<string, unknown>)[key] : undefined;
     }
     const key = keys[keys.length - 1];
-    if (parent && typeof parent === 'object') {
+    if (key !== undefined && parent && typeof parent === 'object') {
       const record = parent as Record<string, unknown>;
-      if (Array.isArray(record[key])) record[key] = record[key].slice(index * size, (index + 1) * size);
+      const list = record[key];
+      if (Array.isArray(list)) record[key] = list.slice(index * size, (index + 1) * size);
     }
   }
   return result;

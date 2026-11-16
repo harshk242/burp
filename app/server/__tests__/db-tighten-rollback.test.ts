@@ -41,7 +41,7 @@ const legacyAlterTable = (sqlite: Database) =>
 describe("0003_tighten_not_null — NULL text PK rolls everything back", () => {
   for (const { table, column } of TIGHTENED_PRIMARY_KEYS) {
     it(`NULL ${table}.${column} in a legacy DB: migration fails, adoption is undone`, () => {
-      const sqlite = legacyDb("current", (db) => db.run(NULL_PK_INSERTS[table]));
+      const sqlite = legacyDb("current", (db) => db.run(NULL_PK_INSERTS[table]!));
       const before = { schema: schemaSnapshot(sqlite), rows: dumpRows(sqlite), autoindexes: autoindexes(sqlite) };
       expect(before.autoindexes).toContain("sqlite_autoindex_users_2");
 
@@ -57,7 +57,7 @@ describe("0003_tighten_not_null — NULL text PK rolls everything back", () => {
   }
 
   it("succeeds once the operator fixes the row by hand", () => {
-    const sqlite = legacyDb("old-prod", (db) => db.run(NULL_PK_INSERTS.users));
+    const sqlite = legacyDb("old-prod", (db) => db.run(NULL_PK_INSERTS.users!));
     expect(() => runMigrations(sqlite)).toThrow(/NOT NULL constraint failed/);
     sqlite.run("DELETE FROM users WHERE id IS NULL");
     expect(runMigrations(sqlite).applied.map((m) => m.tag)).toContain(TIGHTEN_MIGRATION_TAG);
@@ -68,8 +68,8 @@ describe("previewTightening", () => {
   it("counts NULL cells per backfill, NULL-role users and NULL PKs", () => {
     const sqlite = legacyDb("current", (db) => {
       seedNullableRows(db);
-      db.run(NULL_PK_INSERTS.users);
-      db.run(NULL_PK_INSERTS.rate_limits);
+      db.run(NULL_PK_INSERTS.users!);
+      db.run(NULL_PK_INSERTS.rate_limits!);
     });
     const preview = previewTightening(sqlite);
     const counts = Object.fromEntries(preview.backfills.map((b) => [`${b.table}.${b.column}`, b.rows]));
@@ -124,7 +124,7 @@ describe("db:verify — tightening report", () => {
 
   it("lists NULL-PK rows up front and the CLI exits 1 (rolled back)", () => {
     const input = legacyFile((db) => {
-      db.run(NULL_PK_INSERTS.messages);
+      db.run(NULL_PK_INSERTS.messages!);
       db.run("UPDATE users SET role = NULL WHERE id = 'u-user'");
     });
     const report = verifyDatabase(input);

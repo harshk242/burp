@@ -8,7 +8,7 @@ import { createEmbedder } from "../embeddings/factory";
 
 function tool(fullName: string, description: string): ToolInfo {
   const [server, toolName] = fullName.split("__");
-  return { fullName, server, toolName, description };
+  return { fullName, server: server!, toolName: toolName!, description };
 }
 
 const ALPHA = tool("alpha__lookup", "Look up protein records");

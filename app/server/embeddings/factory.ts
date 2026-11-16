@@ -80,7 +80,7 @@ export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {
           abortSignal,
           maxRetries: 0,
         });
-        return validateVectors([embedding], 1, spec.dimensions)[0];
+        return validateVectors([embedding], 1, spec.dimensions)[0]!;
       }, { signal, timeoutError });
     },
 

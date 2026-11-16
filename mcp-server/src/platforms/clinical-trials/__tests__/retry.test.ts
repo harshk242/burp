@@ -69,8 +69,8 @@ describe('ClinicalTrials tools on the shared retry', () => {
     const calls = stubClinicalTrials([200]);
     const result = await callTool(handlers, 'search_studies', { condition: 'melanoma' }, { deadline_ms: 8_000 });
     expect(result.isError).toBeUndefined();
-    expect(calls[0].timeout).toBeGreaterThan(0);
-    expect(calls[0].timeout).toBeLessThanOrEqual(3_000);
+    expect(calls[0]!.timeout).toBeGreaterThan(0);
+    expect(calls[0]!.timeout).toBeLessThanOrEqual(3_000);
   });
 });
 

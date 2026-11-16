@@ -24,6 +24,14 @@ export class EmbeddingTimeoutError extends Error {
   override readonly name = "EmbeddingTimeoutError";
 }
 
+/** Pairs each input with its vector; embedders return exactly one vector per input, in order. */
+export function zipVectors<T>(items: readonly T[], vectors: readonly Float32Array[]): [T, Float32Array][] {
+  if (vectors.length !== items.length) {
+    throw new EmbeddingResponseError(`expected ${items.length} embeddings, got ${vectors.length}`);
+  }
+  return items.map((item, i) => [item, vectors[i]!]);
+}
+
 export function embedderId(spec: EmbeddingSpec): string {
   return `${spec.provider}:${spec.model}@${spec.dimensions ?? "native"}`;
 }

@@ -26,8 +26,8 @@ function mock(text?: string) {
       data = { results: String(config.params.accessions).split(',').filter(a => ACTIVE.includes(a)).map(a => summaryEntry(a)) };
     } else if (text === undefined && config.url === '/uniprotkb/search') {
       const requested = [...String(config.params.query).matchAll(/accession:(\S+)/g)].map(m => m[1]);
-      data = { results: requested.filter(a => INACTIVE[a]).map(a => ({
-        entryType: 'Inactive', primaryAccession: a, inactiveReason: INACTIVE[a],
+      data = { results: requested.filter(a => INACTIVE[a!]).map(a => ({
+        entryType: 'Inactive', primaryAccession: a, inactiveReason: INACTIVE[a!],
       })) };
     }
     return { data, status: 200, statusText: 'OK', headers: {}, config };
@@ -51,12 +51,12 @@ describe('accession validation', () => {
 describe('batch_protein_lookup', () => {
   it('reports each accession individually and only sends valid, normalized accessions', async () => {
     const calls = mock();
-    const result: any = await handlers.batch_protein_lookup({
+    const result: any = await handlers.batch_protein_lookup!({
       accessions: ['p38398', 'XYZ!!', 'P04637-2', 'A0A0A0A0A0', 'P38398'],
     });
-    expect(calls[0].url).toBe('/uniprotkb/accessions');
-    expect(calls[0].params).toEqual({ accessions: 'P38398,P04637-2,A0A0A0A0A0', format: 'json', fields: SEARCH_FIELDS });
-    expect(calls[1].params.query).toBe('accession:A0A0A0A0A0');
+    expect(calls[0]!.url).toBe('/uniprotkb/accessions');
+    expect(calls[0]!.params).toEqual({ accessions: 'P38398,P04637-2,A0A0A0A0A0', format: 'json', fields: SEARCH_FIELDS });
+    expect(calls[1]!.params.query).toBe('accession:A0A0A0A0A0');
     expect(calls).toHaveLength(2);
     expect(result.batchResults).toEqual([
       { accession: 'p38398', success: true, data: expect.objectContaining({ accession: 'P38398', entryId: 'P38398_HUMAN' }) },
@@ -69,9 +69,9 @@ describe('batch_protein_lookup', () => {
   });
   it('resolves merged accessions and explains demerged or deleted ones', async () => {
     const calls = mock();
-    const result: any = await handlers.batch_protein_lookup({ accessions: ['Q16535', 'P00001', 'q99999'] });
+    const result: any = await handlers.batch_protein_lookup!({ accessions: ['Q16535', 'P00001', 'q99999'] });
     expect(calls.map(c => c.url)).toEqual(['/uniprotkb/accessions', '/uniprotkb/search', '/uniprotkb/accessions']);
-    expect(calls[2].params.accessions).toBe('P04637');
+    expect(calls[2]!.params.accessions).toBe('P04637');
     expect(result.batchResults[0]).toMatchObject({ accession: 'Q16535', success: true, mergedInto: 'P04637', data: { accession: 'P04637' } });
     expect(result.batchResults[1]).toMatchObject({ success: false, inactiveReason: 'DEMERGED', replacedBy: ['P99998', 'P99999'] });
     expect(result.batchResults[1].error).toContain('P99998, P99999');
@@ -79,35 +79,35 @@ describe('batch_protein_lookup', () => {
   });
   it('does not refetch a merge target that was already requested', async () => {
     const calls = mock();
-    const result: any = await handlers.batch_protein_lookup({ accessions: ['P04637', 'Q16535'] });
+    const result: any = await handlers.batch_protein_lookup!({ accessions: ['P04637', 'Q16535'] });
     expect(calls).toHaveLength(2);
     expect(result.batchResults[1]).toMatchObject({ success: true, mergedInto: 'P04637' });
   });
   it('makes no request when every accession is malformed', async () => {
     const calls = mock();
-    const result: any = await handlers.batch_protein_lookup({ accessions: ['bad', '???'] });
+    const result: any = await handlers.batch_protein_lookup!({ accessions: ['bad', '???'] });
     expect(calls).toHaveLength(0);
     expect(result.batchResults.every((r: any) => r.success === false)).toBe(true);
   });
   it.each(['tsv', 'fasta'])('returns raw %s from the accessions endpoint', async format => {
     const calls = mock('raw output');
-    expect(await handlers.batch_protein_lookup({ accessions: ['p04637', 'P04637-2'], format })).toBe('raw output');
-    expect(calls[0].url).toBe('/uniprotkb/accessions');
-    expect(calls[0].params.accessions).toBe('P04637,P04637-2');
-    expect(calls[0].params.fields).toBe(format === 'fasta' ? undefined : SEARCH_FIELDS.replace(',cc_function', ''));
+    expect(await handlers.batch_protein_lookup!({ accessions: ['p04637', 'P04637-2'], format })).toBe('raw output');
+    expect(calls[0]!.url).toBe('/uniprotkb/accessions');
+    expect(calls[0]!.params.accessions).toBe('P04637,P04637-2');
+    expect(calls[0]!.params.fields).toBe(format === 'fasta' ? undefined : SEARCH_FIELDS.replace(',cc_function', ''));
   });
   it('names malformed accessions for text formats instead of sending them', async () => {
     const calls = mock('raw output');
-    await expect(handlers.batch_protein_lookup({ accessions: ['P04637', 'XYZ!!'], format: 'tsv' }))
+    await expect(handlers.batch_protein_lookup!({ accessions: ['P04637', 'XYZ!!'], format: 'tsv' }))
       .rejects.toThrow('XYZ!!');
     expect(calls).toHaveLength(0);
   });
   it.each([[], Array(26).fill('P04637'), [''], ['  '], [123]])('rejects invalid input %j', async accessions => {
     mock();
-    await expect(handlers.batch_protein_lookup({ accessions })).rejects.toThrow('1-25');
+    await expect(handlers.batch_protein_lookup!({ accessions })).rejects.toThrow('1-25');
   });
   it('caps FASTA batches at ten entries', async () => {
     mock();
-    await expect(handlers.batch_protein_lookup({ accessions: Array(11).fill('P04637'), format: 'fasta' })).rejects.toThrow('10');
+    await expect(handlers.batch_protein_lookup!({ accessions: Array(11).fill('P04637'), format: 'fasta' })).rejects.toThrow('10');
   });
 });

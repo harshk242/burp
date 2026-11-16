@@ -54,8 +54,7 @@ const kindOf = new Map(ID_KINDS.map((k) => [k.kind, k]));
 
 export function evidenceFor(turns: TaskTurn[], k: number): string {
   const parts: string[] = [];
-  for (let i = 0; i <= k; i++) {
-    const turn = turns[i];
+  for (const [i, turn] of turns.slice(0, k + 1).entries()) {
     parts.push(turn.user_message);
     if (i === k || turn.status === "ok") for (const call of turn.tool_calls) parts.push(call.model_output);
   }

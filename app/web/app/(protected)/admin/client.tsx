@@ -150,6 +150,7 @@ export function AdminPageClient() {
     setSavingLimits(userId);
     try {
       const edit = limitEdits[userId];
+      if (!edit) return;
       const queryVal = edit.queryLimit.trim();
       const dailyCostVal = edit.dailyCostLimit.trim();
       const monthlyCostVal = edit.monthlyCostLimit.trim();
@@ -290,7 +291,7 @@ export function AdminPageClient() {
                 onLimitChange={(userId, field, value) =>
                   setLimitEdits((prev) => ({
                     ...prev,
-                    [userId]: { ...prev[userId], [field]: value },
+                    [userId]: { queryLimit: "", dailyCostLimit: "", monthlyCostLimit: "", ...prev[userId], [field]: value },
                   }))
                 }
                 onSave={(userId) => void handleSaveLimits(userId)}

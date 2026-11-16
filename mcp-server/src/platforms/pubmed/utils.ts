@@ -186,8 +186,9 @@ export function formatCitation(
       return `${authorStr} (${year}). ${title}. ${journal}, ${volume}${issue ? `(${issue})` : ''}, ${pages}. ${doi ? `https://doi.org/${doi}` : `PMID: ${pmid}`}`;
     }
     case 'mla': {
-      const authorStr = authors.length > 0
-        ? `${authors[0].lastName || ''}, ${authors[0].foreName || ''}`
+      const first = authors[0];
+      const authorStr = first
+        ? `${first.lastName || ''}, ${first.foreName || ''}`
         : 'Unknown Author';
       return `${authorStr}${authors.length > 1 ? ', et al' : ''}. "${title}." ${journal} ${volume}.${issue} (${year}): ${pages}.`;
     }

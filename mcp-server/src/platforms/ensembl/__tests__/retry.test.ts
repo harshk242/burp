@@ -22,7 +22,7 @@ function callTool(name: string, args: Record<string, unknown>): Promise<CallTool
 }
 
 function text(result: CallToolResult): string {
-  const item = result.content[0];
+  const item = result.content[0]!;
   if (item.type !== 'text') throw new Error('expected text content');
   return item.text;
 }
@@ -99,7 +99,7 @@ describe('batch_sequence_fetch', () => {
     const calls = stubEnsembl([{ status: 200, advanceMs: 20_000 }], clock);
 
     const result = await runWithToolCallContext({ timeoutMs: 10_000, now: clock.now }, () =>
-      handlers.batch_sequence_fetch({ regions: ['1:1-100', '2:1-100', 'ENST00000380152'] }),
+      handlers.batch_sequence_fetch!({ regions: ['1:1-100', '2:1-100', 'ENST00000380152'] }),
     );
 
     expect(calls).toHaveLength(1);
@@ -115,13 +115,13 @@ describe('batch_sequence_fetch', () => {
   it('still records per-region errors and keeps going while time is left', async () => {
     const calls = stubEnsembl([404, 200]);
     const result = await runWithToolCallContext({ timeoutMs: 10_000 }, () =>
-      handlers.batch_sequence_fetch({ regions: ['1:1-100', '2:1-100'] }),
+      handlers.batch_sequence_fetch!({ regions: ['1:1-100', '2:1-100'] }),
     );
 
     expect(calls).toHaveLength(2);
     const [first, second] = (result as { batch_results: Record<string, unknown>[] }).batch_results;
     expect(first).toMatchObject({ region: '1:1-100', success: false });
-    expect(first.error).toMatch(/HTTP 404/);
+    expect(first!.error).toMatch(/HTTP 404/);
     expect(second).toEqual({ region: '2:1-100', success: true, data: { ok: true } });
   });
 });

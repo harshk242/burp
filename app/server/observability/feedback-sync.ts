@@ -138,9 +138,9 @@ export function createFeedbackSync(options: FeedbackSyncOptions) {
       .filter((key) => (queries.find(key)?.retry_at ?? 0) <= now());
     if (due.length === 0) return;
     logger.info("TRACE", "feedback_reconcile", { data: { pending: rows.length, due: due.length } });
-    let next = 0;
+    const queue = [...due];
     const worker = async () => {
-      while (next < due.length) await sync(due[next++]);
+      for (let key = queue.shift(); key; key = queue.shift()) await sync(key);
     };
     await Promise.all(Array.from({ length: Math.min(RECONCILE_CONCURRENCY, due.length) }, worker));
   }

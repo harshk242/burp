@@ -17,7 +17,7 @@ describe('ClinVar frequency summaries', () => {
     const expected = { variationId: '7105', hasFrequencyData: true, frequencies: [{ source: '1000 Genomes Project', alleleFrequency: 0.00399, minorAllele: 'T', measureId: '22144' }] };
     expect(await getVariantFrequency('7105')).toEqual(expected);
     expect(await getVariantFrequency('VCV000007105')).toEqual(expected);
-    expect(adapter.mock.calls[0][0]).toMatchObject({ url: 'esummary.fcgi', params: { id: '7105', retmode: 'json' } });
+    expect(adapter.mock.calls[0]![0]).toMatchObject({ url: 'esummary.fcgi', params: { id: '7105', retmode: 'json' } });
     expect(adapter).toHaveBeenCalledTimes(1);
   });
 
@@ -27,7 +27,7 @@ describe('ClinVar frequency summaries', () => {
   });
 
   it('retains a real zero frequency', () => {
-    expect(decodeFrequencySummary({ result: { '1': { variation_set: [{ allele_freq_set: [{ source: 'Example', value: '0' }] }] } } }, '1').frequencies[0].alleleFrequency).toBe(0);
+    expect(decodeFrequencySummary({ result: { '1': { variation_set: [{ allele_freq_set: [{ source: 'Example', value: '0' }] }] } } }, '1').frequencies[0]!.alleleFrequency).toBe(0);
   });
 
   it.each(['', 'invalid', '-0.1', '1.1', null])('rejects malformed frequency values (%j)', (value) => {

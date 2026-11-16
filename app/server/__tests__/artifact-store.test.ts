@@ -160,15 +160,15 @@ describe("ArtifactStore", () => {
       return store.store(SESSION, TOOL, INPUT, sized(300), 100);
     });
     expect(sessionIds(SESSION)).toEqual(ids.slice(1));
-    expect(store.isCached(ids[0])).toBe(false);
-    expect((await store.query(ids[0], SESSION, ".")).error).toContain("not found");
+    expect(store.isCached(ids[0]!)).toBe(false);
+    expect((await store.query(ids[0]!, SESSION, ".")).error).toContain("not found");
 
     now.mockReturnValue(created + 4 * 60_000);
     const big = store.store(SESSION, TOOL, INPUT, sized(700), 100);
-    expect(sessionIds(SESSION)).toEqual([ids[3], big]);
-    expect(store.isCached(ids[1])).toBe(false);
-    expect(store.isCached(ids[2])).toBe(false);
-    expect(store.isCached(ids[3])).toBe(true);
+    expect(sessionIds(SESSION)).toEqual([ids[3]!, big]);
+    expect(store.isCached(ids[1]!)).toBe(false);
+    expect(store.isCached(ids[2]!)).toBe(false);
+    expect(store.isCached(ids[3]!)).toBe(true);
   });
 
   it("orders eviction by created_at, not by last access", async () => {

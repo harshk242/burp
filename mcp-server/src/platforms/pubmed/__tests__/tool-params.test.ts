@@ -23,7 +23,7 @@ async function capture(name: string, args: Record<string, unknown>) {
     return result;
   } });
   try {
-    const result = await platform.handlers[name](args);
+    const result = await platform.handlers[name]!(args);
     assertMakesRequest(requests);
     return { requests, result };
   } finally { closeClient(); }
@@ -41,7 +41,7 @@ describe.each(platform.tools)('$name requests', tool => {
     if ('pmid' in (tool.inputSchema.properties ?? {})) local.pmid = 'Numeric normalization; valid alternative tested separately.';
     await assertArgsAffectRequests(tool, samples, async args => (await capture(tool.name, args)).requests, local);
     if (local.pmid) {
-      const args = argVariants(tool)[0].args;
+      const args = argVariants(tool)[0]!.args;
       expect((await capture(tool.name, { ...args, pmid: '31452104' })).requests)
         .not.toEqual((await capture(tool.name, args)).requests);
     }
@@ -74,8 +74,8 @@ it('formats every citation style distinctly', async () => {
 });
 it.each(['date_start', 'date_end'])('honors a lone %s publication bound', async key => {
   const { requests } = await capture('search_with_filters', { query: 'cancer', [key]: samples[key] });
-  expect((requests[0].params as any).term).toContain(samples[key]);
-  expect((requests[0].params as any).term).toContain('[Date - Publication]');
+  expect((requests[0]!.params as any).term).toContain(samples[key]);
+  expect((requests[0]!.params as any).term).toContain('[Date - Publication]');
 });
 it('requests counts without IDs for publication trends', async () => {
   const { requests } = await capture('get_publication_trends', { query: 'cancer', start_year: 2024, end_year: 2025 });

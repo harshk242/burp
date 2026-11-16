@@ -120,6 +120,7 @@ class ToolRegistry {
     if (!mcpTool) return null;
 
     const [entry] = Object.entries(this.toVercelTools([mcpTool], sanitize));
+    if (!entry) return null;
     return { key: entry[0], tool: entry[1] };
   }
 

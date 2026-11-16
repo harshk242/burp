@@ -93,8 +93,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const segments: string[] = [];
       let next = 0;
       const flushRunsAt = (at: number) => {
-        for (; next < runs.length && runs[next].at <= at; next++) {
-          segments.push(content.slice(runs[next].offset, runs[next + 1]?.offset ?? content.length));
+        for (let run = runs[next]; run && run.at <= at; run = runs[++next]) {
+          segments.push(content.slice(run.offset, runs[next + 1]?.offset ?? content.length));
         }
       };
       state.reasoningSegments.forEach((segment, i) => {

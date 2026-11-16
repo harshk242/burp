@@ -52,8 +52,8 @@ describe('UniProt tools on the shared retry', () => {
     const calls = stubUniProt([200]);
     const result = await callTool(handlers, 'get_protein_info', { accession: 'P04637' }, { deadline_ms: 8_000 });
     expect(result.isError).toBeUndefined();
-    expect(calls[0].timeout).toBeGreaterThan(0);
-    expect(calls[0].timeout).toBeLessThanOrEqual(3_000);
+    expect(calls[0]!.timeout).toBeGreaterThan(0);
+    expect(calls[0]!.timeout).toBeLessThanOrEqual(3_000);
   });
 });
 
@@ -84,7 +84,7 @@ describe('search_by_function', () => {
     });
     expect(result.isError).toBeUndefined();
     expect(calls).toHaveLength(1);
-    expect(calls[0].params).toEqual({
+    expect(calls[0]!.params).toEqual({
       query: 'reviewed:true AND go:"0005524" AND (cc_function:"ATP binding" OR ft_act_site:"ATP binding") AND organism_id:9606',
       format: 'json',
       size: 10,

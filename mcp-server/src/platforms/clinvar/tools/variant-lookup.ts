@@ -35,7 +35,7 @@ export async function getVariantInfo(
   const client = getClient();
   const formattedId = formatVariationId(variationId);
   const summaries = await client.getVariantSummaries([formattedId]);
-  return summaries.length > 0 ? summaries[0] : null;
+  return summaries[0] ?? null;
 }
 
 export async function getVCVRecord(

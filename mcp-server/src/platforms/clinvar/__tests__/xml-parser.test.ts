@@ -75,15 +75,15 @@ describe('parseESummaryResult', () => {
 describe('parseVCVRecord', () => {
   it('reads the ClinVarResult-Set root, the aggregate and per-submission classifications', () => {
     const [record] = parseVCVRecord(VCV);
-    expect(record.variationId).toBe('5005761');
-    expect(record.gene?.symbol).toBe('BRCA1');
-    expect(record.aggregatedClassification).toMatchObject({
+    expect(record!.variationId).toBe('5005761');
+    expect(record!.gene?.symbol).toBe('BRCA1');
+    expect(record!.aggregatedClassification).toMatchObject({
       description: 'Likely pathogenic',
       reviewStatus: 'criteria provided, single submitter',
       submissionCount: 1,
     });
-    expect(record.clinicalAssertions).toHaveLength(1);
-    expect(record.clinicalAssertions[0]).toMatchObject({
+    expect(record!.clinicalAssertions).toHaveLength(1);
+    expect(record!.clinicalAssertions[0]).toMatchObject({
       id: '15275337',
       clinicalSignificance: {
         description: 'Likely pathogenic',
@@ -142,7 +142,7 @@ describe('XML boundary validation', () => {
     expect(parseESummaryResult(`<eSummaryResult><DocumentSummarySet>${doc}</DocumentSummarySet></eSummaryResult>`)).toHaveLength(1);
   });
   it('preserves new upstream classification terms without type assertions', () => {
-    expect(parseESummaryResult(ESUMMARY.replace('<description>Pathogenic</description>', '<description>Pathogenic/Likely pathogenic</description>'))[0].clinicalSignificance?.description).toBe('Pathogenic/Likely pathogenic');
+    expect(parseESummaryResult(ESUMMARY.replace('<description>Pathogenic</description>', '<description>Pathogenic/Likely pathogenic</description>'))[0]!.clinicalSignificance?.description).toBe('Pathogenic/Likely pathogenic');
   });
 });
 

@@ -279,7 +279,7 @@ export class ClinVarClient {
       parseVCVRecord
     );
 
-    return records.length > 0 ? records[0] : null;
+    return records[0] ?? null;
   }
 
   async getVCVRecords(variationIds: string[]): Promise<VCVRecord[]> {

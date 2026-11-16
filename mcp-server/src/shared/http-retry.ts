@@ -244,7 +244,7 @@ export function requestPath(config: InternalAxiosRequestConfig): string {
   try {
     return new URL(axios.getUri(config), 'http://placeholder.invalid').pathname;
   } catch {
-    return (config.url ?? '').split('?')[0];
+    return (config.url ?? '').split('?')[0] ?? '';
   }
 }
 

@@ -11,7 +11,7 @@ const molecule = { molecule_chembl_id: 'CHEMBL25', max_phase: 4,
 async function capture(name: string, args: Record<string, unknown>) {
   const recorder = requestRecorder({ ...molecule, molecules: [molecule], activities: [], drug_indications: [] });
   init({}, { adapter: recorder.adapter });
-  try { await platform.handlers[name](args); } finally { resetClient(); }
+  try { await platform.handlers[name]!(args); } finally { resetClient(); }
   assertMakesRequest(recorder.requests);
   recorder.requests.forEach(assertChemblRequest);
   return recorder.requests;
@@ -26,7 +26,7 @@ describe.each(platform.tools)('$name requests', tool => {
     if (tool.name === 'search_drugs') reasons.development_phase = 'Generic string mutation is outside enum; all valid phases checked below.';
     await assertArgsAffectRequests(tool, samplesFor(tool), args => capture(tool.name, args), reasons);
     if (reasons.similarity) {
-      const args = argVariants(tool)[0].args;
+      const args = argVariants(tool)[0]!.args;
       expect(await capture(tool.name, { ...args, similarity: 0.8 })).not.toEqual(await capture(tool.name, args));
     }
     if (reasons.development_phase) {
@@ -40,7 +40,7 @@ it('selects the requested structure field from a populated molecule', async () =
   init({}, { adapter: requestRecorder(molecule).adapter });
   try {
     for (const [format, structure] of [['smiles', 'CCO'], ['inchi', 'InChI=ethanol'], ['molfile', 'ethanol molfile']]) {
-      expect(await platform.handlers.get_compound_structure({ chembl_id: 'CHEMBL25', format }))
+      expect(await platform.handlers.get_compound_structure!({ chembl_id: 'CHEMBL25', format }))
         .toMatchObject({ requested_format: format, structure });
     }
   } finally { resetClient(); }

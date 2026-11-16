@@ -168,7 +168,7 @@ describe("chatStore completion", () => {
     store().finalizeAssistantMessage("empty", { input: 7, output: 0 });
     expect(store().isStreaming).toBe(false);
     expect(store().messages).toHaveLength(2);
-    expect(store().messages[0].tokenUsage).toBeUndefined();
+    expect(store().messages[0]!.tokenUsage).toBeUndefined();
     expect(store().messages[1]).toMatchObject({ id: "empty", content: "", persisted: true, tokenUsage: { input: 7, output: 0 } });
     expect(store().streamingContent).toBe("");
   });

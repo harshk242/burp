@@ -23,7 +23,7 @@ afterEach(() => warnSpy?.mockRestore());
 
 const DIM = 3;
 const vectorFor = (text: string) => new Float32Array([text.length, 1, 0.5]);
-const tool = (fullName: string, description: string): SyncTool => ({ fullName, server: fullName.split("__")[0], description });
+const tool = (fullName: string, description: string): SyncTool => ({ fullName, server: fullName.split("__")[0]!, description });
 const textOf = (t: SyncTool) => toolEmbeddingText(t.fullName, t.description);
 
 const A = tool("alpha__one", "First alpha tool");
@@ -114,8 +114,8 @@ describe("a failed sync keeps attached vectors", () => {
     while (fake.batches.length < 1) await Bun.sleep(0);
 
     expect(fake.batches).toEqual([[textOf(A_CHANGED)]]);
-    expect([...attached[0].keys()].sort()).toEqual(["alpha__one", "beta__one"]);
-    expect(attached[0].get("alpha__one")).toEqual(vectorFor(textOf(A)));
+    expect([...attached[0]!.keys()].sort()).toEqual(["alpha__one", "beta__one"]);
+    expect(attached[0]!.get("alpha__one")).toEqual(vectorFor(textOf(A)));
 
     fake.release();
     await run;

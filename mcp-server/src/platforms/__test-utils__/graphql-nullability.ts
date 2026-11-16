@@ -73,7 +73,7 @@ function walkSelectionSet(
       if (fieldName === '__typename') continue;
       if (!isObjectType(parentType) && !isInterfaceType(parentType)) continue;
 
-      const field = parentType.getFields()[fieldName];
+      const field = parentType.getFields()[fieldName]!;
       const key = selection.alias?.value ?? fieldName;
       walkType(ctx, field.type, selection.selectionSet, `${path}.${key}`);
     } else if (selection.kind === Kind.INLINE_FRAGMENT) {

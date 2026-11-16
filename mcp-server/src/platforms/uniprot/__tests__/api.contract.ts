@@ -93,14 +93,14 @@ describe('UniProt REST API Contracts', () => {
   });
 
   uniprotContractTest('search reports X-Total-Results and summaries are bounded', async () => {
-    const result = await liveHandler(searchHandlers.search_by_function, { goTerm: 'GO:0004672', organism: '9606', size: 3 });
+    const result = await liveHandler(searchHandlers.search_by_function!, { goTerm: 'GO:0004672', organism: '9606', size: 3 });
     expect(result.totalResults).toBeGreaterThan(100);
     expect(result.results).toHaveLength(3);
     expect(result.results.every((entry: any) => entry.taxonId === 9606 && entry.reviewed)).toBe(true);
   });
 
   uniprotContractTest('batch lookup handles case, isoforms, merged and malformed accessions', async () => {
-    const result = await liveHandler(proteinHandlers.batch_protein_lookup, {
+    const result = await liveHandler(proteinHandlers.batch_protein_lookup!, {
       accessions: ['p04637', 'P04637-2', 'Q16535', 'XYZ!!', 'P00001'],
     });
     expect(result.batchResults).toMatchObject([
@@ -113,7 +113,7 @@ describe('UniProt REST API Contracts', () => {
   });
 
   uniprotContractTest('variant descriptions still state clinical significance (BRCA1)', async () => {
-    const result = await liveHandler(proteinHandlers.get_protein_variants, { accession: 'P38398' });
+    const result = await liveHandler(proteinHandlers.get_protein_variants!, { accession: 'P38398' });
     expect(result.significanceCounts.benign).toBeGreaterThan(0);
     expect(result.significanceCounts['uncertain significance']).toBeGreaterThan(0);
     expect(result.excludedDiseaseMentionCount).toBeGreaterThan(0);

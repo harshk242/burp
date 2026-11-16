@@ -68,11 +68,11 @@ function compareNodes(baseline: SchemaNode, current: SchemaNode, ctx: CompareCon
 
     for (const key of Object.keys(baseProps)) {
       if (!(key in currProps)) {
-        if (!baseProps[key].optional) {
+        if (!baseProps[key]!.optional) {
           ctx.removedKeys.push(`${baseline.path}.${key}`);
         }
       } else {
-        compareNodes(baseProps[key], currProps[key], ctx);
+        compareNodes(baseProps[key]!, currProps[key]!, ctx);
       }
     }
 

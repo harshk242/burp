@@ -23,8 +23,7 @@ export const useToolStore = create<ToolState>((set, get) => ({
   setTools: (tools) => {
     const grouped = tools.reduce(
       (acc, tool) => {
-        if (!acc[tool.server]) acc[tool.server] = [];
-        acc[tool.server].push(tool);
+        (acc[tool.server] ??= []).push(tool);
         return acc;
       },
       {} as Record<string, Tool[]>

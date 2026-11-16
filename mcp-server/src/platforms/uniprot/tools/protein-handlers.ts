@@ -98,8 +98,8 @@ const handleAnalyzeSequenceComposition: ToolHandler = async (args) => {
   for (const aa of sequence) {
     aaCount[aa] = (aaCount[aa] || 0) + 1;
   }
-  for (const aa in aaCount) {
-    aaFreq[aa] = aaCount[aa] / sequence.length;
+  for (const [aa, count] of Object.entries(aaCount)) {
+    aaFreq[aa] = count / sequence.length;
   }
 
   return {

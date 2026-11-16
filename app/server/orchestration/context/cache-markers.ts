@@ -28,7 +28,7 @@ export function applyCacheMarkers(messages: readonly ModelMessage[], previousLas
     marked.add(previousLastIndex);
   }
   for (const index of marked) {
-    const message = copy[index];
+    const message = copy[index]!; // marked only holds indexes within copy
     copy[index] = { ...message, providerOptions: withCacheControl(message.providerOptions) };
   }
   return copy;

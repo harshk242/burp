@@ -87,7 +87,7 @@ describe('final failure details', () => {
       meta: context.buildRetryMeta({ isError: true }),
     }));
     expect(error).toMatchObject({ reason: 'network', status: null, attempts: 3 });
-    expect(meta?.requests[0].statuses).toEqual([500, null, null]);
+    expect(meta?.requests[0]!.statuses).toEqual([500, null, null]);
   });
 
   it.each(['ERR_BAD_REQUEST', 'ERR_BAD_OPTION_VALUE', 'ERR_INVALID_URL', 'ERR_NOT_SUPPORT'])(
@@ -127,8 +127,8 @@ describe('withRetry', () => {
     const fn = vi.fn().mockRejectedValueOnce(axiosFailure({ status: 503 })).mockResolvedValueOnce('ok');
     await expect(withRetry(fn, basePolicy, { platform: 'p', sleep: async () => {} })).resolves.toBe('ok');
     expect(fn.mock.calls.map(([a]) => a.attempt)).toEqual([1, 2]);
-    expect(fn.mock.calls[0][0].timeoutMs).toBe(5_000);
-    expect(fn.mock.calls[0][0].signal).toBeInstanceOf(AbortSignal);
+    expect(fn.mock.calls[0]![0].timeoutMs).toBe(5_000);
+    expect(fn.mock.calls[0]![0].signal).toBeInstanceOf(AbortSignal);
   });
 });
 

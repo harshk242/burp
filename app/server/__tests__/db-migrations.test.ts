@@ -102,7 +102,7 @@ describe("fresh database migrations", () => {
   });
 
   it("baseline 0000 matches the legacy schema.sql column-for-column, FK-for-FK and index-for-index", () => {
-    const sqlite = baselineDatabase(loadMigrations(MIGRATIONS_FOLDER)[0]);
+    const sqlite = baselineDatabase(loadMigrations(MIGRATIONS_FOLDER)[0]!);
     const legacy = new Database(":memory:");
     legacy.exec(LEGACY_SCHEMA_SQL);
     for (const t of TABLES) {

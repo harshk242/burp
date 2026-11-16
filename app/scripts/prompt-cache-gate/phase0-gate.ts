@@ -50,7 +50,9 @@ function buildCatalog(mode: Mode, nonce: string): Record<string, Tool> {
     [SEARCH]: createSearchTool(),
     [INSPECT]: createInspectArtifactTool("phase0-session"),
   });
-  system[SEARCH] = { ...system[SEARCH], description: `${system[SEARCH].description} (gate run ${nonce})` } as Tool;
+  const searchTool = system[SEARCH];
+  if (!searchTool) throw new Error(`${SEARCH} is missing from the system tools`);
+  system[SEARCH] = { ...searchTool, description: `${searchTool.description} (gate run ${nonce})` } as Tool;
   const names = toolRegistry.getAll().map((t) => `${t.server}__${t.name}`);
   const entries: [string, Tool][] = Object.entries(system);
   for (const name of names) {
@@ -251,7 +253,7 @@ async function check23() {
   const id = searchCall?.toolCallId ?? "toolu_phase0_search_1";
   const base: ModelMessage[] = searchCall
     ? [...ask(MOA_QUESTION), ...c1.responseMessages]
-    : [...ask(MOA_QUESTION), searchTurn(id, query, MOA_HITS)[0]];
+    : [...ask(MOA_QUESTION), ...searchTurn(id, query, MOA_HITS).slice(0, 1)];
   const prevLast1 = 0;
 
   const history: ModelMessage[] = [...base, searchResult(id, MOA_HITS, "refs")];

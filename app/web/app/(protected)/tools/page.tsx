@@ -73,8 +73,7 @@ function ToolsPageContent() {
   const filtered = filteredTools();
   const groupedFiltered = filtered.reduce(
     (acc, tool) => {
-      if (!acc[tool.server]) acc[tool.server] = [];
-      acc[tool.server].push(tool);
+      (acc[tool.server] ??= []).push(tool);
       return acc;
     },
     {} as Record<string, Tool[]>
@@ -139,7 +138,7 @@ function ToolsPageContent() {
                 key={server}
                 name={DATABASE_LABELS[server] || server}
                 server={server}
-                tools={groupedFiltered[server]}
+                tools={groupedFiltered[server] ?? []}
               />
             ))}
 

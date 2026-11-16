@@ -27,7 +27,7 @@ describe.each(tools)('$name live handler', (tool) => {
       expect(body.errors ?? []).toEqual([]);
       return response;
     } });
-    const result = await handlers[tool.name](args);
+    const result = await handlers[tool.name]!(args);
     expect(result).toBeDefined();
     for (const root of ['target', 'disease', 'drug', 'variant', 'study', 'credibleSet']) {
       if (result && typeof result === 'object' && root in result) {

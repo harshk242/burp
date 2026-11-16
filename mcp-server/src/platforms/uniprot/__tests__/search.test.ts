@@ -53,7 +53,7 @@ const cases: [string, Record<string, unknown>, string][] = [
 describe('summary search requests', () => {
   it.each(cases)('%s uses summary fields, default size and reviewed scope', async (name, args, query) => {
     const calls = mockSearch();
-    const result = await platform.handlers[name](args);
+    const result = await platform.handlers[name]!(args);
     expect(calls.at(-1)?.params).toEqual({ query, format: 'json', size: 10, fields: SEARCH_FIELDS });
     expect(result).toEqual(summarizeSearch({ results: [entry] }));
     const schema = tools.find(t => t.name === name)!.inputSchema.properties!;
@@ -63,7 +63,7 @@ describe('summary search requests', () => {
 
   it.each(cases)('%s allows explicitly searching unreviewed entries', async (name, args) => {
     const calls = mockSearch();
-    await platform.handlers[name]({ ...args, reviewed: false, size: 100 });
+    await platform.handlers[name]!({ ...args, reviewed: false, size: 100 });
     expect(calls.at(-1)?.params.query).toMatch(/^reviewed:false AND /);
     expect(calls.at(-1)?.params.size).toBe(100);
   });
@@ -71,8 +71,8 @@ describe('summary search requests', () => {
   it('escapes quoted literals, preserving raw advanced query syntax', async () => {
     const calls = mockSearch();
     const literal = 'a" OR gene:* \\ b';
-    await platform.handlers.search_by_gene({ gene: literal, species: [literal, 'mouse'] });
-    expect(calls[0].params.query).toBe(
+    await platform.handlers.search_by_gene!({ gene: literal, species: [literal, 'mouse'] });
+    expect(calls[0]!.params.query).toBe(
       `reviewed:true AND gene:${quoteQuery(literal)} AND (organism_name:${quoteQuery(literal)} OR organism_id:10090)`,
     );
     expect(quoteQuery(literal)).toBe('"a\\" OR gene:* \\\\ b"');
@@ -108,15 +108,15 @@ describe('summary projection', () => {
 describe('non-JSON search formats', () => {
   it.each(['tsv', 'fasta'])('preserves %s output and bounds requests', async format => {
     const calls = mockSearch('raw output');
-    expect(await platform.handlers.search_proteins({ query: 'TP53', size: 100, format })).toBe('raw output');
-    expect(calls[0].params.size).toBe(format === 'fasta' ? 10 : 100);
-    expect(calls[0].params.format).toBe(format);
-    expect(calls[0].params.fields).toBe(format === 'fasta' ? undefined : SEARCH_FIELDS.replace(',cc_function', ''));
+    expect(await platform.handlers.search_proteins!({ query: 'TP53', size: 100, format })).toBe('raw output');
+    expect(calls[0]!.params.size).toBe(format === 'fasta' ? 10 : 100);
+    expect(calls[0]!.params.format).toBe(format);
+    expect(calls[0]!.params.fields).toBe(format === 'fasta' ? undefined : SEARCH_FIELDS.replace(',cc_function', ''));
   });
   it('builds valid summary XML because UniProt XML ignores fields', async () => {
     const calls = mockSearch();
-    const result = await platform.handlers.search_proteins({ query: 'TP53', format: 'xml' });
-    expect(calls[0].params).toMatchObject({ format: 'json', fields: SEARCH_FIELDS });
+    const result = await platform.handlers.search_proteins!({ query: 'TP53', format: 'xml' });
+    expect(calls[0]!.params).toMatchObject({ format: 'json', fields: SEARCH_FIELDS });
     expect(new XMLParser().parse(result as string).search.results.entry.accession).toBe('P04637');
     expect(result).not.toContain('unneeded');
   });
@@ -125,18 +125,18 @@ describe('non-JSON search formats', () => {
 describe('search result metadata', () => {
   it('returns the total hit count from X-Total-Results', async () => {
     mockSearch('', { headers: { 'x-total-results': '6682' } });
-    expect(await platform.handlers.search_by_function({ goTerm: 'GO:0004672' })).toMatchObject({ totalResults: 6682 });
+    expect(await platform.handlers.search_by_function!({ goTerm: 'GO:0004672' })).toMatchObject({ totalResults: 6682 });
   });
   it('suggests unreviewed entries when a reviewed search is empty', async () => {
     mockSearch('', { results: [], headers: { 'x-total-results': '0' } });
-    expect(await platform.handlers.search_by_gene({ gene: 'FOO123XYZ' })).toEqual({
+    expect(await platform.handlers.search_by_gene!({ gene: 'FOO123XYZ' })).toEqual({
       totalResults: 0, results: [], hint: UNREVIEWED_HINT,
     });
-    expect(await platform.handlers.search_by_gene({ gene: 'FOO123XYZ', reviewed: false })).toEqual({ totalResults: 0, results: [] });
+    expect(await platform.handlers.search_by_gene!({ gene: 'FOO123XYZ', reviewed: false })).toEqual({ totalResults: 0, results: [] });
   });
   it('keeps totalResults and the hint in summary XML', async () => {
     mockSearch('', { results: [], headers: { 'x-total-results': '0' } });
-    const xml = new XMLParser().parse(await platform.handlers.search_proteins({ query: 'none', format: 'xml' }) as string);
+    const xml = new XMLParser().parse(await platform.handlers.search_proteins!({ query: 'none', format: 'xml' }) as string);
     expect(xml.search).toMatchObject({ totalResults: 0, hint: UNREVIEWED_HINT });
   });
 });
@@ -148,13 +148,13 @@ describe('reviewed terms in user queries', () => {
     ['advanced_search', { query: '(reviewed:false) AND kinase', organism: '9606' }, '((reviewed:false) AND kinase) AND organism_id:9606'],
   ])('%s does not add a conflicting default filter', async (name, args, query) => {
     const calls = mockSearch();
-    await platform.handlers[name](args);
-    expect(calls[0].params.query).toBe(query);
+    await platform.handlers[name]!(args);
+    expect(calls[0]!.params.query).toBe(query);
   });
   it('does not treat other fields that end in "reviewed" as the reviewed filter', async () => {
     const calls = mockSearch();
-    await platform.handlers.search_proteins({ query: 'unreviewed:x' });
-    expect(calls[0].params.query).toBe('reviewed:true AND (unreviewed:x)');
+    await platform.handlers.search_proteins!({ query: 'unreviewed:x' });
+    expect(calls[0]!.params.query).toBe('reviewed:true AND (unreviewed:x)');
   });
 });
 
@@ -164,9 +164,9 @@ describe('organism filters', () => {
     ['Escherichia coli', 'organism_name:"Escherichia coli"'],
   ])('maps %j to %s', async (organism, filter) => {
     const calls = mockSearch();
-    await platform.handlers.search_by_localization({ localization: 'nucleus', organism });
-    await platform.handlers.search_by_function({ function: 'kinase', organism });
-    await platform.handlers.get_protein_orthologs({ accession: 'P04637', organism });
+    await platform.handlers.search_by_localization!({ localization: 'nucleus', organism });
+    await platform.handlers.search_by_function!({ function: 'kinase', organism });
+    await platform.handlers.get_protein_orthologs!({ accession: 'P04637', organism });
     for (const call of calls.filter(c => c.url === '/uniprotkb/search')) expect(call.params.query).toContain(` AND ${filter}`);
   });
 });
@@ -174,14 +174,14 @@ describe('organism filters', () => {
 describe('homolog and ortholog guards', () => {
   it('matches TrEMBL submission names when there is no recommended name', async () => {
     const calls = mockSearch('', { source: { proteinDescription: { submissionNames: [{ fullName: { value: 'Cadherin-1' } }] } } });
-    await platform.handlers.get_protein_homologs({ accession: 'A0A0U2ZQU7' });
-    expect(calls[1].params.query).toBe('reviewed:true AND protein_name:"Cadherin-1" NOT accession:"A0A0U2ZQU7"');
+    await platform.handlers.get_protein_homologs!({ accession: 'A0A0U2ZQU7' });
+    expect(calls[1]!.params.query).toBe('reviewed:true AND protein_name:"Cadherin-1" NOT accession:"A0A0U2ZQU7"');
   });
   it.each([
     ['get_protein_homologs', 'protein name'], ['get_protein_orthologs', 'primary gene name'],
   ])('%s returns an explained empty result instead of unrelated proteins', async (name, missing) => {
     const calls = mockSearch('', { source: { primaryAccession: 'A0A0U2ZQU7' } });
-    const result: any = await platform.handlers[name]({ accession: 'A0A0U2ZQU7' });
+    const result: any = await platform.handlers[name]!({ accession: 'A0A0U2ZQU7' });
     expect(calls).toHaveLength(1);
     expect(result).toMatchObject({ totalResults: 0, results: [] });
     expect(result.hint).toContain(missing);

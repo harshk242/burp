@@ -7,7 +7,7 @@ import type { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { basename, dirname, extname, join } from "path";
 import { applyPendingMigrations, hasMigrationsTable, loadMigrations, pendingMigrations, type Migration } from "./executor";
-import { adoptLegacyDatabase } from "./legacy";
+import { adoptLegacyDatabase, baselineMigration } from "./legacy";
 import { isMemoryDbPath, MIGRATIONS_FOLDER } from "./paths";
 
 export interface ForeignKeyViolation {
@@ -62,7 +62,7 @@ export function runMigrations(sqlite: Database, options: RunMigrationsOptions = 
   try {
     const result = sqlite.transaction(() => {
       const adopted = isLegacyDatabase(sqlite);
-      if (adopted) adoptLegacyDatabase(sqlite, migrations[0]);
+      if (adopted) adoptLegacyDatabase(sqlite, baselineMigration(migrations));
       const applied = applyPendingMigrations(sqlite, migrations);
       const violations = sqlite.query<ForeignKeyViolation, []>("PRAGMA foreign_key_check").all();
       if (violations.length > 0) throw new MigrationFkError(violations);

@@ -13,18 +13,18 @@ async function invoke(name: string, args: Record<string, unknown>): Promise<any>
   initializeClient({ adapter: async config => {
     const recorder = requestRecorder();
     await recorder.adapter(config);
-    assertClinPGxRequest(recorder.requests[0]);
+    assertClinPGxRequest(recorder.requests[0]!);
     calls++;
     const response = await pacedTransport(config);
     expect(response.status).toBe(200);
     return response;
   } });
   if (missingCriteria(name, args)) {
-    await expect(platform.handlers[name](args)).rejects.toThrow('Either gene or drug');
+    await expect(platform.handlers[name]!(args)).rejects.toThrow('Either gene or drug');
     expect(calls).toBe(0);
     return undefined;
   }
-  const result: any = await platform.handlers[name](args);
+  const result: any = await platform.handlers[name]!(args);
   expect(calls).toBeGreaterThan(0);
   if (name === 'get_database_stats') {
     for (const key of ['genes', 'pathways', 'clinicalAnnotations', 'guidelines', 'labels']) {
@@ -76,7 +76,7 @@ it('relationship criteria are applied rather than silently ignored', async () =>
     ['/data/clinicalAnnotation', 'location.genes.symbol'], ['/data/clinicalAnnotation', 'location.fingerprint'], ['/data/clinicalAnnotation', 'relatedChemicals.name'],
     ['/data/guidelineAnnotation', 'relatedGenes.symbol'], ['/data/guidelineAnnotation', 'relatedChemicals.name'],
     ['/data/labelAnnotation', 'relatedGenes.symbol'], ['/data/labelAnnotation', 'relatedChemicals.name'],
-  ];
+  ] as const;
   for (const [path, key] of cases) {
     await turn();
     const response = await axios.get(`https://api.clinpgx.org/v1${path}`, {
@@ -88,5 +88,5 @@ it('relationship criteria are applied rather than silently ignored', async () =>
 });
 
 it('rejects an unscoped pathway request before contacting upstream', async () => {
-  await expect(platform.handlers.get_pathways({})).rejects.toThrow('requires a nonblank gene');
+  await expect(platform.handlers.get_pathways!({})).rejects.toThrow('requires a nonblank gene');
 });

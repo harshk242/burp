@@ -36,7 +36,7 @@ const LIVE_CALLS: Call[] = [
 const argv = process.argv.slice(2);
 let i = 0;
 let live = false;
-for (; i < argv.length && argv[i].startsWith('--'); i++) {
+for (; i < argv.length && argv[i]?.startsWith('--'); i++) {
   if (argv[i] === '--live') live = true;
   else if (argv[i] !== '--') { console.error(`unknown flag ${argv[i]}`); process.exit(2); }
 }
@@ -169,7 +169,7 @@ async function main() {
   if (names.size === 0) return fail('tools/list returned no tools');
   ok(`tools/list: ${names.size} tools`);
 
-  const calls = live ? LIVE_CALLS : [LIVE_CALLS[0]];
+  const calls = live ? LIVE_CALLS : LIVE_CALLS.slice(0, 1);
   await Promise.all(calls.map(async (call) => {
     if (!names.has(call.name)) return fail(`${call.name} is not registered`);
     try {

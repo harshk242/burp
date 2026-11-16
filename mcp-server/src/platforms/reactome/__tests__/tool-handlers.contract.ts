@@ -15,7 +15,7 @@ async function invoke(name: string, args: Record<string, unknown>): Promise<any>
     await pace(350);
     const recorder = requestRecorder();
     await recorder.adapter(config);
-    assertReactomeRequest(recorder.requests[0]);
+    assertReactomeRequest(recorder.requests[0]!);
     calls++;
     const response = await transport(config);
     const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
@@ -31,7 +31,7 @@ async function invoke(name: string, args: Record<string, unknown>): Promise<any>
     return response;
   } });
   try {
-    const result: any = await handlers[name](args);
+    const result: any = await handlers[name]!(args);
     expect(calls).toBeGreaterThan(0);
     if (name === 'search_pathways') {
       expect(result.results.length).toBeGreaterThan(0);
@@ -120,7 +120,7 @@ it('batches Cell Cycle accessions live with bounded work', async () => {
     }
     return transport(config);
   } });
-  const result: any = await handlers.get_protein_interactions({ pathwayId: 'R-HSA-1640170' });
+  const result: any = await handlers.get_protein_interactions!({ pathwayId: 'R-HSA-1640170' });
   expect(result.queriedAccessions).toBeGreaterThan(100);
   expect(batches).toBe(Math.ceil(result.queriedAccessions / 100));
   expect(batches).toBeLessThanOrEqual(10);

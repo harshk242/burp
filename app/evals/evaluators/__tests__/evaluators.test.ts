@@ -8,7 +8,7 @@ import { turnSignalScores } from "../turn-signals";
 import type { EvalItem, Evaluation, TaskOutput, TaskTurn } from "../types";
 
 const base = tp53 as TaskOutput;
-const realTurn = base.turns[0];
+const realTurn = base.turns[0]!;
 
 const item = (expected: Partial<EvalItem["expected_output"]> = {}): EvalItem => ({
   input: { turns: base.turns.map((t) => t.user_message) },
@@ -71,7 +71,7 @@ describe("id_grounding", () => {
     const e = single(idGrounding(out, item()));
     expect(e.value).toBe(0);
     expect(e.comment).toBe("ungrounded: turn 2: P04637");
-    const okFirst = output([{ ...realTurn }, out.turns[1]]);
+    const okFirst = output([{ ...realTurn }, out.turns[1]!]);
     expect(single(idGrounding(okFirst, item())).value).toBe(1);
   });
 
@@ -161,8 +161,8 @@ describe("turn signals", () => {
     ]);
     const [outcome, truncated, errors] = turnSignalScores(out, item()) as Evaluation[];
     expect(outcome).toMatchObject({ value: "max_tool_iterations", comment: "turn 2: max_tool_iterations" });
-    expect(truncated.value).toBe(0);
-    expect(errors.value).toBe(3);
+    expect(truncated!.value).toBe(0);
+    expect(errors!.value).toBe(3);
   });
 
   it("budget-stopped turns and skipped items are not scored", () => {

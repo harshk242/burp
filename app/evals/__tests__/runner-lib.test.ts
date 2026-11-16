@@ -54,12 +54,12 @@ describe("dataset verification", () => {
 
   it("a UI edit is caught even though the stored content_hash is unchanged", () => {
     const items = synced();
-    const edited = items[1];
+    const edited = items[1]!;
     edited.input = { turns: ["edited in the UI"] };
     const check = checkDataset(smoke, items);
     expect(datasetMatches(check)).toBe(false);
     expect(check.changed).toEqual([edited.id]);
-    expect((edited.metadata as { content_hash: string }).content_hash).toBe(contentHash(smoke.items[1]));
+    expect((edited.metadata as { content_hash: string }).content_hash).toBe(contentHash(smoke.items[1]!));
   });
 
   it("extra and missing items are listed by id", () => {
@@ -77,9 +77,9 @@ describe("dataset verification", () => {
 
   it("an unsynced local change is a changed item", () => {
     const local = structuredClone(smoke);
-    local.items[0].metadata.notes = "edited locally, not synced";
+    local.items[0]!.metadata.notes = "edited locally, not synced";
     const check = checkDataset(local, synced());
-    expect(check.changed).toEqual([local.items[0].id]);
+    expect(check.changed).toEqual([local.items[0]!.id]);
     expect(datasetMatches(check)).toBe(false);
   });
 });
@@ -151,7 +151,7 @@ describe("aggregates", () => {
     expect(s.okRate).toBeCloseTo(2 / 3);
     expect(s.totalCostUsd).toBeCloseTo(0.54);
     expect([s.latencyP50Ms, s.latencyP95Ms]).toEqual([1000, 3000]);
-    expect(itemPasses(items[2])).toBe(false);
+    expect(itemPasses(items[2]!)).toBe(false);
 
     const byName = Object.fromEntries(runEvaluations(s).map((e) => [e.name, e.value]));
     expect(byName).toMatchObject({ avg_id_grounding: 0.75, ok_rate: 2 / 3, failed_items: 1, skipped_budget_items: 1, reviewed_pass_rate: 0.5 });
@@ -161,9 +161,9 @@ describe("aggregates", () => {
     const r1 = [run("a", [["checkpoint_recall", 1], ["turn_outcome", "ok"]])];
     const r2 = [run("a", [["checkpoint_recall", 0], ["turn_outcome", "refusal"]])];
     const report = varianceReport([r1, r2]);
-    expect(report.a.checkpoint_recall).toEqual({ n: 2, mean: 0.5, min: 0, max: 1, stddev: 0.5 });
-    expect(report.a.turn_outcome_ok.mean).toBe(0.5);
-    expect(report.a.cost_usd.n).toBe(2);
+    expect(report.a!.checkpoint_recall).toEqual({ n: 2, mean: 0.5, min: 0, max: 1, stddev: 0.5 });
+    expect(report.a!.turn_outcome_ok!.mean).toBe(0.5);
+    expect(report.a!.cost_usd!.n).toBe(2);
   });
 });
 
@@ -193,7 +193,7 @@ describe("task output from persisted rows", () => {
     expect(out.skipped).toBeUndefined();
     const [t1, t2] = out.turns;
     expect(t1).toMatchObject({ turn: 1, user_message: "first", answer: "answer one", cost_usd: 0.012, llm_calls: 2, duration_ms: 1500, tool_error_count: 1 });
-    expect(t1.tool_calls).toEqual([
+    expect(t1!.tool_calls).toEqual([
       { name: "open-targets__search_entities", input: { q: "x" }, model_output: "[fetched_at: x]\nENSG00000141510", error: false },
       { name: "chembl__search_drugs", input: {}, model_output: "boom", error: true },
     ]);
@@ -201,7 +201,7 @@ describe("task output from persisted rows", () => {
   });
 
   it("a budget-stopped turn marks the item skipped", () => {
-    const stopped = { ...rows, turns: [{ ...rows.turns[1], error_code: "budget_exceeded" }] };
+    const stopped = { ...rows, turns: [{ ...rows.turns[1]!, error_code: "budget_exceeded" }] };
     expect(buildTaskOutput(stopped).skipped).toBe("budget");
   });
 

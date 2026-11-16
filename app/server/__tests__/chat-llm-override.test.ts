@@ -18,7 +18,7 @@ type CallOptions = Parameters<MockLanguageModelV4["doStream"]>[0];
 
 const USER_ID = "44444444-4444-4444-8444-444444444444";
 const config = loadLLMConfig();
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
 const OVERRIDE = { model: "claude-haiku-5-5", effort: "xhigh", max_output_tokens: 64000 } as const;
 
 const t = createTestDb();
@@ -106,8 +106,8 @@ describe("processChat llm override", () => {
     await drain(processChat(crypto.randomUUID(), USER_ID, "hi"));
     expect(calls).toHaveLength(1);
     expect(requestedModels).toEqual([config.chatModel]);
-    expect(calls[0].maxOutputTokens).toBe(config.maxOutputTokens);
-    expect(JSON.stringify(calls[0].providerOptions)).toBe(JSON.stringify(chatProviderOptions(config)));
+    expect(calls[0]!.maxOutputTokens).toBe(config.maxOutputTokens);
+    expect(JSON.stringify(calls[0]!.providerOptions)).toBe(JSON.stringify(chatProviderOptions(config)));
     expect(usageRow().model).toBe(config.chatModel);
 
     const gen = one(mem.spans(), "llm-call");
@@ -119,8 +119,8 @@ describe("processChat llm override", () => {
     expect(OVERRIDE.model).not.toBe(config.chatModel);
     await drain(processChat(crypto.randomUUID(), USER_ID, "hi", undefined, { llm: OVERRIDE }));
     expect(requestedModels).toEqual([OVERRIDE.model]);
-    expect(calls[0].maxOutputTokens).toBe(OVERRIDE.max_output_tokens);
-    expect(calls[0].providerOptions).toEqual(chatProviderOptions({ ...config, effort: OVERRIDE.effort }) as never);
+    expect(calls[0]!.maxOutputTokens).toBe(OVERRIDE.max_output_tokens);
+    expect(calls[0]!.providerOptions).toEqual(chatProviderOptions({ ...config, effort: OVERRIDE.effort }) as never);
 
     const gen = one(mem.spans(), "llm-call");
     expect(gen.attributes["langfuse.observation.model.name"]).toBe(OVERRIDE.model);

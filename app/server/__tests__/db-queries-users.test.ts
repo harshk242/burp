@@ -137,7 +137,7 @@ describe("chatSessionQueries + messageQueries", () => {
     const s1 = q.chatSessionQueries.findById(S1)!;
     expect(s1.title).toBe("First");
     expect(s1.updated_at!).toBeGreaterThan(200);
-    expect(q.chatSessionQueries.findByUserId(USER_ID)[0].id).toBe(S1);
+    expect(q.chatSessionQueries.findByUserId(USER_ID)[0]!.id).toBe(S1);
 
     t.sqlite.run("UPDATE chat_sessions SET updated_at = 1 WHERE id = ?", [S2]);
     q.chatSessionQueries.touch(S2);

@@ -56,9 +56,9 @@ describe("OpenAI embedder", () => {
 
     expect(Array.from(vector)).toEqual(Array.from(new Float32Array([0.1, 0.2, 0.3])));
     expect(stub.calls).toHaveLength(1);
-    expect(stub.calls[0].url).toBe("https://api.openai.com/v1/embeddings");
-    expect(stub.calls[0].headers.get("authorization")).toBe("Bearer sk-test");
-    expect(stub.calls[0].body).toMatchObject({ model: "text-embedding-3-small", input: ["toxic to the liver"], dimensions: 3 });
+    expect(stub.calls[0]!.url).toBe("https://api.openai.com/v1/embeddings");
+    expect(stub.calls[0]!.headers.get("authorization")).toBe("Bearer sk-test");
+    expect(stub.calls[0]!.body).toMatchObject({ model: "text-embedding-3-small", input: ["toxic to the liver"], dimensions: 3 });
   });
 
   it("omits dimensions when none is configured and uses the native size", async () => {
@@ -70,8 +70,8 @@ describe("OpenAI embedder", () => {
     const docs = await embedder.embedDocuments(["a", "b"]);
 
     expect(docs.map((d) => d.length)).toEqual([5, 5]);
-    expect("dimensions" in stub.calls[0].body).toBe(false);
-    expect(stub.calls[0].body.input).toEqual(["a", "b"]);
+    expect("dimensions" in stub.calls[0]!.body).toBe(false);
+    expect(stub.calls[0]!.body.input).toEqual(["a", "b"]);
   });
 
   it("only copies spec fields into embedder.spec", () => {
@@ -89,8 +89,8 @@ describe("Google embedder", () => {
     expect(embedder.id).toBe("google:gemini-embedding-001@3");
     await embedder.embedQuery("hepatotoxicity");
 
-    expect(stub.calls[0].url).toContain("/models/gemini-embedding-001:embedContent");
-    expect(stub.calls[0].body).toMatchObject({ taskType: "RETRIEVAL_QUERY", outputDimensionality: 3 });
+    expect(stub.calls[0]!.url).toContain("/models/gemini-embedding-001:embedContent");
+    expect(stub.calls[0]!.body).toMatchObject({ taskType: "RETRIEVAL_QUERY", outputDimensionality: 3 });
   });
 
   it("uses RETRIEVAL_DOCUMENT for documents", async () => {
@@ -99,8 +99,8 @@ describe("Google embedder", () => {
 
     await embedder.embedDocuments(["a", "b"]);
 
-    expect(stub.calls[0].url).toContain(":batchEmbedContents");
-    for (const req of stub.calls[0].body.requests) {
+    expect(stub.calls[0]!.url).toContain(":batchEmbedContents");
+    for (const req of stub.calls[0]!.body.requests) {
       expect(req).toMatchObject({ taskType: "RETRIEVAL_DOCUMENT", outputDimensionality: 3 });
     }
   });

@@ -20,15 +20,15 @@ describe('PubMed XML cardinality', () => {
       <AffiliationInfo><Affiliation>Lab B</Affiliation></AffiliationInfo>
       <Identifier Source="Other">other</Identifier><Identifier Source="ORCID">0000-0001</Identifier></Author>
       <Author><LastName>Jones</LastName><ForeName>Bob</ForeName></Author></AuthorList>`));
-    expect(result.authors).toHaveLength(2);
-    expect(result.authors[0]).toMatchObject({ lastName: 'Smith', foreName: 'Alice', affiliation: 'Lab A; Lab B', orcid: '0000-0001' });
-    expect(result.authors[1].lastName).toBe('Jones');
+    expect(result!.authors).toHaveLength(2);
+    expect(result!.authors[0]).toMatchObject({ lastName: 'Smith', foreName: 'Alice', affiliation: 'Lab A; Lab B', orcid: '0000-0001' });
+    expect(result!.authors[1]!.lastName).toBe('Jones');
     expect(result).toMatchObject({ doi: '10.1/example', keywords: ['biology'], publicationTypes: ['Journal Article'], grantList: [{ grantId: 'G1' }], meshTerms: [{ descriptorName: 'Cancer', majorTopic: true }] });
   });
 
   it('supports a single collective author and an absent list', () => {
-    expect(parseEFetchResult(article('<AuthorList><Author><CollectiveName>Consortium</CollectiveName></Author></AuthorList>'))[0].authors[0].collectiveName).toBe('Consortium');
-    expect(parseEFetchResult(article(''))[0].authors).toEqual([]);
+    expect(parseEFetchResult(article('<AuthorList><Author><CollectiveName>Consortium</CollectiveName></Author></AuthorList>'))[0]!.authors[0]!.collectiveName).toBe('Consortium');
+    expect(parseEFetchResult(article(''))[0]!.authors).toEqual([]);
   });
 
   it('normalizes LinkSet while retaining Id and Link arrays', () => {

@@ -38,10 +38,10 @@ export function buildToolCatalog(
   const all: ToolSet = { ...toolRegistry.toVercelTools(toolRegistry.getAll(), sanitize), ...systemTools };
   const catalog: ToolSet = {};
   const hashInput: unknown[] = [];
-  for (const key of Object.keys(all).sort(byCodePoint)) {
+  for (const [key, tool] of Object.entries(all).sort(([a], [b]) => byCodePoint(a, b))) {
     const loaded = key in systemTools || ALWAYS_LOADED_TOOLS.has(desanitizeToolName(key, provider));
-    catalog[key] = loaded ? all[key] : { ...all[key], providerOptions: DEFERRED };
-    hashInput.push([key, loaded, all[key].description, schemaOf(key)]);
+    catalog[key] = loaded ? tool : { ...tool, providerOptions: DEFERRED };
+    hashInput.push([key, loaded, tool.description, schemaOf(key)]);
   }
 
   const hash = shortHash(JSON.stringify(hashInput));

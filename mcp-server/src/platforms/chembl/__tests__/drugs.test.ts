@@ -16,5 +16,5 @@ it('surfaces an indication-fetch failure after a successful molecule lookup', as
 it('returns a genuine empty indication list as a success', async () => {
   const adapter: AxiosAdapter = async (config) => ({ data: config.url?.includes('drug_indication') ? { drug_indications: [] } : { max_phase: 4 }, status: 200, statusText: 'OK', headers: {}, config });
   init({}, { adapter });
-  expect(await handlers.get_drug_info({ chembl_id: 'CHEMBL25' })).toMatchObject({ development_phase: 4, indications: [] });
+  expect(await handlers.get_drug_info!({ chembl_id: 'CHEMBL25' })).toMatchObject({ development_phase: 4, indications: [] });
 });

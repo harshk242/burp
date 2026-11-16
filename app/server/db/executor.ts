@@ -30,7 +30,11 @@ export function loadMigrations(migrationsFolder: string): Migration[] {
   const journal = JSON.parse(readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf-8")) as {
     entries: Array<{ tag: string }>;
   };
-  return metas.map((meta, i) => ({ ...meta, tag: journal.entries[i].tag }));
+  return metas.map((meta, i) => {
+    const entry = journal.entries[i];
+    if (!entry) throw new Error(`migration ${i} has no entry in ${migrationsFolder}/meta/_journal.json`);
+    return { ...meta, tag: entry.tag };
+  });
 }
 
 export function hasMigrationsTable(sqlite: Database): boolean {

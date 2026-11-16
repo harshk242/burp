@@ -8,6 +8,7 @@
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "noUncheckedSideEffectImports": true,
+    "noUncheckedIndexedAccess": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   }

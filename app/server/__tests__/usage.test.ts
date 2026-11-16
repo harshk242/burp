@@ -170,8 +170,8 @@ describe("pricing config", () => {
     const fromYaml = loadConfig({}).usage.pricing.anthropic;
     const defaults = loadConfig({}, { llm: { effort: "medium" }, server: {}, tool_search: {} }).usage.pricing.anthropic;
     for (const pricing of [fromYaml, defaults]) {
-      expect(pricing["claude-sonnet-5-5"]?.cache_read_usd_per_mtok).toBe(0.1);
-      expect(pricing["claude-haiku-5-5"]?.long_context).toEqual(longContext);
+      expect(pricing!["claude-sonnet-5-5"]?.cache_read_usd_per_mtok).toBe(0.1);
+      expect(pricing!["claude-haiku-5-5"]?.long_context).toEqual(longContext);
     }
   });
 
@@ -179,7 +179,7 @@ describe("pricing config", () => {
     const fromYaml = loadConfig({}).usage.pricing.anthropic;
     const defaults = loadConfig({}, { llm: { effort: "medium" }, server: {}, tool_search: {} }).usage.pricing.anthropic;
     for (const pricing of [fromYaml, defaults]) {
-      expect(pricing["claude-opus-5-5"]).toEqual({
+      expect(pricing!["claude-opus-5-5"]).toEqual({
         input_usd_per_mtok: 4,
         output_usd_per_mtok: 20,
         cache_read_usd_per_mtok: 0.2,

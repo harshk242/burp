@@ -156,7 +156,7 @@ const bodyBlocks = (body: any, type: string) =>
   (body?.messages ?? []).flatMap((m: any) => (Array.isArray(m.content) ? m.content : [])).filter((b: any) => b.type === type);
 
 function degrade(turn: ModelMessage[]): ModelMessage[] {
-  const user = turn[0];
+  const user = turn[0]!;
   const finalText = assistantParts([turn.at(-1)!]).filter((p) => p.type === "text").map((p) => p.text).join("");
   return [{ role: "user", content: typeof user.content === "string" ? user.content : "" }, { role: "assistant", content: finalText }];
 }
@@ -177,7 +177,9 @@ const Q3 = "Without calling any tools: in one sentence, what drug class does tha
 export async function check4b(nonce: string) {
   await ensureThinkingCapabilities();
   const tools = toDeclarations(buildToolCatalog(config.provider, (n) => sanitizeToolName(n, config.provider), "phase4b-gate"));
-  tools[SEARCH_TOOL_NAME] = { ...tools[SEARCH_TOOL_NAME], description: `${tools[SEARCH_TOOL_NAME].description} (gate run ${nonce})` } as Tool;
+  const searchTool = tools[SEARCH_TOOL_NAME];
+  if (!searchTool) throw new Error(`${SEARCH_TOOL_NAME} is not in the catalog`);
+  tools[SEARCH_TOOL_NAME] = { ...searchTool, description: `${searchTool.description} (gate run ${nonce})` } as Tool;
   for (const n of HITS) if (!tools[n]) throw new Error(`${n} is not in the catalog`);
   console.log(`4b: ${Object.keys(tools).length} tools, model ${config.chatModel}, effort ${EFFORT}, display ${config.thinkingDisplay}, nonce ${nonce}`);
 
@@ -188,7 +190,7 @@ export async function check4b(nonce: string) {
   console.log(`T1: ${t1.appended.length} messages, ${thinkingParts(t1.appended).length} reasoning parts (${signed(t1.appended).length} signed), tool calls ${t1.calls.flatMap((c) => c.toolCalls.map((t) => t.toolName)).join(", ")}`);
 
   const t2 = await runTurn("T2", tools, stored1, Q2, stored1.length - 2);
-  const t2First = t2.calls[0];
+  const t2First = t2.calls[0]!;
   const replayedThinking = bodyBlocks(t2First.req?.body, "thinking").length;
   const stored2 = storeAndLoad("s2", t2.appended);
 

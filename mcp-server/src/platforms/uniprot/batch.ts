@@ -77,7 +77,7 @@ export async function batchLookup(accessions: unknown, format = 'json') {
   }
   const inputs = accessions as string[];
   const normalized = inputs.map(normalizeAccession);
-  const invalid = inputs.filter((_, i) => !ACCESSION_PATTERN.test(normalized[i]));
+  const invalid = inputs.filter((input) => !ACCESSION_PATTERN.test(normalizeAccession(input)));
   const valid = [...new Set(normalized.filter(accession => ACCESSION_PATTERN.test(accession)))];
 
   if (format !== 'json') {
@@ -92,21 +92,22 @@ export async function batchLookup(accessions: unknown, format = 'json') {
   const inactive = await fetchInactive(valid.filter(accession => !found.has(accession) && !accession.includes('-')));
   // An accession merged into exactly one entry resolves to that entry's summary.
   const targets = [...new Set([...inactive.values()]
-    .filter(reason => reason.inactiveReasonType === 'MERGED' && reason.mergeDemergeTo?.length === 1)
-    .map(reason => reason.mergeDemergeTo![0].toUpperCase()))]
+    .flatMap(reason => reason.inactiveReasonType === 'MERGED' && reason.mergeDemergeTo?.length === 1
+      ? reason.mergeDemergeTo.map(target => target.toUpperCase()) : []))]
     .filter(target => ACCESSION_PATTERN.test(target) && !found.has(target));
   for (const [accession, summary] of await summaries(targets)) found.set(accession, summary);
 
-  return { batchResults: inputs.map((input, i) => {
-    const accession = normalized[i];
+  return { batchResults: inputs.map((input) => {
+    const accession = normalizeAccession(input);
     if (!ACCESSION_PATTERN.test(accession)) {
       return { accession: input, success: false, error: 'Invalid UniProt accession format' };
     }
     if (found.has(accession)) return { accession: input, success: true, data: found.get(accession) };
     const reason = inactive.get(accession);
     if (!reason) return { accession: input, success: false, error: 'Accession not found in UniProtKB' };
-    const target = reason.inactiveReasonType === 'MERGED' && reason.mergeDemergeTo?.length === 1
-      ? found.get(reason.mergeDemergeTo[0].toUpperCase()) : undefined;
+    const mergedInto = reason.inactiveReasonType === 'MERGED' && reason.mergeDemergeTo?.length === 1
+      ? reason.mergeDemergeTo[0] : undefined;
+    const target = mergedInto ? found.get(mergedInto.toUpperCase()) : undefined;
     return target
       ? { accession: input, success: true, mergedInto: target.accession, data: target }
       : inactiveResult(input, reason);

@@ -78,18 +78,18 @@ export function stubAdapter(steps: Step[], clock?: FakeClock) {
       throw new Error('unreachable');
     }
     const spec = typeof step === 'number' ? { status: step } : step;
-    if (spec.delayMs) await waitOrAbort(spec.delayMs, config);
-    if (spec.advanceMs) clock?.advance(spec.advanceMs);
+    if (spec!.delayMs) await waitOrAbort(spec!.delayMs, config);
+    if (spec!.advanceMs) clock?.advance(spec!.advanceMs);
     const response: AxiosResponse = {
-      data: { ok: spec.status < 400 },
-      status: spec.status,
-      statusText: String(spec.status),
-      headers: new AxiosHeaders(spec.headers ?? {}),
+      data: { ok: spec!.status < 400 },
+      status: spec!.status,
+      statusText: String(spec!.status),
+      headers: new AxiosHeaders(spec!.headers ?? {}),
       config,
     };
-    if (spec.status >= 400) {
-      const code = spec.status >= 500 ? AxiosError.ERR_BAD_RESPONSE : AxiosError.ERR_BAD_REQUEST;
-      throw new AxiosError(`Request failed with status code ${spec.status}`, code, config, null, response);
+    if (spec!.status >= 400) {
+      const code = spec!.status >= 500 ? AxiosError.ERR_BAD_RESPONSE : AxiosError.ERR_BAD_REQUEST;
+      throw new AxiosError(`Request failed with status code ${spec!.status}`, code, config, null, response);
     }
     return response;
   };
@@ -141,7 +141,7 @@ export function callTool(
 }
 
 export function toolText(result: CallToolResult): string {
-  const item = result.content[0];
+  const item = result.content[0]!;
   if (item.type !== 'text') throw new Error('expected text content');
   return item.text;
 }

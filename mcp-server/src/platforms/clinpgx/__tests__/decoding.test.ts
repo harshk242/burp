@@ -44,7 +44,7 @@ describe('CPIC listing and symbol search', () => {
     expect((await client.searchGenes(' CYP ')).query).toBe('CYP');
     await client.searchGenes('CYP');
     expect(adapter).toHaveBeenCalledTimes(1);
-    expect(adapter.mock.calls[0][0].params).toEqual({ symbol: 'CYP' });
+    expect(adapter.mock.calls[0]![0].params).toEqual({ symbol: 'CYP' });
   });
   it('rejects blank search without making an upstream CPIC request', async () => {
     const adapter = adapterFor({ data: [] });
@@ -56,7 +56,7 @@ describe('CPIC listing and symbol search', () => {
     initializeClient({ adapter });
     expect((await getCPICGenesWithGuidelines()).map(gene => gene.symbol)).toEqual(['CYP']);
     expect((await getGenesWithAnnotations()).map(gene => gene.symbol)).toEqual(['TEST']);
-    expect(adapter.mock.calls[0][0].params).toEqual({ cpicGene: true });
+    expect(adapter.mock.calls[0]![0].params).toEqual({ cpicGene: true });
     expect(platform.tools.some(tool => tool.name === 'list_cpic_genes')).toBe(true);
   });
 });
@@ -72,9 +72,9 @@ describe('scoped sample counts', () => {
     expect(result.genes).toMatchObject({ status: 'available', count: 1 });
     expect(result.pathways).toMatchObject({ status: 'available', count: 0 });
     expect(result.clinicalAnnotations).toMatchObject({ status: 'failed', error: { message: 'unavailable' } });
-    expect(result.labels.status).toBe('failed');
-    expect(result.drugs.status).toBe('unsupported');
-    expect(result.variants.status).toBe('unsupported');
+    expect(result.labels!.status).toBe('failed');
+    expect(result.drugs!.status).toBe('unsupported');
+    expect(result.variants!.status).toBe('unsupported');
     expect(result.clinicalAnnotations).not.toHaveProperty('count');
     expect(platform.tools.find(tool => tool.name === 'get_database_stats')?.description).toContain('scoped sample');
   });

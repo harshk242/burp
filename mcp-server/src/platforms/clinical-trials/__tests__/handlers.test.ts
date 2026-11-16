@@ -51,7 +51,7 @@ describe('fetchStudies count handling', () => {
 
     const result = await handleSearchStudies({ condition: 'melanoma' });
 
-    expect(mockGet.mock.calls[0][1].params).toMatchObject({
+    expect(mockGet.mock.calls[0]![1].params).toMatchObject({
       countTotal: true,
       'query.cond': 'melanoma',
     });

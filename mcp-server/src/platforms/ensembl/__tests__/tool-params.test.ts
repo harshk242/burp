@@ -13,7 +13,7 @@ function setup(data: unknown = gene) {
 async function capture(name: string, args: Record<string, unknown>) {
   const requests = setup(['get_variant_consequences', 'get_variants', 'get_regulatory_features'].includes(name)
     ? [{ id: 'v1', description: 'enhancer' }, { id: 'v2', description: 'promoter' }] : gene);
-  await handlers[name](args);
+  await handlers[name]!(args);
   assertMakesRequest(requests, name === 'translate_sequence' ? 'Local standard genetic code translation.' : undefined);
   requests.forEach(assertEnsemblRequest);
   return requests;
@@ -27,25 +27,25 @@ describe.each(tools)('$name', tool => {
   });
 });
 it('filters canonical transcripts and biotypes locally', async () => {
-  setup(); expect((await handlers.get_transcripts({ gene_id: samples.gene_id }) as any).transcripts).toHaveLength(2);
-  setup(); expect((await handlers.get_transcripts({ gene_id: samples.gene_id, canonical_only: true }) as any).transcripts).toEqual([gene.Transcript[0]]);
+  setup(); expect((await handlers.get_transcripts!({ gene_id: samples.gene_id }) as any).transcripts).toHaveLength(2);
+  setup(); expect((await handlers.get_transcripts!({ gene_id: samples.gene_id, canonical_only: true }) as any).transcripts).toEqual([gene.Transcript[0]]);
   for (const biotype of ['protein_coding', 'lncRNA']) {
-    setup(); expect((await handlers.search_genes({ query: 'TP53', biotype }) as any).result).toEqual(biotype === gene.biotype ? gene : null);
+    setup(); expect((await handlers.search_genes!({ query: 'TP53', biotype }) as any).result).toEqual(biotype === gene.biotype ? gene : null);
   }
 });
 it('filters regulatory descriptions case insensitively', async () => {
   const rows = [{ description: 'enhancer' }, { description: 'promoter' }];
-  setup(rows); expect(await handlers.get_regulatory_features({ region: samples.region })).toEqual(rows);
-  setup(rows); expect(await handlers.get_regulatory_features({ region: samples.region, feature_type: 'ENHANCER' })).toEqual([rows[0]]);
+  setup(rows); expect(await handlers.get_regulatory_features!({ region: samples.region })).toEqual(rows);
+  setup(rows); expect(await handlers.get_regulatory_features!({ region: samples.region, feature_type: 'ENHANCER' })).toEqual([rows[0]]);
 });
 it('unions and deduplicates multiple consequence term requests', async () => {
   const requests = setup([{ id: 'rs1', start: 1, end: 1 }]);
-  expect(await handlers.get_variants({ region: samples.region, consequence_type: ['missense_variant', 'stop_gained'] })).toHaveLength(1);
+  expect(await handlers.get_variants!({ region: samples.region, consequence_type: ['missense_variant', 'stop_gained'] })).toHaveLength(1);
   expect(requests.map(r => (r.params as any).so_term)).toEqual(['missense_variant', 'stop_gained']);
 });
 it('translates locally using the standard code', async () => {
-  expect(await handlers.translate_sequence({ sequence: 'ATGTTTTAA' })).toMatchObject({ protein_sequence: 'MF*', genetic_code: 1 });
-  expect(await handlers.translate_sequence({ sequence: 'ATGGGGTAA' })).toMatchObject({ protein_sequence: 'MG*' });
+  expect(await handlers.translate_sequence!({ sequence: 'ATGTTTTAA' })).toMatchObject({ protein_sequence: 'MF*', genetic_code: 1 });
+  expect(await handlers.translate_sequence!({ sequence: 'ATGGGGTAA' })).toMatchObject({ protein_sequence: 'MG*' });
 });
 it('rejects unknown routes, parameters and missing path segments', () => {
   const cases: [string, Record<string, unknown>][] = [['/map/coords/human/GRCh37/1:1-2', {}], ['/overlap/region/human/1:1-2', { consequence_type: 'missense_variant' }], ['/sequence/region/human/', {}]];
@@ -56,19 +56,19 @@ it('rejects unknown routes, parameters and missing path segments', () => {
 
 it.each([['rs699', 'id', 'ids'], ['ENST00000269305.9:c.215C>G', 'hgvs', 'hgvs_notations'], ['7 140753336 140753336 A/T 1', 'region', 'variants']])('routes VEP %s', async (variant, endpoint, key) => {
   const requests = setup([]);
-  await handlers.get_variant_consequences({ variants: [variant] });
-  expect(requests[0].url).toContain('/vep/homo_sapiens/' + endpoint);
-  expect(requests[0].body).toEqual({ [key]: [variant] });
+  await handlers.get_variant_consequences!({ variants: [variant] });
+  expect(requests[0]!.url).toContain('/vep/homo_sapiens/' + endpoint);
+  expect(requests[0]!.body).toEqual({ [key]: [variant] });
   requests.forEach(assertEnsemblRequest);
 });
 it.each([true, false])('sends multiple_sequences=%s for IDs', async multiple_sequences => {
   const requests = setup();
-  await handlers.get_sequence({ region: samples.transcript_id, multiple_sequences });
-  expect(requests[0].params).toMatchObject({ multiple_sequences: multiple_sequences ? 1 : 0 });
+  await handlers.get_sequence!({ region: samples.transcript_id, multiple_sequences });
+  expect(requests[0]!.params).toMatchObject({ multiple_sequences: multiple_sequences ? 1 : 0 });
   requests.forEach(assertEnsemblRequest);
 });
 it('rejects multiple_sequences on genomic regions', async () => {
-  await expect(handlers.get_sequence({ region: samples.region, multiple_sequences: true })).rejects.toThrow('ID-based');
+  await expect(handlers.get_sequence!({ region: samples.region, multiple_sequences: true })).rejects.toThrow('ID-based');
 });
 it.each([
   ['/sequence/id/ENST00000269305', { mask: 'bogus' }],

@@ -3,7 +3,7 @@ import { expect } from 'vitest';
 import { pace } from './tool-requests.js';
 
 export interface NcbiField { name: string; fullname: string }
-export const tags = (term: string) => [...term.matchAll(/\[([^\]]+)\]/g)].map(m => m[1].toLowerCase());
+export const tags = (term: string) => [...term.matchAll(/\[([^\]]+)\]/g)].map(m => m[1]!.toLowerCase());
 export function ncbiFields(fields: NcbiField[], aliases: Record<string, string> = {}) {
   const canonicalField = (tag: string): string | undefined => {
     const name = aliases[tag.toLowerCase()] ?? tag.toLowerCase();

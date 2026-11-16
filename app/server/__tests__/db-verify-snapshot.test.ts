@@ -66,7 +66,7 @@ describe("db:snapshot", () => {
 
   it("is standalone: imports nothing from the app (no config, client or migrations)", () => {
     const src = readFileSync(join(APP_DIR, "server", "db", "cli", "snapshot.ts"), "utf-8");
-    const imports = [...src.matchAll(/^import .* from "([^"]+)";$/gm)].map((m) => m[1]);
+    const imports = [...src.matchAll(/^import .* from "([^"]+)";$/gm)].map((m) => m[1]!);
     expect(imports.sort()).toEqual(["bun:sqlite", "fs", "path"]);
   });
 });

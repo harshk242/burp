@@ -57,7 +57,7 @@ describe('ClinicalTrials tool registry', () => {
 
 describe.each(tools.map((tool) => [tool.name, tool] as const))('%s request params', (_name, tool) => {
   it.each(argVariants(tool).map((v) => [v.label, v.args] as const))('%s', async (_label, args) => {
-    await handlers[tool.name](args);
+    await handlers[tool.name]!(args);
 
     expect(requests().length).toBeGreaterThan(0);
     for (const config of requests()) {

@@ -88,7 +88,7 @@ describe("streamChat terminal lifecycle", () => {
     await controller.stream(controller.beginTurn("s1"), "hi", "token", () => {});
     unsubscribe();
     expect(snapshots).toEqual([true]);
-    expect(store().messages[0].tokenUsage).toBeUndefined();
+    expect(store().messages[0]!.tokenUsage).toBeUndefined();
     expect(store().messages[1]).toMatchObject({ id: "empty", persisted: true, content: "", tokenUsage: { input: 12, output: 0 } });
   });
 

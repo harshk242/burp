@@ -19,7 +19,7 @@ async function invoke(name: string, args: Record<string, unknown>) {
     return response;
   } });
   try {
-    const result = await platform.handlers[name](args);
+    const result = await platform.handlers[name]!(args);
     expect(requests).toBeGreaterThan(0);
     expect(result).toBeDefined();
     return result;

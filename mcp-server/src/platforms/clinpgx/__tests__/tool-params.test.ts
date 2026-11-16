@@ -30,7 +30,7 @@ function setup(failAt = -1, failure: number | 'network' = 503) {
 }
 async function capture(name: string, args: Record<string, unknown>) {
   const requests = setup();
-  await platform.handlers[name](args);
+  await platform.handlers[name]!(args);
   assertMakesRequest(requests);
   requests.forEach(assertClinPGxRequest);
   return requests;
@@ -41,7 +41,7 @@ describe.each(platform.tools)('$name', tool => {
   it.each(argVariants(tool))('$label uses valid requests', async ({ args }) => {
     if (missingCriteria(tool.name, args)) {
       const requests = setup();
-      await expect(platform.handlers[tool.name](args)).rejects.toThrow('Either gene or drug');
+      await expect(platform.handlers[tool.name]!(args)).rejects.toThrow('Either gene or drug');
       expect(requests).toHaveLength(0);
     } else await capture(tool.name, args);
   });
@@ -57,15 +57,15 @@ describe.each(platform.tools)('$name', tool => {
     await assertArgsAffectRequests(tool, toolSamples(tool), args => capture(tool.name, args), reasons);
   });
   it.each([400, 404, 503, 'network'] as const)('preserves %s at each request stage', async failure => {
-    const args = argVariants(tool)[0].args;
+    const args = argVariants(tool)[0]!.args;
     const count = (await capture(tool.name, args)).length;
     for (let stage = 1; stage <= count; stage++) {
       setup(stage, failure);
       if (tool.name === 'get_database_stats') {
-        const result = await platform.handlers[tool.name](args) as Record<string, any>;
+        const result = await platform.handlers[tool.name]!(args) as Record<string, any>;
         expect(Object.values(result).filter(value => value.status === 'failed')).toHaveLength(1);
         expect(Object.values(result).find(value => value.status === 'failed')).not.toHaveProperty('count');
-      } else await expect(platform.handlers[tool.name](args)).rejects.toThrow();
+      } else await expect(platform.handlers[tool.name]!(args)).rejects.toThrow();
     }
   });
 });
@@ -73,7 +73,7 @@ it('applies every local result limit', async () => {
   for (const name of ['list_cpic_genes', 'search_genes', 'search_drugs', 'search_variants']) {
     for (const maxResults of [1, 3]) {
       setup();
-      const result = await platform.handlers[name]({ query: 'sample', maxResults }) as any;
+      const result = await platform.handlers[name]!({ query: 'sample', maxResults }) as any;
       expect(result.results).toHaveLength(maxResults);
     }
   }
@@ -83,7 +83,7 @@ it('queries star allele haplotypes by gene without truncating to 100', async () 
     id: `PA${index}`, name: `*${index}`, gene: { symbol: 'CYP2D6' },
   })) });
   initializeClient({ adapter: recorder.adapter });
-  expect(await platform.handlers.get_star_alleles({ gene: 'CYP2D6' })).toHaveLength(177);
+  expect(await platform.handlers.get_star_alleles!({ gene: 'CYP2D6' })).toHaveLength(177);
   expect(recorder.requests).toEqual([{
     method: 'get', url: 'https://api.clinpgx.org/v1/data/haplotype',
     params: { 'gene.symbol': 'CYP2D6' }, body: {},
@@ -98,7 +98,7 @@ it('queries annotations by the resolved fingerprint even without a variant gene'
     requests.push(...recorder.requests);
     return result;
   } });
-  expect((await platform.handlers.get_variant_annotations({ variantId: 'rs3892097' }) as unknown[]).length).toBeGreaterThan(0);
+  expect((await platform.handlers.get_variant_annotations!({ variantId: 'rs3892097' }) as unknown[]).length).toBeGreaterThan(0);
   expect(requests[1]).toMatchObject({
     url: 'https://api.clinpgx.org/v1/data/clinicalAnnotation', params: { 'location.fingerprint': 'rs3892097' },
   });
@@ -106,7 +106,7 @@ it('queries annotations by the resolved fingerprint even without a variant gene'
 it('applies every evidence threshold', async () => {
   for (const [index, minLevel] of ['1A', '1B', '2A', '2B', '3', '4'].entries()) {
     setup();
-    const result = await platform.handlers.get_annotations_by_evidence({ gene: 'CYP2D6', minLevel }) as any[];
+    const result = await platform.handlers.get_annotations_by_evidence!({ gene: 'CYP2D6', minLevel }) as any[];
     expect(result).toHaveLength((index + 1) * 4);
   }
 });
@@ -114,7 +114,7 @@ it('applies source with either gene or drug, and both drug and gene together', a
   for (const source of ['CPIC', 'DPWG']) {
     for (const args of [{ gene: 'CYP2D6' }, { drug: 'codeine' }, { gene: 'CYP2D6', drug: 'codeine' }]) {
       setup();
-      const result = await platform.handlers.get_dosing_guidelines({ ...args, source }) as any[];
+      const result = await platform.handlers.get_dosing_guidelines!({ ...args, source }) as any[];
       expect(result.length).toBeGreaterThan(0);
       result.forEach(row => {
         expect(row.source).toBe(source);
@@ -126,7 +126,7 @@ it('applies source with either gene or drug, and both drug and gene together', a
 it('filters both guidelines and labels for a pair', async () => {
   for (const gene of ['CYP2D6', 'CYP2C19', 'unknown']) {
     setup();
-    const result = await platform.handlers.get_guidelines_for_pair({ drug: 'codeine', gene }) as any;
+    const result = await platform.handlers.get_guidelines_for_pair!({ drug: 'codeine', gene }) as any;
     expect(result.guidelines).toHaveLength(gene === 'unknown' ? 0 : 12);
     expect(result.labels).toHaveLength(gene === 'unknown' ? 0 : 12);
     [...result.guidelines, ...result.labels].forEach(row => expect(row.genes).toContain(gene));
@@ -140,5 +140,5 @@ it('rejects invalid routes, path IDs and parameters', () => {
 });
 
 it.each([{}, { query: '' }, { query: '   ' }])('requires a gene for pathways: %j', async args => {
-  await expect(platform.handlers.get_pathways(args)).rejects.toThrow('requires a nonblank gene');
+  await expect(platform.handlers.get_pathways!(args)).rejects.toThrow('requires a nonblank gene');
 });

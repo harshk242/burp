@@ -124,9 +124,9 @@ describe("runToolSearch", () => {
 
   it("Anthropic: drops hits the turn's catalog doesn't declare (registered mid-turn)", async () => {
     mockSearch();
-    const declared = { [SEARCH]: {}, [HITS[0]]: {}, [HITS[2]]: {} };
+    const declared = { [SEARCH]: {}, [HITS[0]!]: {}, [HITS[2]!]: {} };
     const run = await runToolSearch("q", { provider: "anthropic", sanitize: (n) => n, declared });
-    expect(run.hits.map((h) => h.name)).toEqual([HITS[0], HITS[2]]);
+    expect(run.hits.map((h) => h.name)).toEqual([HITS[0]!, HITS[2]!]);
     expect(JSON.stringify(run.modelOutput)).not.toContain(HITS[1]);
     expect(run.uiSummary.found).toBe(2);
   });
@@ -141,7 +141,7 @@ describe("search dispatch", () => {
     const { events, result } = await dispatch("anthropic", activeTools);
 
     expect(Object.keys(activeTools)).toEqual(declared);
-    expect(JSON.stringify(result.part.output)).toContain(HITS[2]);
+    expect(JSON.stringify(result.part.output)).toContain(HITS[2]!);
     const end = events.find((e) => e.type === "tool_end")!;
     const summary = (end.data as { output: { tools: { description: string }[] } }).output;
     expect(summary.tools.map((x) => x.description)).toEqual(HITS.map(description));

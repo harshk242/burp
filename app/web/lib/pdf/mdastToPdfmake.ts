@@ -168,7 +168,8 @@ function convertListItem(node: any): PdfContent {
 function convertInline(nodes: any[]): PdfContent | PdfContent[] {
   if (!nodes || nodes.length === 0) return '';
   const result = nodes.map(convertInlineNode).filter(Boolean) as PdfContent[];
-  if (result.length === 1) return result[0];
+  const [only] = result;
+  if (result.length === 1 && only !== undefined) return only;
   return result;
 }
 

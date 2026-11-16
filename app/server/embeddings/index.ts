@@ -25,6 +25,7 @@ export {
   EmbeddingResponseError,
   EmbeddingTimeoutError,
   embedderId,
+  zipVectors,
   type Embedder,
   type EmbeddingProviderName,
   type EmbeddingSpec,
