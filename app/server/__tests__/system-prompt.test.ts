@@ -76,7 +76,7 @@ describe("evidence and regulatory rules", () => {
   it("adds regulatory rules only when a regulatory tool is enabled", () => {
     const prompt = buildSystemPrompt(regulatory, tools);
     expect(prompt).toContain("## Regulatory Status");
-    expect(prompt).toContain("are not regulatory status");
+    expect(prompt).toContain("check the regulator with these tools");
     expect(prompt).toContain("search by indication");
     expect(buildSystemPrompt(platforms, catalog)).not.toContain("## Regulatory Status");
   });

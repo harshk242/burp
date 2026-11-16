@@ -86,7 +86,7 @@ function regulatoryRules(available: ReadonlySet<string>): string {
   if (!available.has("regulatory__search_fda_approvals") && !available.has("regulatory__search_ema_medicines")) return "";
   return `## Regulatory Status
 
-- ChEMBL max_phase, Open Targets clinical stage (e.g. "APPROVAL", "PHASE_4") and trial registries are not regulatory status. Base every approved, withdrawn or not-approved claim on a regulatory tool result, and name the regulator, date and jurisdiction (e.g. "FDA approved 2025-10-23, BLA761440").
+- For any approved, withdrawn or not-approved claim (see Workflow Guideline 8), check the regulator with these tools: regulatory__search_fda_approvals for the US (label text via regulatory__get_fda_label) and regulatory__search_ema_medicines for the EU. Give the regulator, date and jurisdiction (e.g. "FDA approved 2025-10-23, BLA761440").
 - Your training data ends before today (the fetched_at line gives the current date), so approvals since then are missing from memory. To list the approved drugs for a disease, search by indication (regulatory__search_fda_approvals with indication; regulatory__search_ema_medicines with therapeutic_area), not only by drug names you remember.
 - No tool covers other regulators (China NMPA, Japan PMDA, national EU authorisations). Search PubMed (e.g. \`fulzerasib AND "first approval"\`), open the article, and cite it; otherwise say the status in that jurisdiction is unverified.
 
