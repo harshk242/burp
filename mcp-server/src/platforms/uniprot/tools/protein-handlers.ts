@@ -1,5 +1,6 @@
 import type { ToolHandler } from '../../../types.js';
 import { isRejectedLookup } from '../../../shared/exceptions.js';
+import { quoteQuery, reviewedQuery, searchSummaries } from '../search-fields.js';
 import { getClient } from '../client.js';
 
 function requireString(args: Record<string, unknown>, key: string, label: string): string {
@@ -13,11 +14,6 @@ function requireString(args: Record<string, unknown>, key: string, label: string
 function optString(args: Record<string, unknown>, key: string): string | undefined {
   const v = args[key];
   return typeof v === 'string' ? v : undefined;
-}
-
-function optNumber(args: Record<string, unknown>, key: string): number | undefined {
-  const v = args[key];
-  return typeof v === 'number' ? v : undefined;
 }
 
 async function fetchProtein(accession: string, format = 'json') {
@@ -180,41 +176,35 @@ const handleCompareProteins: ToolHandler = async (args) => {
 const handleGetProteinHomologs: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_homologs');
   const organism = optString(args, 'organism');
-  const size = optNumber(args, 'size') ?? 25;
+  const size = args.size;
 
   const protein = await fetchProtein(accession);
 
-  let query = 'reviewed:true';
+  let query = reviewedQuery(args);
   if (protein.proteinDescription?.recommendedName?.fullName?.value) {
-    query += ` AND (${protein.proteinDescription.recommendedName.fullName.value})`;
+    query += ` AND protein_name:${quoteQuery(protein.proteinDescription.recommendedName.fullName.value)}`;
   }
-  if (organism) query += ` AND organism_name:"${organism}"`;
-  query += ` NOT accession:"${accession}"`;
+  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
+  query += ` NOT accession:${quoteQuery(accession)}`;
 
-  const response = await getClient().get('/uniprotkb/search', {
-    params: { query, format: 'json', size },
-  });
-  return response.data;
+  return searchSummaries(query, size);
 };
 
 const handleGetProteinOrthologs: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_orthologs');
   const organism = optString(args, 'organism');
-  const size = optNumber(args, 'size') ?? 25;
+  const size = args.size;
 
   const protein = await fetchProtein(accession);
 
-  let query = 'reviewed:true';
+  let query = reviewedQuery(args);
   if (protein.genes?.[0]?.geneName?.value) {
-    query += ` AND gene:"${protein.genes[0].geneName.value}"`;
+    query += ` AND gene:${quoteQuery(protein.genes[0].geneName.value)}`;
   }
-  if (organism) query += ` AND organism_name:"${organism}"`;
-  query += ` NOT accession:"${accession}"`;
+  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
+  query += ` NOT accession:${quoteQuery(accession)}`;
 
-  const response = await getClient().get('/uniprotkb/search', {
-    params: { query, format: 'json', size },
-  });
-  return response.data;
+  return searchSummaries(query, size);
 };
 
 const handleGetPhylogeneticInfo: ToolHandler = async (args) => {

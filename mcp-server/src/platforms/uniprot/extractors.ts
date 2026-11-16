@@ -1,3 +1,5 @@
+import { quoteQuery } from './search-fields.js';
+
 export const SPECIES_MAP: Record<string, number> = {
   human: 9606,
   'homo sapiens': 9606,
@@ -37,7 +39,7 @@ export function resolveSpeciesFilter(
     if (SPECIES_MAP[lower]) {
       return `organism_id:${SPECIES_MAP[lower]}`;
     }
-    return `organism_name:"${trimmed}"`;
+    return `organism_name:${quoteQuery(trimmed)}`;
   });
 
   if (parts.length === 1) return parts[0];

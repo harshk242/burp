@@ -1,16 +1,18 @@
+import { SEARCH_SIZE_SCHEMA, REVIEWED_SCHEMA } from '../search-fields.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 export const tools: Tool[] = [
   {
     name: 'search_proteins',
-    description: 'Search UniProt database for proteins by name, keyword, or organism',
+    description: 'Search UniProt database for proteins by name, keyword, or organism. Returns compact summaries in JSON, TSV or XML (summary XML schema), or sequences in FASTA; use get_protein_info or other entry tools for details. Reviewed entries by default.',
     inputSchema: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Search query (protein name, keyword, or complex search)' },
         organism: { type: 'string', description: 'Organism name or taxonomy ID to filter results' },
-        size: { type: 'number', description: 'Number of results to return (1-500, default: 25)', minimum: 1, maximum: 500 },
-        format: { type: 'string', enum: ['json', 'tsv', 'fasta', 'xml'], description: 'Output format (default: json)' },
+        size: SEARCH_SIZE_SCHEMA,
+        reviewed: REVIEWED_SCHEMA,
+        format: { type: 'string', enum: ['json', 'tsv', 'fasta', 'xml'], description: 'Output format (default: json). XML contains summaries; FASTA returns at most 10 sequences.' },
       },
       required: ['query'],
     },
@@ -18,7 +20,7 @@ export const tools: Tool[] = [
   {
     name: 'search_by_gene',
     description:
-      'Search for proteins by gene name or symbol. Defaults to human (Homo sapiens) if no species specified.',
+      'Search for proteins by gene name or symbol. Defaults to human (Homo sapiens) if no species specified. Returns compact summaries; use get_protein_info or other entry tools for details. Reviewed entries by default.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -29,54 +31,58 @@ export const tools: Tool[] = [
           description:
             'Species to search. Accepts common names (human, mouse, rat), scientific names, or taxon IDs. Defaults to ["human"] if omitted.',
         },
-        size: { type: 'number', description: 'Number of results to return (1-500, default: 25)', minimum: 1, maximum: 500 },
+        size: SEARCH_SIZE_SCHEMA,
+        reviewed: REVIEWED_SCHEMA,
       },
       required: ['gene'],
     },
   },
   {
     name: 'search_by_function',
-    description: 'Search proteins by GO terms or functional annotations',
+    description: 'Search proteins by GO terms or functional annotations. Returns compact summaries; use get_protein_info or other entry tools for details. Reviewed entries by default.',
     inputSchema: {
       type: 'object',
       properties: {
         goTerm: { type: 'string', description: 'Gene Ontology term (e.g., GO:0005524)' },
         function: { type: 'string', description: 'Functional description or keyword' },
         organism: { type: 'string', description: 'Organism name or taxonomy ID to filter results' },
-        size: { type: 'number', description: 'Number of results to return (1-500, default: 25)', minimum: 1, maximum: 500 },
+        size: SEARCH_SIZE_SCHEMA,
+        reviewed: REVIEWED_SCHEMA,
       },
       required: [],
     },
   },
   {
     name: 'search_by_localization',
-    description: 'Find proteins by subcellular localization',
+    description: 'Find proteins by subcellular localization. Returns compact summaries; use get_protein_info or other entry tools for details. Reviewed entries by default.',
     inputSchema: {
       type: 'object',
       properties: {
         localization: { type: 'string', description: 'Subcellular localization (e.g., nucleus, mitochondria)' },
         organism: { type: 'string', description: 'Organism name or taxonomy ID to filter results' },
-        size: { type: 'number', description: 'Number of results to return (1-500, default: 25)', minimum: 1, maximum: 500 },
+        size: SEARCH_SIZE_SCHEMA,
+        reviewed: REVIEWED_SCHEMA,
       },
       required: ['localization'],
     },
   },
   {
     name: 'search_by_taxonomy',
-    description: 'Search by detailed taxonomic classification',
+    description: 'Search by detailed taxonomic classification. Returns compact summaries; use get_protein_info or other entry tools for details. Reviewed entries by default.',
     inputSchema: {
       type: 'object',
       properties: {
         taxonomyId: { type: 'number', description: 'NCBI taxonomy ID', minimum: 1 },
         taxonomyName: { type: 'string', description: 'Taxonomic name (e.g., Mammalia, Bacteria)' },
-        size: { type: 'number', description: 'Number of results to return (1-500, default: 25)', minimum: 1, maximum: 500 },
+        size: SEARCH_SIZE_SCHEMA,
+        reviewed: REVIEWED_SCHEMA,
       },
       required: [],
     },
   },
   {
     name: 'advanced_search',
-    description: 'Complex queries with multiple filters (length, mass, organism, function)',
+    description: 'Complex queries with multiple filters (length, mass, organism, function). Returns compact summaries; use get_protein_info or other entry tools for details. Reviewed entries by default.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -87,7 +93,8 @@ export const tools: Tool[] = [
         minMass: { type: 'number', description: 'Minimum molecular mass (Da)', minimum: 1 },
         maxMass: { type: 'number', description: 'Maximum molecular mass (Da)' },
         keywords: { type: 'array', items: { type: 'string' }, description: 'Array of keywords to include' },
-        size: { type: 'number', description: 'Number of results to return (1-500, default: 25)', minimum: 1, maximum: 500 },
+        size: SEARCH_SIZE_SCHEMA,
+        reviewed: REVIEWED_SCHEMA,
       },
       required: [],
     },
@@ -215,26 +222,28 @@ export const tools: Tool[] = [
   },
   {
     name: 'get_protein_homologs',
-    description: 'Find homologous proteins across different species',
+    description: 'Find homologous proteins across different species. Returns compact summaries; use get_protein_info or other entry tools for details. Reviewed entries by default.',
     inputSchema: {
       type: 'object',
       properties: {
         accession: { type: 'string', description: 'UniProt accession number' },
         organism: { type: 'string', description: 'Target organism to find homologs in' },
-        size: { type: 'number', description: 'Number of results to return (1-100, default: 25)', minimum: 1, maximum: 100 },
+        size: SEARCH_SIZE_SCHEMA,
+        reviewed: REVIEWED_SCHEMA,
       },
       required: ['accession'],
     },
   },
   {
     name: 'get_protein_orthologs',
-    description: 'Identify orthologous proteins for evolutionary studies',
+    description: 'Identify orthologous proteins for evolutionary studies. Returns compact summaries; use get_protein_info or other entry tools for details. Reviewed entries by default.',
     inputSchema: {
       type: 'object',
       properties: {
         accession: { type: 'string', description: 'UniProt accession number' },
         organism: { type: 'string', description: 'Target organism to find orthologs in' },
-        size: { type: 'number', description: 'Number of results to return (1-100, default: 25)', minimum: 1, maximum: 100 },
+        size: SEARCH_SIZE_SCHEMA,
+        reviewed: REVIEWED_SCHEMA,
       },
       required: ['accession'],
     },

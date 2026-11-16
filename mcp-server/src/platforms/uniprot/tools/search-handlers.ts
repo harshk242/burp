@@ -1,5 +1,5 @@
 import type { ToolHandler } from '../../../types.js';
-import { getClient } from '../client.js';
+import { quoteQuery, reviewedQuery, searchSummaries } from '../search-fields.js';
 import { resolveSpeciesFilter } from '../extractors.js';
 
 function requireString(args: Record<string, unknown>, key: string, label: string): string {
@@ -28,39 +28,29 @@ function optStringArray(args: Record<string, unknown>, key: string): string[] | 
 const handleSearchProteins: ToolHandler = async (args) => {
   const query_base = requireString(args, 'query', 'search_proteins');
   const organism = optString(args, 'organism');
-  const size = optNumber(args, 'size') ?? 25;
+  const size = args.size;
   const format = optString(args, 'format') ?? 'json';
 
-  let query = query_base;
+  let query = `${reviewedQuery(args)} AND (${query_base})`;
   if (organism) {
-    query += ` AND organism_name:"${organism}"`;
+    query += ` AND organism_name:${quoteQuery(organism)}`;
   }
 
-  const response = await getClient().get('/uniprotkb/search', {
-    params: { query, format, size },
-  });
-
-  return typeof response.data === 'object'
-    ? response.data
-    : String(response.data);
+  return searchSummaries(query, size, format);
 };
 
 const handleSearchByGene: ToolHandler = async (args) => {
   const gene = requireString(args, 'gene', 'search_by_gene');
   const species = optStringArray(args, 'species');
-  const size = optNumber(args, 'size') ?? 25;
+  const size = args.size;
 
-  let query = `gene:"${gene}"`;
+  let query = `${reviewedQuery(args)} AND gene:${quoteQuery(gene)}`;
   const speciesFilter = resolveSpeciesFilter(species);
   if (speciesFilter) {
     query += ` AND ${speciesFilter}`;
   }
 
-  const response = await getClient().get('/uniprotkb/search', {
-    params: { query, format: 'json', size },
-  });
-
-  return response.data;
+  return searchSummaries(query, size);
 };
 
 const handleSearchByFunction: ToolHandler = async (args) => {
@@ -71,31 +61,25 @@ const handleSearchByFunction: ToolHandler = async (args) => {
   }
 
   const organism = optString(args, 'organism');
-  const size = optNumber(args, 'size') ?? 25;
+  const size = args.size;
 
-  let query = 'reviewed:true';
-  if (goTerm) query += ` AND go:${goTerm.replace(/^GO:/i, '')}`;
-  if (func) query += ` AND (cc_function:"${func}" OR ft_act_site:"${func}")`;
-  if (organism) query += ` AND organism_name:"${organism}"`;
+  let query = reviewedQuery(args);
+  if (goTerm) query += ` AND go:${quoteQuery(goTerm.replace(/^GO:/i, ''))}`;
+  if (func) query += ` AND (cc_function:${quoteQuery(func)} OR ft_act_site:${quoteQuery(func)})`;
+  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
 
-  const response = await getClient().get('/uniprotkb/search', {
-    params: { query, format: 'json', size },
-  });
-  return response.data;
+  return searchSummaries(query, size);
 };
 
 const handleSearchByLocalization: ToolHandler = async (args) => {
   const localization = requireString(args, 'localization', 'search_by_localization');
   const organism = optString(args, 'organism');
-  const size = optNumber(args, 'size') ?? 25;
+  const size = args.size;
 
-  let query = `reviewed:true AND cc_subcellular_location:"${localization}"`;
-  if (organism) query += ` AND organism_name:"${organism}"`;
+  let query = `${reviewedQuery(args)} AND cc_subcellular_location:${quoteQuery(localization)}`;
+  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
 
-  const response = await getClient().get('/uniprotkb/search', {
-    params: { query, format: 'json', size },
-  });
-  return response.data;
+  return searchSummaries(query, size);
 };
 
 const handleSearchByTaxonomy: ToolHandler = async (args) => {
@@ -105,16 +89,13 @@ const handleSearchByTaxonomy: ToolHandler = async (args) => {
     throw new Error('search_by_taxonomy requires at least one of taxonomyId or taxonomyName');
   }
 
-  const size = optNumber(args, 'size') ?? 25;
+  const size = args.size;
 
-  let query = 'reviewed:true';
+  let query = reviewedQuery(args);
   if (taxonomyId !== undefined) query += ` AND taxonomy_id:"${taxonomyId}"`;
-  if (taxonomyName) query += ` AND taxonomy_name:"${taxonomyName}"`;
+  if (taxonomyName) query += ` AND taxonomy_name:${quoteQuery(taxonomyName)}`;
 
-  const response = await getClient().get('/uniprotkb/search', {
-    params: { query, format: 'json', size },
-  });
-  return response.data;
+  return searchSummaries(query, size);
 };
 
 const handleAdvancedSearch: ToolHandler = async (args) => {
@@ -125,11 +106,11 @@ const handleAdvancedSearch: ToolHandler = async (args) => {
   const minMass = optNumber(args, 'minMass');
   const maxMass = optNumber(args, 'maxMass');
   const keywords = optStringArray(args, 'keywords');
-  const size = optNumber(args, 'size') ?? 25;
+  const size = args.size;
 
-  let query = 'reviewed:true';
+  let query = reviewedQuery(args);
   if (baseQuery) query += ` AND (${baseQuery})`;
-  if (organism) query += ` AND organism_name:"${organism}"`;
+  if (organism) query += ` AND organism_name:${quoteQuery(organism)}`;
 
   if (minLength !== undefined || maxLength !== undefined) {
     const lo = minLength ?? '*';
@@ -143,14 +124,11 @@ const handleAdvancedSearch: ToolHandler = async (args) => {
   }
   if (keywords) {
     for (const kw of keywords) {
-      query += ` AND keyword:"${kw}"`;
+      query += ` AND keyword:${quoteQuery(kw)}`;
     }
   }
 
-  const response = await getClient().get('/uniprotkb/search', {
-    params: { query, format: 'json', size },
-  });
-  return response.data;
+  return searchSummaries(query, size);
 };
 
 export const searchHandlers: Record<string, ToolHandler> = {
