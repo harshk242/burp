@@ -110,7 +110,7 @@ function writeLog(
         if (frame) line += ` stack="${frame.trim().replace(/"/g, '\\"')}"`;
       }
     } else {
-      line += ` error="${String(opts.error).replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
+      line += ` error="${opts.error.replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
     }
   }
 

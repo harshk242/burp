@@ -28,7 +28,7 @@ let last: Capture | null = null;
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
   fetch: async (url, init) => {
-    const body = JSON.parse(String(init?.body));
+    const body = JSON.parse((init?.body as string));
     const headers = new Headers(init?.headers);
     const res = await fetch(url, init);
     last = { status: res.status, beta: headers.get("anthropic-beta"), body };

@@ -23,7 +23,7 @@ const providerOptions = chatProviderOptions({ ...config, effort: EFFORT });
 interface Req { raw: string; body: any; status: number; errorText?: string; signal?: AbortSignal | null }
 const requests: Req[] = [];
 const loggingFetch = (async (url: string | URL | Request, init?: RequestInit) => {
-  const req: Req = { raw: String(init?.body), body: JSON.parse(String(init?.body)), status: -1, signal: init?.signal };
+  const req: Req = { raw: (init?.body as string), body: JSON.parse((init?.body as string)), status: -1, signal: init?.signal };
   requests.push(req);
   const res = await fetch(url, init);
   req.status = res.status;
@@ -71,7 +71,7 @@ async function call(label: string, tools: Record<string, Tool>, messages: ModelM
   if (opts.signal?.aborted) {
     c = { label, status: req?.status ?? -1, req, aborted: true, toolCalls: [], responseMessages: [] };
   } else if (streamError !== undefined) {
-    const msg = streamError instanceof Error ? streamError.message : String(streamError);
+    const msg = streamError instanceof Error ? streamError.message : typeof streamError === "string" ? streamError : JSON.stringify(streamError);
     c = { label, status: req?.status ?? -1, req, error: `${msg}${req?.errorText ? ` | ${req.errorText.slice(0, 400)}` : ""}`, toolCalls: [], responseMessages: [] };
   } else {
     const step = await result.finalStep;

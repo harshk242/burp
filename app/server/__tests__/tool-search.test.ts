@@ -155,7 +155,7 @@ describe("search dispatch", () => {
     const activeTools: Record<string, Tool> = {};
     const { result } = await dispatch("google", activeTools);
 
-    const shown = (result.record?.output as { tools: { name: string }[] }).tools.map((x) => x.name);
+    const shown = (result.record!.output as { tools: { name: string }[] }).tools.map((x) => x.name);
     expect(Object.keys(activeTools).sort()).toEqual([...shown].sort());
     expect(shown).toEqual(HITS.map((n) => n.replace(/-/g, "_")));
   });
@@ -169,7 +169,7 @@ describe("Anthropic request body", () => {
     const anthropic = createAnthropic({
       apiKey: "test",
       fetch: (async (_url: unknown, init?: RequestInit) => {
-        body = JSON.parse(String(init?.body));
+        body = JSON.parse((init?.body as string));
         return new Response("{}", { status: 500 });
       }) as typeof fetch,
     });

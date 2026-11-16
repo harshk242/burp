@@ -12,11 +12,13 @@ interface Call {
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
 
+const href = (url: string | URL | Request) => (url instanceof Request ? url.url : url.toString());
+
 function openaiFetch(vector: number[] | ((i: number) => unknown)) {
   const calls: Call[] = [];
   const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body));
-    calls.push({ url: String(url), body, headers: new Headers(init?.headers) });
+    const body = JSON.parse((init?.body as string));
+    calls.push({ url: href(url), body, headers: new Headers(init?.headers) });
     const inputs: string[] = body.input;
     return json({
       object: "list",
@@ -31,9 +33,9 @@ function openaiFetch(vector: number[] | ((i: number) => unknown)) {
 function googleFetch(vector: number[]) {
   const calls: Call[] = [];
   const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body));
-    calls.push({ url: String(url), body, headers: new Headers(init?.headers) });
-    if (String(url).includes(":batchEmbedContents")) {
+    const body = JSON.parse((init?.body as string));
+    calls.push({ url: href(url), body, headers: new Headers(init?.headers) });
+    if (href(url).includes(":batchEmbedContents")) {
       return json({ embeddings: body.requests.map(() => ({ values: vector })) });
     }
     return json({ embedding: { values: vector } });
@@ -169,16 +171,17 @@ describe("query deadline", () => {
   });
 
   it("aborts the request when the caller's signal aborts", async () => {
-    let signal: AbortSignal | undefined;
+    const requested = Promise.withResolvers<AbortSignal>();
     const fetch = ((_url: unknown, init?: RequestInit) => {
-      signal = init!.signal!;
-      return new Promise((_, reject) => signal!.addEventListener("abort", () => reject(signal!.reason)));
+      const signal = init!.signal!;
+      requested.resolve(signal);
+      return new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
     }) as unknown as typeof globalThis.fetch;
     const embedder = createEmbedder(OPENAI, { env: { OPENAI_API_KEY: "sk" }, fetch, queryTimeoutMs: 10_000 })!;
     const caller = new AbortController();
 
     const query = embedder.embedQuery("q", caller.signal);
-    while (!signal) await Bun.sleep(0);
+    const signal = await requested.promise;
     caller.abort(new Error("user went away"));
 
     await expect(query).rejects.toThrow("user went away");

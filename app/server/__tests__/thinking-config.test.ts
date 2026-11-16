@@ -63,7 +63,7 @@ describe("Anthropic request body", () => {
     const anthropic = createAnthropic({
       apiKey: "test",
       fetch: (async (_url: unknown, init?: RequestInit) => {
-        body = JSON.parse(String(init?.body));
+        body = JSON.parse((init?.body as string));
         return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "stub" } }), {
           status: 400,
           headers: { "content-type": "application/json" },

@@ -65,7 +65,8 @@ function introspect(
     );
   }
 
-  return String(value);
+  if (typeof value === "bigint" || typeof value === "symbol") return value.toString();
+  return "[function]";
 }
 
 function introspectArray(

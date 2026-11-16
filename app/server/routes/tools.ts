@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { ToolListSchema, ToolSearchQuerySchema, ErrorSchema, MCPToolSchema } from "../schemas";
+import { ToolListSchema, ToolSearchQuerySchema, ErrorSchema } from "../schemas";
 import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import { toolRegistry } from "../mcp/registry";
 import { mcpManager } from "../mcp/manager";

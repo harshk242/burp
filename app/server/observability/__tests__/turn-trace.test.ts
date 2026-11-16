@@ -224,7 +224,7 @@ describe("shutdownTracing", () => {
       try {
         await expect(shutdownTracing({ timeoutMs: 200 })).resolves.toBeUndefined();
         expect(clientShutdown).toHaveBeenCalledTimes(1);
-        expect(warn.mock.calls.filter(([, event]) => event === "shutdown_failed").map(([, , opts]) => opts?.data?.component).sort())
+        expect(warn.mock.calls.filter(([, event]) => event === "shutdown_failed").map(([, , opts]) => String(opts?.data?.component)).sort())
           .toEqual(["score_client", "tracer_provider"]);
       } finally { warn.mockRestore(); clientShutdown.mockRestore(); }
     } finally {

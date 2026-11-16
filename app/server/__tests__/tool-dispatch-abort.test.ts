@@ -104,12 +104,12 @@ describe("dispatchToolCall abort", () => {
 
   it("search tool: an abort mid-search releases dispatch even if the embedder ignores it", async () => {
     const turn = new AbortController();
-    let received: AbortSignal | undefined;
+    const received = Promise.withResolvers<AbortSignal | undefined>();
     hybridSearch.attachEmbeddings(
       {
         id: "stalled",
         embedQuery(_text, signal) {
-          received = signal;
+          received.resolve(signal);
           return new Promise(() => {});
         },
       },
@@ -118,13 +118,13 @@ describe("dispatchToolCall abort", () => {
     const activeTools: Record<string, Tool> = {};
 
     const pending = run(SEARCH, turn, activeTools);
-    while (!received) await Bun.sleep(0);
+    const receivedSignal = await received.promise;
     const started = performance.now();
     turn.abort();
     const { events, error } = await pending;
 
     expect(performance.now() - started).toBeLessThan(1000);
-    expect(received).toBe(turn.signal);
+    expect(receivedSignal).toBe(turn.signal);
     expect(events.map((e) => e.type)).toEqual(["tool_start"]);
     expect(error).toBe(turn.signal.reason);
     expect(Object.keys(activeTools)).toEqual([]);

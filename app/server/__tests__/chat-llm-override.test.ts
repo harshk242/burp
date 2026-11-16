@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } fr
 import { MockLanguageModelV4 } from "ai/test";
 import { createTestDb } from "../__test-utils__/db";
 import { createQueries } from "../db/queries";
-import { chatProviderOptions, loadLLMConfig, sanitizeToolName, type ModelOptions } from "../llm";
+import { chatProviderOptions, loadLLMConfig, type ModelOptions } from "../llm";
 import { mcpManager } from "../mcp/manager";
 import { ALWAYS_LOADED_TOOLS } from "../mcp/platforms.config";
 import { toolRegistry } from "../mcp/registry";

@@ -255,7 +255,10 @@ describe("arm loop", () => {
       log: (line) => log.push(line),
       runOne: async (arm, r) => {
         let skipped = 0;
-        for (let i = 0; i < 3; i++) b.exhausted ? skipped++ : b.spent++;
+        for (let i = 0; i < 3; i++) {
+      if (b.exhausted) skipped++;
+      else b.spent++;
+    }
         return { label: `${arm}${r}`, skipped, missing: 0 };
       },
     });
@@ -276,7 +279,10 @@ describe("arm loop", () => {
       interruption: cutBy,
       runOne: async (arm, r) => {
         let skipped = 0;
-        for (let i = 0; i < 3; i++) b.exhausted ? skipped++ : b.spent++;
+        for (let i = 0; i < 3; i++) {
+      if (b.exhausted) skipped++;
+      else b.spent++;
+    }
         return { label: `${arm}${r}`, skipped, missing: 0 };
       },
     });

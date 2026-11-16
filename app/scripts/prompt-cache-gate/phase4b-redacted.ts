@@ -38,7 +38,7 @@ export async function checkRedactedOffline(): Promise<{ pass: boolean; detail: s
   const second = streamText({
     model: getChatModel({
       fetch: (async (_url: unknown, init?: RequestInit) => {
-        body = JSON.parse(String(init?.body));
+        body = JSON.parse((init?.body as string));
         return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "gate: captured" } }), { status: 400 });
       }) as unknown as typeof fetch,
     }),

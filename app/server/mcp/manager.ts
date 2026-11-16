@@ -35,7 +35,7 @@ export const MCP_SERVERS: MCPServerConfig[] = [
 function isRequestTimeout(error: unknown, timeoutMs: number): boolean {
   return (
     error instanceof McpError &&
-    error.code === ErrorCode.RequestTimeout &&
+    error.code === (ErrorCode.RequestTimeout as number) &&
     (error.data as { timeout?: unknown } | undefined)?.timeout === timeoutMs
   );
 }
@@ -191,14 +191,16 @@ export class MCPManager {
       if (server.transport) {
         await server.transport.close();
       }
-    } catch (error) {
+    } catch {
+      // Best-effort shutdown: the transport may already be closed.
     }
 
     try {
       if (server.client) {
         await server.client.close();
       }
-    } catch (error) {
+    } catch {
+      // Best-effort shutdown: the client may already be closed.
     }
 
     server.client = null;
@@ -251,7 +253,11 @@ export class MCPManager {
   private startRetryLoop(): void {
     if (this.retryIntervalId) return;
 
-    this.retryIntervalId = setInterval(() => this.retryDueServers(), 5000);
+    this.retryIntervalId = setInterval(() => {
+      this.retryDueServers().catch((error: unknown) => {
+        logger.error("MCP", "server_retry_loop_failed", { error: error instanceof Error ? error : String(error) });
+      });
+    }, 5000);
   }
 
   async retryDueServers(now = new Date()): Promise<void> {

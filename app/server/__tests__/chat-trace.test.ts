@@ -371,7 +371,7 @@ describe("upstream retry metadata on the tool span", () => {
     expect(tool.attributes[metadata("upstream_outcome")]).toBe("failed");
     expect(json(tool, metadata("upstream_retry"))).toEqual(retry);
     const end = events.find((e) => e.type === "tool_end");
-    expect((end?.data as { error?: string }).error).toBe(errorJson);
+    expect((end?.data as { error?: string } | undefined)?.error).toBe(errorJson);
     expectClosed();
   });
 

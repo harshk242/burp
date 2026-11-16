@@ -371,7 +371,7 @@ describe("model transcript on a real Anthropic stream", () => {
     realModel = (options) => createAnthropic({ apiKey: "test", fetch: options?.fetch })("claude-sonnet-5-5");
     const bodies: string[] = [];
     spyOn(globalThis, "fetch").mockImplementation((async (_url: unknown, init?: RequestInit) => {
-      bodies.push(String(init?.body));
+      bodies.push((init?.body as string));
       return new Response(bodies.length === 1 ? call1 : call2, { status: 200, headers: { "content-type": "text/event-stream" } });
     }) as unknown as typeof fetch);
 

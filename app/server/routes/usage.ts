@@ -47,7 +47,7 @@ A limit of -1 means unlimited (admin users).`,
 
 usage.openapi(getUsageRoute, async (c) => {
   const userId = c.get("userId") as string;
-  const role = c.get("role") as string;
+  const role = c.get("role");
   const dbUser = c.get("dbUser")!;
 
   const limits = resolveEffectiveLimits(dbUser, role, rateLimitQueries.getForRole(role));

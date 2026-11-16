@@ -13,7 +13,7 @@ import {
 
 export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
   const userId = c.get("userId") as string;
-  const role = c.get("role") as string;
+  const role = c.get("role");
   const dbUser = c.get("dbUser")!;
 
   const resetAt = getNextUtcMidnight();

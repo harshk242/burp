@@ -16,7 +16,7 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 function freePort(): number {
   const probe = Bun.serve({ port: 0, fetch: () => new Response() });
   const port = probe.port!;
-  probe.stop(true);
+  void probe.stop(true);
   return port;
 }
 
@@ -64,7 +64,7 @@ async function withServer(dbPath: string, actAs: string, fn: (api: Api) => Promi
     await fn((path, init = {}) =>
       fetch(`${base}/api${path}`, {
         ...init,
-        headers: { Authorization: `Bearer ${TOKEN}`, "content-type": "application/json", ...init.headers },
+        headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json", ...Object.fromEntries(new Headers(init.headers)) },
       })
     );
   } finally {

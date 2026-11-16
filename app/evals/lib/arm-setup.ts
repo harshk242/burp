@@ -13,7 +13,7 @@ export interface PreparedArms {
 
 function assertPricing(provider: string, models: string[]): void {
   const missing: string[] = [];
-  for (const model of [...new Set(models)]) {
+  for (const model of new Set(models)) {
     try {
       assertPricingConfigured(provider, model);
     } catch (error) {
