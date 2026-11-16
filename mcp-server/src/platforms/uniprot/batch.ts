@@ -1,5 +1,5 @@
 import { getClient } from './client.js';
-import { SEARCH_FIELDS, summarizeSearch } from './search-fields.js';
+import { SEARCH_FIELDS, summarizeSearch, type UniProtSearchSummary } from './search-fields.js';
 
 // UniProt's documented accession pattern (https://www.uniprot.org/help/accession_numbers)
 // plus an optional isoform suffix such as P04637-2.
@@ -44,11 +44,11 @@ async function fetchInactive(accessions: string[]): Promise<Map<string, Inactive
   return inactive;
 }
 
-async function summaries(accessions: string[]): Promise<Map<string, any>> {
-  const found = new Map<string, any>();
+async function summaries(accessions: string[]): Promise<Map<string, UniProtSearchSummary>> {
+  const found = new Map<string, UniProtSearchSummary>();
   if (accessions.length === 0) return found;
   for (const summary of summarizeSearch(await fetchAccessions(accessions, 'json', SEARCH_FIELDS)).results) {
-    if (summary.accession) found.set(String(summary.accession).toUpperCase(), summary);
+    if (summary.accession) found.set(summary.accession.toUpperCase(), summary);
   }
   return found;
 }

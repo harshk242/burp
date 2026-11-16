@@ -1,3 +1,6 @@
+import type PdfMake from 'pdfmake/build/pdfmake';
+import type RemarkGfm from 'remark-gfm';
+import type RemarkParse from 'remark-parse';
 import { PAGE_MARGINS, pdfStyles, buildTitleBlock, buildFooter } from './styles';
 import { mdastToPdfmakeContent, type Root } from './mdastToPdfmake';
 
@@ -9,6 +12,11 @@ function sanitizeFilename(title: string): string {
     .replace(/\s+/g, '-')
     .slice(0, 100);
   return sanitized || 'chat-export';
+}
+
+/** Next.js may hand back a CJS/UMD module either as its exports or wrapped as { default: exports }. */
+function interopDefault<T>(mod: T | { default?: T }): T {
+  return ((mod as { default?: T }).default ?? mod) as T;
 }
 
 export async function generatePdfFromMarkdown(
@@ -26,19 +34,19 @@ export async function generatePdfFromMarkdown(
     ]);
 
   // pdfmake is CJS — Next.js dynamic import wraps it as { default: cjsExports }.
-  const pdfMake = (pdfMod as any).default ?? pdfMod;
-  const remarkParse = (remarkParseMod as any).default ?? remarkParseMod;
+  const pdfMake = interopDefault<typeof PdfMake>(pdfMod);
+  const remarkParse = interopDefault<typeof RemarkParse>(remarkParseMod);
   const { unified } = unifiedMod;
-  const remarkGfm = (remarkGfmMod as any).default ?? remarkGfmMod;
+  const remarkGfm = interopDefault<typeof RemarkGfm>(remarkGfmMod);
 
   // vfs_fonts.js only self-registers when window.pdfMake exists (UMD side-effect).
-  const robotoVfs = (vfsFontsMod as any).default ?? vfsFontsMod;
+  const robotoVfs = interopDefault<Record<string, unknown>>(vfsFontsMod);
   pdfMake.addVirtualFileSystem(robotoVfs);
 
-  const courier = (courierMod as any).default ?? courierMod;
+  const courier = interopDefault<{ vfs: Record<string, unknown>; fonts: Record<string, unknown> }>(courierMod);
   pdfMake.addFontContainer(courier);
 
-  // remark-parse is loaded as `any`, so parse() is typed as a generic unist Node.
+  // The converter reads a small subset of mdast fields (see MdNode).
   const tree = unified().use(remarkParse).use(remarkGfm).parse(markdown) as Root;
 
   const body = mdastToPdfmakeContent(tree);

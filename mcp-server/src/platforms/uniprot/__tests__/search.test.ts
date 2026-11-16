@@ -14,7 +14,7 @@ const entry = {
   organism: { scientificName: 'Homo sapiens', taxonId: 9606, lineage: ['unneeded'] },
   sequence: { length: 393, value: 'unneeded' },
   comments: [{ commentType: 'FUNCTION', texts: [{ value: 'x'.repeat(1000), evidences: ['unneeded'] }] }],
-  references: ['unneeded'],
+  references: [{ title: 'unneeded' }],
 };
 
 function mockSearch(text = '', options: { results?: unknown[]; headers?: Record<string, string>; source?: unknown } = {}) {
@@ -97,9 +97,10 @@ describe('summary projection', () => {
   it('handles empty searches and sparse unreviewed entries', () => {
     expect(summarizeSearch({ results: [] })).toEqual({ results: [] });
     const unreviewed = summarizeSearch({ results: [{
+      primaryAccession: 'A0A000',
       entryType: 'UniProtKB unreviewed (TrEMBL)',
       proteinDescription: { submissionNames: [{ fullName: { value: 'Submitted name' } }] },
-    }] }).results[0];
+    }] }).results[0]!;
     expect(unreviewed).toMatchObject({ reviewed: false, proteinName: 'Submitted name', geneNames: [] });
     expect(unreviewed.function).toBeUndefined();
   });

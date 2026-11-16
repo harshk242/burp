@@ -1,6 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
+import type { ChemblMolecule } from '../types.js';
 
 export const tools: Tool[] = [
   {
@@ -75,7 +76,7 @@ async function handleSearchDrugs(args: Record<string, unknown>) {
   }
   const response = await client.get('/molecule/search.json', { params });
   const molecules = response.data.molecules || [];
-  const drugs = molecules.filter((m: any) => m.max_phase && m.max_phase >= 1);
+  const drugs = molecules.filter((m: ChemblMolecule) => Number(m.max_phase) >= 1);
 
   return {
     query: args.query,

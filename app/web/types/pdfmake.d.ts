@@ -1,19 +1,19 @@
 declare module 'pdfmake/build/pdfmake' {
   interface PdfMakeInstance {
-    createPdf(docDefinition: Record<string, any>): {
+    createPdf(docDefinition: Record<string, unknown>): {
       download(filename?: string): void;
       getBlob(cb: (blob: Blob) => void): void;
       getBuffer(cb: (buffer: Uint8Array) => void): void;
     };
     virtualfs: {
-      storage: Record<string, any>;
-      writeFileSync(filename: string, data: any, encoding?: string): void;
-      readFileSync(filename: string): any;
+      storage: Record<string, unknown>;
+      writeFileSync(filename: string, data: unknown, encoding?: string): void;
+      readFileSync(filename: string): unknown;
     };
     fonts: Record<string, Record<string, string>>;
-    addVirtualFileSystem(vfs: Record<string, any>): void;
-    addFontContainer(container: { vfs: Record<string, any>; fonts: Record<string, any> }): void;
-    addFonts(fonts: Record<string, any>): void;
+    addVirtualFileSystem(vfs: Record<string, unknown>): void;
+    addFontContainer(container: { vfs: Record<string, unknown>; fonts: Record<string, unknown> }): void;
+    addFonts(fonts: Record<string, unknown>): void;
   }
   const pdfMake: PdfMakeInstance;
   export = pdfMake;

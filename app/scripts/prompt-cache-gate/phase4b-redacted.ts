@@ -1,12 +1,13 @@
 import { streamText, type ModelMessage } from "ai";
 import { getChatModel } from "../../server/llm";
+import { assistantParts, bodyBlocks, parseWireBody, type WireBody } from "./gate-lib";
 
 export const REDACTED_TRIGGER = "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253";
 
 const DATA = "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2Xlxh0L5L8rLVyIwxtE3rAFBa8cr3qpPkNRj2YfWXGmKDxH4mPnZ5sQ7vB5URj/pa2ZBaGgVQjN7LkQ==";
 
-function sse(events: object[]): Response {
-  const text = events.map((e: any) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+function sse(events: { type: string }[]): Response {
+  const text = events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
   return new Response(text, { status: 200, headers: { "content-type": "text/event-stream" } });
 }
 
@@ -30,15 +31,14 @@ export async function checkRedactedOffline(): Promise<{ pass: boolean; detail: s
   for await (const _ of first.stream);
   const response = (await first.finalStep).response.messages;
   const parsed: ModelMessage[] = JSON.parse(JSON.stringify(response));
-  const parts = parsed.flatMap((m) => (m.role === "assistant" && Array.isArray(m.content) ? m.content : [])) as any[];
-  const reasoning = parts.find((p) => p.type === "reasoning");
+  const reasoning = assistantParts(parsed).find((p) => p.type === "reasoning");
   const kept = reasoning?.providerOptions?.anthropic?.redactedData === DATA;
 
-  let body: any;
+  let body: WireBody | undefined;
   const second = streamText({
     model: getChatModel({
       fetch: (async (_url: unknown, init?: RequestInit) => {
-        body = JSON.parse((init?.body as string));
+        body = parseWireBody(init?.body as string);
         return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "gate: captured" } }), { status: 400 });
       }) as unknown as typeof fetch,
     }),
@@ -47,8 +47,8 @@ export async function checkRedactedOffline(): Promise<{ pass: boolean; detail: s
     onError: () => {},
   });
   for await (const _ of second.stream);
-  const sent = (body?.messages ?? []).flatMap((m: any) => (Array.isArray(m.content) ? m.content : [])).filter((b: any) => b.type === "redacted_thinking");
-  const replayed = sent.length === 1 && sent[0].data === DATA;
+  const sent = bodyBlocks(body, "redacted_thinking");
+  const replayed = sent.length === 1 && sent[0]?.data === DATA;
   return {
     pass: kept && replayed,
     detail: `parsed reasoning part redactedData intact: ${kept}; replay body redacted_thinking blocks ${sent.length}, data intact: ${replayed}`,

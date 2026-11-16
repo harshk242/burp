@@ -1,6 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
+import type { ChemblActivity, ChemblCrossReference } from '../types.js';
 
 export const tools: Tool[] = [
   {
@@ -102,7 +103,7 @@ async function handleGetTargetCompounds(args: Record<string, unknown>) {
 
   const response = await client.get('/activity.json', { params });
   const activities = response.data.activities || [];
-  const compoundIds = [...new Set(activities.map((a: any) => a.molecule_chembl_id))];
+  const compoundIds = [...new Set(activities.map((a: ChemblActivity) => a.molecule_chembl_id))];
 
   return {
     target_chembl_id: args.target_chembl_id,
@@ -140,7 +141,7 @@ async function handleGetTargetPathways(args: Record<string, unknown>) {
     target_type: target.target_type,
     cross_references: target.cross_references || [],
     pathways: (target.cross_references || []).filter(
-      (ref: any) => ref.xref_src === 'Reactome' || ref.xref_src === 'KEGG' || ref.xref_src === 'WikiPathways',
+      (ref: ChemblCrossReference) => ref.xref_src === 'Reactome' || ref.xref_src === 'KEGG' || ref.xref_src === 'WikiPathways',
     ),
   };
 }

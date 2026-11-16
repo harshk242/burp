@@ -3,11 +3,9 @@ import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
 
 const isValidCompoundSearchArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { query: string; limit?: number; offset?: number } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.query === 'string' &&
     args.query.length > 0 &&
     (args.limit === undefined || (typeof args.limit === 'number' && args.limit > 0 && args.limit <= 1000)) &&
@@ -16,11 +14,9 @@ const isValidCompoundSearchArgs = (
 };
 
 const isValidSimilaritySearchArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { smiles: string; similarity?: number; limit?: number } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.smiles === 'string' &&
     args.smiles.length > 0 &&
     (args.similarity === undefined || (typeof args.similarity === 'number' && args.similarity >= 0 && args.similarity <= 1)) &&

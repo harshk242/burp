@@ -4,11 +4,9 @@ import { UpstreamError } from '../../../shared/exceptions.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidGeneArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { gene_id: string; species?: string; expand?: boolean } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.gene_id === 'string' &&
     args.gene_id.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
@@ -17,11 +15,9 @@ const isValidGeneArgs = (
 };
 
 const isValidTranscriptArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { gene_id: string; species?: string; canonical_only?: boolean } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.gene_id === 'string' &&
     args.gene_id.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
@@ -30,11 +26,9 @@ const isValidTranscriptArgs = (
 };
 
 const isValidSearchArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { query: string; species?: string; biotype?: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.query === 'string' &&
     args.query.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
@@ -43,15 +37,13 @@ const isValidSearchArgs = (
 };
 
 const isValidBatchArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { gene_ids: string[]; species?: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     Array.isArray(args.gene_ids) &&
     args.gene_ids.length > 0 &&
     args.gene_ids.length <= 200 &&
-    args.gene_ids.every((id: any) => typeof id === 'string' && id.length > 0) &&
+    args.gene_ids.every((id: unknown) => typeof id === 'string' && id.length > 0) &&
     (args.species === undefined || typeof args.species === 'string')
   );
 };
@@ -166,7 +158,7 @@ async function handleGetTranscripts(args: Record<string, unknown>) {
   let transcripts = gene.Transcript || [];
 
   if (args.canonical_only) {
-    transcripts = transcripts.filter((t: any) => t.is_canonical === 1);
+    transcripts = transcripts.filter((t: { is_canonical?: number }) => t.is_canonical === 1);
   }
 
   return {

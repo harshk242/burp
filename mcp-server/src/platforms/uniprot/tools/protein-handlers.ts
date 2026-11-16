@@ -6,6 +6,7 @@ import { ENTRY_FIELDS, EXPORT_FORMATS, fetchProtein, slimProteinInfo, stripEvide
 import { variantSummary } from '../variants.js';
 import { batchLookup } from '../batch.js';
 import { resolveOrganismFilter } from '../extractors.js';
+import type { UniProtEntry } from '../entry-types.js';
 
 function requireString(args: Record<string, unknown>, key: string, label: string): string {
   const v = args[key];
@@ -26,7 +27,7 @@ const handleGetProteinInfo: ToolHandler = async (args) => {
   const data = await fetchProtein(accession, format === 'xml' ? 'json' : format,
     ['json', 'xml', 'tsv'].includes(format) ? ENTRY_FIELDS.info : undefined);
   if (format === 'json' || format === 'xml') {
-    const slim = slimProteinInfo(data);
+    const slim = slimProteinInfo(data as UniProtEntry);
     return format === 'xml' ? new XMLBuilder({ format: false }).build({ protein: slim }) : slim;
   }
   return String(data);
@@ -36,7 +37,9 @@ const handleGetProteinSequence: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'get_protein_sequence');
   const format = optString(args, 'format') ?? 'fasta';
   const data = await fetchProtein(accession, format, format === 'json' ? ENTRY_FIELDS.sequence : undefined);
-  return format === 'json' ? { accession: data.primaryAccession, ...data.sequence } : String(data);
+  if (format !== 'json') return String(data);
+  const entry = data as UniProtEntry;
+  return { accession: entry.primaryAccession, ...entry.sequence };
 };
 
 const handleGetProteinFeatures: ToolHandler = async (args) => {
@@ -48,9 +51,9 @@ const handleGetProteinFeatures: ToolHandler = async (args) => {
     features: protein.features || [],
     comments: protein.comments || [],
     keywords: protein.keywords || [],
-    domains: protein.features?.filter((f: any) => f.type === 'Domain') || [],
-    activeSites: protein.features?.filter((f: any) => f.type === 'Active site') || [],
-    bindingSites: protein.features?.filter((f: any) => f.type === 'Binding site') || [],
+    domains: protein.features?.filter((f) => f.type === 'Domain') || [],
+    activeSites: protein.features?.filter((f) => f.type === 'Active site') || [],
+    bindingSites: protein.features?.filter((f) => f.type === 'Binding site') || [],
   };
 };
 
@@ -59,12 +62,12 @@ const handleGetProteinStructure: ToolHandler = async (args) => {
   const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.structure);
   return {
     accession: protein.primaryAccession,
-    pdbReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'PDB') || [],
+    pdbReferences: protein.uniProtKBCrossReferences?.filter((ref) => ref.database === 'PDB') || [],
     structuralFeatures:
-      protein.features?.filter((f: any) =>
+      protein.features?.filter((f) =>
         ['Turn', 'Helix', 'Beta strand'].includes(f.type),
       ) || [],
-    structuralComments: protein.comments?.filter((c: any) => c.commentType === 'SUBUNIT') || [],
+    structuralComments: protein.comments?.filter((c) => c.commentType === 'SUBUNIT') || [],
   };
 };
 
@@ -73,12 +76,12 @@ const handleGetProteinDomainsDetailed: ToolHandler = async (args) => {
   const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.domains);
   return {
     accession: protein.primaryAccession,
-    domains: protein.features?.filter((f: any) => f.type === 'Domain') || [],
-    regions: protein.features?.filter((f: any) => f.type === 'Region') || [],
-    repeats: protein.features?.filter((f: any) => f.type === 'Repeat') || [],
-    interproReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'InterPro') || [],
-    pfamReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'Pfam') || [],
-    smartReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'SMART') || [],
+    domains: protein.features?.filter((f) => f.type === 'Domain') || [],
+    regions: protein.features?.filter((f) => f.type === 'Region') || [],
+    repeats: protein.features?.filter((f) => f.type === 'Repeat') || [],
+    interproReferences: protein.uniProtKBCrossReferences?.filter((ref) => ref.database === 'InterPro') || [],
+    pfamReferences: protein.uniProtKBCrossReferences?.filter((ref) => ref.database === 'Pfam') || [],
+    smartReferences: protein.uniProtKBCrossReferences?.filter((ref) => ref.database === 'SMART') || [],
   };
 };
 
@@ -91,7 +94,7 @@ const handleGetProteinVariants: ToolHandler = async (args) => {
 const handleAnalyzeSequenceComposition: ToolHandler = async (args) => {
   const accession = requireString(args, 'accession', 'analyze_sequence_composition');
   const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.composition);
-  const sequence: string = protein.sequence?.value || '';
+  const sequence = protein.sequence?.value || '';
 
   const aaCount: Record<string, number> = {};
   const aaFreq: Record<string, number> = {};
@@ -122,10 +125,10 @@ const handleGetProteinPathways: ToolHandler = async (args) => {
   const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.pathways);
   return {
     accession: protein.primaryAccession,
-    keggReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'KEGG') || [],
-    reactomeReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'Reactome') || [],
-    pathwayComments: protein.comments?.filter((c: any) => c.commentType === 'PATHWAY') || [],
-    biologicalProcess: protein.comments?.filter((c: any) => c.commentType === 'FUNCTION') || [],
+    keggReferences: protein.uniProtKBCrossReferences?.filter((ref) => ref.database === 'KEGG') || [],
+    reactomeReferences: protein.uniProtKBCrossReferences?.filter((ref) => ref.database === 'Reactome') || [],
+    pathwayComments: protein.comments?.filter((c) => c.commentType === 'PATHWAY') || [],
+    biologicalProcess: protein.comments?.filter((c) => c.commentType === 'FUNCTION') || [],
   };
 };
 
@@ -134,10 +137,10 @@ const handleGetProteinInteractions: ToolHandler = async (args) => {
   const protein = await fetchProtein(accession, 'json', ENTRY_FIELDS.interactions);
   return {
     accession: protein.primaryAccession,
-    stringReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'STRING') || [],
-    intactReferences: protein.uniProtKBCrossReferences?.filter((ref: any) => ref.database === 'IntAct') || [],
-    interactionComments: protein.comments?.filter((c: any) => c.commentType === 'INTERACTION') || [],
-    subunitComments: protein.comments?.filter((c: any) => c.commentType === 'SUBUNIT') || [],
+    stringReferences: protein.uniProtKBCrossReferences?.filter((ref) => ref.database === 'STRING') || [],
+    intactReferences: protein.uniProtKBCrossReferences?.filter((ref) => ref.database === 'IntAct') || [],
+    interactionComments: protein.comments?.filter((c) => c.commentType === 'INTERACTION') || [],
+    subunitComments: protein.comments?.filter((c) => c.commentType === 'SUBUNIT') || [],
   };
 };
 
@@ -155,7 +158,7 @@ const handleCompareProteins: ToolHandler = async (args) => {
   const comparisons = [];
   for (const acc of accessions as string[]) {
     const protein = await fetchProtein(acc, 'json', ENTRY_FIELDS.compare);
-    const counts: Record<string, number> = protein.extraAttributes?.countByFeatureType || {};
+    const counts = protein.extraAttributes?.countByFeatureType || {};
     comparisons.push({
       accession: protein.primaryAccession,
       name: protein.uniProtkbId,
@@ -235,9 +238,9 @@ const handleGetExternalReferences: ToolHandler = async (args) => {
   return {
     accession: protein.primaryAccession,
     referenceCount: refs.length,
-    referencesByDatabase: Object.fromEntries([...new Set<string>(refs.map((ref: any) => ref.database))]
+    referencesByDatabase: Object.fromEntries([...new Set<string>(refs.map((ref) => ref.database))]
       .map(database => {
-        const references = stripEvidences(refs.filter((ref: any) => ref.database === database));
+        const references = stripEvidences(refs.filter((ref) => ref.database === database));
         return [database, { count: references.length, references }];
       })),
   };
@@ -249,7 +252,7 @@ const handleGetLiteratureReferences: ToolHandler = async (args) => {
   return {
     accession: protein.primaryAccession,
     references: protein.references || [],
-    pubmedReferences: (protein.references || []).flatMap((ref: any) => ref.citation?.citationCrossReferences || []).filter((ref: any) => ref.database === 'PubMed'),
+    pubmedReferences: (protein.references || []).flatMap((ref) => ref.citation?.citationCrossReferences || []).filter((ref) => ref.database === 'PubMed'),
     citationCount: protein.references?.length || 0,
   };
 };

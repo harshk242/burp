@@ -1,3 +1,4 @@
+import type * as Fuzzball from 'fuzzball';
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
 import { mapIds } from './meta.js';
@@ -6,7 +7,7 @@ import {
   SEARCH_ENTITIES_OPERATION,
 } from './operations.js';
 
-let fuzzball: any = null;
+let fuzzball: typeof Fuzzball | null = null;
 try {
   fuzzball = await import('fuzzball');
 } catch {

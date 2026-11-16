@@ -33,6 +33,7 @@
     "typescript/prefer-promise-reject-errors": ["error", { "allowThrowingAny": true, "allowThrowingUnknown": true }],
     "typescript/return-await": ["error", "in-try-catch"],
     "typescript/consistent-type-imports": "error",
+    "typescript/no-explicit-any": "error",
     "typescript/restrict-template-expressions": "off",
     "typescript/no-unsafe-type-assertion": "off",
 
@@ -54,6 +55,12 @@
     "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }]
   },
   "overrides": [
+    {
+      "files": ["**/__tests__/**", "**/__test-utils__/**", "**/*.test.ts", "**/*.contract.ts"],
+      "rules": {
+        "typescript/no-explicit-any": "off"
+      }
+    },
     {
       "files": ["**/__tests__/**", "**/__test-utils__/**"],
       "plugins": ["vitest"],

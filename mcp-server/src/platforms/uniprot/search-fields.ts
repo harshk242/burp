@@ -1,5 +1,6 @@
 import { XMLBuilder } from 'fast-xml-parser';
 import { getClient } from './client.js';
+import type { UniProtEntry, UniProtSearchResponse } from './entry-types.js';
 
 // Verified against /configure/uniprotkb/result-fields. JSON still includes nested
 // evidence and lineage for these fields, so project again before returning it.
@@ -48,35 +49,41 @@ function snippet(value: string | undefined, limit: number): string | undefined {
   return value.length > limit ? value.slice(0, limit - 1) + '…' : value;
 }
 
-export function summarizeSearch(data: any, totalResults?: number): {
-  totalResults?: number; results: any[]; hint?: string;
+function summarizeEntry(entry: UniProtEntry) {
+  return {
+    accession: entry.primaryAccession,
+    entryId: entry.uniProtkbId,
+    reviewed: entry.entryType === 'UniProtKB reviewed (Swiss-Prot)',
+    proteinName: snippet(
+      entry.proteinDescription?.recommendedName?.fullName?.value
+        ?? entry.proteinDescription?.submissionNames?.[0]?.fullName?.value
+        ?? entry.proteinDescription?.alternativeNames?.[0]?.fullName?.value, 300),
+    geneNames: [...new Set((entry.genes ?? []).flatMap((gene) =>
+      [gene.geneName, ...(gene.synonyms ?? []), ...(gene.orderedLocusNames ?? []), ...(gene.orfNames ?? [])]
+        .flatMap((name) => name?.value ? [name.value] : [])))].slice(0, 20),
+    organism: entry.organism?.scientificName,
+    taxonId: entry.organism?.taxonId,
+    length: entry.sequence?.length,
+    annotationScore: entry.annotationScore,
+    function: snippet(entry.comments?.find((c) => c.commentType === 'FUNCTION')
+      ?.texts?.[0]?.value, 300),
+  };
+}
+
+export type UniProtSearchSummary = ReturnType<typeof summarizeEntry>;
+
+export function summarizeSearch(data: UniProtSearchResponse, totalResults?: number): {
+  totalResults?: number; results: UniProtSearchSummary[]; hint?: string;
 } {
   return {
     ...(totalResults === undefined ? {} : { totalResults }),
-    results: (data.results ?? []).map((entry: any) => ({
-      accession: entry.primaryAccession,
-      entryId: entry.uniProtkbId,
-      reviewed: entry.entryType === 'UniProtKB reviewed (Swiss-Prot)',
-      proteinName: snippet(
-        entry.proteinDescription?.recommendedName?.fullName?.value
-          ?? entry.proteinDescription?.submissionNames?.[0]?.fullName?.value
-          ?? entry.proteinDescription?.alternativeNames?.[0]?.fullName?.value, 300),
-      geneNames: [...new Set<string>((entry.genes ?? []).flatMap((gene: any) =>
-        [gene.geneName, ...(gene.synonyms ?? []), ...(gene.orderedLocusNames ?? []), ...(gene.orfNames ?? [])]
-          .map((name: any) => name?.value).filter(Boolean)))].slice(0, 20),
-      organism: entry.organism?.scientificName,
-      taxonId: entry.organism?.taxonId,
-      length: entry.sequence?.length,
-      annotationScore: entry.annotationScore,
-      function: snippet(entry.comments?.find((c: any) => c.commentType === 'FUNCTION')
-        ?.texts?.[0]?.value, 300),
-    })),
+    results: (data.results ?? []).map(summarizeEntry),
   };
 }
 
 // UniProt reports the full hit count in X-Total-Results; without it the agent
 // cannot tell whether a page of summaries is complete.
-export function totalResultsHeader(headers: any): number | undefined {
+export function totalResultsHeader(headers: Record<string, unknown> | undefined): number | undefined {
   const raw = headers?.['x-total-results'];
   if (raw === undefined || raw === null || raw === '') return undefined;
   const total = Number(raw);

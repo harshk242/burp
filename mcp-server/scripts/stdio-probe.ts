@@ -96,7 +96,13 @@ void (async () => {
   for await (const chunk of proc.stderr) stderrTail = (stderrTail + new TextDecoder().decode(chunk)).slice(-4000);
 })();
 
-type Pending = { resolve: (msg: any) => void; reject: (err: Error) => void };
+interface RpcResponse {
+  jsonrpc: '2.0';
+  id: number;
+  result?: { tools?: { name: string }[]; content?: { text?: string }[]; isError?: boolean };
+  error?: unknown;
+}
+type Pending = { resolve: (msg: RpcResponse) => void; reject: (err: Error) => void };
 const pending = new Map<number, Pending>();
 const violations: string[] = [];
 
@@ -110,16 +116,16 @@ void (async () => {
       const line = buffer.slice(0, nl).replace(/\r$/, '');
       buffer = buffer.slice(nl + 1);
       if (!line.trim()) continue;
-      let msg: any;
+      let msg: unknown;
       try {
         msg = JSON.parse(line);
       } catch {
         violations.push(line);
         continue;
       }
-      if (msg?.jsonrpc !== '2.0') { violations.push(line); continue; }
-      if (typeof msg.id === 'number' && pending.has(msg.id) && !('method' in msg)) {
-        pending.get(msg.id)!.resolve(msg);
+      if (typeof msg !== 'object' || msg === null || !('jsonrpc' in msg) || msg.jsonrpc !== '2.0') { violations.push(line); continue; }
+      if ('id' in msg && typeof msg.id === 'number' && pending.has(msg.id) && !('method' in msg)) {
+        pending.get(msg.id)!.resolve(msg as RpcResponse);
         pending.delete(msg.id);
       }
     }
@@ -132,7 +138,7 @@ function send(payload: Record<string, unknown>) {
   proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...payload }) + '\n');
   proc.stdin.flush();
 }
-function request(method: string, params: Record<string, unknown>, timeoutMs: number): Promise<any> {
+function request(method: string, params: Record<string, unknown>, timeoutMs: number): Promise<RpcResponse> {
   const id = nextId++;
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -147,8 +153,8 @@ function request(method: string, params: Record<string, unknown>, timeoutMs: num
   });
 }
 
-function resultText(msg: any): string {
-  return (msg?.result?.content ?? []).map((c: any) => c?.text ?? '').join('');
+function resultText(msg: RpcResponse): string {
+  return (msg.result?.content ?? []).map((c) => c.text ?? '').join('');
 }
 
 async function main() {

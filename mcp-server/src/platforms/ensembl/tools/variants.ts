@@ -3,29 +3,25 @@ import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidVariantArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { region: string; species?: string; consequence_type?: string[] } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.region === 'string' &&
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
     (args.consequence_type === undefined ||
       (Array.isArray(args.consequence_type) &&
-        args.consequence_type.every((c: any) => typeof c === 'string')))
+        args.consequence_type.every((c: unknown) => typeof c === 'string')))
   );
 };
 
 const isValidVariantConsequenceArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { variants: string[]; species?: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     Array.isArray(args.variants) &&
     args.variants.length > 0 &&
-    args.variants.every((v: any) => typeof v === 'string' && v.length > 0) &&
+    args.variants.every((v: unknown) => typeof v === 'string' && v.length > 0) &&
     (args.species === undefined || typeof args.species === 'string')
   );
 };

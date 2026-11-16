@@ -4,6 +4,7 @@ import { UNIPROT_BASE_URL, UNIPROT_POLICY, createUniProtClient, initClient, rese
 
 import { ENTRY_FIELDS, INFO_FIELDS, stripEvidences } from '../entry-fields.js';
 import { SEARCH_FIELDS, summarizeSearch } from '../search-fields.js';
+import type { UniProtSearchResponse } from '../entry-types.js';
 import { proteinHandlers } from '../tools/protein-handlers.js';
 import { searchHandlers } from '../tools/search-handlers.js';
 
@@ -59,7 +60,7 @@ describe('UniProt REST API Contracts', () => {
       fields: SEARCH_FIELDS,
       size: '3',
     });
-    const summary = summarizeSearch(data);
+    const summary = summarizeSearch(data as UniProtSearchResponse);
     expect(summary.results.length).toBeGreaterThan(0);
     expect(summary.results.every((entry: any) => entry.accession && entry.reviewed)).toBe(true);
     await assertSchemaStable('uniprot/search-proteins.schema.json', summary);
@@ -72,7 +73,7 @@ describe('UniProt REST API Contracts', () => {
       fields: SEARCH_FIELDS,
       size: '3',
     });
-    const summary = summarizeSearch(data);
+    const summary = summarizeSearch(data as UniProtSearchResponse);
     expect(summary.results.length).toBeGreaterThan(0);
     expect(summary.results.every((entry: any) => entry.accession && entry.reviewed)).toBe(true);
     await assertSchemaStable('uniprot/search-by-gene.schema.json', summary);
@@ -86,7 +87,7 @@ describe('UniProt REST API Contracts', () => {
       fields: SEARCH_FIELDS,
       size: '3',
     });
-    const summary = summarizeSearch(data);
+    const summary = summarizeSearch(data as UniProtSearchResponse);
     expect(summary.results.length).toBeGreaterThan(0);
     expect(summary.results.every((entry: any) => entry.accession && entry.reviewed)).toBe(true);
     await assertSchemaStable('uniprot/search-by-function.schema.json', summary);

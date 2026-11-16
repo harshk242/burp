@@ -3,11 +3,9 @@ import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidRegulatoryArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { region: string; species?: string; feature_type?: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.region === 'string' &&
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
@@ -16,11 +14,9 @@ const isValidRegulatoryArgs = (
 };
 
 const isValidMotifArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { region: string; species?: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.region === 'string' &&
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string')
@@ -82,7 +78,7 @@ async function handleGetRegulatoryFeatures(args: Record<string, unknown>) {
 
   const response = await getClient().get(`/overlap/region/${species}/${region}`, { params });
 
-  const data = args.feature_type ? response.data.filter((row: any) =>
+  const data = args.feature_type ? response.data.filter((row: { description?: unknown }) =>
     String(row.description).toLowerCase() === args.feature_type!.toLowerCase()) : response.data;
 
   if (Array.isArray(data) && data.length === 0) {

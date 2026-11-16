@@ -3,11 +3,9 @@ import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidAssemblyArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { species?: string; bands?: boolean } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     (args.species === undefined || typeof args.species === 'string') &&
     (args.bands === undefined || typeof args.bands === 'boolean')
   );

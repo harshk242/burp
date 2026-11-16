@@ -4,10 +4,42 @@ import { getToolCallContext } from '../../shared/tool-call-context.js';
 import { getClient } from './client.js';
 
 export const SEARCH_TYPES = ['Pathway', 'Reaction', 'Protein', 'Complex'] as const;
-const clean = (name: any): string => String(Array.isArray(name) ? name[0] : name ?? 'Unknown').replace(/<[^>]*>/g, '');
-const speciesName = (item: any) => item.speciesName ?? item.species?.[0]?.displayName ?? item.species?.[0]?.name ?? item.species?.[0];
-const entries = (data: any): any[] => (data.results ?? []).flatMap((g: any) => g.entries ?? []);
-const entity = (item: any) => ({
+const REACTION_CLASSES = new Set(['Reaction', 'BlackBoxEvent', 'Polymerisation', 'Depolymerisation']);
+
+// Fields of Reactome ContentService records the handlers read; everything else passes through.
+type ReactomeName = string | string[];
+interface ReactomeItem {
+  stId?: string;
+  dbId?: number;
+  displayName?: ReactomeName;
+  name?: ReactomeName;
+  schemaClass?: string;
+  type?: string;
+  exactType?: string;
+  speciesName?: string;
+  species?: (string | { displayName?: string; name?: string })[];
+  hasEvent?: ReactomeItem[];
+}
+interface ReactomeSearchResult {
+  numberOfMatches?: number;
+  results?: { entries?: ReactomeItem[] }[];
+}
+interface ReactomeReferenceEntity {
+  databaseName?: string;
+  identifier: string;
+  name?: ReactomeName;
+}
+interface ReactomeInteractors {
+  entities?: { acc: string; interactors?: { acc: string; alias?: ReactomeName; score?: number; evidences?: number }[] }[];
+}
+
+const clean = (name: unknown): string => String(Array.isArray(name) ? name[0] : name ?? 'Unknown').replace(/<[^>]*>/g, '');
+const speciesName = (item: ReactomeItem) => {
+  const first = item.species?.[0];
+  return item.speciesName ?? (typeof first === 'object' ? first.displayName ?? first.name ?? first : first);
+};
+const entries = (data: ReactomeSearchResult): ReactomeItem[] => (data.results ?? []).flatMap((g) => g.entries ?? []);
+const entity = (item: ReactomeItem) => ({
   id: item.stId ?? item.dbId,
   name: clean(item.displayName ?? item.name),
   type: item.schemaClass ?? item.type ?? item.exactType,
@@ -24,8 +56,8 @@ function size(args: Record<string, unknown>, fallback: number): number {
   if (!Number.isInteger(args.size) || Number(args.size) < 1 || Number(args.size) > 100) throw new Error('size must be an integer from 1 to 100');
   return args.size as number;
 }
-async function search(query: string, params: Record<string, unknown> = {}) {
-  return (await getClient().get('/search/query', {
+async function search(query: string, params: Record<string, unknown> = {}): Promise<ReactomeSearchResult> {
+  return (await getClient().get<ReactomeSearchResult>('/search/query', {
     params: { query, cluster: true, 'Force filters': true, ...params },
   })).data;
 }
@@ -35,24 +67,32 @@ async function resolvePathwayId(identifier: string): Promise<string> {
   if (!first?.stId) throw new Error(`No pathway found for identifier: ${identifier}. Try a Reactome stable identifier or search first.`);
   return first.stId;
 }
-const participants = async (id: string): Promise<any[]> =>
-  (await getClient().get(`/data/participants/${encodeURIComponent(id)}/participatingPhysicalEntities`)).data;
-const events = async (id: string): Promise<any[]> =>
-  (await getClient().get(`/data/pathway/${encodeURIComponent(id)}/containedEvents`)).data;
+const participants = async (id: string): Promise<ReactomeItem[]> =>
+  (await getClient().get<ReactomeItem[]>(`/data/participants/${encodeURIComponent(id)}/participatingPhysicalEntities`)).data;
+const events = async (id: string): Promise<ReactomeItem[]> =>
+  (await getClient().get<ReactomeItem[]>(`/data/pathway/${encodeURIComponent(id)}/containedEvents`)).data;
 
-async function interactors(accessions: string[]): Promise<any> {
+/** Reactome answers 404 with this message list when no accession in the batch has interactors. */
+function isNoInteractorsResponse(data: unknown, accessions: string[]): boolean {
+  if (typeof data !== 'object' || data === null) return false;
+  const { code, messages } = data as { code?: unknown; messages?: unknown };
+  const prefix = 'No interactors found for accession: ';
+  return code === 404 && Array.isArray(messages) && messages.length > 0 &&
+    messages.every((message) => typeof message === 'string' && message.startsWith(prefix) &&
+      [...accessions, accessions.join(',')].includes(message.slice(prefix.length)));
+}
+
+async function interactors(accessions: string[]): Promise<ReactomeInteractors | null> {
   try {
-    return (await getClient().post('/interactors/static/molecules/details', accessions.join(','), { headers: { 'Content-Type': 'text/plain' } })).data;
+    return (await getClient().post<ReactomeInteractors>('/interactors/static/molecules/details', accessions.join(','), { headers: { 'Content-Type': 'text/plain' } })).data;
   } catch (error) {
     if (error instanceof UpstreamError && error.status === 404) {
       const raw = (error.cause as { response?: { data?: unknown } })?.response?.data;
-      let data: any = raw;
+      let data: unknown = raw;
       if (typeof raw === 'string' && raw.trim().startsWith('{')) {
         try { data = JSON.parse(raw); } catch { throw error; }
       }
-      if (data?.code === 404 && Array.isArray(data.messages) && data.messages.length > 0 &&
-          data.messages.every((message: string) => message.startsWith('No interactors found for accession: ') &&
-            [...accessions, accessions.join(",")].includes(message.slice('No interactors found for accession: '.length)))) return null;
+      if (isNoInteractorsResponse(data, accessions)) return null;
     }
     throw error;
   }
@@ -60,24 +100,23 @@ async function interactors(accessions: string[]): Promise<any> {
 
 async function handleSearchPathways(args: Record<string, unknown>) {
   const query = required(args, 'query');
-  if (args.type !== undefined && !SEARCH_TYPES.includes(args.type as any)) throw new Error('Invalid search type');
+  if (args.type !== undefined && !(SEARCH_TYPES as readonly unknown[]).includes(args.type)) throw new Error('Invalid search type');
   const data = await search(query, { types: args.type ?? 'Pathway', rows: size(args, 20) });
   const results = entries(data).slice(0, size(args, 20));
   return { query, totalResults: data.numberOfMatches ?? 0, returnedResults: results.length, results: results.map(entity) };
 }
 async function handleGetPathwayDetails(args: Record<string, unknown>) {
   const id = await resolvePathwayId(required(args, 'id'));
-  const basicInfo = (await getClient().get(`/data/query/${id}`)).data;
+  const basicInfo: unknown = (await getClient().get<unknown>(`/data/query/${id}`)).data;
   return { id, originalQuery: args.id, basicInfo, components: await events(id), participants: await participants(id),
     url: `https://reactome.org/content/detail/${id}`, diagramUrl: `https://reactome.org/PathwayBrowser/#/${id}` };
 }
 async function handleFindPathwaysByGene(args: Record<string, unknown>) {
   const gene = required(args, 'gene');
   const species = args.species === undefined ? 'Homo sapiens' : required(args, 'species');
-  const proteins = entries(await search(gene, { types: 'Protein', species, rows: 1 }));
-  if (!proteins.length) return { gene, species, message: 'No protein entity found for this gene and species', pathways: [] };
-  const protein = proteins[0];
-  const pathways = (await getClient().get(`/data/pathways/low/entity/${encodeURIComponent(protein.stId)}`)).data;
+  const [protein] = entries(await search(gene, { types: 'Protein', species, rows: 1 }));
+  if (!protein) return { gene, species, message: 'No protein entity found for this gene and species', pathways: [] };
+  const pathways = (await getClient().get<ReactomeItem[]>(`/data/pathways/low/entity/${encodeURIComponent(String(protein.stId ?? protein.dbId))}`)).data;
   return { gene, species, protein: entity(protein), pathwayCount: pathways.length, pathways: pathways.map(entity) };
 }
 async function handleFindPathwaysByDisease(args: Record<string, unknown>) {
@@ -87,8 +126,8 @@ async function handleFindPathwaysByDisease(args: Record<string, unknown>) {
 }
 async function handleGetPathwayHierarchy(args: Record<string, unknown>) {
   const pathwayId = await resolvePathwayId(required(args, 'id'));
-  const info = (await getClient().get(`/data/query/${pathwayId}`)).data;
-  const paths: any[][] = (await getClient().get(`/data/event/${pathwayId}/ancestors`)).data;
+  const info = (await getClient().get<ReactomeItem>(`/data/query/${pathwayId}`)).data;
+  const paths = (await getClient().get<ReactomeItem[][]>(`/data/event/${pathwayId}/ancestors`)).data;
   const ancestors = [...new Map(paths.flat().filter(p => p.stId !== pathwayId).map(p => [p.stId ?? p.dbId, p])).values()];
   return { pathwayId, originalQuery: args.id, basicInfo: entity(info),
     ancestors: ancestors.map(entity), children: (info.hasEvent ?? []).map(entity) };
@@ -100,14 +139,14 @@ async function handleGetPathwayParticipants(args: Record<string, unknown>) {
 }
 async function handleGetPathwayReactions(args: Record<string, unknown>) {
   const pathwayId = await resolvePathwayId(required(args, 'id'));
-  const reactions = (await events(pathwayId)).filter(e => ['Reaction', 'BlackBoxEvent', 'Polymerisation', 'Depolymerisation'].includes(e.schemaClass));
+  const reactions = (await events(pathwayId)).filter(e => REACTION_CLASSES.has(e.schemaClass ?? ''));
   return { pathwayId, originalQuery: args.id, reactionCount: reactions.length, reactions: reactions.map(entity) };
 }
 async function handleGetProteinInteractions(args: Record<string, unknown>) {
   const pathwayId = await resolvePathwayId(required(args, 'pathwayId'));
   const api = getClient();
-  const info = (await api.get(`/data/query/${pathwayId}`)).data;
-  const refs: any[] = (await api.get(`/data/participants/${pathwayId}/referenceEntities`)).data;
+  const info = (await api.get<ReactomeItem>(`/data/query/${pathwayId}`)).data;
+  const refs = (await api.get<ReactomeReferenceEntity[]>(`/data/participants/${pathwayId}/referenceEntities`)).data;
   const proteins = refs.filter(p => p.databaseName === 'UniProt');
   const ids = new Set(proteins.map(p => p.identifier));
   const interactions = new Map<string, unknown>();
@@ -127,7 +166,7 @@ async function handleGetProteinInteractions(args: Record<string, unknown>) {
     queriedAccessions += batch.length;
     if (data === null) { noInteractorsFor.push(...batch); continue; }
     // Successful batch responses omit accessions with no interactors.
-    const returned = new Set((data.entities ?? []).map((source: any) => source.acc));
+    const returned = new Set((data.entities ?? []).map((source) => source.acc));
     noInteractorsFor.push(...batch.filter(acc => !returned.has(acc)));
     for (const source of data.entities ?? []) {
       if (!ids.has(source.acc)) continue;

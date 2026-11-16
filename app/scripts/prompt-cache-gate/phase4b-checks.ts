@@ -6,7 +6,7 @@ import { applyCacheMarkers, cachedInstructions } from "../../server/orchestratio
 import { buildToolCatalog, SEARCH_TOOL_NAME } from "../../server/orchestration/context/tool-catalog";
 import { toDeclarations } from "../../server/orchestration/tool-dispatch";
 import { parseGateEffort, preflightThinking } from "./gate-config";
-import { MOA_HITS, sha, verdict } from "./gate-lib";
+import { assistantParts, bodyBlocks, MOA_HITS, parseWireBody, sha, verdict, type GatePart, type WireBlock, type WireBody } from "./gate-lib";
 import { checkRedactedOffline, REDACTED_TRIGGER } from "./phase4b-redacted";
 import { omitUndefined } from "../../shared/object";
 
@@ -21,10 +21,10 @@ export function ensureThinkingCapabilities(): Promise<void> {
 
 const providerOptions = chatProviderOptions({ ...config, effort: EFFORT });
 
-interface Req { raw: string; body: any; status: number; errorText?: string; signal?: AbortSignal | null | undefined }
+interface Req { raw: string; body: WireBody; status: number; errorText?: string; signal?: AbortSignal | null | undefined }
 const requests: Req[] = [];
 const loggingFetch = (async (url: string | URL | Request, init?: RequestInit) => {
-  const req: Req = { raw: (init?.body as string), body: JSON.parse((init?.body as string)), status: -1, signal: init?.signal };
+  const req: Req = { raw: (init?.body as string), body: parseWireBody(init?.body as string), status: -1, signal: init?.signal };
   requests.push(req);
   const res = await fetch(url, init);
   req.status = res.status;
@@ -144,16 +144,12 @@ function storeAndLoad(sessionId: string, msgs: ModelMessage[]): ModelMessage[] {
   const insert = db.prepare("INSERT INTO model_transcript VALUES (?, ?, ?)");
   msgs.forEach((m, seq) => insert.run(sessionId, seq, JSON.stringify(m)));
   return db.query("SELECT content_json FROM model_transcript WHERE session_id = ? ORDER BY seq").all(sessionId)
-    .map((r: any) => JSON.parse(r.content_json));
+    .map((r) => JSON.parse((r as { content_json: string }).content_json) as ModelMessage);
 }
 
-const assistantParts = (msgs: ModelMessage[]) =>
-  msgs.flatMap((m) => (m.role === "assistant" && Array.isArray(m.content) ? m.content : [])) as any[];
 const thinkingParts = (msgs: ModelMessage[]) => assistantParts(msgs).filter((p) => p.type === "reasoning");
 const signed = (msgs: ModelMessage[]) => thinkingParts(msgs).filter((p) => p.providerOptions?.anthropic?.signature);
 const redacted = (msgs: ModelMessage[]) => thinkingParts(msgs).filter((p) => p.providerOptions?.anthropic?.redactedData);
-const bodyBlocks = (body: any, type: string) =>
-  (body?.messages ?? []).flatMap((m: any) => (Array.isArray(m.content) ? m.content : [])).filter((b: any) => b.type === type);
 
 function degrade(turn: ModelMessage[]): ModelMessage[] {
   const user = turn[0]!;
@@ -207,7 +203,7 @@ export async function check4b(nonce: string) {
   const a = t1Last.req?.body, b = t2First.req?.body;
   const k = a?.messages?.length ?? 0;
   const prefixA = a?.messages?.slice(0, k), prefixB = b?.messages?.slice(0, k);
-  const strictDiff = (prefixA ?? []).map((m: any, i: number) => (sha(m) === sha(prefixB?.[i]) ? null : i)).filter((i: number | null) => i !== null);
+  const strictDiff = (prefixA ?? []).map((m, i) => (sha(m) === sha(prefixB?.[i]) ? null : i)).filter((i) => i !== null);
   console.log("\n── 4b.6 check 4 (request prefix hash) ──");
   console.log(`T1 last request: ${k} messages; T2 first: ${b?.messages?.length}. tools ${sha(a?.tools)}/${sha(b?.tools)}, system ${sha(a?.system)}/${sha(b?.system)}`);
   verdict("4b.4 tools + system bytes identical", "required", sha(a?.tools) === sha(b?.tools) && sha(a?.system) === sha(b?.system), `tools ${sha(a?.tools)}, system ${sha(a?.system)}`);
@@ -219,10 +215,11 @@ export async function check4b(nonce: string) {
   const lastTool = stored1.findLastIndex((m) => m.role === "tool");
   const c3 = await call("3 tool_result + new user", tools, [...stored1.slice(0, lastTool + 1), { role: "user", content: Q3 }], lastTool);
   const lastUser = c3.req?.body?.messages?.at(-1);
-  const merged = lastUser?.role === "user" && lastUser.content.some((x: any) => x.type === "tool_result") && lastUser.content.some((x: any) => x.type === "text");
+  const lastBlocks: WireBlock[] = Array.isArray(lastUser?.content) ? lastUser.content : [];
+  const merged = lastUser?.role === "user" && lastBlocks.some((x) => x.type === "tool_result") && lastBlocks.some((x) => x.type === "text");
   console.log("\n── 4b.6 check 3 ──");
   verdict("4b.3 tool_result + user text accepted", "required", ok(c3), status(c3));
-  verdict("4b.3 sent as one user message", "warn", !!merged, JSON.stringify(lastUser?.content?.map((x: any) => x.type)));
+  verdict("4b.3 sent as one user message", "warn", merged, JSON.stringify(lastBlocks.map((x) => x.type)));
 
   const c6a = await call("6a T1 degraded", tools, [...degrade(stored1), { role: "user", content: Q3 }]);
   const c6b = await call("6b T1 degraded + T2 lossless", tools, [...degrade(stored1), ...stored2, { role: "user", content: Q3 }]);
@@ -234,15 +231,15 @@ export async function check4b(nonce: string) {
   verdict("4b.6c lossless T1 + degraded T2 → 200", "required", ok(c6c), status(c6c));
   for (const c of [c6a, c6b, c6c]) if (c.error && THINKING_ERROR.test(c.error)) console.log(`  !! ${c.label}: preserved-thinking error → 4b.4 needs a redesign`);
 
-  const editThinking = (msgs: ModelMessage[], edit: (p: any) => any) =>
+  const editThinking = (msgs: ModelMessage[], edit: (p: GatePart) => GatePart | null): ModelMessage[] =>
     msgs.map((m) => (m.role === "assistant" && Array.isArray(m.content)
-      ? ({ ...m, content: (m.content as any[]).map((p) => (p.type === "reasoning" ? edit(p) : p)).filter(Boolean) })
+      ? ({ ...m, content: assistantParts([m]).map((p) => (p.type === "reasoning" ? edit(p) : p)).filter(Boolean) } as ModelMessage)
       : m));
   const c6d = await call("6d control: T1 thinking text edited", tools, [...editThinking(stored1, (p) => ({ ...p, text: `${p.text} (edited)` })), { role: "user", content: Q3 }]);
   const c6e = await call("6e control: T1 thinking removed", tools, [...editThinking(stored1, () => null), { role: "user", content: Q3 }]);
   const c6f = await call("6f control: T1 thinking signature edited", tools, [...editThinking(stored1, (p) => {
-    const sig: string = p.providerOptions.anthropic.signature;
-    return { ...p, providerOptions: { anthropic: { ...p.providerOptions.anthropic, signature: `${sig.slice(0, 40)}${sig[40] === "A" ? "B" : "A"}${sig.slice(41)}` } } };
+    const sig = p.providerOptions?.anthropic?.signature ?? "";
+    return { ...p, providerOptions: { anthropic: { ...p.providerOptions?.anthropic, signature: `${sig.slice(0, 40)}${sig[40] === "A" ? "B" : "A"}${sig.slice(41)}` } } };
   }), { role: "user", content: Q3 }]);
   verdict("4b.6d control: edited thinking text → 400", "warn", c6d.status === 400, status(c6d));
   verdict("4b.6f control: edited signature → 400", "warn", c6f.status === 400, status(c6f));
@@ -257,7 +254,7 @@ export async function check4b(nonce: string) {
   if (liveRedacted > 0) {
     const r2 = await call("R2 replay redacted", tools, [...rStored, { role: "user", content: "Reply with one more word." }], rStored.length - 1);
     const sent = bodyBlocks(r2.req?.body, "redacted_thinking");
-    const same = sent.map((x: any) => x.data).join() === redacted(r1.appended).map((p) => p.providerOptions.anthropic.redactedData).join();
+    const same = sent.map((x) => x.data).join() === redacted(r1.appended).map((p) => p.providerOptions?.anthropic?.redactedData).join();
     verdict("4b.2 redacted thinking replayed live → 200, data intact", "required", ok(r2) && same, `${status(r2)}; ${sent.length} redacted_thinking blocks sent, data identical ${same}`);
   }
   const off = await checkRedactedOffline();

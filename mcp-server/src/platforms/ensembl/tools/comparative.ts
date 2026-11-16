@@ -3,7 +3,7 @@ import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidHomologArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is {
   gene_id: string;
   species?: string;
@@ -12,27 +12,23 @@ const isValidHomologArgs = (
   format?: string;
 } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.gene_id === 'string' &&
     args.gene_id.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
     (args.target_species === undefined || typeof args.target_species === 'string') &&
-    (args.type === undefined || ['orthologues', 'paralogues', 'all'].includes(args.type)) &&
-    (args.format === undefined || ['json', 'xml'].includes(args.format))
+    (args.type === undefined || (typeof args.type === 'string' && ['orthologues', 'paralogues', 'all'].includes(args.type))) &&
+    (args.format === undefined || (typeof args.format === 'string' && ['json', 'xml'].includes(args.format)))
   );
 };
 
 const isValidGeneTreeArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { gene_id: string; species?: string; format?: string; clusterset_id?: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.gene_id === 'string' &&
     args.gene_id.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.format === undefined || ['json', 'newick', 'phyloxml'].includes(args.format)) &&
+    (args.format === undefined || (typeof args.format === 'string' && ['json', 'newick', 'phyloxml'].includes(args.format))) &&
     (args.clusterset_id === undefined || typeof args.clusterset_id === 'string')
   );
 };
