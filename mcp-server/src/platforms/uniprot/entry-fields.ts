@@ -1,8 +1,8 @@
 import { getClient } from './client.js';
 
 // Short per-tool return-field lists, verified against /configure/uniprotkb/result-fields
-// (see api.contract.ts). UniProt rejects a whole request when any listed field is
-// unknown, so tools that need every feature, comment or cross-reference type
+// (request-contract.ts and the saved return-fields.json fixture). UniProt rejects a
+// whole request when any listed field is unknown, so tools that need every feature, comment or cross-reference type
 // (get_protein_features, get_annotation_confidence, get_external_references) fetch
 // the full entry instead of enumerating ~230 release-dependent field names; gzip
 // keeps the full TP53 entry at about 90 KB on the wire, and they trim locally.

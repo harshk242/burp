@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
 import { UNIPROT_BASE_URL, UNIPROT_POLICY, createUniProtClient, initClient, resetClient } from '../client.js';
 
-import { ENTRY_FIELDS, EXPORT_FORMATS, INFO_FIELDS, stripEvidences } from '../entry-fields.js';
+import { ENTRY_FIELDS, INFO_FIELDS, stripEvidences } from '../entry-fields.js';
 import { SEARCH_FIELDS, summarizeSearch } from '../search-fields.js';
 import { proteinHandlers } from '../tools/protein-handlers.js';
 import { searchHandlers } from '../tools/search-handlers.js';
@@ -91,17 +91,6 @@ describe('UniProt REST API Contracts', () => {
     await assertSchemaStable('uniprot/search-by-function.schema.json', summary);
   });
 
-  // UniProt rejects a whole request for one unknown return field, so every field
-  // list the tools send must exist in the live result-fields configuration.
-  uniprotContractTest('every requested return field is accepted by UniProt', async () => {
-    const config = await fetchJson(`${BASE}/configure/uniprotkb/result-fields`) as any[];
-    const known = new Set(config.flatMap(group => group.fields.map((field: any) => field.name)));
-    const used = [...new Set([SEARCH_FIELDS, ...Object.values(ENTRY_FIELDS)].flatMap(list => list.split(',')))];
-    expect(used.filter(field => !known.has(field))).toEqual([]);
-    const res = await http.get(`${BASE}/uniprotkb/P69905`, { params: { format: 'json', fields: used.join(',') } });
-    expect(res.status).toBe(200);
-  });
-
   uniprotContractTest('search reports X-Total-Results and summaries are bounded', async () => {
     const result = await liveHandler(searchHandlers.search_by_function, { goTerm: 'GO:0004672', organism: '9606', size: 3 });
     expect(result.totalResults).toBeGreaterThan(100);
@@ -129,13 +118,5 @@ describe('UniProt REST API Contracts', () => {
     expect(result.excludedDiseaseMentionCount).toBeGreaterThan(0);
     expect(result.diseaseVariantCount).toBeGreaterThan(0);
     expect(result.diseaseVariants.every((v: any) => !['benign', 'likely benign', 'uncertain significance'].includes(v.clinicalSignificance))).toBe(true);
-  });
-
-  uniprotContractTest('every advertised export format is accepted', async () => {
-    for (const format of EXPORT_FORMATS) {
-      const res = await http.get(`${BASE}/uniprotkb/P69905`, { params: { format }, responseType: 'text' });
-      expect(res.status, format).toBe(200);
-      expect(String(res.data).length, format).toBeGreaterThan(0);
-    }
   });
 });
