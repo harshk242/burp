@@ -12,6 +12,7 @@ const PLATFORM_SUMMARIES: Record<string, string> = {
   pubmed: "**PubMed** - Biomedical literature and abstracts",
   clinpgx: "**ClinPGx (PharmGKB)** - Pharmacogenomics data",
   uniprot: "**UniProt** - Reviewed protein search summaries; focused annotations and sequence tools",
+  regulatory: "**Regulatory** - FDA approvals and drug labels (openFDA) and EU authorisations (EMA)",
 };
 
 const CORE_TOOL_SUMMARIES: Record<string, string> = {
@@ -22,9 +23,27 @@ const CORE_TOOL_SUMMARIES: Record<string, string> = {
   chembl__search_compounds: "Drug/compound name → ChEMBL ID",
   pubchem__search_by_smiles: "SMILES structure → PubChem CID",
   clinvar__lookup_by_rsid: "rsID → clinical significance and gene",
-  pubmed__search_pubmed: "Quick literature search → PMIDs",
+  pubmed__search_pubmed: "Literature search → PMIDs with titles (leads, not findings)",
+  pubmed__batch_fetch_articles: "PMIDs → abstracts (read before citing a finding)",
   clinicaltrials__search_by_intervention: "Drug → clinical trials (NCT IDs)",
   clinicaltrials__search_by_condition: "Condition → clinical trials (NCT IDs)",
+  regulatory__search_fda_approvals: "Drug, indication or date window → FDA approvals with dates",
+  regulatory__search_ema_medicines: "Medicine or therapeutic area → EU (EMA) authorisation status and dates",
+};
+
+/** Deferred tools the agent most often wrongly assumed did not exist; named so it searches for them. */
+const ON_DEMAND_TOOLS: Record<string, string> = {
+  clinicaltrials__get_study_details: "one trial record by NCT ID",
+  clinicaltrials__get_studies_with_results: "trials with posted results",
+  pubmed__fetch_article_details: "full paper record (MeSH terms, grants)",
+  regulatory__get_fda_label: "FDA label text: boxed warning, indications, contraindications, dosing",
+  "open-targets__get_drug_warnings": "drug warnings and withdrawals",
+  "open-targets__get_target_safety_information": "target safety liabilities",
+  "open-targets__get_target_tractability": "target tractability",
+  chembl__get_mechanism_of_action: "drug mechanism of action",
+  ensembl__get_transcripts: "gene transcripts",
+  clinvar__lookup_by_coordinates: "variants at a genomic position",
+  clinpgx__get_guidelines_for_pair: "CPIC/DPWG guideline for a gene-drug pair",
 };
 
 const ID_RESOLUTION_PATTERNS: Record<string, string> = {
@@ -46,6 +65,34 @@ function curatedOrder(order: Record<string, string>): (a: string, b: string) => 
 
 const fullName = (tool: MCPTool) => tool.server + "__" + tool.name;
 
+function evidenceRules(available: ReadonlySet<string>): string {
+  const openers = [
+    available.has("pubmed__batch_fetch_articles") && "   - Papers: pubmed__batch_fetch_articles with every PMID you will cite (one call takes many PMIDs).",
+    available.has("clinicaltrials__get_study_details") && "   - Trials: clinicaltrials__get_study_details for each NCT ID whose design, status or results you report.",
+    available.has("regulatory__search_fda_approvals") && "   - Approvals, withdrawals and label content: the regulatory tools (see Regulatory Status).",
+  ].filter(Boolean);
+  return `## Evidence Rules
+
+Search results are leads, not findings. A PMID, NCT ID, title or database hit tells you a source exists, not what it says.
+
+1. **Open the record before you state what it says.** Before stating a specific finding (effect size, p-value, endpoint met or missed, dose, trial name for an ID, approval date, approved indication, boxed warning), call the tool that returns the record containing it.${openers.length > 0 ? "\n" + openers.join("\n") : ""}
+2. **Know where each decisive claim comes from.** If a claim appears in no tool output, label it as background knowledge. If you could not open a record, say whether you did not try or tried and the tool failed.
+3. **Never say a tool or capability is missing** until system__search_available_tools has returned nothing for it. Most tools load on demand.
+
+`;
+}
+
+function regulatoryRules(available: ReadonlySet<string>): string {
+  if (!available.has("regulatory__search_fda_approvals") && !available.has("regulatory__search_ema_medicines")) return "";
+  return `## Regulatory Status
+
+- For any approved, withdrawn or not-approved claim (see Workflow Guideline 8), check the regulator with these tools: regulatory__search_fda_approvals for the US (label text via regulatory__get_fda_label) and regulatory__search_ema_medicines for the EU. Give the regulator, date and jurisdiction (e.g. "FDA approved 2025-10-23, BLA761440").
+- Your training data ends before today (the fetched_at line gives the current date), so approvals since then are missing from memory. To list the approved drugs for a disease, search by indication (regulatory__search_fda_approvals with indication; regulatory__search_ema_medicines with therapeutic_area), not only by drug names you remember.
+- No tool covers other regulators (China NMPA, Japan PMDA, national EU authorisations). Search PubMed (e.g. \`fulzerasib AND "first approval"\`), open the article, and cite it; otherwise say the status in that jurisdiction is unverified.
+
+`;
+}
+
 export function buildSystemPrompt(
   platforms: readonly PlatformConfig[] = enabledPlatforms,
   catalog: readonly MCPTool[] = toolRegistry.getAll(),
@@ -59,6 +106,9 @@ export function buildSystemPrompt(
   const descriptions = new Map(tools.map((t) => [fullName(t), t.description]));
   const coreLines = core.map((name) => "- **" + name + "** - " + (CORE_TOOL_SUMMARIES[name] ?? descriptions.get(name)));
   const patterns = core.flatMap((name) => ID_RESOLUTION_PATTERNS[name] ?? []);
+  const available = new Set(tools.map(fullName));
+  const onDemand = Object.entries(ON_DEMAND_TOOLS).filter(([name]) => available.has(name) && !coreNames.has(name))
+    .map(([name, summary]) => "- **" + name + "** - " + summary);
   return `You are a biomedical research assistant with access to ${enabled.length} specialized databases:
 
 ${enabled.map((name, i) => (i + 1) + ". " + (PLATFORM_SUMMARIES[name] ?? "**" + name + "**")).join("\n")}
@@ -74,7 +124,7 @@ ${coreLines.join("\n") || "No core database tools are configured in the current 
 For specialized queries (protein structure, pathway analysis, bioactivity data, etc.),
 use the system__search_available_tools tool to find relevant tools by describing what you need.
 Use system__inspect_artifact with jq_filter for JSON artifacts or text_range for text artifacts.
-
+${onDemand.length > 0 ? "\nCommonly needed tools that load on demand (search for them by name):\n" + onDemand.join("\n") + "\n" : ""}
 ## Workflow Guidelines
 
 1. **Start with core tools** for ID resolution and initial discovery
@@ -86,7 +136,7 @@ Use system__inspect_artifact with jq_filter for JSON artifacts or text_range for
 7. **Pair names and IDs only from tool output**: put a trial or paper name (e.g. ENGAGE, DESTINY-Breast04) next to an NCT ID or PMID only when a tool output for that exact ID shows the name (registry acronym, title, secondary ID or abstract). If it does not, open the record first (trial details, abstract) or give the ID without the name. Never map names to IDs from memory
 8. **Development stage is not approval**: Open Targets stages (APPROVAL, PHASE_4) and ChEMBL max_phase are development stages, not regulatory status. Call a drug approved only when a source shows a regulator approval or label, and name the regulator (FDA, EMA, PMDA, ...). Otherwise say the approval is unconfirmed
 
-## Response Formatting
+${evidenceRules(available)}${regulatoryRules(available)}## Response Formatting
 
 - **Before calling tools**: You may include brief reasoning about your strategy (this is shown to the user as collapsible "Reasoning" text).
 - **In your final answer (after all tool calls are done)**: Start directly with the substantive response — the actual data, analysis, or table the user asked for. Do NOT begin with transitional or meta-commentary such as "Excellent! Now let me compile…", "Based on the results, here is…", "I have gathered the data. Let me present…", etc. Jump straight into the answer content itself (e.g. a heading, a table, or the first finding).

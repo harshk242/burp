@@ -125,6 +125,7 @@ platforms:
     enabled: true
     always_loaded_tools:
       - search_pubmed
+      - batch_fetch_articles
 
   clinpgx:
     enabled: true
@@ -134,6 +135,12 @@ platforms:
     enabled: true
     always_loaded_tools:
       - search_by_gene
+
+  regulatory:
+    enabled: true
+    always_loaded_tools:
+      - search_fda_approvals
+      - search_ema_medicines
 
 artifact:
   inline_max_chars: 15000

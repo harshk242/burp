@@ -19,6 +19,7 @@ import { platform as pubmed } from './platforms/pubmed/index.js';
 import { platform as clinvar } from './platforms/clinvar/index.js';
 import { platform as clinpgx } from './platforms/clinpgx/index.js';
 import { platform as uniprot } from './platforms/uniprot/index.js';
+import { platform as regulatory } from './platforms/regulatory/index.js';
 
 const PLATFORMS: PlatformModule[] = [
   ensembl,
@@ -31,6 +32,7 @@ const PLATFORMS: PlatformModule[] = [
   clinvar,
   clinpgx,
   uniprot,
+  regulatory,
 ];
 
 export function buildToolRegistry(platforms: PlatformModule[]) {

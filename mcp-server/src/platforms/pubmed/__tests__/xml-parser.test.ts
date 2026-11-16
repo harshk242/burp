@@ -41,3 +41,24 @@ it('decodes ESummary Id and nested Item lists', async () => {
   const { parseESummaryResult } = await import('../xml-parser.js');
   expect(parseESummaryResult('<eSummaryResult><DocSum><Id>123</Id><Item Name="Title" Type="String">Example</Item><Item Name="AuthorList" Type="List"><Item Name="Author" Type="String">Smith A</Item><Item Name="Author" Type="String">Jones B</Item></Item></DocSum></eSummaryResult>')[0]).toMatchObject({ uid: '123', title: 'Example', authors: ['Smith A', 'Jones B'] });
 });
+
+it('decodes numeric character references in abstracts and author names', () => {
+  const [result] = parseEFetchResult(`<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>1</PMID><Article>
+    <ArticleTitle>A&#x3b2; study</ArticleTitle><Abstract><AbstractText>Difference &#x2212;0.45 (P&lt;0.001).</AbstractText></Abstract>
+    <AuthorList><Author><LastName>Lesn&#xe9;</LastName><ForeName>S</ForeName></Author></AuthorList></Article></MedlineCitation></PubmedArticle></PubmedArticleSet>`);
+  expect(result).toMatchObject({ title: 'Aβ study', abstract: 'Difference −0.45 (P<0.001).', authors: [{ lastName: 'Lesné' }] });
+});
+
+it('decodes more character references than the parser entity-expansion limit allows', () => {
+  const abstract = 'A&#x3b2; &#x2212;1 '.repeat(1000);
+  const [result] = parseEFetchResult(`<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>2</PMID><Article>
+    <ArticleTitle>Batch</ArticleTitle><Abstract><AbstractText>${abstract}</AbstractText></Abstract></Article></MedlineCitation></PubmedArticle></PubmedArticleSet>`);
+  expect(result!.abstract).toBe('Aβ −1 '.repeat(1000).trim());
+});
+
+it('keeps referenced markup characters as text', async () => {
+  const { decodeCharacterReferences } = await import('../xml-parser.js');
+  expect(decodeCharacterReferences('a &#60;b&#62; &#38; &#x22;c&#39; &#xe9; &#1114112;')).toBe('a &lt;b&gt; &amp; &quot;c&apos; é &#1114112;');
+  const [result] = parseEFetchResult('<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>3</PMID><Article><ArticleTitle>P&#60;0.05 &#38; more</ArticleTitle></Article></MedlineCitation></PubmedArticle></PubmedArticleSet>');
+  expect(result!.title).toBe('P<0.05 & more');
+});

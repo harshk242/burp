@@ -111,10 +111,10 @@
           "error",
           {
             "assertFunctionNames": ["expect", "expect*", "assert*", "capture", "invoke"],
-            "additionalTestBlockFunctions": ["chemblContractTest", "clinicalTrialsContractTest", "clinpgxContractTest", "clinvarContractTest", "ensemblContractTest", "openTargetsContractTest", "pubchemContractTest", "pubmedContractTest", "reactomeContractTest", "uniprotContractTest"]
+            "additionalTestBlockFunctions": ["chemblContractTest", "clinicalTrialsContractTest", "clinpgxContractTest", "clinvarContractTest", "ensemblContractTest", "openTargetsContractTest", "pubchemContractTest", "pubmedContractTest", "reactomeContractTest", "regulatoryContractTest", "uniprotContractTest"]
           }
         ],
-        "vitest/no-standalone-expect": ["error", { "additionalTestBlockFunctions": ["chemblContractTest", "clinicalTrialsContractTest", "clinpgxContractTest", "clinvarContractTest", "ensemblContractTest", "openTargetsContractTest", "pubchemContractTest", "pubmedContractTest", "reactomeContractTest", "uniprotContractTest"] }]
+        "vitest/no-standalone-expect": ["error", { "additionalTestBlockFunctions": ["chemblContractTest", "clinicalTrialsContractTest", "clinpgxContractTest", "clinvarContractTest", "ensemblContractTest", "openTargetsContractTest", "pubchemContractTest", "pubmedContractTest", "reactomeContractTest", "regulatoryContractTest", "uniprotContractTest"] }]
       }
     }
   ]

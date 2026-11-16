@@ -24,7 +24,7 @@ const chatRoute = createRoute({
   summary: "Chat with AI agent",
   description: `Send a message to the AI agent and receive a streaming response via Server-Sent Events (SSE).
 
-The agent can query 10 biomedical databases:
+The agent can query 11 biomedical databases:
 - **UniProt** - Reviewed protein summaries, focused annotations, and sequences
 - **ChEMBL** - Drug compounds and bioactivity data
 - **PubChem** - Chemical structures and properties
@@ -35,6 +35,7 @@ The agent can query 10 biomedical databases:
 - **ClinicalTrials** - Clinical trial information
 - **PubMed** - Biomedical literature
 - **ClinPGx** - Pharmacogenomics data
+- **Regulatory** - FDA approvals and labels (openFDA), EU authorisations (EMA)
 
 **SSE Events** (every \`data\` payload is JSON, text chunks included):
 - \`start\` - Chat session started

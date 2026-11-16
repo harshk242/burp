@@ -24,6 +24,7 @@ const databases = [
   { name: "ClinicalTrials", description: "Trial registrations" },
   { name: "PubMed", description: "Biomedical literature" },
   { name: "ClinPGx", description: "Pharmacogenomics" },
+  { name: "FDA / EMA", description: "Drug approvals & labels" },
 ];
 
 function AuthButtons({ mounted }: { mounted: boolean }) {
@@ -114,7 +115,7 @@ export default function HomePage() {
             </p>
 
             <p className="text-xl text-muted-foreground max-w-2xl mb-8">
-              Query 10 biomedical databases with natural language. Proteins, drugs,
+              Query 11 biomedical databases with natural language. Proteins, drugs,
               genes, variants, pathways, clinical trials, and literature - all
               through one intelligent interface.
             </p>
@@ -172,7 +173,7 @@ export default function HomePage() {
             Connected Databases
           </h2>
           <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-            200+ specialized tools across 10 biomedical databases, ready to answer
+            200+ specialized tools across 11 biomedical databases, ready to answer
             your research questions.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 max-w-4xl mx-auto">
