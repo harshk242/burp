@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { initClient, resetClient } from '../client.js';
 import { assertArgsAffectRequests, assertHandlerCoverage, assertMakesRequest, requestRecorder } from '../../__test-utils__/tool-requests.js';
-import { argVariants, samples, tools, handlers, rejectsEmpty, clientSide } from './tool-args.js';
+import { argVariants, samples, tools, handlers, rejectsEmpty, clientSide, alternatives } from './tool-args.js';
 import { assertUniProtRequest } from './request-contract.js';
 
 const protein = {
@@ -9,6 +9,8 @@ const protein = {
   proteinDescription: { recommendedName: { fullName: { value: 'Cellular tumor antigen p53' } } },
   genes: [{ geneName: { value: 'TP53' } }], organism: { scientificName: 'Homo sapiens', taxonId: 9606 },
   sequence: { value: 'MEEPQ', length: 5, molWeight: 600 }, features: [{ type: 'Domain' }],
+  // compare_proteins requests feature_count, which UniProt returns as countByFeatureType.
+  extraAttributes: { countByFeatureType: { Domain: 1 } },
 };
 async function capture(name: string, args: Record<string, unknown>) {
   const recorder = requestRecorder(protein);
@@ -28,7 +30,7 @@ it('covers every registered handler', () => assertHandlerCoverage(tools, handler
 describe.each(tools)('$name', tool => {
   it.each(argVariants(tool))('$label uses valid UniProt parameters and fields', async ({ args }) => { await capture(tool.name, args); });
   it('uses every argument and enum value', async () => {
-    await assertArgsAffectRequests(tool, samples, args => capture(tool.name, args), tool.name === 'compare_proteins' ? clientSide : {});
+    await assertArgsAffectRequests(tool, samples, args => capture(tool.name, args), clientSide[tool.name], alternatives[tool.name]);
   });
 });
 it('renders both comparison formats from populated protein data', async () => {
@@ -51,4 +53,10 @@ it('rejects invalid search fields, return fields, routes, params and values', ()
   ]) expect(() => assertUniProtRequest({ ...request, params })).toThrow();
   expect(() => assertUniProtRequest({ ...request, url: 'https://rest.uniprot.org/uniprotkb/unknown/route' })).toThrow();
   expect(() => assertUniProtRequest({ ...request, url: 'https://rest.uniprot.org/uniprotkb/P04637', params: request.params })).toThrow();
+  const batch = { ...request, url: 'https://rest.uniprot.org/uniprotkb/accessions', params: { accessions: 'P04637,P04637-2', format: 'json', fields: 'accession' } };
+  assertUniProtRequest(batch);
+  for (const params of [
+    { ...batch.params, accessions: 'P04637,XYZ!!' }, { ...batch.params, accessions: 'p04637' },
+    { ...batch.params, accessions: '' }, { ...batch.params, format: 'xml' }, { ...batch.params, query: 'gene:TP53' },
+  ]) expect(() => assertUniProtRequest({ ...batch, params })).toThrow();
 });

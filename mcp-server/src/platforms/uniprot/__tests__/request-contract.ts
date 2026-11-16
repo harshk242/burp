@@ -3,6 +3,9 @@ import queryFields from '../../__test-utils__/fixtures/uniprot/query-fields.json
 import returnFields from '../../__test-utils__/fixtures/uniprot/return-fields.json' with { type: "json" };
 import { assertRequestValues, type RecordedRequest } from '../../__test-utils__/tool-requests.js';
 
+// https://www.uniprot.org/help/accession_numbers, plus an optional isoform suffix.
+const UNIPROT_ACCESSION = /^(?:[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:-\d+)?$/;
+
 /** Keep only API field identifiers, independent of labels and configure ordering. */
 export function configureFields(value: unknown, kind: 'query' | 'return'): string[] {
   const names = new Set<string>();
@@ -27,12 +30,23 @@ export function assertUniProtRequest(request: RecordedRequest): void {
   expect(url.search).toBe('');
   expect(request.body).toEqual({});
   const search = url.pathname === '/uniprotkb/search';
+  const batch = url.pathname === '/uniprotkb/accessions';
   if (!search) expect(url.pathname).toMatch(/^\/uniprotkb\/[^/]+$/);
   const params = request.params as Record<string, unknown>;
   // Endpoint parameter names from UniProt's REST API; configure describes fields, not params.
-  const allowed = search ? ['query', 'format', 'size', 'fields', 'sort', 'cursor', 'includeIsoform'] : ['format', 'fields'];
+  const allowed = search ? ['query', 'format', 'size', 'fields', 'sort', 'cursor', 'includeIsoform']
+    : batch ? ['accessions', 'format', 'fields'] : ['format', 'fields'];
   for (const name of Object.keys(params)) expect(allowed, name).toContain(name);
-  expect(search ? ['json', 'tsv', 'fasta', 'xml'] : ['json', 'tsv', 'fasta', 'xml', 'gff', 'txt']).toContain(params.format);
+  expect(search ? ['json', 'tsv', 'fasta', 'xml'] : batch ? ['json', 'tsv', 'fasta']
+    : ['json', 'tsv', 'fasta', 'xml', 'gff', 'txt']).toContain(params.format);
+  if (batch) {
+    // A single malformed accession makes UniProt reject the whole batch request.
+    expect(typeof params.accessions).toBe('string');
+    const accessions = String(params.accessions).split(',');
+    expect(accessions.length).toBeGreaterThanOrEqual(1);
+    expect(accessions.length).toBeLessThanOrEqual(1000);
+    for (const accession of accessions) expect(accession).toMatch(UNIPROT_ACCESSION);
+  }
   if (search) {
     expect(typeof params.query).toBe('string');
     expect(String(params.query).length).toBeGreaterThan(0);
