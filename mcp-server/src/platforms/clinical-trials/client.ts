@@ -11,11 +11,16 @@ export interface StudySearchResponse {
 }
 
 export interface Study {
+  hasResults?: boolean;
   protocolSection: {
     identificationModule: {
       nctId: string;
       briefTitle: string;
       officialTitle?: string;
+      /** Registry trial name, e.g. "ENGAGE". The only registry-backed name for an NCT ID. */
+      acronym?: string;
+      orgStudyIdInfo?: { id: string };
+      secondaryIdInfos?: Array<{ id: string; type?: string }>;
     };
     statusModule: {
       overallStatus: string;
@@ -195,9 +200,22 @@ export function filteredResultMeta(
   };
 }
 
+/**
+ * Trial names come only from the registry record, never from model memory: the acronym and
+ * sponsor protocol ID let the caller check which NCT ID a named trial (e.g. ENGAGE) belongs to.
+ */
+function studyNames(study: Study) {
+  const id = study.protocolSection.identificationModule;
+  return {
+    acronym: id.acronym ?? null,
+    orgStudyId: id.orgStudyIdInfo?.id ?? null,
+  };
+}
+
 export function formatStudySummary(study: Study) {
   return {
     nctId: study.protocolSection.identificationModule.nctId,
+    ...studyNames(study),
     title: study.protocolSection.identificationModule.briefTitle,
     status: study.protocolSection.statusModule.overallStatus,
     phase: study.protocolSection.designModule?.phases || ['Not specified'],
@@ -209,6 +227,7 @@ export function formatStudySummary(study: Study) {
       study.protocolSection.conditionsModule?.conditions?.slice(0, 3) || [],
     startDate:
       study.protocolSection.statusModule.startDateStruct?.date || 'Not specified',
+    hasResults: study.hasResults ?? false,
   };
 }
 
@@ -216,9 +235,13 @@ export function formatDetailedStudy(study: Study) {
   return {
     identification: {
       nctId: study.protocolSection.identificationModule.nctId,
+      ...studyNames(study),
+      secondaryIds:
+        study.protocolSection.identificationModule.secondaryIdInfos?.map((info) => info.id) ?? [],
       briefTitle: study.protocolSection.identificationModule.briefTitle,
       officialTitle: study.protocolSection.identificationModule.officialTitle,
     },
+    hasResults: study.hasResults ?? false,
     status: {
       overallStatus: study.protocolSection.statusModule.overallStatus,
       startDate: study.protocolSection.statusModule.startDateStruct?.date,

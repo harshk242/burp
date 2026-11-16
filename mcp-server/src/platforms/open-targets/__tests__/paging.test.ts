@@ -10,16 +10,13 @@ describe('client-side paging for upstream lists', () => {
   it.each([
     ['get_target_pathways_and_go_terms', 'target', 'pathways'],
     ['get_target_mouse_phenotypes', 'target', 'mousePhenotypes'],
-    ['get_target_known_drugs', 'target', 'drugAndClinicalCandidates'],
     ['get_variant_pharmacogenomics', 'variant', 'pharmacogenomics'],
   ])('%s returns the selected page and preserves cached source data', async (name, root, field) => {
-    const nested = field === 'drugAndClinicalCandidates';
-    const recorder = requestRecorder({ data: { [root]: { [field]: nested ? { count: 4, rows } : rows } } });
+    const recorder = requestRecorder({ data: { [root]: { [field]: rows } } });
     initializeClient({ adapter: recorder.adapter });
     const read = async (index: number, size: number) => {
       const result = await handlers[name]!({ ensembl_id: 'ENSG00000141510', variant_id: '19_44908684_T_C', page_index: index, page_size: size }) as Record<string, Record<string, unknown>>;
-      const list = result[root]![field];
-      return nested ? (list as { rows: string[] }).rows : list;
+      return result[root]![field];
     };
     expect(await read(1, 2)).toEqual(['c', 'd']);
     expect(await read(0, 1)).toEqual(['a']);

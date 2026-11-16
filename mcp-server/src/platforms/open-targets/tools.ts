@@ -4,6 +4,7 @@ import { definitions as definitions2 } from './tools/definitions-discovery.js';
 import * as targetIdentity from './tools/target/identity.js';
 import * as targetBiology from './tools/target/biology.js';
 import * as targetAssociations from './tools/target/associations.js';
+import * as targetKnownDrugs from './tools/target/known-drugs.js';
 import * as targetSafety from './tools/target/safety.js';
 import * as disease from './tools/disease.js';
 import * as drugIdentity from './tools/drug/identity.js';
@@ -54,7 +55,7 @@ export const toolHandlers: Record<string, ToolHandler> = {
     args.page_index as number | undefined,
     args.page_size as number | undefined
   ),
-  get_target_known_drugs: (args) => targetAssociations.getTargetKnownDrugs(
+  get_target_known_drugs: (args) => targetKnownDrugs.getTargetKnownDrugs(
     args.ensembl_id as string,
     args.page_index as number | undefined,
     args.page_size as number | undefined
