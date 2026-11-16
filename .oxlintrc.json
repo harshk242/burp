@@ -1,0 +1,61 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "react", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "error"
+  },
+  "env": {
+    "builtin": true,
+    "es2024": true,
+    "node": true
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.next/**",
+    "**/coverage/**",
+    "app/web/next-env.d.ts",
+    "bio-agent/**"
+  ],
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/no-base-to-string": "error",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/no-unsafe-type-assertion": "off",
+
+    "eslint/no-shadow": "off",
+    "eslint/no-underscore-dangle": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    "import/no-named-as-default-member": "off",
+
+    "react/react-in-jsx-scope": "off",
+
+    "vitest/valid-expect": ["error", { "maxArgs": 2 }],
+    "vitest/expect-expect": ["error", { "assertFunctionNames": ["expect", "expect*", "assert*"] }],
+    "vitest/valid-title": "off",
+    "vitest/no-conditional-expect": "off",
+    "vitest/require-mock-type-parameters": "off",
+    "vitest/require-to-throw-message": "off"
+  },
+  "overrides": [
+    {
+      "files": ["app/**/__tests__/**", "app/**/*.test.ts"],
+      "rules": {
+        "typescript/await-thenable": "off",
+        "typescript/no-floating-promises": [
+          "error",
+          { "allowForKnownSafeCalls": [{ "from": "package", "package": "bun:test", "name": "module" }] }
+        ]
+      }
+    }
+  ]
+}

@@ -44,6 +44,10 @@ Then re-clone or `git checkout -- CLAUDE.md`.
 # Package management
 - use bun commands always
 
+# Linting
+- `bun run lint` runs oxlint (type-aware) over all workspaces; config in `.oxlintrc.json`. CI fails on any finding.
+- `bun run lint:fix` applies safe autofixes.
+
 # Python environment
 - Use the `bio-agent` uv virtual environment for all Python code.
 - Run scripts: `bio-agent/bin/python script.py`
