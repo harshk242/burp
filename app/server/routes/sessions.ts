@@ -130,8 +130,7 @@ sessions.openapi(createSessionRoute, async (c) => {
   const userId = c.get("userId") as string;
 
   try {
-    const body: unknown = await c.req.json().catch(() => ({}));
-    const title = typeof body === "object" && body !== null && "title" in body && typeof body.title === "string" ? body.title : undefined;
+    const { title } = c.req.valid("json");
 
     const id = uuidv4();
     chatSessionQueries.create(id, userId, title || "New Chat");
