@@ -55,7 +55,7 @@ export const tools: Tool[] = [
   },
   {
     name: 'get_study_details',
-    description: 'Get detailed information about a specific clinical trial',
+    description: 'Get detailed information about a specific clinical trial, including its registry name (acronym), sponsor protocol ID and secondary IDs. Use it to confirm which NCT ID a named trial has.',
     inputSchema: {
       type: 'object',
       properties: {

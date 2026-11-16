@@ -1,4 +1,3 @@
-import { paginateTargetLists } from './pagination.js';
 import { getClient } from '../../client.js';
 import { filterNoneValues, truncateArray } from '../../utils.js';
 import { TARGET_ASSOCIATED_DISEASES_OPERATION } from './operations.js';
@@ -10,41 +9,6 @@ export async function getTargetAssociatedDiseases(
 ): Promise<unknown> {
   const client = getClient();
   return client.query(TARGET_ASSOCIATED_DISEASES_OPERATION, { ensemblId, pageIndex, pageSize });
-}
-
-export async function getTargetKnownDrugs(
-  ensemblId: string,
-  pageIndex: number = 0,
-  pageSize: number = 10
-): Promise<unknown> {
-  const client = getClient();
-  const query = `
-    query TargetKnownDrugs($ensemblId: String!) {
-      target(ensemblId: $ensemblId) {
-        drugAndClinicalCandidates {
-          count
-          rows {
-            id
-            maxClinicalStage
-            drug {
-              id
-              name
-              drugType
-              maximumClinicalStage
-              description
-            }
-            diseases {
-              disease {
-                id
-                name
-              }
-            }
-          }
-        }
-      }
-    }
-  `;
-  return paginateTargetLists(await client.query(query, { ensemblId }), ['drugAndClinicalCandidates.rows'], pageIndex, pageSize);
 }
 
 interface LiteratureResult {

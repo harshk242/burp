@@ -2,7 +2,11 @@ import type { AxiosAdapter } from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { initClient, resultMeta } from '../client.js';
-import { handleGetTrialStatistics, handleSearchStudies } from '../tools/search-handlers.js';
+import {
+  handleGetStudyDetails,
+  handleGetTrialStatistics,
+  handleSearchStudies,
+} from '../tools/search-handlers.js';
 import { handleSearchInternationalStudies } from '../tools/advanced-handlers.js';
 
 function study(nctId: string, countries: string[] = []) {
@@ -40,6 +44,42 @@ describe('resultMeta', () => {
   it('keeps a real zero and flags more pages', () => {
     expect(resultMeta({ studies: [], totalCount: 0 }, 0).totalCount).toBe(0);
     expect(resultMeta({ studies: [], nextPageToken: 'abc' }, 10).hasMore).toBe(true);
+  });
+});
+
+describe('trial names come from the registry record', () => {
+  const engage = {
+    hasResults: true,
+    protocolSection: {
+      identificationModule: {
+        nctId: 'NCT02477800',
+        briefTitle: "221AD301 Phase 3 Study of Aducanumab (BIIB037) in Early Alzheimer's Disease",
+        acronym: 'ENGAGE',
+        orgStudyIdInfo: { id: '221AD301' },
+        secondaryIdInfos: [{ id: '2015-000966-72' }],
+      },
+      statusModule: { overallStatus: 'TERMINATED' },
+    },
+  };
+
+  it('search summaries carry acronym, sponsor protocol ID and hasResults', async () => {
+    mockGet.mockResolvedValueOnce({ data: { studies: [engage, study('NCT00000002')] } });
+    const result = await handleSearchStudies({ query: 'aducanumab' }) as { studies: unknown[] };
+    expect(result.studies[0]).toMatchObject({
+      nctId: 'NCT02477800', acronym: 'ENGAGE', orgStudyId: '221AD301', hasResults: true,
+    });
+    expect(result.studies[1]).toMatchObject({ acronym: null, orgStudyId: null, hasResults: false });
+  });
+
+  it('study details carry acronym and secondary IDs', async () => {
+    mockGet.mockResolvedValueOnce({ data: { studies: [engage] } });
+    const result = await handleGetStudyDetails({ nctId: 'NCT02477800' });
+    expect(result).toMatchObject({
+      identification: {
+        nctId: 'NCT02477800', acronym: 'ENGAGE', orgStudyId: '221AD301', secondaryIds: ['2015-000966-72'],
+      },
+      hasResults: true,
+    });
   });
 });
 

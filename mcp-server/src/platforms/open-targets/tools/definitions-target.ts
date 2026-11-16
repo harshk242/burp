@@ -156,7 +156,16 @@ export const definitions: Tool[] = [
   },
   {
     name: 'get_target_known_drugs',
-    description: 'Return compounds with known activity on the target.',
+    description: 'Return drugs and clinical candidates with activity on the target. Each row has '
+      + '`approval.status`: REGULATOR_APPROVED (an FDA/EMA/PMDA approval or a DailyMed label is on '
+      + 'record; `approval.regulators` names them), APPROVAL_UNCONFIRMED (only a WHO ATC code, TTD, a '
+      + 'trial record or the drug-level stage says approval: may be unapproved, or approved by a '
+      + 'regulator not covered such as China NMPA), or NOT_APPROVED. `approvalSummary` covers all '
+      + 'rows (not just this page), merges salts into the parent drug, and is the count to use for '
+      + '"which/how many approved drugs". `maxClinicalStage` and `drug.maximumClinicalStage` are '
+      + 'development stages, not regulatory status: PHASE_4 ranks above APPROVAL and marks '
+      + 'post-marketing trials of a marketed drug; WITHDRAWAL means a withdrawal was recorded in at '
+      + 'least one market. When reporting an approval, name the regulator.',
     inputSchema: {
       type: 'object',
       properties: {
