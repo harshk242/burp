@@ -19,9 +19,6 @@ const nodes = (value: unknown): AnyObject[] => ensureArray(value as AnyObject | 
 
 const parser = new XMLParser({
   ignoreAttributes: false,
-  // PubMed encodes non-ASCII as numeric references (A&#x3b2;, &#x2212;0.45); decode them so
-  // abstracts read as text and quoted numbers match the source.
-  htmlEntities: true,
   attributeNamePrefix: '@_',
   textNodeName: '#text',
   parseAttributeValue: true,
@@ -38,9 +35,32 @@ const parser = new XMLParser({
   },
 });
 
+// Markup characters must stay escaped or the decoded text would be parsed as XML.
+const MARKUP_REFERENCES: Record<number, string> = { 34: '&quot;', 38: '&amp;', 39: '&apos;', 60: '&lt;', 62: '&gt;' };
+
+/**
+ * PubMed encodes non-ASCII as numeric references (A&#x3b2;, &#x2212;0.45). Decode them before
+ * parsing so abstracts read as text and quoted numbers match the source. The parser's own
+ * `htmlEntities` option counts each reference against its 1000-expansion entity-bomb limit,
+ * which a 20-abstract EFetch batch exceeds.
+ */
+export function decodeCharacterReferences(xml: string): string {
+  return xml.replace(/&#(x[0-9a-fA-F]{1,6}|[0-9]{1,7});/g, (match, ref: string) => {
+    const code = ref[0] === 'x' || ref[0] === 'X' ? parseInt(ref.slice(1), 16) : parseInt(ref, 10);
+    if (MARKUP_REFERENCES[code]) return MARKUP_REFERENCES[code];
+    try {
+      return String.fromCodePoint(code);
+    } catch {
+      return match;
+    }
+  });
+}
+
+const parse = (xml: string) => parser.parse(decodeCharacterReferences(xml));
+
 export function parseESearchResult(xml: string): ESearchResult {
   try {
-    const result = parser.parse(xml);
+    const result = parse(xml);
     const searchResult = result.eSearchResult;
 
     if (!searchResult) {
@@ -74,7 +94,7 @@ export function parseESearchResult(xml: string): ESearchResult {
 
 export function parseESummaryResult(xml: string): ArticleSummary[] {
   try {
-    const result = parser.parse(xml);
+    const result = parse(xml);
     const docSums = result.eSummaryResult?.DocSum || result.eSummaryResult?.DocumentSummarySet?.DocumentSummary || [];
 
     return nodes(docSums).map((doc) => {
@@ -150,7 +170,7 @@ function parseStructureItem(item: AnyObject): AnyObject {
 
 export function parseEFetchResult(xml: string): PubMedArticle[] {
   try {
-    const result = parser.parse(xml);
+    const result = parse(xml);
     const articles = result.PubmedArticleSet?.PubmedArticle || [];
 
     const parsedArticles: PubMedArticle[] = [];
@@ -293,7 +313,7 @@ function formatPubDate(pubDate: AnyObject | undefined): string {
 
 export function parseELinkResult(xml: string): LinkResult {
   try {
-    const result = parser.parse(xml);
+    const result = parse(xml);
     const linkSet = result.eLinkResult?.LinkSet;
 
     if (!linkSet) {

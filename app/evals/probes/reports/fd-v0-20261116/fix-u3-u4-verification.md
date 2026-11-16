@@ -39,6 +39,23 @@ same probe file and model (`claude-sonnet-5-5`). Run id `fd-v0-20261116-fix13`, 
 | CLARITY AD −0.45 and 12.6% appear in a retrieved abstract | 0/3 | 3/3 |
 | Hepcludex EMA status/date | memory | 3/3 from EMA file (authorised 2020-07-31) |
 
+## Re-run after rebasing onto #72 (`fd-v0-20261116-fix13-rebased`)
+
+Same 48 probes × 3, on develop with #72 (U1/U2 fixes) merged in.
+
+| Metric | Baseline | Pre-rebase | Rebased |
+|---|---|---|---|
+| Runs that searched PubMed and then opened an abstract | 5/97 (5%) | 72/81 (89%) | 75/88 (85%) |
+| Runs that used a regulatory tool | 0 | 78 | 72 |
+| SMA / Blenrep / China / CLARITY AD decisive facts | 0/9, 1/3, 1/3, 0/3 | all 3/3 | all 3/3 |
+| Run errors | 0 | 0 | 1 (Anthropic credit balance ran out on the last run) |
+
+The rebased run exposed one bug introduced by this change: decoding PubMed numeric character references
+with fast-xml-parser's `htmlEntities` counts every reference against its 1000-expansion entity-bomb limit,
+so `batch_fetch_articles` failed on large batches (reasoning-direction-pcsk9 r2/r3, 4 calls; the runs recovered
+from search titles). Fixed by decoding references before parsing (markup characters stay escaped); the failing
+5-PMID batch now parses live. The probe could not be re-run because API credits were exhausted.
+
 ## Still open
 
 - Probes whose answer needs no PubMed search (e.g. multiturn contradiction, APOE direction) still answer from
