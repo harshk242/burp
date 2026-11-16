@@ -5,9 +5,11 @@
     "": {
       "name": "super-bio-agent",
       "devDependencies": {
+        "@types/bun": "^1.1.0",
         "concurrently": "^9.2.1",
         "oxlint": "^1.93.0",
         "oxlint-tsgolint": "^7.0.2007",
+        "typescript": "^5.9.3",
       },
     },
     "app": {
@@ -100,6 +102,7 @@
         "fuzzball": "^2.1.2",
       },
       "devDependencies": {
+        "@types/bun": "^1.1.0",
         "@types/node": "^20.0.0",
         "@vitest/coverage-v8": "^2.0.0",
         "graphql": "^17.0.2",

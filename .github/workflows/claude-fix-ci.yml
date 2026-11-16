@@ -85,7 +85,7 @@ jobs:
             4. Otherwise implement the fix and verify it by re-running the
                failing suite (mcp-server: `bunx vitest run`, contract tests:
                `bunx vitest run --config vitest.contracts.config.ts`,
-               app: `bun test` in app/, typecheck: `bunx tsc --noEmit` in mcp-server/).
+               app: `bun test` in app/, typecheck: `bun run typecheck` in the repo root, mcp-server/, app/ and app/web/).
             5. Create branch `claude/fix-ci-${{ github.event.workflow_run.id }}`,
                commit with a Conventional Commit message, push it, and open a PR
                with `gh pr create --base develop`.

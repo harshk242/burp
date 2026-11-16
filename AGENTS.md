@@ -48,6 +48,15 @@ Then re-clone or `git checkout -- CLAUDE.md`.
 - `bun run lint` runs oxlint (type-aware) over all workspaces; config in `.oxlintrc.json`. CI fails on any finding.
 - `bun run lint:fix` applies safe autofixes.
 
+# Langfuse traces
+- Read traces with `scripts/langfuse.sh api ...` (wraps `bunx langfuse-cli`, loads keys from `app/.env`). Never paste keys into chat or commit them.
+- Skill: `langfuse@claude-plugins-official` plugin (enabled in `.claude/settings.json`; source github.com/langfuse/skills).
+- Query `observations`, not `traces` (legacy). Pipe through `jq`; select `--fields` to keep output small.
+- Trace shape: root `chat-turn` (AGENT) → `llm-call` (GENERATION) per iteration + TOOL/RETRIEVER spans per tool call. Tags: `[provider, model]`; `release` = git short SHA; environment `dev` locally.
+- Recent turns: `scripts/langfuse.sh api observations list --is-root-observation --environment dev --limit 10 --fields core,basic,metrics --json | jq '.body.data[] | {traceId, startTime, latency, sessionId}'`
+- One turn: `scripts/langfuse.sh api observations list --trace-id <id> --fields core,basic,model,usage,metrics --json | jq '.body.data[] | {type, name, level, statusMessage, latency, totalCost}'` (add `io` only when inputs/outputs are needed).
+- Errors: `--level ERROR`; scores: `scripts/langfuse.sh api scores list --trace-id <id> --json`.
+
 # Python environment
 - Use the `bio-agent` uv virtual environment for all Python code.
 - Run scripts: `bio-agent/bin/python script.py`

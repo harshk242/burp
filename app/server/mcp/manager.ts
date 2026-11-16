@@ -141,15 +141,11 @@ export class MCPManager {
         }
       };
 
+      // Transport errors are not fatal: the SDK reports unparseable stdout
+      // lines here and keeps reading. A dead process always fires onclose,
+      // which owns teardown and retry.
       transport.onerror = (error) => {
-        if (server.status === "running") {
-          server.status = "error";
-          server.error = error instanceof Error ? error.message : String(error);
-          server.client = null;
-          server.transport = null;
-          logger.error("MCP", "server_error", { data: { server: name }, error: error instanceof Error ? error : String(error) });
-          this.scheduleRetry(name);
-        }
+        logger.warn("MCP", "server_transport_error", { data: { server: name }, error: error instanceof Error ? error : String(error) });
       };
     } catch (error) {
       server.status = "error";

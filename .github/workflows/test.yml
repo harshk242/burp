@@ -32,16 +32,23 @@ jobs:
       - name: Lint
         run: bun run lint
 
-      - name: Typecheck mcp-server
+      - name: Typecheck repo scripts
+        run: bun run typecheck
+
+      - name: Typecheck mcp-server (src, scripts, vitest configs)
         working-directory: mcp-server
-        run: bunx tsc --noEmit --project tsconfig.json
+        run: bun run typecheck
 
       - name: Run mcp-server unit tests
         working-directory: mcp-server
         run: bunx vitest run --reporter=verbose
 
-      - name: Typecheck app
+      - name: Typecheck app (server, evals, scripts, shared)
         working-directory: app
+        run: bun run typecheck
+
+      - name: Typecheck web
+        working-directory: app/web
         run: bun run typecheck
 
       - name: Check Drizzle migrations are consistent

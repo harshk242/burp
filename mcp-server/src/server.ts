@@ -76,7 +76,17 @@ export function createServer(
   return server;
 }
 
+// stdout is the JSON-RPC channel; any stray text there breaks the client.
+// Route general-purpose console output (ours or a dependency's) to stderr.
+function guardStdout(): void {
+  const toStderr = (...args: unknown[]) => console.error(...args);
+  console.log = toStderr;
+  console.info = toStderr;
+  console.debug = toStderr;
+}
+
 export async function runServer(): Promise<void> {
+  guardStdout();
   const enabledNames = process.env.ENABLED_PLATFORMS
     ? new Set(process.env.ENABLED_PLATFORMS.split(',').map((s: string) => s.trim()).filter(Boolean))
     : null;
