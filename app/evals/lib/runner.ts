@@ -121,7 +121,7 @@ export async function runEval(args: RunArgs, env: RunEnv, deps: RunDependencies)
     const estimates = armEstimates(arms, pinned.items.map((i) => ({ turns: (i.input as { turns?: unknown[] } | undefined)?.turns?.length ?? 1 })), args.repeat);
     log(`budget $${maxCostUsd} shared by ${arms.length} arm(s) × ${args.repeat} repeat(s) (overshoot ≤ ~1 call per concurrent item), concurrency ${concurrency}`);
     arms.forEach((arm, i) => {
-      log(`  arm ${arm.label}: max_output_tokens ${arm.maxOutputTokens} (${arm.maxOutputTokensSource}), max_context_tokens ${arm.maxContextTokens}; rough estimate $${estimates[i]!.totalUsd.toFixed(2)} ($${estimates[i]!.perItemUsd.toFixed(3)}/item)`);
+      log(`  arm ${arm.label}: max_output_tokens ${arm.maxOutputTokens} (${arm.maxOutputTokensSource}), max_context_tokens ${arm.maxContextTokens}; rough estimate $${estimates[i].totalUsd.toFixed(2)} ($${estimates[i].perItemUsd.toFixed(3)}/item)`);
     });
     const estimatedTotal = estimates.reduce((s, e) => s + e.totalUsd, 0);
     if (estimatedTotal > maxCostUsd) log(`  note: rough estimate $${estimatedTotal.toFixed(2)} exceeds the budget; later arms may be skipped_budget`);
@@ -214,7 +214,7 @@ export async function runEval(args: RunArgs, env: RunEnv, deps: RunDependencies)
           max_output_tokens: arm.maxOutputTokens,
           max_context_tokens: arm.maxContextTokens,
           status,
-          estimate_usd: Number(estimates[i]!.totalUsd.toFixed(4)),
+          estimate_usd: Number(estimates[i].totalUsd.toFixed(4)),
           experiments: outcomes.map((o, r) => ({ name: o.name, run_name: o.runName, url: o.datasetRunUrl ?? null, repeat_index: r + 1, items: o.itemRuns.map(saveItemRun), missing: [...o.missing].sort() })),
         })),
       };

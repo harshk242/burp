@@ -199,7 +199,7 @@ async function handleSearchGenes(args: Record<string, unknown>) {
       throw error;
     }
     throw new Error(
-      `No gene found with symbol: ${args.query}. REST API only supports exact gene symbol lookup. Try exact Ensembl gene symbols (e.g., TP53, BRCA1, BRCA2).`,
+      `No gene found with symbol: ${args.query}. REST API only supports exact gene symbol lookup. Try exact Ensembl gene symbols (e.g., TP53, BRCA1, BRCA2).`, { cause: error },
     );
   }
 }

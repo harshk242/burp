@@ -68,7 +68,7 @@ export const tools: Tool[] = [
 
 async function handleSearchTargets(args: Record<string, unknown>) {
   const client = getClient();
-  const params: Record<string, unknown> = { q: args.query, limit: (args.limit as number) || 25 };
+  const params: Record<string, unknown> = { q: args.query, limit: (args.limit) || 25 };
   if (args.target_type) params.target_type = args.target_type;
   if (args.organism) params.organism = args.organism;
   const response = await client.get('/target/search.json', { params });
@@ -93,7 +93,7 @@ async function handleGetTargetCompounds(args: Record<string, unknown>) {
   const client = getClient();
   const params: Record<string, unknown> = {
     target_chembl_id: args.target_chembl_id,
-    limit: (args.limit as number) || 25,
+    limit: (args.limit) || 25,
   };
 
   if (args.activity_type) {

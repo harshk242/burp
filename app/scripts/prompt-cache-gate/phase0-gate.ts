@@ -52,7 +52,7 @@ function buildCatalog(mode: Mode, nonce: string): Record<string, Tool> {
   });
   system[SEARCH] = { ...system[SEARCH], description: `${system[SEARCH].description} (gate run ${nonce})` };
   const names = toolRegistry.getAll().map((t) => `${t.server}__${t.name}`);
-  const entries: [string, Tool][] = [...Object.entries(system)];
+  const entries: [string, Tool][] = Object.entries(system);
   for (const name of names) {
     const core = ALWAYS_LOADED_TOOLS.has(name);
     if (mode === "core-only" && !core) continue;
@@ -160,7 +160,7 @@ const tok = (c: CallResult) => `in ${c.inputTokens} = noCache ${c.noCache} + rea
 
 function withCacheMarkers(messages: ModelMessage[], prevLastIndex?: number): ModelMessage[] {
   const mark = (m: ModelMessage): ModelMessage =>
-    ({ ...m, providerOptions: { ...m.providerOptions, anthropic: { ...m.providerOptions?.anthropic, cacheControl: { type: "ephemeral" } } } }) as ModelMessage;
+    ({ ...m, providerOptions: { ...m.providerOptions, anthropic: { ...m.providerOptions?.anthropic, cacheControl: { type: "ephemeral" } } } });
   return messages.map((m, i) => (i === messages.length - 1 || i === prevLastIndex ? mark(m) : m));
 }
 

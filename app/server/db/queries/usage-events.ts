@@ -52,7 +52,7 @@ export function createUsageEventQueries(db: DrizzleDb) {
     },
 
     findByTurnId(turnId: string): DbUsageEvent[] {
-      return db.select().from(usageEvents).where(eq(usageEvents.turn_id, turnId)).all() as DbUsageEvent[];
+      return db.select().from(usageEvents).where(eq(usageEvents.turn_id, turnId)).all();
     },
 
     getTotalsForDate(userId: string, date = new Date().toISOString().slice(0, 10)): UsageTotals {

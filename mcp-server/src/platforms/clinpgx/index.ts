@@ -400,7 +400,7 @@ const handlers: Record<string, ToolHandler> = {
   get_pathways: async (args) => {
     if (typeof args.query !== "string" || !args.query.trim()) throw new Error("get_pathways requires a nonblank gene symbol in query");
     const client = getClient();
-    return client.getPathways(args.query as string);
+    return client.getPathways(args.query);
   },
 
   get_database_stats: async () => {

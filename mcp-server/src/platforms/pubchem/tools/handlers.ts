@@ -164,7 +164,7 @@ const handleGetCompoundProperties: ToolHandler = async (args) => {
 };
 
 const handleGetAssayInfo: ToolHandler = async (args) => {
-  const a = args as Record<string, unknown>;
+  const a = args;
   const api = getClient();
   const response = await api.get(`/assay/aid/${a.aid}/description/JSON`);
   return response.data;

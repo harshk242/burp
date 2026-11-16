@@ -52,7 +52,7 @@ export function scoreRows(r: ComparisonReport): Record<string, string>[] {
 
 function table(rows: Record<string, string>[]): string[] {
   if (!rows.length) return ["(none)"];
-  const cols = Object.keys(rows[0]!);
+  const cols = Object.keys(rows[0]);
   const esc = (v: string) => v.replace(/\|/g, "\\|");
   return [`| ${cols.join(" | ")} |`, `| ${cols.map(() => "---").join(" | ")} |`, ...rows.map((row) => `| ${cols.map((c) => esc(row[c] ?? "")).join(" | ")} |`)];
 }

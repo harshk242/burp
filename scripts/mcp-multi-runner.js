@@ -80,7 +80,7 @@ class MCPServerProcess {
   }
 
   async start() {
-    const env = { ...process.env, ...(this.config.env || {}) };
+    const env = { ...process.env, ...this.config.env };
     this.proc = spawn(this.config.command, this.config.args || [], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,

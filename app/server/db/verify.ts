@@ -54,7 +54,7 @@ export function verifyDatabase(input: string, options: VerifyOptions = {}): Veri
     const pending = (legacy ? migrations : pendingMigrations(sqlite, migrations)).map((m) => m.tag);
     const tighten = pending.includes(TIGHTEN_MIGRATION_TAG);
     const preflight = legacy
-      ? inspectAfterCatchUp(sqlite, migrations[0]!, tighten)
+      ? inspectAfterCatchUp(sqlite, migrations[0], tighten)
       : { baselineDiffs: [], tightening: tighten ? previewTightening(sqlite) : emptyTighteningPreview() };
     const report: VerifyReport = {
       input,

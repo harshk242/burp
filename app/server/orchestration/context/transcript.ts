@@ -19,8 +19,8 @@ function withoutCacheMarkers<T extends ProviderOptions | undefined>(options: T):
   const anthropic = options?.anthropic;
   if (!anthropic || !CACHE_KEYS.some((key) => key in anthropic)) return options;
   const rest = Object.fromEntries(Object.entries(anthropic).filter(([key]) => !(CACHE_KEYS as readonly string[]).includes(key)));
-  const { anthropic: _marked, ...others } = options!;
-  const result = Object.keys(rest).length > 0 ? { ...options!, anthropic: rest } : others;
+  const { anthropic: _marked, ...others } = options;
+  const result = Object.keys(rest).length > 0 ? { ...options, anthropic: rest } : others;
   return (Object.keys(result).length > 0 ? result : undefined) as T | undefined;
 }
 

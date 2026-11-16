@@ -60,7 +60,7 @@ async function handleSearchDrugs(args: Record<string, unknown>) {
   const client = getClient();
   const params: Record<string, unknown> = {
     q: args.query,
-    limit: (args.limit as number) || 25,
+    limit: (args.limit) || 25,
   };
 
   // Filter before pagination so early pages are not depleted by non-drugs.

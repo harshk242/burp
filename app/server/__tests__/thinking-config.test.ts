@@ -91,7 +91,7 @@ describe("Anthropic request body", () => {
 describe("processChat thinking options", () => {
   beforeEach(() => {
     q.userQueries.create(USER_ID, "clerk_thinking", "thinking@example.com", null, null, "user", null, null);
-    const { server, name } = toolRegistry.parseToolName([...ALWAYS_LOADED_TOOLS][0]!);
+    const { server, name } = toolRegistry.parseToolName([...ALWAYS_LOADED_TOOLS][0]);
     toolRegistry.register(server, { name, description: "test tool", inputSchema: { type: "object", properties: {} } });
   });
 
@@ -134,7 +134,7 @@ describe("processChat thinking options", () => {
     for await (const event of processChat(crypto.randomUUID(), USER_ID, "hi")) void event;
 
     expect(calls).toHaveLength(1);
-    const call = calls[0]!;
+    const call = calls[0];
     expect(call.providerOptions).toEqual(EXPECTED);
     expect(call.maxOutputTokens).toBe(16000);
     expect(call.temperature).toBeUndefined();

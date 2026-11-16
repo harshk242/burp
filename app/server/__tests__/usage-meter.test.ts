@@ -153,8 +153,8 @@ describe("UsageMeter", () => {
       call_cost_microusd: 5200,
       tool_count: 2,
     });
-    expect(logged[1]!.tools_hash).toMatch(/^[0-9a-f]{8}$/);
-    expect(logged[1]!.system_hash).toMatch(/^[0-9a-f]{8}$/);
+    expect(logged[1].tools_hash).toMatch(/^[0-9a-f]{8}$/);
+    expect(logged[1].system_hash).toMatch(/^[0-9a-f]{8}$/);
 
     expect(meter.logFields()).toMatchObject({ cache_hit_ratio: Number((2000 / 6500).toFixed(4)), llm_calls: 2 });
   });

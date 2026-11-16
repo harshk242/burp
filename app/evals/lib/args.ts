@@ -74,7 +74,7 @@ export function parseRunArgs(argv: string[]): RunArgs | null {
     arms: [],
   };
   for (let i = 0; i < argv.length; i++) {
-    const flag = argv[i]!;
+    const flag = argv[i];
     if (flag === "-h" || flag === "--help") return null;
     const [name, inline] = flag.includes("=") ? [flag.slice(0, flag.indexOf("=")), flag.slice(flag.indexOf("=") + 1)] : [flag, undefined];
     const value = (): string => {

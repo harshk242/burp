@@ -55,7 +55,7 @@ export function byName(spans: ReadableSpan[], name: string): ReadableSpan[] {
 export function one(spans: ReadableSpan[], name: string): ReadableSpan {
   const found = byName(spans, name);
   if (found.length !== 1) throw new Error(`expected one "${name}" span, found ${found.length}`);
-  return found[0]!;
+  return found[0];
 }
 
 export function json(span: ReadableSpan, key: string): unknown {

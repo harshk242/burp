@@ -7,7 +7,7 @@ import { baselineDatabase, baselineDiffs, runCatchUp } from "../db/legacy";
 import { MIGRATIONS_FOLDER } from "../db/paths";
 import { normalizeExpression } from "../db/sql-tokens";
 
-const baseline = loadMigrations(MIGRATIONS_FOLDER)[0]!;
+const baseline = loadMigrations(MIGRATIONS_FOLDER)[0];
 
 function db(...statements: string[]): Database {
   const sqlite = new Database(":memory:");
@@ -49,15 +49,15 @@ describe("fingerprint vs the 0000 baseline", () => {
       uniques: ["date,user_id"],
       indexes: ["idx_daily_usage_user_date: (user_id, date)"],
     });
-    expect(fp.tables.daily_usage!.columns.id).toEqual({ type: "INTEGER", notnull: true, default: null });
-    expect(fp.tables.users!.columns.id).toEqual({ type: "TEXT", notnull: false, default: null });
-    expect(fp.tables.users!.columns.created_at!.default).toBe("unixepoch ( )");
-    expect(fp.tables.usage_events!.foreignKeys).toEqual([
+    expect(fp.tables.daily_usage.columns.id).toEqual({ type: "INTEGER", notnull: true, default: null });
+    expect(fp.tables.users.columns.id).toEqual({ type: "TEXT", notnull: false, default: null });
+    expect(fp.tables.users.columns.created_at.default).toBe("unixepoch ( )");
+    expect(fp.tables.usage_events.foreignKeys).toEqual([
       "(message_id) -> messages(id) on delete set null on update no action",
       "(session_id) -> chat_sessions(id) on delete set null on update no action",
       "(user_id) -> users(id) on delete cascade on update no action",
     ]);
-    expect(fp.tables.rate_limits!.checks).toEqual(["role in ( 'user' , 'admin' )"]);
+    expect(fp.tables.rate_limits.checks).toEqual(["role in ( 'user' , 'admin' )"]);
     expect(fp.others).toEqual([]);
   });
 });

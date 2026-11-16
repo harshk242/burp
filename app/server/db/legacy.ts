@@ -143,7 +143,7 @@ function rebuildTables(sqlite: Database, baseline: MigrationMeta, reference: Dat
       .query<{ name: string; type: string; pk: number }, []>(`PRAGMA table_info(${quoteIdent(t)})`)
       .all();
     const pk = info.filter((c) => c.pk > 0);
-    const rowidAlias = pk.length === 1 && pk[0]!.type.toUpperCase() === "INTEGER";
+    const rowidAlias = pk.length === 1 && pk[0].type.toUpperCase() === "INTEGER";
     const cols = [...(rowidAlias ? [] : ["rowid"]), ...info.map((c) => quoteIdent(c.name))].join(", ");
     sqlite.run(`INSERT INTO ${quoteIdent(t)} (${cols}) SELECT ${cols} FROM ${quoteIdent(LEGACY_PREFIX + t)}`);
   }

@@ -156,7 +156,7 @@ const handleCompareProteins: ToolHandler = async (args) => {
     !Array.isArray(accessions) ||
     accessions.length < 2 ||
     accessions.length > 10 ||
-    !accessions.every((a: unknown) => typeof a === 'string' && (a as string).length > 0)
+    !accessions.every((a: unknown) => typeof a === 'string' && (a).length > 0)
   ) {
     throw new Error('compare_proteins: accessions must be an array of 2-10 non-empty strings');
   }
@@ -241,7 +241,7 @@ const handleBatchProteinLookup: ToolHandler = async (args) => {
     !Array.isArray(accessions) ||
     accessions.length === 0 ||
     accessions.length > 100 ||
-    !accessions.every((a: unknown) => typeof a === 'string' && (a as string).length > 0)
+    !accessions.every((a: unknown) => typeof a === 'string' && (a).length > 0)
   ) {
     throw new Error('batch_protein_lookup: accessions must be an array of 1-100 non-empty strings');
   }

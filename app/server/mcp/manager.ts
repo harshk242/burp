@@ -350,7 +350,7 @@ export class MCPManager {
     } catch (error) {
       // The client reports an abort as a timeout too.
       if (!signal?.aborted && isRequestTimeout(error, timeoutMs)) {
-        throw new Error(`Tool call timed out after ${timeoutMs}ms`);
+        throw new Error(`Tool call timed out after ${timeoutMs}ms`, { cause: error });
       }
       throw error;
     }
@@ -379,7 +379,7 @@ export class MCPManager {
       rawText = JSON.stringify(result.content);
     }
 
-    const meta = result._meta as Record<string, unknown> | undefined;
+    const meta = result._meta;
     const duration = elapsed();
     const outputTokens = estimateTokens(rawText);
     const outputBytes = Buffer.byteLength(rawText, "utf8");

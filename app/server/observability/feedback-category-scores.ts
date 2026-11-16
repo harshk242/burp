@@ -47,7 +47,7 @@ export async function writeCategoryScores(writer: ScoreWriter, scores: ScoreUpse
     ok = false;
     const reason: unknown = result.reason;
     logger.warn("TRACE", "feedback_category_sync_failed", {
-      data: { score_id: scores[i]!.id, name: scores[i]!.name },
+      data: { score_id: scores[i].id, name: scores[i].name },
       error: reason instanceof Error ? reason : String(reason),
     });
   });

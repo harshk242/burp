@@ -124,7 +124,7 @@ describe("runToolSearch", () => {
 
   it("Anthropic: drops hits the turn's catalog doesn't declare (registered mid-turn)", async () => {
     mockSearch();
-    const declared = { [SEARCH]: {}, [HITS[0]!]: {}, [HITS[2]!]: {} };
+    const declared = { [SEARCH]: {}, [HITS[0]]: {}, [HITS[2]]: {} };
     const run = await runToolSearch("q", { provider: "anthropic", sanitize: (n) => n, declared });
     expect(run.hits.map((h) => h.name)).toEqual([HITS[0], HITS[2]]);
     expect(JSON.stringify(run.modelOutput)).not.toContain(HITS[1]);
@@ -176,7 +176,7 @@ describe("Anthropic request body", () => {
     const tools: Record<string, Tool> = {};
     for (const name of [SEARCH, ...HITS]) {
       tools[name] = tool({ description: name, inputSchema: jsonSchema(schema) });
-      if (name !== SEARCH && name !== CORE) tools[name]!.providerOptions = { anthropic: { deferLoading: true } };
+      if (name !== SEARCH && name !== CORE) tools[name].providerOptions = { anthropic: { deferLoading: true } };
     }
     const messages: ModelMessage[] = [
       { role: "user", content: "find drug tools" },

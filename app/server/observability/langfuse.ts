@@ -105,8 +105,8 @@ async function runShutdown(timeoutMs: number): Promise<void> {
   try {
     const settled = Promise.all(tasks.map(async ({ component, run }) => {
       const [result] = await Promise.allSettled([Promise.resolve().then(run)]);
-      if (result!.status === "rejected") logger.warn("TRACE", "shutdown_failed", {
-        data: { component }, error: result!.reason instanceof Error ? result!.reason : String(result!.reason),
+      if (result.status === "rejected") logger.warn("TRACE", "shutdown_failed", {
+        data: { component }, error: result.reason instanceof Error ? result.reason : String(result.reason),
       });
     }));
     const result = await Promise.race([settled, timedOut]);

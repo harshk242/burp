@@ -102,7 +102,7 @@ function walkType(
 
   const unwrapped = getNullableType(type);
   if (isListType(unwrapped)) {
-    walkType(ctx, unwrapped.ofType as GraphQLOutputType, selectionSet, `${path}[]`);
+    walkType(ctx, unwrapped.ofType, selectionSet, `${path}[]`);
     return;
   }
 

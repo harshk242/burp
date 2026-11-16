@@ -18,7 +18,7 @@ type StreamPart =
 
 const USER_ID = "33333333-3333-4333-8333-333333333333";
 const { provider } = loadLLMConfig();
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, provider);
 
 const t = createTestDb();
@@ -104,7 +104,7 @@ function captureScores() {
 
 const ledgerMicrousd = () =>
   t.sqlite.query<{ cost_microusd: number }, []>("SELECT cost_microusd FROM usage_events").get()!.cost_microusd;
-const turnRow = (sessionId: string) => q.chatTurnQueries.findBySessionId(sessionId)[0]!;
+const turnRow = (sessionId: string) => q.chatTurnQueries.findBySessionId(sessionId)[0];
 const mem = installMemoryTracing();
 
 beforeEach(() => {
@@ -149,10 +149,10 @@ describe("cost budget", () => {
     await collect(processChat(crypto.randomUUID(), USER_ID, "hi", turn.signal, { costBudget: budget }));
 
     expect(charges).toHaveLength(2);
-    expect(charges[1]!).toBeGreaterThan(0);
+    expect(charges[1]).toBeGreaterThan(0);
     const ledger = t.sqlite.query<{ cost_microusd: number; usage_estimated: number }, []>("SELECT cost_microusd, usage_estimated FROM usage_events").get()!;
     expect(ledger.usage_estimated).toBe(1);
-    expect(Math.ceil((charges[0]! + charges[1]!) / 1e6)).toBe(ledger.cost_microusd);
+    expect(Math.ceil((charges[0] + charges[1]) / 1e6)).toBe(ledger.cost_microusd);
   });
 
   it("an exhausted budget fails the turn before any model call: budget_exceeded, no scores, tagged trace", async () => {
@@ -179,7 +179,7 @@ describe("cost budget", () => {
     expect(charges).toHaveLength(1);
     expect(shared.exhausted).toBe(true);
     expect(turnRow(sessionId)).toMatchObject({ status: "error", error_code: "budget_exceeded", iterations: 1 });
-    expect(Math.ceil(charges[0]! / 1e6)).toBe(ledgerMicrousd());
+    expect(Math.ceil(charges[0] / 1e6)).toBe(ledgerMicrousd());
   });
 });
 

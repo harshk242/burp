@@ -102,8 +102,8 @@ describe("capability check (Models API)", () => {
     const infos = await checkCapabilities([{ model: "claude-sonnet-5-5", effort: "low" }, { model: "claude-sonnet-5-5", effort: "max" }], 180_000, api.opts);
     expect(infos.get("claude-sonnet-5-5")?.max_tokens).toBe(128_000);
     expect(api.requests).toHaveLength(1);
-    expect(api.requests[0]!.url).toBe("https://models.test/v1/models/claude-sonnet-5-5");
-    expect(api.requests[0]!.headers).toMatchObject({ "x-api-key": "test-key", "anthropic-version": "2023-06-01" });
+    expect(api.requests[0].url).toBe("https://models.test/v1/models/claude-sonnet-5-5");
+    expect(api.requests[0].headers).toMatchObject({ "x-api-key": "test-key", "anthropic-version": "2023-06-01" });
   });
 
   it("unknown model and unsupported effort fail, listing every problem", async () => {
@@ -169,11 +169,11 @@ describe("per-arm estimate", () => {
     const arms = (await prepareArms({ matrix: "sonnet-effort", arms: [{ model: "claude-opus-5-5", effort: "max" }] }, config, modelsApi(["claude-sonnet-5-5", "claude-opus-5-5"].map((id) => modelInfo(id))).opts)).arms;
     const one = armEstimates(arms, [{ turns: 1 }, { turns: 2 }], 1);
     const two = armEstimates(arms, [{ turns: 1 }, { turns: 2 }], 2);
-    expect(two[0]!.totalUsd).toBeCloseTo(one[0]!.totalUsd * 2, 10);
-    expect(one[0]!.perItemUsd).toBeCloseTo(one[0]!.totalUsd / 2, 10);
+    expect(two[0].totalUsd).toBeCloseTo(one[0].totalUsd * 2, 10);
+    expect(one[0].perItemUsd).toBeCloseTo(one[0].totalUsd / 2, 10);
     const sonnet = one.slice(0, 5).map((e) => e.totalUsd);
     expect([...sonnet].sort((a, b) => a - b)).toEqual(sonnet);
-    expect(one[5]!.totalUsd).toBeGreaterThan(one[4]!.totalUsd);
+    expect(one[5].totalUsd).toBeGreaterThan(one[4].totalUsd);
   });
 });
 
@@ -200,7 +200,7 @@ describe("arm loop", () => {
     });
     expect(seen.map((s) => `${s.arm}${s.r}`)).toEqual(["a1", "a2", "b1", "b2", "c1", "c2"]);
     expect(new Set(seen.map((s) => s.shared)).size).toBe(1);
-    expect((seen[0]!.shared as { budget: unknown }).budget).toBe(b);
+    expect((seen[0].shared as { budget: unknown }).budget).toBe(b);
     expect(results.map((r) => r.status)).toEqual(["complete", "complete", "complete"]);
   });
 

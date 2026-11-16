@@ -13,7 +13,7 @@ export function tokenize(sql: string): Token[] {
   const tokens: Token[] = [];
   let i = 0;
   while (i < sql.length) {
-    const ch = sql[i]!;
+    const ch = sql[i];
     if (/\s/.test(ch)) {
       i++;
     } else if (sql.startsWith("--", i)) {
@@ -72,7 +72,7 @@ export function isKeyword(token: Token | undefined, word: string): boolean {
 export function balancedParens(tokens: Token[], open: number): [Token[], number] {
   let depth = 0;
   for (let i = open; i < tokens.length; i++) {
-    const t = tokens[i]!;
+    const t = tokens[i];
     if (t.kind !== "punct") continue;
     if (t.text === "(") depth++;
     else if (t.text === ")" && --depth === 0) return [tokens.slice(open + 1, i), i + 1];
@@ -99,7 +99,7 @@ export function normalizeExpression(input: Token[] | string): string {
 }
 
 function stripOuterParens(tokens: Token[]): Token[] {
-  while (tokens.length >= 2 && tokens[0]!.kind === "punct" && tokens[0]!.text === "(") {
+  while (tokens.length >= 2 && tokens[0].kind === "punct" && tokens[0].text === "(") {
     const [inner, after] = balancedParens(tokens, 0);
     if (after !== tokens.length) break;
     tokens = inner;

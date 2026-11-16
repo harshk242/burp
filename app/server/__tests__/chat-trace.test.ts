@@ -23,7 +23,7 @@ type StreamPart =
 
 const USER_ID = "22222222-2222-4222-8222-222222222222";
 const { provider } = loadLLMConfig();
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, provider);
 const SEARCH_KEY = sanitizeToolName(SEARCH_TOOL_NAME, provider);
 
@@ -100,7 +100,7 @@ async function collect(gen: AsyncGenerator<StreamEvent>): Promise<StreamEvent[]>
   return events;
 }
 
-const turnRow = (sessionId: string) => q.chatTurnQueries.findBySessionId(sessionId)[0]!;
+const turnRow = (sessionId: string) => q.chatTurnQueries.findBySessionId(sessionId)[0];
 const mem = installMemoryTracing();
 
 beforeEach(() => {
@@ -166,13 +166,13 @@ describe("turn tracing", () => {
     expect(root.attributes[LEVEL]).toBe("DEFAULT");
 
     const [g1, g2] = [...gens].sort((a, b) => Number(a.attributes["langfuse.observation.metadata.iteration"]) - Number(b.attributes["langfuse.observation.metadata.iteration"]));
-    expect(json(g1!, "langfuse.observation.input")).toEqual([{ role: "user", content: "What is BRCA1?" }]);
-    const g2Input = json(g2!, "langfuse.observation.input") as { role: string }[];
+    expect(json(g1, "langfuse.observation.input")).toEqual([{ role: "user", content: "What is BRCA1?" }]);
+    const g2Input = json(g2, "langfuse.observation.input") as { role: string }[];
     expect(g2Input.map((m) => m.role)).toEqual(["assistant", "tool"]);
-    expect((json(g1!, "langfuse.observation.output") as { tool_calls: { name: string }[] }).tool_calls.map((c) => c.name)).toEqual([TOOL_KEY, SEARCH_KEY]);
-    expect(json(g1!, "langfuse.observation.usage_details")).toEqual({ input: 100, output: 20, cache_read_input_tokens: 800, cache_creation_input_tokens: 100 });
-    expect(g2!.attributes["langfuse.observation.metadata.finish_reason"]).toBe("stop");
-    expect(g1!.attributes["langfuse.observation.completion_start_time"]).toBeDefined();
+    expect((json(g1, "langfuse.observation.output") as { tool_calls: { name: string }[] }).tool_calls.map((c) => c.name)).toEqual([TOOL_KEY, SEARCH_KEY]);
+    expect(json(g1, "langfuse.observation.usage_details")).toEqual({ input: 100, output: 20, cache_read_input_tokens: 800, cache_creation_input_tokens: 100 });
+    expect(g2.attributes["langfuse.observation.metadata.finish_reason"]).toBe("stop");
+    expect(g1.attributes["langfuse.observation.completion_start_time"]).toBeDefined();
 
     const costUsd = gens.reduce((sum, g) => sum + (json(g, "langfuse.observation.cost_details") as { total: number }).total, 0);
     const ledger = t.sqlite.query<{ cost_microusd: number }, []>("SELECT cost_microusd FROM usage_events").get()!;
@@ -344,7 +344,7 @@ describe("upstream retry metadata on the tool span", () => {
 
     await collect(processChat(crypto.randomUUID(), USER_ID, "hi"));
 
-    expect(seen[0]!._meta).toEqual({ deadline_ms: appConfig.server.mcp_tool_timeout_ms });
+    expect(seen[0]._meta).toEqual({ deadline_ms: appConfig.server.mcp_tool_timeout_ms });
     const tool = one(mem.spans(), TOOL_FULL_NAME);
     expect(tool.attributes[LEVEL]).toBeUndefined();
     expect(tool.attributes[metadata("upstream_attempts")]).toBe("3");

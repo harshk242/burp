@@ -49,7 +49,7 @@ describe("0003_tighten_not_null — schema", () => {
   });
 
   it("tightens exactly the backfilled columns and the text PKs", () => {
-    const baseline = baselineDatabase(migrations[0]!);
+    const baseline = baselineDatabase(migrations[0]);
     const sqlite = openDatabase(":memory:");
     runMigrations(sqlite, { migrationsFolder: migrationsFolderUpTo(TIGHTEN_MIGRATION_TAG) });
     const before = new Set(notNullColumns(baseline, TABLES));
@@ -77,7 +77,7 @@ describe("0003_tighten_not_null — schema", () => {
   it("starts with exactly the TIGHTEN_BACKFILLS statements, one per breakpoint, in order", () => {
     const head = tighten.sql.slice(0, TIGHTEN_BACKFILLS.length).map(stripComments);
     expect(head).toEqual(TIGHTEN_BACKFILLS.map(backfillSql));
-    expect(stripComments(tighten.sql[TIGHTEN_BACKFILLS.length]!)).toBe("PRAGMA foreign_keys=OFF;");
+    expect(stripComments(tighten.sql[TIGHTEN_BACKFILLS.length])).toBe("PRAGMA foreign_keys=OFF;");
     // Never more than one statement per chunk (drizzle-orm would silently drop the rest).
     for (const chunk of tighten.sql) expect(stripComments(chunk).replace(/;\s*$/, "")).not.toContain(";");
   });

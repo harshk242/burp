@@ -35,7 +35,7 @@ describe("large text artifacts", () => {
     let reconstructed = "";
     let start = 0;
     for (;;) {
-      const output = await inspect.execute!({ artifact_id: result.artifactId!, text_range: { start, length: MAX_TEXT_RANGE_CHARS } }, options as never);
+      const output = await inspect.execute({ artifact_id: result.artifactId!, text_range: { start, length: MAX_TEXT_RANGE_CHARS } }, options as never);
       const range = JSON.parse(output as string);
       expect(range.text.length).toBeLessThanOrEqual(MAX_TEXT_RANGE_CHARS);
       reconstructed += range.text;
@@ -51,11 +51,11 @@ describe("large text artifacts", () => {
 
   it("retains jq inspection for JSON and rejects mismatched or ambiguous selectors", async () => {
     const id = artifactStore.store("text-session", "demo__json", {}, { value: "retained" }, 20);
-    expect(await inspect.execute!({ artifact_id: id, jq_filter: ".value" }, options as never)).toBe("retained");
+    expect(await inspect.execute({ artifact_id: id, jq_filter: ".value" }, options as never)).toBe("retained");
     expect(artifactStore.readText(id, "text-session", 0, 1).error).toContain("jq_filter");
-    const ambiguous = await inspect.execute!({ artifact_id: id, jq_filter: ".", text_range: { start: 0, length: 1 } }, options as never);
+    const ambiguous = await inspect.execute({ artifact_id: id, jq_filter: ".", text_range: { start: 0, length: 1 } }, options as never);
     expect(JSON.parse(ambiguous as string).error).toContain("exactly one");
-    const absent = await inspect.execute!({ artifact_id: id }, options as never);
+    const absent = await inspect.execute({ artifact_id: id }, options as never);
     expect(JSON.parse(absent as string).error).toContain("exactly one");
   });
 });

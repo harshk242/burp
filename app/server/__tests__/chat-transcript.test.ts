@@ -16,7 +16,7 @@ type LanguageModelV4StreamPart =
   Awaited<ReturnType<MockLanguageModelV4["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never;
 
 const USER_ID = "55555555-5555-4555-8555-555555555555";
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
 const llmConfig = loadLLMConfig();
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, llmConfig.provider);
 const FETCHED_AT = /^\[fetched_at: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\]\n/;
@@ -81,7 +81,7 @@ const rows = (sessionId: string) => q.modelTranscriptQueries.findBySessionId(ses
 const stored = (sessionId: string) => rows(sessionId).map((r) => JSON.parse(r.content_json) as ModelMessage);
 const turns = (sessionId: string) => q.chatTurnQueries.findBySessionId(sessionId);
 function toolResultText(message: ModelMessage): string {
-  const part = (message.content as { type: string; output: { value: string } }[])[0]!;
+  const part = (message.content as { type: string; output: { value: string } }[])[0];
   return part.output.value;
 }
 
@@ -128,14 +128,14 @@ describe("model transcript", () => {
       model = scriptedModel([[...text("new answer"), finish("stop")]]);
       const events = await collect(processChat(sessionId, USER_ID, "new question"));
       expect(events.some((event) => event.type === "done")).toBe(true);
-      const prompt = model.doStreamCalls[0]!.prompt.filter((message) => message.role !== "system");
+      const prompt = model.doStreamCalls[0].prompt.filter((message) => message.role !== "system");
       expect(prompt.map((message) => message.role)).toEqual(["user", "assistant", "user"]);
       expect(JSON.stringify(prompt)).toContain("old UI answer");
       expect(JSON.stringify(prompt)).not.toMatch(/lossless question|old-signature|old-call/);
-      expect(prompt[0]!.providerOptions?.anthropic?.cacheControl).toBeUndefined();
+      expect(prompt[0].providerOptions?.anthropic?.cacheControl).toBeUndefined();
       const degradation = logs.mock.calls.filter(([, event]) => event === "transcript_degraded");
       expect(degradation).toHaveLength(1);
-      expect(degradation[0]![2]?.data).toEqual({
+      expect(degradation[0][2]?.data).toEqual({
         turn_id: "old-turn", reason, ...(reason === "missing_tools" ? { missing_tools: ["removed__tool"] } : {}),
       });
     });
@@ -150,11 +150,11 @@ describe("model transcript", () => {
     const logs = spyOn(logger, "info");
     model = scriptedModel([[...text("followup"), finish("stop")]]);
     await collect(processChat(sessionId, USER_ID, "second"));
-    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).not.toContain("kept-call");
-    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain("answer");
+    expect(JSON.stringify(model.doStreamCalls[0].prompt)).not.toContain("kept-call");
+    expect(JSON.stringify(model.doStreamCalls[0].prompt)).toContain("answer");
     const degraded = logs.mock.calls.filter(([, event]) => event === "transcript_degraded");
     expect(degraded).toHaveLength(1);
-    expect(degraded[0]![2]?.data).toMatchObject({ reason: "context_version" });
+    expect(degraded[0][2]?.data).toMatchObject({ reason: "context_version" });
   });
 
   it("reuses the measured prompt baseline when the next turn replays the same input prefix", async () => {
@@ -178,11 +178,11 @@ describe("model transcript", () => {
     model = scriptedModel([[...text("followup"), finish("stop")]]);
     const logs = spyOn(logger, "info");
     await collect(processChat(sessionId, USER_ID, "second"));
-    const prompt = model.doStreamCalls[0]!.prompt;
+    const prompt = model.doStreamCalls[0].prompt;
     expect(prompt.map((m) => m.role)).toEqual(["system", "user", "assistant", "tool", "assistant", "user"]);
-    expect(prompt[3]!.providerOptions?.anthropic?.cacheControl).toEqual({ type: "ephemeral", ttl: "5m" });
+    expect(prompt[3].providerOptions?.anthropic?.cacheControl).toEqual({ type: "ephemeral", ttl: "5m" });
     expect(JSON.stringify(prompt)).toContain("c1");
-    expect(JSON.stringify(prompt)).toContain(JSON.stringify(toolResultText(original[2]!)));
+    expect(JSON.stringify(prompt)).toContain(JSON.stringify(toolResultText(original[2])));
     expect(logs.mock.calls.some(([, event, options]) => event === "first_call_cache_read" && options?.data?.first_call_cache_read === 0)).toBe(true);
     expect(logs.mock.calls.some(([, event, options]) => event === "turn_started" && typeof options?.data?.turn_gap_seconds === "number")).toBe(true);
   });
@@ -196,7 +196,7 @@ describe("model transcript", () => {
     expect(loadTranscript(sessionId).messages).toEqual([]);
     model = scriptedModel([[...text("good"), finish("stop")]]);
     await collect(processChat(sessionId, USER_ID, "successful question"));
-    expect(model.doStreamCalls[0]!.prompt.filter((m) => m.role !== "system")).toEqual([
+    expect(model.doStreamCalls[0].prompt.filter((m) => m.role !== "system")).toEqual([
       expect.objectContaining({ role: "user", content: [{ type: "text", text: "successful question" }] }),
     ]);
   });
@@ -267,10 +267,10 @@ describe("model transcript", () => {
     const [turn] = turns(sessionId);
     const saved = rows(sessionId);
     expect(saved.map((r) => [r.seq, r.role, r.turn_id])).toEqual([
-      [0, "user", turn!.id],
-      [1, "assistant", turn!.id],
-      [2, "tool", turn!.id],
-      [3, "assistant", turn!.id],
+      [0, "user", turn.id],
+      [1, "assistant", turn.id],
+      [2, "tool", turn.id],
+      [3, "assistant", turn.id],
     ]);
     for (const row of saved) {
       expect(row).toMatchObject({
@@ -286,10 +286,10 @@ describe("model transcript", () => {
     expect(call).toMatchObject({ role: "assistant", content: [{ type: "tool-call", toolCallId: "c1", toolName: TOOL_KEY }] });
     expect(final).toMatchObject({ role: "assistant", content: [{ type: "text", text: "answer" }] });
 
-    const value = toolResultText(result!);
+    const value = toolResultText(result);
     expect(value).toMatch(FETCHED_AT);
     expect(value.replace(FETCHED_AT, "")).toBe('{"result":"ok"}');
-    const sent = JSON.stringify(model.doStreamCalls[1]!.prompt);
+    const sent = JSON.stringify(model.doStreamCalls[1].prompt);
     expect(sent).toContain(JSON.stringify(value));
 
     expect(sent).toContain("cacheControl");
@@ -305,10 +305,10 @@ describe("model transcript", () => {
 
     const [first, second] = turns(sessionId);
     expect(rows(sessionId).map((r) => [r.seq, r.role, r.turn_id])).toEqual([
-      [0, "user", first!.id],
-      [1, "assistant", first!.id],
-      [2, "user", second!.id],
-      [3, "assistant", second!.id],
+      [0, "user", first.id],
+      [1, "assistant", first.id],
+      [2, "user", second.id],
+      [3, "assistant", second.id],
     ]);
   });
 
@@ -320,9 +320,9 @@ describe("model transcript", () => {
     const [turn] = turns(sessionId);
     expect(turn).toMatchObject({ status: "error", error_code: "provider_error" });
     expect(rows(sessionId).map((r) => [r.role, r.turn_id])).toEqual([
-      ["user", turn!.id],
-      ["assistant", turn!.id],
-      ["tool", turn!.id],
+      ["user", turn.id],
+      ["assistant", turn.id],
+      ["tool", turn.id],
     ]);
   });
 
@@ -381,19 +381,19 @@ describe("model transcript on a real Anthropic stream", () => {
 
     const [, assistant, result, final] = stored(sessionId);
     expect(rows(sessionId).map((r) => r.role)).toEqual(["user", "assistant", "tool", "assistant"]);
-    const parts = (assistant!.content as { type: string }[]).filter((p) => p.type !== "custom");
+    const parts = (assistant.content as { type: string }[]).filter((p) => p.type !== "custom");
     expect(parts).toMatchObject([
       { type: "reasoning", text: "Plan the lookup.", providerOptions: { anthropic: { signature: "sig-123" } } },
       { type: "reasoning", providerOptions: { anthropic: { redactedData: "redacted-xyz" } } },
       { type: "tool-call", toolCallId: "toolu_1", toolName: TOOL_KEY },
     ]);
-    expect(final!.role).toBe("assistant");
-    expect((final!.content as unknown[]).filter((p) => (p as { type: string }).type !== "custom")).toEqual([{ type: "text", text: "Final answer." }]);
+    expect(final.role).toBe("assistant");
+    expect((final.content as unknown[]).filter((p) => (p as { type: string }).type !== "custom")).toEqual([{ type: "text", text: "Final answer." }]);
 
-    const request2 = JSON.parse(bodies[1]!) as { messages: { content: { type: string; content?: unknown; signature?: string }[] }[] };
+    const request2 = JSON.parse(bodies[1]) as { messages: { content: { type: string; content?: unknown; signature?: string }[] }[] };
     expect(bodies[1]).toContain("cache_control");
     const sentResult = request2.messages.flatMap((m) => m.content).find((c) => c.type === "tool_result")!;
-    expect(JSON.stringify(sentResult.content)).toContain(JSON.stringify(toolResultText(result!)));
+    expect(JSON.stringify(sentResult.content)).toContain(JSON.stringify(toolResultText(result)));
     expect(request2.messages.flatMap((m) => m.content).find((c) => c.type === "thinking")?.signature).toBe("sig-123");
     for (const row of rows(sessionId)) expect(row.content_json).not.toMatch(/cacheControl|cache_control/);
 
@@ -402,15 +402,15 @@ describe("model transcript on a real Anthropic stream", () => {
     expect(bodies).toHaveLength(4);
     const removeMarkers = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, item) => key === "cache_control" ? undefined : item));
     for (const i of [2, 3]) {
-      const previous = JSON.parse(bodies[i - 1]!);
-      const next = JSON.parse(bodies[i]!);
+      const previous = JSON.parse(bodies[i - 1]);
+      const next = JSON.parse(bodies[i]);
       const priorMessages = removeMarkers(previous.messages) as { content: unknown[] }[];
       const nextMessages = removeMarkers(next.messages) as { content: unknown[] }[];
       // Anthropic merges adjacent tool/user messages into one user block.
       for (let j = 0; j < priorMessages.length; j++) {
-        expect(nextMessages[j]).toMatchObject({ ...priorMessages[j], content: priorMessages[j]!.content });
+        expect(nextMessages[j]).toMatchObject({ ...priorMessages[j], content: priorMessages[j].content });
       }
-      expect((bodies[i]!.match(/"cache_control"/g) ?? []).length).toBeLessThanOrEqual(3);
+      expect((bodies[i].match(/"cache_control"/g) ?? []).length).toBeLessThanOrEqual(3);
       expect(bodies[i]).toContain("sig-123");
       expect(bodies[i]).toContain("redacted-xyz");
     }

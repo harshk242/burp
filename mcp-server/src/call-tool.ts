@@ -104,7 +104,7 @@ export function createCallToolHandler(allHandlers: Map<string, ToolHandler>) {
       };
     }
 
-    const timeoutMs = resolveToolCallTimeoutMs((_meta as Record<string, unknown> | undefined)?.deadline_ms);
+    const timeoutMs = resolveToolCallTimeoutMs((_meta)?.deadline_ms);
     return runWithToolCallContext({ timeoutMs, signal: extra.signal }, async (context) => {
       const result = await runTool(name, handler, args ?? {});
       const retry = context.buildRetryMeta({ isError: result.isError === true });

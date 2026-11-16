@@ -62,7 +62,7 @@ export function runMigrations(sqlite: Database, options: RunMigrationsOptions = 
   try {
     const result = sqlite.transaction(() => {
       const adopted = isLegacyDatabase(sqlite);
-      if (adopted) adoptLegacyDatabase(sqlite, migrations[0]!);
+      if (adopted) adoptLegacyDatabase(sqlite, migrations[0]);
       const applied = applyPendingMigrations(sqlite, migrations);
       const violations = sqlite.query<ForeignKeyViolation, []>("PRAGMA foreign_key_check").all();
       if (violations.length > 0) throw new MigrationFkError(violations);

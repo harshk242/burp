@@ -100,7 +100,7 @@ describe("toTranscriptRow", () => {
   it("stores the message JSON without markers, with role, tag and tool names", () => {
     const tag = { provider: "anthropic", model: "m", contextVersion: "v" };
     const [marked] = applyCacheMarkers([assistant]);
-    const row = toTranscriptRow("turn-1", marked!, tag);
+    const row = toTranscriptRow("turn-1", marked, tag);
     expect(row).toEqual({
       turnId: "turn-1",
       role: "assistant",

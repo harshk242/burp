@@ -167,7 +167,7 @@ async function handleGetExternalReferences(args: Record<string, unknown>) {
       entityType = 'target';
     } catch (targetError) {
       if (!isRejectedLookup(targetError)) throw targetError;
-      throw new Error('ChEMBL ID not found as molecule or target');
+      throw new Error('ChEMBL ID not found as molecule or target', { cause: targetError });
     }
   }
 

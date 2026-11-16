@@ -42,7 +42,7 @@ function toItemRun(result: ExperimentItemResult, evalItems: Map<string, DatasetI
     itemId: output.item_id,
     reviewed: isEligibleForPassFail(evalItem(evalItems, output.item_id)),
     output,
-    evaluations: result.evaluations.map((e) => ({ name: e.name, value: e.value as number | string })),
+    evaluations: result.evaluations.map((e) => ({ name: e.name, value: e.value })),
   };
 }
 

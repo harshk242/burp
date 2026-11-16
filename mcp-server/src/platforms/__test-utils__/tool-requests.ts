@@ -60,7 +60,7 @@ export async function assertArgsAffectRequests(
     expect(JSON.stringify(await capture({ ...full, [name]: alternative })), name).not.toBe(baseline);
   }
   for (const variant of argVariants(tool, samples).filter((v) => v.label !== 'all args' && v.label !== 'required only')) {
-    const name = variant.label.split(/[.\[=]/)[0];
+    const name = variant.label.split(/[.[=]/)[0];
     if (!clientSide[name]) expect(JSON.stringify(await capture(variant.args)), variant.label).not.toBe(baseline);
   }
 }

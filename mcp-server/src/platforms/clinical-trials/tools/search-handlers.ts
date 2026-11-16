@@ -11,7 +11,7 @@ import { applyAdvancedFilter, area, range, sexEligible } from '../advanced-filte
 export const handleSearchStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
   };
 
   if (args.query) params['query.term'] = args.query;
@@ -57,7 +57,7 @@ export const handleGetStudyDetails: ToolHandler = async (args) => {
 export const handleSearchByLocation: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
   };
 
   let locationQuery = '';
@@ -91,7 +91,7 @@ export const handleSearchByCondition: ToolHandler = async (args) => {
 
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
     'query.cond': args.condition,
   };
 
@@ -158,7 +158,7 @@ export const handleSearchBySponsor: ToolHandler = async (args) => {
 
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
     'query.spons': args.sponsor,
   };
 
@@ -185,7 +185,7 @@ export const handleSearchByIntervention: ToolHandler = async (args) => {
 
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
     'query.intr': args.intervention,
   };
 
@@ -211,7 +211,7 @@ export const handleSearchByIntervention: ToolHandler = async (args) => {
 export const handleGetRecruitingStudies: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
     'filter.overallStatus': 'RECRUITING',
   };
 
@@ -251,7 +251,7 @@ export const handleGetRecruitingStudies: ToolHandler = async (args) => {
 export const handleSearchByDateRange: ToolHandler = async (args) => {
   const params: Record<string, unknown> = {
     format: 'json',
-    pageSize: (args.pageSize as number) || 10,
+    pageSize: (args.pageSize) || 10,
   };
 
   applyAdvancedFilter(params, [

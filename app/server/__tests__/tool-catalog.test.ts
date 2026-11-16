@@ -38,7 +38,7 @@ function declarations(tools: ReturnType<typeof buildToolCatalog>) {
 }
 
 const deferred = (tools: ReturnType<typeof buildToolCatalog>, key: string) =>
-  tools[key]!.providerOptions?.anthropic?.deferLoading === true;
+  tools[key].providerOptions?.anthropic?.deferLoading === true;
 
 beforeEach(() => {
   expect(ALWAYS_LOADED_TOOLS.has(CORE)).toBe(true);
@@ -68,7 +68,7 @@ describe("buildToolCatalog (anthropic)", () => {
       SEARCH_TOOL_NAME,
       "uniprot__zeta",
     ]);
-    expect(tools["chembl__get_drug_info"]!.description).toBe("[chembl] does get_drug_info");
+    expect(tools["chembl__get_drug_info"].description).toBe("[chembl] does get_drug_info");
   });
 
   it("loads core and system tools and defers everything else", () => {
@@ -81,8 +81,8 @@ describe("buildToolCatalog (anthropic)", () => {
       SEARCH_TOOL_NAME,
     ]);
     expect(countDeferred(tools)).toBe(4);
-    expect(tools[INSPECT_TOOL_NAME]!.execute).toBeFunction();
-    expect(tools[SEARCH_TOOL_NAME]!.execute).toBeUndefined();
+    expect(tools[INSPECT_TOOL_NAME].execute).toBeFunction();
+    expect(tools[SEARCH_TOOL_NAME].execute).toBeUndefined();
   });
 
   it("keeps at least one tool loaded with an empty registry", () => {
@@ -111,7 +111,7 @@ describe("buildToolCatalog (anthropic)", () => {
     const tools = buildToolCatalog("anthropic", identity, "s1");
     const calls = warn.mock.calls.filter(([, event]) => event === "catalog_changed");
     expect(calls).toHaveLength(1);
-    const data = (calls[0]![2] as { data: { old_hash: string; new_hash: string; tool_count: number } }).data;
+    const data = (calls[0][2] as { data: { old_hash: string; new_hash: string; tool_count: number } }).data;
     expect(data.old_hash).not.toBe(data.new_hash);
     expect(data.tool_count).toBe(Object.keys(tools).length);
   });
@@ -123,7 +123,7 @@ describe("buildToolCatalog (google)", () => {
     const tools = buildToolCatalog("google", sanitize, "s1");
     expect(Object.keys(tools).sort()).toEqual(["open_targets__search_entities", ...SYSTEM_TOOLS].sort());
     expect(countDeferred(tools)).toBe(0);
-    expect(tools["open_targets__search_entities"]!.execute).toBeUndefined();
+    expect(tools["open_targets__search_entities"].execute).toBeUndefined();
   });
 });
 

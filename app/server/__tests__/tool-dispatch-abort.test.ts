@@ -51,7 +51,7 @@ const abortOnToolStart = (turn: AbortController) => (event: StreamEvent) => {
 };
 
 function systemTool(execute: Tool["execute"]): Record<string, Tool> {
-  return { [SYSTEM]: { description: "test", inputSchema: { type: "object" } as never, execute } as Tool };
+  return { [SYSTEM]: { description: "test", inputSchema: { type: "object" } as never, execute } };
 }
 
 afterEach(() => mock.restore());

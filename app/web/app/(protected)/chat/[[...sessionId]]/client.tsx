@@ -172,7 +172,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
 
         setRateLimitInfo(null);
         await controller.stream(work, content, token, (title) => {
-          updateSession(sessionId!, { title });
+          updateSession(sessionId, { title });
         });
       } catch (err) {
         if (!work.isCurrent()) return;

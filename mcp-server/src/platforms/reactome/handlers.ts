@@ -17,7 +17,7 @@ const entity = (item: any) => ({
 
 function required(args: Record<string, unknown>, key: string): string {
   if (typeof args[key] !== 'string' || !args[key]) throw new Error(`${key} is required`);
-  return args[key] as string;
+  return args[key];
 }
 function size(args: Record<string, unknown>, fallback: number): number {
   if (args.size === undefined) return fallback;

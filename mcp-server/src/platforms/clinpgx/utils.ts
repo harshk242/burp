@@ -62,7 +62,7 @@ export function parseEvidenceLevel(level: unknown): string {
 
   let levelStr: string;
   if (typeof level === 'object' && level !== null && 'term' in level) {
-    levelStr = String((level as { term: unknown }).term);
+    levelStr = String((level).term);
   } else if (typeof level === 'string') {
     levelStr = level;
   } else {

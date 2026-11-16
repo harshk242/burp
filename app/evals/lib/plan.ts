@@ -94,7 +94,7 @@ export function datasetBody(loaded: LoadedDataset, git: GitInfo): DatasetBody {
 }
 
 function datasetFingerprint(body: DatasetBody | RemoteDataset): string {
-  const { git_sha: _sha, git_dirty: _dirty, ...rest } = (body.metadata ?? {}) as Record<string, unknown>;
+  const { git_sha: _sha, git_dirty: _dirty, ...rest } = (body.metadata ?? {});
   return canonicalJson({ description: body.description ?? null, metadata: rest });
 }
 
