@@ -9,6 +9,7 @@ export const DATABASE_LABELS: Record<string, string> = {
   clinicaltrials: "Clinical Trials",
   pubmed: "PubMed",
   clinpgx: "ClinPGx",
+  regulatory: "Regulatory (FDA/EMA)",
 };
 
 export const DATABASE_DESCRIPTIONS: Record<string, string> = {
@@ -22,6 +23,7 @@ export const DATABASE_DESCRIPTIONS: Record<string, string> = {
   clinicaltrials: "Clinical trial registrations and results",
   pubmed: "Biomedical literature and abstracts",
   clinpgx: "Pharmacogenomics data",
+  regulatory: "FDA approvals and labels, EU (EMA) authorisations",
 };
 
 export const DATABASE_ORDER = [
@@ -35,4 +37,5 @@ export const DATABASE_ORDER = [
   "clinicaltrials",
   "pubmed",
   "clinpgx",
+  "regulatory",
 ];

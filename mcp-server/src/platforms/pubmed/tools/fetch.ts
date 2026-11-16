@@ -52,11 +52,46 @@ export async function getArticleSummary(
   return summaries[0] ?? null;
 }
 
+const LISTED_AUTHORS = 6;
+
+/** What a reader needs to judge and cite a paper; MeSH, grants and affiliations stay in fetch_article_details. */
+export interface ArticleReading {
+  pmid: string;
+  title: string;
+  journal: string;
+  pubDate: string;
+  doi?: string | undefined;
+  pmcId?: string | undefined;
+  publicationTypes: string[];
+  authors: string[];
+  authorCount: number;
+  abstract?: string | undefined;
+}
+
+function authorName(author: PubMedArticle['authors'][number]): string {
+  return author.collectiveName || `${author.lastName || ''} ${author.initials || author.foreName || ''}`.trim();
+}
+
+export function toReading(article: PubMedArticle, includeAbstract: boolean): ArticleReading {
+  return {
+    pmid: article.pmid,
+    title: article.title,
+    journal: article.journal.title,
+    pubDate: article.pubDate,
+    ...(article.doi ? { doi: article.doi } : {}),
+    ...(article.pmcId ? { pmcId: article.pmcId } : {}),
+    publicationTypes: article.publicationTypes ?? [],
+    authors: article.authors.slice(0, LISTED_AUTHORS).map(authorName),
+    authorCount: article.authors.length,
+    ...(includeAbstract ? { abstract: article.abstract || '(no abstract in PubMed)' } : {}),
+  };
+}
+
 export async function batchFetchArticles(
   pmids: string[],
   includeAbstracts: boolean = true
 ): Promise<{
-  articles: PubMedArticle[];
+  articles: ArticleReading[];
   found: number;
   notFound: string[];
 }> {
@@ -83,12 +118,8 @@ export async function batchFetchArticles(
   const foundPmids = new Set(allArticles.map((a) => a.pmid));
   const notFound = pmids.filter((p) => !foundPmids.has(formatPmid(p)));
 
-  const responseArticles = includeAbstracts
-    ? allArticles
-    : allArticles.map((a) => ({ ...a, abstract: undefined }));
-
   return {
-    articles: responseArticles,
+    articles: allArticles.map((a) => toReading(a, includeAbstracts)),
     found: allArticles.length,
     notFound,
   };

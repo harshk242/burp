@@ -29,6 +29,7 @@ const LIVE_CALLS: Call[] = [
   { name: 'pubchem__search_compounds', arguments: { query: 'aspirin' } },
   { name: 'clinicaltrials__search_studies', arguments: { condition: 'prostate cancer' } },
   { name: 'clinpgx__search_genes', arguments: { query: 'CYP2D6' } },
+  { name: 'regulatory__search_fda_approvals', arguments: { drug: 'Blenrep' } },
 ];
 
 // Probe flags come first; everything from the first non-flag argument is the server command.

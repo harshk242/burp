@@ -19,6 +19,9 @@ const nodes = (value: unknown): AnyObject[] => ensureArray(value as AnyObject | 
 
 const parser = new XMLParser({
   ignoreAttributes: false,
+  // PubMed encodes non-ASCII as numeric references (A&#x3b2;, &#x2212;0.45); decode them so
+  // abstracts read as text and quoted numbers match the source.
+  htmlEntities: true,
   attributeNamePrefix: '@_',
   textNodeName: '#text',
   parseAttributeValue: true,

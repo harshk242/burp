@@ -3,7 +3,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 export const TOOLS: Tool[] = [
   {
     name: 'search_pubmed',
-    description: 'Search PubMed database with a query string. Returns matching article PMIDs and total count.',
+    description: 'Search PubMed with a query string (PubMed syntax). Returns the total count and the top hits with PMID, title, journal, date and publication types (e.g. Review, Randomized Controlled Trial, Retracted Publication). Titles are leads: open the abstracts with batch_fetch_articles before stating what a paper found.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -205,7 +205,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'batch_fetch_articles',
-    description: 'Fetch details for multiple articles at once (up to 200 per request).',
+    description: 'Read papers: abstracts for one or more PMIDs in one call (up to 200), with title, journal, date, DOI, publication types and first authors. Use it to open the papers you cite before stating their findings, numbers or conclusions.',
     inputSchema: {
       type: 'object',
       properties: {

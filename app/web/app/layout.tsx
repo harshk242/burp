@@ -6,7 +6,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "BURP",
   description:
-    "Query 10 biomedical databases with natural language. Proteins, drugs, genes, variants, pathways, trials, and literature.",
+    "Query 11 biomedical databases with natural language. Proteins, drugs, genes, variants, pathways, trials, and literature.",
   icons: {
     icon: "/burp-logo.png",
     apple: "/burp-logo.png",

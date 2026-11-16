@@ -82,3 +82,36 @@ it('requests counts without IDs for publication trends', async () => {
   expect(requests).toHaveLength(2);
   for (const request of requests) expect((request.params as any).retmax).toBe(0);
 });
+it.each(['search_pubmed', 'search_with_filters', 'search_by_author', 'search_by_journal', 'search_clinical_trials_literature'])(
+  '%s lists titles for its hits and points to the reader tool', async (name) => {
+    const args = argVariants(platform.tools.find((t) => t.name === name)!)[0]!.args;
+    const { requests, result } = await capture(name, args);
+    expect(requests.map((r) => new URL(r.url).pathname.split('/').pop())).toEqual(['esearch.fcgi', 'esummary.fcgi']);
+    expect(result).toMatchObject({
+      pmids: ['28485846'],
+      articles: [{ pmid: '28485846', title: 'Example study', publicationTypes: [] }],
+      next_step: expect.stringContaining('batch_fetch_articles'),
+    });
+  });
+it('skips the summary call when a search has no hits', async () => {
+  const requests: RecordedRequest[] = [];
+  const rateLimiter = new TokenBucketRateLimiter({ requestsPerSecond: 1000 });
+  vi.spyOn(rateLimiter, 'waitForToken').mockResolvedValue();
+  initializeClient({ rateLimiter, adapter: async config => {
+    const recorder = requestRecorder('<eSearchResult><Count>0</Count><IdList></IdList></eSearchResult>');
+    const response = await recorder.adapter(config);
+    requests.push(...recorder.requests);
+    return response;
+  } });
+  try {
+    expect(await platform.handlers.search_pubmed!({ query: 'nothing' })).toMatchObject({ count: 0, articles: [] });
+    expect(requests).toHaveLength(1);
+  } finally { closeClient(); }
+});
+it('returns compact readings from batch_fetch_articles', async () => {
+  const { result } = await capture('batch_fetch_articles', { pmids: [samples.pmid] });
+  expect((result as any).articles[0]).toEqual({
+    pmid: '28485846', title: 'Example study', journal: 'Nature', pubDate: '2020',
+    publicationTypes: [], authors: ['Smith J'], authorCount: 1, abstract: 'Study abstract.',
+  });
+});

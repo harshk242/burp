@@ -1,6 +1,6 @@
 # BURP Architecture Diagrams
 
-> **Bio Unified Research Platform** — A conversational AI agent for querying 10 biomedical databases via natural language.
+> **Bio Unified Research Platform** — A conversational AI agent for querying 11 biomedical databases via natural language.
 
 ---
 

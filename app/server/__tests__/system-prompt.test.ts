@@ -42,3 +42,42 @@ describe("system prompt capabilities", () => {
     expect(contextVersion(changed, {})).not.toBe(contextVersion(first, {}));
   });
 });
+
+describe("evidence and regulatory rules", () => {
+  const regulatory: PlatformConfig[] = [
+    { name: "pubmed", enabled: true, alwaysLoadedTools: ["search_pubmed", "batch_fetch_articles"] },
+    { name: "clinicaltrials", enabled: true, alwaysLoadedTools: [] },
+    { name: "regulatory", enabled: true, alwaysLoadedTools: ["search_fda_approvals", "search_ema_medicines"] },
+  ];
+  const tools = [
+    tool("pubmed", "search_pubmed"), tool("pubmed", "batch_fetch_articles"),
+    tool("clinicaltrials", "get_study_details"),
+    tool("regulatory", "search_fda_approvals"), tool("regulatory", "search_ema_medicines"), tool("regulatory", "get_fda_label"),
+  ];
+
+  it("tells the agent to open records before citing them, naming only tools that exist", () => {
+    const prompt = buildSystemPrompt(regulatory, tools);
+    expect(prompt).toContain("Search results are leads, not findings.");
+    expect(prompt).toContain("pubmed__batch_fetch_articles with every PMID you will cite");
+    expect(prompt).toContain("clinicaltrials__get_study_details for each NCT ID");
+    expect(prompt).toContain("**pubmed__batch_fetch_articles** - PMIDs → abstracts");
+
+    const withoutTrials = buildSystemPrompt(regulatory.filter((p) => p.name !== "clinicaltrials"), tools);
+    expect(withoutTrials).not.toContain("clinicaltrials__get_study_details");
+  });
+
+  it("lists deferred tools by name but not the ones already loaded", () => {
+    const prompt = buildSystemPrompt(regulatory, tools);
+    expect(prompt).toContain("- **regulatory__get_fda_label** - FDA label text");
+    expect(prompt).toContain("- **clinicaltrials__get_study_details** - one trial record by NCT ID");
+    expect(prompt).not.toContain("- **pubmed__fetch_article_details**");
+  });
+
+  it("adds regulatory rules only when a regulatory tool is enabled", () => {
+    const prompt = buildSystemPrompt(regulatory, tools);
+    expect(prompt).toContain("## Regulatory Status");
+    expect(prompt).toContain("are not regulatory status");
+    expect(prompt).toContain("search by indication");
+    expect(buildSystemPrompt(platforms, catalog)).not.toContain("## Regulatory Status");
+  });
+});

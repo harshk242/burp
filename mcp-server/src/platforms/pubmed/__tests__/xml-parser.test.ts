@@ -41,3 +41,10 @@ it('decodes ESummary Id and nested Item lists', async () => {
   const { parseESummaryResult } = await import('../xml-parser.js');
   expect(parseESummaryResult('<eSummaryResult><DocSum><Id>123</Id><Item Name="Title" Type="String">Example</Item><Item Name="AuthorList" Type="List"><Item Name="Author" Type="String">Smith A</Item><Item Name="Author" Type="String">Jones B</Item></Item></DocSum></eSummaryResult>')[0]).toMatchObject({ uid: '123', title: 'Example', authors: ['Smith A', 'Jones B'] });
 });
+
+it('decodes numeric character references in abstracts and author names', () => {
+  const [result] = parseEFetchResult(`<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>1</PMID><Article>
+    <ArticleTitle>A&#x3b2; study</ArticleTitle><Abstract><AbstractText>Difference &#x2212;0.45 (P&lt;0.001).</AbstractText></Abstract>
+    <AuthorList><Author><LastName>Lesn&#xe9;</LastName><ForeName>S</ForeName></Author></AuthorList></Article></MedlineCitation></PubmedArticle></PubmedArticleSet>`);
+  expect(result).toMatchObject({ title: 'Aβ study', abstract: 'Difference −0.45 (P<0.001).', authors: [{ lastName: 'Lesné' }] });
+});

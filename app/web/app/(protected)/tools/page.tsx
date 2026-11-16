@@ -104,7 +104,7 @@ function ToolsPageContent() {
       <div className="container py-8">
         <h1 className="text-3xl font-bold mb-2">Available Tools</h1>
         <p className="text-muted-foreground mb-6">
-          200+ tools across 10 biomedical databases. The AI agent automatically
+          200+ tools across 11 biomedical databases. The AI agent automatically
           selects the right tools for your questions.
         </p>
 

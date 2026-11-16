@@ -30,7 +30,7 @@ api.doc("/doc", {
 
 ## Overview
 
-BURP provides a unified interface to query 10 biomedical databases using natural language:
+BURP provides a unified interface to query 11 biomedical databases using natural language:
 
 | Database | Data Type |
 |----------|-----------|
@@ -44,6 +44,7 @@ BURP provides a unified interface to query 10 biomedical databases using natural
 | ClinicalTrials | Clinical trial information |
 | PubMed | Biomedical literature |
 | ClinPGx | Pharmacogenomics data |
+| Regulatory | FDA approvals and labels (openFDA), EU authorisations (EMA) |
 
 ## Authentication
 
