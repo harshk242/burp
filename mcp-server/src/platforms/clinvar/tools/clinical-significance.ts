@@ -13,7 +13,7 @@ export async function getClinicalSignificance(
   submissions?: Array<{
     submitter: string;
     interpretation: string;
-    dateSubmitted?: string;
+    dateSubmitted?: string | undefined;
   }>;
 }> {
   const client = getClient();
@@ -55,8 +55,8 @@ export async function getClinicalSignificance(
 export async function searchByCondition(
   condition: string,
   options?: {
-    maxResults?: number;
-    clinicalSignificance?: string;
+    maxResults?: number | undefined;
+    clinicalSignificance?: string | undefined;
   }
 ): Promise<{
   condition: string;
@@ -82,12 +82,12 @@ export async function searchByCondition(
 export async function searchByMolecularConsequence(
   consequence: string,
   options?: {
-    gene?: string;
-    maxResults?: number;
+    gene?: string | undefined;
+    maxResults?: number | undefined;
   }
 ): Promise<{
   consequence: string;
-  gene?: string;
+  gene?: string | undefined;
   count: number;
   variantIds: string[];
   variants?: VariantInfo[];
@@ -111,9 +111,9 @@ export async function searchByMolecularConsequence(
 export async function searchByReviewStatus(
   reviewStatus: string,
   options?: {
-    gene?: string;
-    clinicalSignificance?: string;
-    maxResults?: number;
+    gene?: string | undefined;
+    clinicalSignificance?: string | undefined;
+    maxResults?: number | undefined;
   }
 ): Promise<{
   reviewStatus: string;

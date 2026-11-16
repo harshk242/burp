@@ -11,9 +11,9 @@ export interface ChatTurnOutcome {
   errorMessage?: string | null;
   iterations: number;
   assistantMessageId?: string | null;
-  lastPromptTokens?: number | null;
-  lastInputMessageCount?: number | null;
-  lastInputIdentity?: string | null;
+  lastPromptTokens?: number | null | undefined;
+  lastInputMessageCount?: number | null | undefined;
+  lastInputIdentity?: string | null | undefined;
   finalFinishReason?: string | null;
   toolErrorCount?: number;
 }

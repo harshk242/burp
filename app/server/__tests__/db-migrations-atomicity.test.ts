@@ -126,7 +126,7 @@ describe("foreign key violations", () => {
   it("leave the DB retryable once the migration is fixed", () => {
     const { sqlite } = createTestDb();
     expect(() => runMigrations(sqlite, { migrationsFolder: tempFolder([ORPHAN_SESSION]) })).toThrow(MigrationFkError);
-    const fixed: ExtraMigration = { tag: ORPHAN_SESSION.tag, statements: [ORPHAN_SESSION.statements[0]] };
+    const fixed: ExtraMigration = { tag: ORPHAN_SESSION.tag, statements: [ORPHAN_SESSION.statements[0]!] };
     expect(runMigrations(sqlite, { migrationsFolder: tempFolder([fixed]) }).applied).toHaveLength(1);
   });
 });

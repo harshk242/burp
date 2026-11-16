@@ -12,7 +12,10 @@ import type {
   Author,
 } from './types.js';
 
-type AnyObject = Record<string, any>;
+type AnyObject = Record<string, unknown>;
+
+/** A child element that may occur once or repeat; fast-xml-parser yields an object or an array. */
+const nodes = (value: unknown): AnyObject[] => ensureArray(value as AnyObject | AnyObject[] | undefined);
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -48,11 +51,11 @@ export function parseESearchResult(xml: string): ESearchResult {
       retmax: parseInt(searchResult.RetMax || '0', 10),
       retstart: parseInt(searchResult.RetStart || '0', 10),
       idList: ensureArray(idList).map(String),
-      translationSet: ensureArray(searchResult.TranslationSet?.Translation || []).map((t: AnyObject) => ({
+      translationSet: nodes(searchResult.TranslationSet?.Translation || []).map((t) => ({
         from: extractText(t.From),
         to: extractText(t.To),
       })),
-      translationStack: ensureArray(searchResult.TranslationStack?.TermSet || []).map((ts: AnyObject) => ({
+      translationStack: nodes(searchResult.TranslationStack?.TermSet || []).map((ts) => ({
         term: extractText(ts.Term),
         field: extractText(ts.Field),
         count: parseInt(extractText(ts.Count) || '0', 10),
@@ -71,7 +74,7 @@ export function parseESummaryResult(xml: string): ArticleSummary[] {
     const result = parser.parse(xml);
     const docSums = result.eSummaryResult?.DocSum || result.eSummaryResult?.DocumentSummarySet?.DocumentSummary || [];
 
-    return ensureArray(docSums).map((doc: AnyObject) => {
+    return nodes(docSums).map((doc) => {
       const items = ensureArray(doc.Item || []);
       const itemMap: AnyObject = {};
 
@@ -81,7 +84,7 @@ export function parseESummaryResult(xml: string): ArticleSummary[] {
         const type = itemObj['@_Type'] as string;
 
         if (type === 'List') {
-          itemMap[name] = ensureArray(itemObj.Item || []).map((subItem: AnyObject) => {
+          itemMap[name] = nodes(itemObj.Item || []).map((subItem) => {
             if (subItem['@_Type'] === 'Structure') {
               return parseStructureItem(subItem);
             }
@@ -191,7 +194,7 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
 
       const meshHeadingList = medlineCitation.MeshHeadingList as AnyObject | undefined;
       const meshList = meshHeadingList?.MeshHeading || [];
-      const meshTerms: MeshTerm[] = ensureArray(meshList).map((mesh: AnyObject) => {
+      const meshTerms: MeshTerm[] = nodes(meshList).map((mesh) => {
         const descriptorName = mesh.DescriptorName as AnyObject | undefined;
         return {
           descriptorName: extractText(mesh.DescriptorName),
@@ -210,7 +213,7 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
 
       const grantListObj = articleData.GrantList as AnyObject | undefined;
       const grantList = grantListObj?.Grant || [];
-      const grants: Grant[] = ensureArray(grantList).map((grant: AnyObject) => ({
+      const grants: Grant[] = nodes(grantList).map((grant) => ({
         grantId: extractText(grant.GrantID),
         acronym: extractText(grant.Acronym),
         agency: extractText(grant.Agency),
@@ -301,15 +304,15 @@ export function parseELinkResult(xml: string): LinkResult {
     const linkSetObj = ensureArray(linkSet)[0] as AnyObject;
     const idListObj = linkSetObj.IdList as AnyObject | undefined;
     const idList = ensureArray(idListObj?.Id || []).map(String);
-    const linkSetDbList = ensureArray(linkSetObj.LinkSetDb || []);
+    const linkSetDbList = nodes(linkSetObj.LinkSetDb || []);
 
     return {
       dbFrom: extractText(linkSetObj.DbFrom) || 'pubmed',
       idList,
-      linkSetDb: linkSetDbList.map((lsdb: AnyObject) => ({
+      linkSetDb: linkSetDbList.map((lsdb) => ({
         dbTo: extractText(lsdb.DbTo) || '',
         linkName: extractText(lsdb.LinkName) || '',
-        link: ensureArray(lsdb.Link || []).map((link: AnyObject) => ({
+        link: nodes(lsdb.Link || []).map((link) => ({
           id: extractText(ensureArray(link.Id)[0]) || '',
           score: link.Score ? parseInt(extractText(link.Score), 10) : undefined,
         })),

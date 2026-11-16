@@ -6,6 +6,7 @@ const rawOrigins =
 
 // Next.js matches allowedDevOrigins against the request origin's hostname only,
 // so strip scheme and port (e.g. "http://100.x.y.z:3001" -> "100.x.y.z").
+/** @param {string} origin */
 const toHostname = (origin) => {
   try {
     return new URL(origin.includes("://") ? origin : `http://${origin}`).hostname;
@@ -32,6 +33,7 @@ const config = {
   eslint: { ignoreDuringBuilds: true },
 };
 
+/** @param {string} phase */
 export default (phase) => {
   const auth = resolveWebAuthConfig(process.env, phase === "phase-production-build" || process.env.NODE_ENV === "production");
   return {

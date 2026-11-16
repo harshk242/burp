@@ -55,8 +55,8 @@ describe("readToolEmbeddings", () => {
     const index = await readToolEmbeddings(writeRaw(validDoc()), ID);
     expect(index).toMatchObject({ embedder: ID, dimension: 3 });
     expect(index!.entries.map((e) => e.fullName)).toEqual(["chembl__get_admet", "pubchem__get_compound_properties"]);
-    expect(index!.entries[0].text).toBe("chembl__get_admet: ADMET");
-    expect(index!.entries[0].vector).toBeInstanceOf(Float32Array);
+    expect(index!.entries[0]!.text).toBe("chembl__get_admet: ADMET");
+    expect(index!.entries[0]!.vector).toBeInstanceOf(Float32Array);
   });
 
   const v1 = { model: "gemini-embedding-001", dimension: 3, tools: [{ full_name: "a__b", text: "t", embedding: [1, 2, 3] }] };
@@ -81,7 +81,7 @@ describe("readToolEmbeddings", () => {
     const doc = { ...validDoc(), dimension: 2, tools: [{ full_name: "a__b", text: "t", embedding: [1, 2] }] };
     expect(await readToolEmbeddings(writeRaw(doc), ID, 3)).toBeNull();
     expect(rejectReasons()).toEqual(["dimension_mismatch"]);
-    expect(warnSpy.mock.calls[0][2]?.data).toMatchObject({ found: 2, expected: 3 });
+    expect(warnSpy.mock.calls[0]![2]?.data).toMatchObject({ found: 2, expected: 3 });
   });
 
   it("rejects a missing file", async () => {
@@ -105,7 +105,7 @@ describe("attachStoredEmbeddings", () => {
 
     const results = await search.search("ADMET properties");
     expect(results.map((r) => r.fullName)).toEqual(["chembl__get_admet"]);
-    expect(results[0].semanticRank).toBeUndefined();
+    expect(results[0]!.semanticRank).toBeUndefined();
     expect(queried).toBe(0);
   });
 

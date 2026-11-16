@@ -32,7 +32,7 @@ function setup(failAt = -1, failure: number | 'network' = 503) {
 }
 async function capture(name: string, args: Record<string, unknown>) {
   const requests = setup();
-  await handlers[name](args);
+  await handlers[name]!(args);
   assertMakesRequest(requests);
   requests.forEach(assertReactomeRequest);
   return requests;
@@ -50,17 +50,17 @@ describe.each(tools)('$name', tool => {
     }
   });
   it.each([404, 503, 'network'] as const)('propagates %s at every request stage', async failure => {
-    const args = argVariants(tool)[0].args;
+    const args = argVariants(tool)[0]!.args;
     const count = (await capture(tool.name, args)).length;
     for (let stage = 1; stage <= count; stage++) {
       setup(stage, failure);
-      await expect(handlers[tool.name](args)).rejects.toThrow();
+      await expect(handlers[tool.name]!(args)).rejects.toThrow();
     }
   });
 });
 it('restricts real interactions to pathway accessions and strips markup', async () => {
   setup();
-  expect(await handlers.get_protein_interactions({ pathwayId: samples.pathwayId })).toMatchObject({
+  expect(await handlers.get_protein_interactions!({ pathwayId: samples.pathwayId })).toMatchObject({
     interactionCount: 1, interactions: [{ source: 'P04637', target: 'Q00987', name: 'MDM2' }],
   });
 });
@@ -73,10 +73,10 @@ it('rejects routes and params upstream might silently ignore', () => {
 });
 it('reports a genuine empty search explicitly without inventing pathway participants', async () => {
   initClient({}, { adapter: requestRecorder({ numberOfMatches: 0, results: [] }).adapter });
-  expect(await handlers.find_pathways_by_gene({ gene: 'unknown-gene' })).toMatchObject({
+  expect(await handlers.find_pathways_by_gene!({ gene: 'unknown-gene' })).toMatchObject({
     message: 'No protein entity found for this gene and species', pathways: [],
   });
-  await expect(handlers.get_pathway_participants({ id: 'unknown-pathway' })).rejects.toThrow('No pathway found');
+  await expect(handlers.get_pathway_participants!({ id: 'unknown-pathway' })).rejects.toThrow('No pathway found');
 });
 it.each([true, false])('recognizes only an accession-specific not-found body (matching=%s)', async matching => {
   initClient({}, { adapter: async config => {
@@ -89,7 +89,7 @@ it.each([true, false])('recognizes only an accession-specific not-found body (ma
     }
     return requestRecorder(response(config.url!)).adapter(config);
   } });
-  const result = handlers.get_protein_interactions({ pathwayId: samples.pathwayId });
+  const result = handlers.get_protein_interactions!({ pathwayId: samples.pathwayId });
   if (matching) expect(await result).toMatchObject({
     interactionCount: 0, noInteractorsFor: ['P04637', 'Q00987'],
   });
@@ -106,7 +106,7 @@ it('batches unique accessions and caps total work at 1000', async () => {
     requests.push(...recorder.requests);
     return result;
   } });
-  const result: any = await handlers.get_protein_interactions({ pathwayId: samples.pathwayId });
+  const result: any = await handlers.get_protein_interactions!({ pathwayId: samples.pathwayId });
   const batches = requests.filter(r => r.method === 'post');
   expect(batches).toHaveLength(10);
   expect(batches.every(r => r.body.split(',').length === 100)).toBe(true);
@@ -125,7 +125,7 @@ it('stops before interactor batches when the tool deadline expires', async () =>
     return result;
   } });
   const result: any = await runWithToolCallContext({ timeoutMs: 1000, now: () => now }, () =>
-    handlers.get_protein_interactions({ pathwayId: samples.pathwayId }));
+    handlers.get_protein_interactions!({ pathwayId: samples.pathwayId }));
   expect(requests.filter(r => r.method === 'post')).toHaveLength(0);
   expect(result).toMatchObject({ queriedAccessions: 0, truncated: true, skippedAccessions: ['P04637', 'Q00987'] });
 });

@@ -23,7 +23,7 @@ type StreamPart =
 
 const USER_ID = "22222222-2222-4222-8222-222222222222";
 const { provider } = loadLLMConfig();
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, provider);
 const SEARCH_KEY = sanitizeToolName(SEARCH_TOOL_NAME, provider);
 
@@ -77,7 +77,7 @@ function scriptedModel(calls: StreamFactory[]) {
     doStream: async ({ abortSignal }) => {
       const make = calls[n++] ?? (() => streamOf([...text("final answer"), finish("stop")]));
       const stream = await make(abortSignal);
-      await transport?.("https://model.test/", { signal: abortSignal });
+      await transport?.("https://model.test/", { signal: abortSignal ?? null });
       return { stream };
     },
   });
@@ -143,7 +143,7 @@ describe("turn tracing", () => {
     expect(events.some((e) => e.type === "done")).toBe(true);
 
     const row = turnRow(sessionId);
-    expect(row.trace_id).toBe(traceIdForTurn(row.id));
+    expect(row!.trace_id).toBe(traceIdForTurn(row!.id));
     const spans = mem.spans();
     const root = one(spans, "chat-turn");
     const gens = byName(spans, "llm-call");
@@ -152,7 +152,7 @@ describe("turn tracing", () => {
     expect(one(spans, SEARCH_TOOL_NAME).attributes[TYPE]).toBe("retriever");
     expect(spans).toHaveLength(5);
     for (const span of spans) {
-      expect(span.spanContext().traceId).toBe(row.trace_id!);
+      expect(span.spanContext().traceId).toBe(row!.trace_id!);
       expect(span.attributes["session.id"]).toBe(sessionId);
       expect(span.attributes["user.id"]).toBe(USER_ID);
       expect(span.attributes["langfuse.trace.name"]).toBe("chat-turn");
@@ -161,18 +161,18 @@ describe("turn tracing", () => {
 
     expect(root.attributes["langfuse.observation.input"]).toBe("What is BRCA1?");
     expect(root.attributes["langfuse.observation.output"]).toBe("final answer");
-    expect(root.attributes["langfuse.observation.metadata.turn_id"]).toBe(row.id);
+    expect(root.attributes["langfuse.observation.metadata.turn_id"]).toBe(row!.id);
     expect(root.attributes["langfuse.observation.metadata.iterations"]).toBe("2");
     expect(root.attributes[LEVEL]).toBe("DEFAULT");
 
     const [g1, g2] = [...gens].sort((a, b) => Number(a.attributes["langfuse.observation.metadata.iteration"]) - Number(b.attributes["langfuse.observation.metadata.iteration"]));
-    expect(json(g1, "langfuse.observation.input")).toEqual([{ role: "user", content: "What is BRCA1?" }]);
-    const g2Input = json(g2, "langfuse.observation.input") as { role: string }[];
+    expect(json(g1!, "langfuse.observation.input")).toEqual([{ role: "user", content: "What is BRCA1?" }]);
+    const g2Input = json(g2!, "langfuse.observation.input") as { role: string }[];
     expect(g2Input.map((m) => m.role)).toEqual(["assistant", "tool"]);
-    expect((json(g1, "langfuse.observation.output") as { tool_calls: { name: string }[] }).tool_calls.map((c) => c.name)).toEqual([TOOL_KEY, SEARCH_KEY]);
-    expect(json(g1, "langfuse.observation.usage_details")).toEqual({ input: 100, output: 20, cache_read_input_tokens: 800, cache_creation_input_tokens: 100 });
-    expect(g2.attributes["langfuse.observation.metadata.finish_reason"]).toBe("stop");
-    expect(g1.attributes["langfuse.observation.completion_start_time"]).toBeDefined();
+    expect((json(g1!, "langfuse.observation.output") as { tool_calls: { name: string }[] }).tool_calls.map((c) => c.name)).toEqual([TOOL_KEY, SEARCH_KEY]);
+    expect(json(g1!, "langfuse.observation.usage_details")).toEqual({ input: 100, output: 20, cache_read_input_tokens: 800, cache_creation_input_tokens: 100 });
+    expect(g2!.attributes["langfuse.observation.metadata.finish_reason"]).toBe("stop");
+    expect(g1!.attributes["langfuse.observation.completion_start_time"]).toBeDefined();
 
     const costUsd = gens.reduce((sum, g) => sum + (json(g, "langfuse.observation.cost_details") as { total: number }).total, 0);
     const ledger = t.sqlite.query<{ cost_microusd: number }, []>("SELECT cost_microusd FROM usage_events").get()!;
@@ -344,7 +344,7 @@ describe("upstream retry metadata on the tool span", () => {
 
     await collect(processChat(crypto.randomUUID(), USER_ID, "hi"));
 
-    expect(seen[0]._meta).toEqual({ deadline_ms: appConfig.server.mcp_tool_timeout_ms });
+    expect(seen[0]!._meta).toEqual({ deadline_ms: appConfig.server.mcp_tool_timeout_ms });
     const tool = one(mem.spans(), TOOL_FULL_NAME);
     expect(tool.attributes[LEVEL]).toBeUndefined();
     expect(tool.attributes[metadata("upstream_attempts")]).toBe("3");
@@ -415,14 +415,14 @@ describe("turn signals", () => {
 
     const row = turnRow(sessionId);
     expect(row).toMatchObject({ status: "error", error_code: "provider_error", tool_error_count: 2, final_finish_reason: "tool-calls" });
-    expect(turnSignals(row)).toEqual({ turn_outcome: "provider_error", answer_truncated: false, tool_error_count: 2 });
+    expect(turnSignals(row!)).toEqual({ turn_outcome: "provider_error", answer_truncated: false, tool_error_count: 2 });
     expect(scores.map((sc) => [sc.name, sc.value])).toEqual([
       ["turn_outcome", "provider_error"],
       ["answer_truncated", 0],
       ["tool_error_count", 2],
     ]);
     for (const sc of scores) {
-      expect(sc.traceId).toBe(row.trace_id!);
+      expect(sc.traceId).toBe(row!.trace_id!);
       expect(sc.environment).toBe(langfuse.tracingEnvironment);
     }
   });
@@ -437,7 +437,7 @@ describe("turn signals", () => {
 
     const row = turnRow(sessionId);
     expect(row).toMatchObject({ status: "ok", final_finish_reason: "length", tool_error_count: 0 });
-    expect(turnSignals(row)).toEqual({ turn_outcome: "ok", answer_truncated: true, tool_error_count: 0 });
+    expect(turnSignals(row!)).toEqual({ turn_outcome: "ok", answer_truncated: true, tool_error_count: 0 });
     expect(scores.find((sc) => sc.name === "answer_truncated")?.value).toBe(1);
   });
 });

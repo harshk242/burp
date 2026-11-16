@@ -23,7 +23,7 @@ async function capture(name: string, args: Record<string, unknown>) {
     requests.push(...recorder.requests);
     return result;
   } });
-  try { await platform.handlers[name](args); } finally { closeClient(); }
+  try { await platform.handlers[name]!(args); } finally { closeClient(); }
   assertMakesRequest(requests);
   return requests;
 }
@@ -38,7 +38,7 @@ describe.each(platform.tools)('$name requests', tool => {
       .map(key => [key, 'Identifier normalization strips nonnumeric suffixes; valid numeric alternatives checked below.']));
     await assertArgsAffectRequests(tool, samples, args => capture(tool.name, args), normalized);
     for (const key of Object.keys(normalized)) {
-      const args = argVariants(tool)[0].args;
+      const args = argVariants(tool)[0]!.args;
       expect(await capture(tool.name, { ...args, [key]: key === 'rs_id' ? 'rs28934578' : '12375' }))
         .not.toEqual(await capture(tool.name, args));
     }
@@ -46,8 +46,8 @@ describe.each(platform.tools)('$name requests', tool => {
 });
 it('searches coordinates on GRCh38 and expands splice sites into indexed consequences', async () => {
   const coords = await capture('lookup_by_coordinates', { chromosome: '17', start: 7676154 });
-  expect((coords[0].params as Record<string, unknown>).term).toBe('17[chr] AND 7676154[cpos]');
+  expect((coords[0]!.params as Record<string, unknown>).term).toBe('17[chr] AND 7676154[cpos]');
   const splice = await capture('search_by_molecular_consequence', { consequence: 'splice site variant' });
-  expect((splice[0].params as Record<string, unknown>).term)
+  expect((splice[0]!.params as Record<string, unknown>).term)
     .toBe('("splice donor variant"[mcns] OR "splice acceptor variant"[mcns])');
 });

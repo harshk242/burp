@@ -60,17 +60,14 @@ function mergeNodes(a: SchemaNode, b: SchemaNode): SchemaNode {
     const allKeys = new Set([...Object.keys(aProps), ...Object.keys(bProps)]);
 
     for (const key of allKeys) {
-      if (key in aProps && key in bProps) {
-        const mergedChild = mergeNodes(aProps[key], bProps[key]);
-        if (aProps[key].optional || bProps[key].optional) {
-          merged[key] = { ...mergedChild, optional: true };
-        } else {
-          merged[key] = mergedChild;
-        }
-      } else if (key in aProps) {
-        merged[key] = { ...aProps[key], optional: true };
+      const aChild = aProps[key];
+      const bChild = bProps[key];
+      if (aChild && bChild) {
+        const mergedChild = mergeNodes(aChild, bChild);
+        merged[key] = aChild.optional || bChild.optional ? { ...mergedChild, optional: true } : mergedChild;
       } else {
-        merged[key] = { ...bProps[key], optional: true };
+        const only = aChild ?? bChild;
+        if (only) merged[key] = { ...only, optional: true };
       }
     }
 
@@ -92,10 +89,11 @@ function mergeUnionNodes(a: SchemaNode, b: SchemaNode): SchemaNode {
 
   for (const variant of variants) {
     const matchingIndex = merged.findIndex((candidate) => candidate.type === variant.type);
-    if (matchingIndex === -1) {
+    const match = merged[matchingIndex];
+    if (match === undefined) {
       merged.push(variant);
     } else {
-      merged[matchingIndex] = mergeNodes(merged[matchingIndex], variant);
+      merged[matchingIndex] = mergeNodes(match, variant);
     }
   }
 

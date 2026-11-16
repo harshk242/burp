@@ -6,7 +6,8 @@ import {
   parseEFetchResult,
   parseELinkResult,
 } from './xml-parser.js';
-import { TokenBucketRateLimiter, createNcbiRateLimiter } from '../../shared/rate-limiter.js';
+import type { TokenBucketRateLimiter} from '../../shared/rate-limiter.js';
+import { createNcbiRateLimiter } from '../../shared/rate-limiter.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import type {
@@ -39,8 +40,8 @@ export const PUBMED_POLICY: RetryPolicy = Object.freeze({
 
 export interface PubMedHttpOptions {
   policy?: RetryPolicy;
-  adapter?: AxiosAdapter;
-  retryDeps?: RetryDeps;
+  adapter?: AxiosAdapter | undefined;
+  retryDeps?: RetryDeps | undefined;
 }
 
 export function createPubMedHttp(options: PubMedHttpOptions = {}): AxiosInstance {
@@ -57,11 +58,11 @@ export interface ESearchParams {
   term: string;
   retmax?: number;
   retstart?: number;
-  sort?: string;
-  datetype?: string;
+  sort?: string | undefined;
+  datetype?: string | undefined;
   reldate?: number;
-  mindate?: string;
-  maxdate?: string;
+  mindate?: string | undefined;
+  maxdate?: string | undefined;
   usehistory?: 'y' | 'n';
 }
 
@@ -87,7 +88,7 @@ export interface ELinkParams {
 }
 
 export class PubMedClient {
-  private readonly apiKey?: string;
+  private readonly apiKey?: string | undefined;
   private readonly cacheTtl: number;
   private readonly maxAttempts: number;
   private readonly retryDelay: number;
@@ -212,9 +213,9 @@ export class PubMedClient {
     options?: {
       maxResults?: number;
       start?: number;
-      sort?: string;
-      minDate?: string;
-      maxDate?: string;
+      sort?: string | undefined;
+      minDate?: string | undefined;
+      maxDate?: string | undefined;
     }
   ): Promise<{ count: number; pmids: string[]; queryTranslation: string }> {
     const result = await this.esearch({

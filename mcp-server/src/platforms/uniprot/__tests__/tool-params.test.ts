@@ -16,10 +16,10 @@ async function capture(name: string, args: Record<string, unknown>) {
   const recorder = requestRecorder(protein);
   initClient({}, { adapter: recorder.adapter });
   if (rejectsEmpty(name, args)) {
-    await expect(handlers[name](args)).rejects.toThrow('requires at least one');
+    await expect(handlers[name]!(args)).rejects.toThrow('requires at least one');
     expect(recorder.requests).toEqual([]);
   } else {
-    await handlers[name](args);
+    await handlers[name]!(args);
     assertMakesRequest(recorder.requests);
     recorder.requests.forEach(assertUniProtRequest);
   }
@@ -35,10 +35,10 @@ describe.each(tools)('$name', tool => {
 });
 it('renders both comparison formats from populated protein data', async () => {
   await capture('compare_proteins', { accessions: samples.accessions });
-  const json = await handlers.compare_proteins({ accessions: samples.accessions }) as any;
+  const json = await handlers.compare_proteins!({ accessions: samples.accessions }) as any;
   expect(json.comparison).toHaveLength(2);
   expect(json.comparison[0]).toMatchObject({ accession: 'P04637', length: 5, domains: 1 });
-  const tsv = await handlers.compare_proteins({ accessions: samples.accessions, format: 'tsv' });
+  const tsv = await handlers.compare_proteins!({ accessions: samples.accessions, format: 'tsv' });
   expect(tsv).toBe('accession\tname\torganism\tlength\tmass\tfeatures\tdomains\n' +
     Array(2).fill('P04637\tP53_HUMAN\tHomo sapiens\t5\t600\t1\t1').join('\n'));
 });

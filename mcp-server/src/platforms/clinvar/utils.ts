@@ -82,21 +82,23 @@ export function parseCoordinates(coordStr: string): {
 } {
   const simpleMatch = coordStr.match(/^chr(\w+):(\d+)(?:-(\d+))?$/i);
   if (simpleMatch) {
+    const [, chromosome = '', start = '', stop = start] = simpleMatch;
     return {
-      chromosome: simpleMatch[1],
-      start: parseInt(simpleMatch[2], 10),
-      stop: simpleMatch[3] ? parseInt(simpleMatch[3], 10) : parseInt(simpleMatch[2], 10),
+      chromosome,
+      start: parseInt(start, 10),
+      stop: parseInt(stop, 10),
     };
   }
 
   const hgvsMatch = coordStr.match(/NC_0+(\d+)\.\d+:g\.(\d+)([ACGT]+)>([ACGT]+)/i);
   if (hgvsMatch) {
+    const [, chromosome = '', position = '', ref = '', alt = ''] = hgvsMatch;
     return {
-      chromosome: hgvsMatch[1],
-      start: parseInt(hgvsMatch[2], 10),
-      stop: parseInt(hgvsMatch[2], 10),
-      ref: hgvsMatch[3],
-      alt: hgvsMatch[4],
+      chromosome,
+      start: parseInt(position, 10),
+      stop: parseInt(position, 10),
+      ref,
+      alt,
     };
   }
 
@@ -133,11 +135,8 @@ export function normalizeClinicalSignificance(sig: string): string {
     'not provided': 'not provided',
   };
 
-  if (Object.hasOwn(mappings, lower)) {
-    return mappings[lower];
-  }
-
-  return sig;
+  // hasOwn keeps inherited keys such as "constructor" from matching.
+  return Object.hasOwn(mappings, lower) ? (mappings[lower] ?? sig) : sig;
 }
 
 export function normalizeReviewStatus(status: string): string {
@@ -162,9 +161,9 @@ export function normalizeReviewStatus(status: string): string {
 }
 
 export function buildClinVarSearchTerm(params: {
-  gene?: string;
+  gene?: string | undefined;
   condition?: string;
-  clinicalSignificance?: string;
+  clinicalSignificance?: string | undefined;
   molecularConsequence?: string;
   reviewStatus?: string;
   chromosome?: string;

@@ -46,8 +46,9 @@ export async function writeCategoryScores(writer: ScoreWriter, scores: ScoreUpse
     if (result.status === "fulfilled") return;
     ok = false;
     const reason: unknown = result.reason;
+    const score = scores[i]!; // allSettled keeps one result per input, in order
     logger.warn("TRACE", "feedback_category_sync_failed", {
-      data: { score_id: scores[i].id, name: scores[i].name },
+      data: { score_id: score.id, name: score.name },
       error: reason instanceof Error ? reason : String(reason),
     });
   });

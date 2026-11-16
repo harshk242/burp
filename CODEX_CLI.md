@@ -56,19 +56,19 @@ verdict meanings, and rerun guidance.
 
 The runner is a lightweight MCP host that starts multiple servers and routes tool calls.
 
-Location: `scripts/mcp-multi-runner.js`
+Location: `scripts/mcp-multi-runner.ts`
 
 Common commands:
 
 ```bash
 # List configured servers
-node scripts/mcp-multi-runner.js list-servers
+node scripts/mcp-multi-runner.ts list-servers
 
 # List tools for a specific server
-node scripts/mcp-multi-runner.js list-tools open-targets
+node scripts/mcp-multi-runner.ts list-tools open-targets
 
 # Call a tool directly
-node scripts/mcp-multi-runner.js call-tool open-targets search_entities \
+node scripts/mcp-multi-runner.ts call-tool open-targets search_entities \
   --args '{"query_string":"TP53","entity_names":["target"],"page_index":0,"page_size":5}'
 ```
 
@@ -126,7 +126,7 @@ Example plan file (`use_case_2_plan.json`):
 Run the plan:
 
 ```bash
-node scripts/mcp-multi-runner.js run-plan ./use_case_2_plan.json
+node scripts/mcp-multi-runner.ts run-plan ./use_case_2_plan.json
 ```
 
 ## Mapping USE_CASES.md to Plans

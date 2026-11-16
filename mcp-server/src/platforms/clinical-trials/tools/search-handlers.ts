@@ -47,11 +47,12 @@ export const handleGetStudyDetails: ToolHandler = async (args) => {
     pageSize: 1,
   });
 
-  if (!data.studies || data.studies.length === 0) {
+  const study = data.studies?.[0];
+  if (!study) {
     throw new Error(`No study found with NCT ID: ${nctId}`);
   }
 
-  return formatDetailedStudy(data.studies[0]);
+  return formatDetailedStudy(study);
 };
 
 export const handleSearchByLocation: ToolHandler = async (args) => {

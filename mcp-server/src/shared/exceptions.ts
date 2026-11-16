@@ -6,8 +6,8 @@ export class MCPError extends Error {
 }
 
 export class APIError extends MCPError {
-  public readonly statusCode?: number;
-  public readonly errorDetails?: string;
+  public readonly statusCode: number | undefined;
+  public readonly errorDetails: string | undefined;
 
   constructor(message: string, statusCode?: number, errorDetails?: string) {
     super(message);
@@ -28,7 +28,7 @@ export class GraphQLError extends APIError {
 }
 
 export class RateLimitError extends MCPError {
-  public readonly retryAfter?: number;
+  public readonly retryAfter: number | undefined;
 
   constructor(message: string, retryAfter?: number) {
     super(message);
@@ -38,7 +38,7 @@ export class RateLimitError extends MCPError {
 }
 
 export class XMLParseError extends MCPError {
-  public readonly rawContent?: string;
+  public readonly rawContent: string | undefined;
 
   constructor(message: string, rawContent?: string) {
     super(message);
@@ -48,7 +48,7 @@ export class XMLParseError extends MCPError {
 }
 
 export class NetworkError extends MCPError {
-  public readonly statusCode?: number;
+  public readonly statusCode: number | undefined;
 
   constructor(message: string, statusCode?: number) {
     super(message);

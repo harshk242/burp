@@ -1,4 +1,5 @@
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
@@ -6,8 +7,6 @@
     "moduleResolution": "bundler",
     "lib": ["ESNext"],
     "types": ["bun"],
-    "strict": true,
-    "skipLibCheck": true,
     "noEmit": true
   },
   "include": ["scripts/**/*.ts", "vitest.config.ts", "vitest.contracts.config.ts"]

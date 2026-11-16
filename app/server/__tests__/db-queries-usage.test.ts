@@ -186,8 +186,8 @@ describe("toolSearchQueries (FTS5)", () => {
   it("ranks BM25 matches and returns snake_case rows", () => {
     const rows = q.toolSearchQueries.searchBM25("protein");
     expect(rows.map((r) => r.full_name)).toEqual(["uniprot__search"]);
-    expect(Object.keys(rows[0]).sort()).toEqual(["description", "full_name", "rank", "server", "tool_name"]);
-    expect(rows[0].rank).toBeNumber();
+    expect(Object.keys(rows[0]!).sort()).toEqual(["description", "full_name", "rank", "server", "tool_name"]);
+    expect(rows[0]!.rank).toBeNumber();
   });
 
   it("uses the porter stemmer, OR queries and the limit", () => {

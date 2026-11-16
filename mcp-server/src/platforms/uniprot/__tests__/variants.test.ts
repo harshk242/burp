@@ -52,7 +52,7 @@ describe('clinical significance parsing', () => {
 describe('get_protein_variants disease classification', () => {
   it('excludes benign, likely benign, uncertain and negated disease mentions', async () => {
     mock();
-    const result: any = await handlers.get_protein_variants({ accession: 'P04637' });
+    const result: any = await handlers.get_protein_variants!({ accession: 'P04637' });
     expect(result.naturalVariantCount).toBe(11);
     expect(result.diseaseVariants.map((f: any) => [f.description.split(';')[0], f.diseases])).toEqual([
       ['in LFS', ['LFS']], ['in BC and OC', ['BC']], ['in BC', ['BC']], ['in A+B', ['A+B']],
@@ -67,7 +67,7 @@ describe('get_protein_variants disease classification', () => {
   });
   it('keeps every natural variant with its stated significance and strips evidences', async () => {
     mock();
-    const result: any = await handlers.get_protein_variants({ accession: 'P04637' });
+    const result: any = await handlers.get_protein_variants!({ accession: 'P04637' });
     expect(result.naturalVariants.find((f: any) => f.description.startsWith('in BC; benign')))
       .toMatchObject({ clinicalSignificance: 'benign' });
     expect(result.naturalVariants[0]).not.toHaveProperty('clinicalSignificance');
@@ -77,7 +77,7 @@ describe('get_protein_variants disease classification', () => {
   });
   it('reports no disease variants without DISEASE comments', async () => {
     mock({ features: [variant('in LFS')] });
-    expect(await handlers.get_protein_variants({ accession: 'X' })).toMatchObject({
+    expect(await handlers.get_protein_variants!({ accession: 'X' })).toMatchObject({
       diseaseVariants: [], diseaseVariantCount: 0, excludedDiseaseMentionCount: 0, naturalVariantCount: 1,
     });
   });

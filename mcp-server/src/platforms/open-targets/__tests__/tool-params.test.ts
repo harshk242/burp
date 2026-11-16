@@ -11,7 +11,7 @@ const schema = buildClientSchema(JSON.parse(readFileSync(new URL('../../__test-u
 async function capture(name: string, args: Record<string, unknown>) {
   const recorder = requestRecorder();
   initializeClient({ adapter: recorder.adapter });
-  try { await handlers[name](args); } finally { closeClient(); }
+  try { await handlers[name]!(args); } finally { closeClient(); }
   assertMakesRequest(recorder.requests);
   return recorder.requests;
 }

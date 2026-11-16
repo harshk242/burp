@@ -11,10 +11,11 @@ import { buildSystemPrompt } from "../../server/orchestration/context/system-pro
 import { createSearchTool } from "../../server/orchestration/tools/search-tool";
 import { createInspectArtifactTool } from "../../server/orchestration/tools/artifact-inspector";
 import { toDeclarations } from "../../server/orchestration/tool-dispatch";
-import { MOA_HITS, sha, verdict, verdicts } from "./gate-lib";
+import { assistantParts, MOA_HITS, parseWireBody, sha, verdict, verdicts, type WireBlock, type WireBody } from "./gate-lib";
 import { coldCacheWritten } from "./gate-config";
 import { check4b, ensureThinkingCapabilities } from "./phase4b-checks";
 import { checkRedactedOffline } from "./phase4b-redacted";
+import { omitUndefined } from "../../shared/object";
 
 const MODEL_ID = loadLLMConfig().chatModel;
 const MAX_OUTPUT = 256;
@@ -22,13 +23,13 @@ const SEARCH = "system__search_available_tools";
 const INSPECT = "system__inspect_artifact";
 const RUN_ID = randomUUID().slice(0, 8);
 
-interface Capture { status: number; beta: string | null; body: any; errorText?: string }
+interface Capture { status: number; beta: string | null; body: WireBody; errorText?: string }
 let last: Capture | null = null;
 
 const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  ...omitUndefined({ apiKey: process.env.ANTHROPIC_API_KEY }),
   fetch: (async (url, init) => {
-    const body = JSON.parse(init?.body as string);
+    const body = parseWireBody(init?.body as string);
     const headers = new Headers(init?.headers);
     const res = await fetch(url, init);
     last = { status: res.status, beta: headers.get("anthropic-beta"), body };
@@ -50,7 +51,9 @@ function buildCatalog(mode: Mode, nonce: string): Record<string, Tool> {
     [SEARCH]: createSearchTool(),
     [INSPECT]: createInspectArtifactTool("phase0-session"),
   });
-  system[SEARCH] = { ...system[SEARCH], description: `${system[SEARCH].description} (gate run ${nonce})` } as Tool;
+  const searchTool = system[SEARCH];
+  if (!searchTool) throw new Error(`${SEARCH} is missing from the system tools`);
+  system[SEARCH] = { ...searchTool, description: `${searchTool.description} (gate run ${nonce})` } as Tool;
   const names = toolRegistry.getAll().map((t) => `${t.server}__${t.name}`);
   const entries: [string, Tool][] = Object.entries(system);
   for (const name of names) {
@@ -74,19 +77,19 @@ interface CallResult {
   status: number;
   toolsSent: number;
   deferredSent: number;
-  inputTokens?: number;
-  noCache?: number;
-  cacheRead?: number;
-  cacheWrite?: number;
+  inputTokens?: number | undefined;
+  noCache?: number | undefined;
+  cacheRead?: number | undefined;
+  cacheWrite?: number | undefined;
   cacheCreation?: unknown;
-  outputTokens?: number;
-  finishReason?: string;
-  toolCalls?: string[];
-  text?: string;
+  outputTokens?: number | undefined;
+  finishReason?: string | undefined;
+  toolCalls?: string[] | undefined;
+  text?: string | undefined;
   beta: string | null;
-  error?: string;
-  toolsHash?: string;
-  systemHash?: string;
+  error?: string | undefined;
+  toolsHash?: string | undefined;
+  systemHash?: string | undefined;
 }
 
 const results: CallResult[] = [];
@@ -95,7 +98,7 @@ async function runCall(
   label: string,
   cache: Cache,
   opts: { tools: Record<string, Tool>; messages: ModelMessage[]; cacheSystem?: boolean; maxOutput?: number },
-): Promise<CallResult & { responseMessages: ModelMessage[]; body?: any }> {
+): Promise<CallResult & { responseMessages: ModelMessage[]; body?: WireBody | undefined }> {
   const instructions: SystemModelMessage | string = opts.cacheSystem
     ? { role: "system", content: buildSystemPrompt(), providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } } }
     : buildSystemPrompt();
@@ -121,7 +124,7 @@ async function runCall(
       cache,
       status: last?.status ?? -1,
       toolsSent: last?.body?.tools?.length ?? 0,
-      deferredSent: (last?.body?.tools ?? []).filter((t: any) => t.defer_loading).length,
+      deferredSent: (last?.body?.tools ?? []).filter((t) => t.defer_loading).length,
       inputTokens: usage.inputTokens,
       noCache: usage.inputTokenDetails?.noCacheTokens,
       cacheRead: usage.inputTokenDetails?.cacheReadTokens,
@@ -141,7 +144,7 @@ async function runCall(
       cache,
       status: last?.status ?? -1,
       toolsSent: last?.body?.tools?.length ?? 0,
-      deferredSent: (last?.body?.tools ?? []).filter((t: any) => t.defer_loading).length,
+      deferredSent: (last?.body?.tools ?? []).filter((t) => t.defer_loading).length,
       beta: last?.beta ?? null,
       error: `${error}${last?.errorText ? ` | ${last.errorText.slice(0, 400)}` : ""}`,
       responseMessages: [],
@@ -186,16 +189,16 @@ function searchTurn(id: string, query: string, tools: { name: string; score: num
   ];
 }
 
-function inspectBody(body: any) {
+function inspectBody(body: WireBody | undefined) {
   const refs: string[] = [];
   const marked: string[] = [];
-  if (Array.isArray(body?.system)) body.system.forEach((b: any, i: number) => b.cache_control && marked.push(`system[${i}]`));
-  (body?.messages ?? []).forEach((m: any, mi: number) => {
+  if (Array.isArray(body?.system)) body.system.forEach((b, i) => b.cache_control && marked.push(`system[${i}]`));
+  (body?.messages ?? []).forEach((m, mi) => {
     if (!Array.isArray(m.content)) return;
-    m.content.forEach((b: any, bi: number) => {
+    m.content.forEach((b, bi) => {
       if (b.cache_control) marked.push(`messages[${mi}].${b.type}[${bi}]`);
       if (b.type === "tool_result" && Array.isArray(b.content))
-        for (const c of b.content) if (c.type === "tool_reference") refs.push(c.tool_name);
+        for (const c of b.content as WireBlock[]) if (c.type === "tool_reference" && c.tool_name) refs.push(c.tool_name);
     });
   });
   return { toolReferences: refs, cacheControlOn: marked };
@@ -235,8 +238,8 @@ const MOA_QUESTION =
   "Using ChEMBL, what is the mechanism of action of imatinib (CHEMBL941)? You don't have a suitable core tool, " +
   "so find one with system__search_available_tools first. Keep the answer to one sentence.";
 
-const toolCallsOf = (msgs: ModelMessage[]) =>
-  msgs.flatMap((m) => (m.role === "assistant" && Array.isArray(m.content) ? m.content : [])).filter((p: any) => p.type === "tool-call") as any[];
+const toolCallsOf = (msgs: ModelMessage[]) => assistantParts(msgs).flatMap((p) =>
+  p.type === "tool-call" && p.toolCallId && p.toolName ? [{ ...p, toolCallId: p.toolCallId, toolName: p.toolName }] : []);
 
 async function check23() {
   const tools = buildCatalog("deferred", `${RUN_ID}-c23`);
@@ -251,7 +254,7 @@ async function check23() {
   const id = searchCall?.toolCallId ?? "toolu_phase0_search_1";
   const base: ModelMessage[] = searchCall
     ? [...ask(MOA_QUESTION), ...c1.responseMessages]
-    : [...ask(MOA_QUESTION), searchTurn(id, query, MOA_HITS)[0]];
+    : [...ask(MOA_QUESTION), ...searchTurn(id, query, MOA_HITS).slice(0, 1)];
   const prevLast1 = 0;
 
   const history: ModelMessage[] = [...base, searchResult(id, MOA_HITS, "refs")];
@@ -362,7 +365,7 @@ async function main() {
   }
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set (run from app/ so .env loads)");
   if (target === "all" || target === "4b") await ensureThinkingCapabilities();
-  const pkg = async (p: string) => (await import(`${p}/package.json`, { with: { type: "json" } })).default.version;
+  const pkg = async (p: string) => ((await import(`${p}/package.json`, { with: { type: "json" } })) as { default: { version: string } }).default.version;
   console.log("model:", MODEL_ID, "| ai", await pkg("ai"), "| @ai-sdk/anthropic", await pkg("@ai-sdk/anthropic"), "| run", RUN_ID);
 
   runMigrations(sqlite);

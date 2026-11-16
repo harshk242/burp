@@ -110,7 +110,7 @@ describe("eval sync", () => {
     await sync(api, home);
 
     const smoke = home.datasets.find((d) => d.dataset.name === "smoke")!;
-    const removed = smoke.dataset.items[0];
+    const removed = smoke.dataset.items[0]!;
     const trimmed: EvalHome = {
       ...home,
       datasets: home.datasets.map((d) =>
@@ -133,7 +133,7 @@ describe("eval sync", () => {
     const home = loadEvalHome();
     const api = new FakeLangfuse();
     await sync(api, home);
-    const id = home.datasets[0].dataset.items[0].id;
+    const id = home.datasets[0]!.dataset.items[0]!.id;
     api.items.get(id)!.input = { turns: ["edited in the UI"] };
 
     const plan = await sync(api, home);
@@ -162,7 +162,7 @@ describe("eval sync", () => {
     const home = loadEvalHome();
     const api = new FakeLangfuse();
     await sync(api, home);
-    api.configs[0].description = "edited";
+    api.configs[0]!.description = "edited";
 
     const plan = await sync(api, home);
     expect(plan.actions).toEqual([]);

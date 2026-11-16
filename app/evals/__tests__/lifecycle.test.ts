@@ -28,7 +28,7 @@ const slowModel = new MockLanguageModelV4({
         setTimeout(() => started(), 0);
       },
     });
-    await transport?.("https://model.test/", { signal: abortSignal });
+    await transport?.("https://model.test/", { signal: abortSignal ?? null });
     return { stream };
   },
 });
@@ -70,7 +70,7 @@ afterAll(() => {
 it("SIGINT during a slow turn: the turn's finally runs before tracing shutdown", async () => {
   q.userQueries.create(USER_ID, "clerk_l", "l@example.com", null, null, "user", null, null);
   const [full] = [...ALWAYS_LOADED_TOOLS];
-  const { server, name } = toolRegistry.parseToolName(full);
+  const { server, name } = toolRegistry.parseToolName(full!);
   toolRegistry.register(server, { name, description: "t", inputSchema: { type: "object", properties: {} } });
 
   let exited: (code: number) => void = () => {};

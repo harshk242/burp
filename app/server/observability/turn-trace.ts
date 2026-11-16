@@ -3,6 +3,7 @@ import { TraceFlags, type Attributes } from "@opentelemetry/api";
 import type { CallCost } from "../usage";
 import { logger } from "../logger";
 import { tracingActive } from "./langfuse";
+import { omitUndefined } from "../../shared/object";
 
 export type TurnTraceStatus = "ok" | "error" | "aborted" | "closed";
 
@@ -14,7 +15,7 @@ export interface TurnTraceStart {
   provider: string;
   model: string;
   metadata?: Record<string, unknown>;
-  traceParent?: TraceParent;
+  traceParent?: TraceParent | undefined;
 }
 
 export interface TraceParent {
@@ -28,8 +29,8 @@ export interface TurnTraceEnd {
   errorCode?: string;
   message?: string;
   metadata?: Record<string, unknown>;
-  cutOffCall?: CallCost;
-  tags?: string[];
+  cutOffCall?: CallCost | undefined;
+  tags?: string[] | undefined;
 }
 
 export interface GenerationStart {
@@ -43,7 +44,7 @@ export interface GenerationStart {
 export interface GenerationResult {
   call: CallCost;
   finishReason: string;
-  rawFinishReason?: string;
+  rawFinishReason?: string | undefined;
   text: string;
   reasoning: string;
   toolCalls: { name: string; input: unknown }[];
@@ -172,14 +173,14 @@ export class ToolObservation extends Child {
 
   finish(result: ToolResult): void {
     this.endOnce("tool_finish_failed", (obs) =>
-      obs.updateOtelSpanAttributes({ output: result.output, metadata: result.metadata })
+      obs.updateOtelSpanAttributes(omitUndefined({ output: result.output, metadata: result.metadata }))
     );
   }
 
   fail(result: ToolResult, statusMessage: string): void {
     this.onError();
     this.endOnce("tool_fail_failed", (obs) =>
-      obs.updateOtelSpanAttributes({ output: result.output, metadata: result.metadata, level: "ERROR", statusMessage })
+      obs.updateOtelSpanAttributes(omitUndefined({ output: result.output, metadata: result.metadata, level: "ERROR" as const, statusMessage }))
     );
   }
 }
@@ -250,12 +251,12 @@ export class TurnTrace {
     const obs = this.child("generation_start_failed", () =>
       this.root!.startObservation(
         "llm-call",
-        {
+        omitUndefined({
           model: p.model,
           input: p.input,
           modelParameters: p.modelParameters,
           metadata: { iteration: p.iteration, ...p.metadata },
-        },
+        }),
         { asType: "generation" }
       )
     );
@@ -264,7 +265,7 @@ export class TurnTrace {
 
   tool(p: ToolStart): ToolObservation {
     this.toolCalls++;
-    const attrs = { input: p.input, metadata: p.metadata };
+    const attrs = omitUndefined({ input: p.input, metadata: p.metadata });
     const obs = this.child("tool_start_failed", () =>
       p.asType === "retriever"
         ? this.root!.startObservation(p.name, attrs, { asType: "retriever" })
@@ -299,7 +300,7 @@ export class TurnTrace {
     safely(
       "trace_end_failed",
       () =>
-        root.update({
+        root.update(omitUndefined({
           output: outcome.status === "ok" ? outcome.output : { error_code: outcome.errorCode ?? outcome.status, message: outcome.message },
           level,
           statusMessage,
@@ -311,7 +312,7 @@ export class TurnTrace {
             tool_calls_failed: this.toolErrors,
             ...outcome.metadata,
           },
-        }),
+        })),
       undefined
     );
     safely("trace_end_failed", () => root.end(), undefined);

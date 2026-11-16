@@ -16,13 +16,13 @@ async function invoke(name: string, args: Record<string, unknown>) {
     requests++;
     const recorder = requestRecorder();
     await recorder.adapter(config);
-    assertPubmedRequest(recorder.requests[0]);
+    assertPubmedRequest(recorder.requests[0]!);
     const response = await transport(config);
     if (config.url?.includes('esearch')) assertSearchAccepted(response.data, String(config.params.term));
     return response;
   } });
   try {
-    const result = await platform.handlers[name](args);
+    const result = await platform.handlers[name]!(args);
     expect(requests).toBeGreaterThan(0);
     expect(result).toBeDefined();
     return result;

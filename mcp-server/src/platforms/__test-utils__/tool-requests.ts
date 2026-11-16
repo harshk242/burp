@@ -14,7 +14,7 @@ export function requestRecorder(response: unknown = { data: {} }) {
     const header: unknown = config.headers?.['Content-Type'];
     const contentType = typeof header === 'string' ? header : '';
     requests.push({
-      method: config.method ?? 'get', url: axios.getUri({ baseURL: config.baseURL, url: config.url }),
+      method: config.method ?? 'get', url: axios.getUri({ ...(config.baseURL !== undefined && { baseURL: config.baseURL }), ...(config.url !== undefined && { url: config.url }) }),
       params: config.params ?? {},
       body: typeof config.data === 'string' ? contentType.includes('application/x-www-form-urlencoded')
         ? Object.fromEntries(new URLSearchParams(config.data)) : contentType.includes('text/plain') ? config.data : JSON.parse(config.data) : config.data ?? {},
@@ -69,7 +69,7 @@ export async function assertArgsAffectRequests(
     expect(JSON.stringify(await capture({ ...full, [name]: alternative })), name).not.toBe(baseline);
   }
   for (const variant of argVariants(tool, samples).filter((v) => v.label !== 'all args' && v.label !== 'required only')) {
-    const name = variant.label.split(/[.[=]/)[0];
+    const name = variant.label.split(/[.[=]/)[0]!;
     const reason = clientSide[name] ?? clientSide[variant.label];
     if (reason) expect(reason.trim().length).toBeGreaterThan(0);
     else expect(JSON.stringify(await capture(variant.args)), variant.label).not.toBe(baseline);

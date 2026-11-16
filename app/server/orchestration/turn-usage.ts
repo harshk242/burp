@@ -71,7 +71,7 @@ export class CallTracker {
   constructor(private readonly maxContextTokens = Infinity) {}
 
   carryOver(promptTokens: number, messageCount: number, identity?: string): void {
-    this.carried = { promptTokens, messageCount, identity };
+    this.carried = { promptTokens, messageCount, ...(identity !== undefined && { identity }) };
   }
 
   get lastPromptTokens(): number | undefined {
@@ -129,6 +129,8 @@ export class CallTracker {
         break;
       case "tool-input-delta":
         call.streamedChars += chunk.delta.length;
+        break;
+      default:
         break;
     }
   };
@@ -270,8 +272,8 @@ export interface OkTurn {
   toolCalls: ToolCallRecord[];
   iterations: number;
   lastPromptTokens: number | null | undefined;
-  lastInputMessageCount?: number;
-  lastInputIdentity?: string;
+  lastInputMessageCount?: number | undefined;
+  lastInputIdentity?: string | undefined;
   finalFinishReason: string | null;
   toolErrorCount: number;
 }

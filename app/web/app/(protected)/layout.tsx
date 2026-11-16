@@ -74,9 +74,10 @@ function ProtectedContent({
             setIsSynced(true);
           }
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.error("Failed to sync user:", err);
-          if (err.message.includes("403") || err.message.includes("waitlist")) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (message.includes("403") || message.includes("waitlist")) {
             setSyncError("waitlist");
           } else {
             setIsSynced(true);

@@ -27,6 +27,18 @@
     "typescript/no-misused-promises": "error",
     "typescript/await-thenable": "error",
     "typescript/no-base-to-string": "error",
+    "typescript/ban-ts-comment": ["error", { "ts-expect-error": "allow-with-description", "minimumDescriptionLength": 10 }],
+    "typescript/switch-exhaustiveness-check": ["error", { "considerDefaultExhaustiveForUnions": true }],
+    "typescript/only-throw-error": "error",
+    "typescript/prefer-promise-reject-errors": ["error", { "allowThrowingAny": true, "allowThrowingUnknown": true }],
+    "typescript/return-await": ["error", "in-try-catch"],
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/no-unsafe-argument": "error",
     "typescript/restrict-template-expressions": "off",
     "typescript/no-unsafe-type-assertion": "off",
 
@@ -48,6 +60,27 @@
     "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }]
   },
   "overrides": [
+    {
+      "files": ["**/__tests__/**", "**/__test-utils__/**", "**/*.test.ts", "**/*.contract.ts"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/no-unsafe-argument": "off"
+      }
+    },
+    {
+      "files": ["mcp-server/src/platforms/**"],
+      "rules": {
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/no-unsafe-argument": "off"
+      }
+    },
     {
       "files": ["**/__tests__/**", "**/__test-utils__/**"],
       "plugins": ["vitest"],

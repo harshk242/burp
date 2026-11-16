@@ -1,3 +1,4 @@
+import type * as Fuzzball from 'fuzzball';
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
 import { mapIds } from './meta.js';
@@ -6,7 +7,7 @@ import {
   SEARCH_ENTITIES_OPERATION,
 } from './operations.js';
 
-let fuzzball: any = null;
+let fuzzball: typeof Fuzzball | null = null;
 try {
   fuzzball = await import('fuzzball');
 } catch {
@@ -75,11 +76,8 @@ export async function searchEntities(
 
   let bestMappedHit: { id: string; name?: string; score?: number } | null = null;
   const mappings = mappedResults?.mapIds?.mappings || [];
-  if (mappings.length > 0 && mappings[0]?.hits?.length) {
-    bestMappedHit = mappings[0].hits.reduce((best, hit) =>
-      (hit.score || 0) > (best?.score || 0) ? hit : best,
-      mappings[0].hits[0]
-    );
+  for (const hit of mappings[0]?.hits ?? []) {
+    if (!bestMappedHit || (hit.score || 0) > (bestMappedHit.score || 0)) bestMappedHit = hit;
   }
 
   const directTopHitId = directResults?.search?.hits?.[0]?.id;
@@ -147,12 +145,10 @@ export async function searchSuggestions(
     limit: maxSuggestions,
   });
 
-  const suggestions = extracted.map((item: [string, number, number]) => ({
-    label: item[0],
-    score: item[1],
-    id: choices[item[0]].id,
-    entity: choices[item[0]].entity,
-  }));
+  const suggestions = extracted.flatMap(([label, score]: [string, number, number]) => {
+    const choice = choices[label];
+    return choice ? [{ label, score, id: choice.id, entity: choice.entity }] : [];
+  });
 
   return { suggestions };
 }

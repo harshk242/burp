@@ -1,12 +1,11 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ESNext"],
     "types": ["bun"],
-    "strict": true,
-    "skipLibCheck": true,
     "noEmit": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true

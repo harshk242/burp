@@ -6,7 +6,7 @@ export type WriterOp = "upsert" | "remove" | "exists";
 export interface HeldCall {
   op: WriterOp;
   id: string;
-  body?: ScoreUpsert;
+  body?: ScoreUpsert | undefined;
   resolve(): void;
   reject(error: unknown): void;
 }
@@ -16,10 +16,10 @@ export class FakeScoreWriter implements ScoreWriter {
   readonly log: { op: WriterOp; id: string; value?: number }[] = [];
   readonly held: HeldCall[] = [];
   mode: "auto" | "manual" = "auto";
-  failNext: unknown[] = [];
+  failNext: Error[] = [];
   existsAnswer: ((id: string) => boolean) | null = null;
   hold: (op: WriterOp, id: string) => boolean = () => true;
-  failWhen: ((op: WriterOp, id: string) => unknown) | null = null;
+  failWhen: ((op: WriterOp, id: string) => Error | null) | null = null;
   deferDeletes = false;
   private queuedDeletes: string[] = [];
   private waiters: (() => void)[] = [];
@@ -54,7 +54,8 @@ export class FakeScoreWriter implements ScoreWriter {
 
   private call(op: WriterOp, id: string, body?: ScoreUpsert): Promise<void> {
     this.log.push({ op, id, ...(body ? { value: body.value } : {}) });
-    if (this.failNext.length > 0) return Promise.reject(this.failNext.shift());
+    const queued = this.failNext.shift();
+    if (queued) return Promise.reject(queued);
     const failure = this.failWhen?.(op, id);
     if (failure) return Promise.reject(failure);
     if (this.mode === "auto" || !this.hold(op, id)) {

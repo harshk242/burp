@@ -47,6 +47,14 @@ Then re-clone or `git checkout -- CLAUDE.md`.
 # Linting
 - `bun run lint` runs oxlint (type-aware) over all workspaces; config in `.oxlintrc.json`. CI fails on any finding.
 - `bun run lint:fix` applies safe autofixes.
+- Outside tests, `no-explicit-any` and the `no-unsafe-*` rules are errors. Type external data at the boundary (`unknown` + narrowing, or a named shape such as `get<T>()`). `mcp-server/src/platforms/**` is still exempt from `no-unsafe-*`.
+
+# Type checking
+- `bun run typecheck:all` checks every tsconfig and fails if a TS/JS file is outside all of them (`scripts/check-typecheck-coverage.ts`). CI runs it.
+- Shared strictness flags live in `tsconfig.base.json` (including `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`); workspace tsconfigs extend it. Do not relax them per workspace.
+- Indexed access is `T | undefined`: narrow it, or use `!` only where a local invariant makes it obvious (say why in a comment outside tests).
+- Optional properties reject explicit `undefined`: declare `x?: T | undefined` on our own types when callers forward optional values; for third-party option objects use `omitUndefined()` (`app/shared/object.ts`) or a conditional spread.
+- No `@ts-ignore`/`@ts-nocheck`; `@ts-expect-error` needs a description.
 
 # Langfuse traces
 - Read traces with `scripts/langfuse.sh api ...` (wraps `bunx langfuse-cli`, loads keys from `app/.env`). Never paste keys into chat or commit them.

@@ -12,6 +12,7 @@ import {
   type EmbeddingProviderName,
   type EmbeddingSpec,
 } from "./types";
+import { omitUndefined } from "../../shared/object";
 
 export const DEFAULT_QUERY_TIMEOUT_MS = 2000;
 
@@ -34,11 +35,11 @@ interface ProviderAdapter {
 const ADAPTERS: Record<EmbeddingProviderName, ProviderAdapter> = {
   openai: {
     keyEnv: ["OPENAI_API_KEY"],
-    model: (modelId, apiKey, fetch) => createOpenAI({ apiKey, fetch }).embedding(modelId),
+    model: (modelId, apiKey, fetch) => createOpenAI(omitUndefined({ apiKey, fetch })).embedding(modelId),
   },
   google: {
     keyEnv: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
-    model: (modelId, apiKey, fetch) => createGoogle({ apiKey, fetch }).embedding(modelId),
+    model: (modelId, apiKey, fetch) => createGoogle(omitUndefined({ apiKey, fetch })).embedding(modelId),
     queryOptions: { google: { taskType: "RETRIEVAL_QUERY" } },
     documentOptions: { google: { taskType: "RETRIEVAL_DOCUMENT" } },
   },
@@ -75,12 +76,11 @@ export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {
         const { embedding } = await embed({
           model,
           value: text,
-          dimensions: spec.dimensions,
-          providerOptions: adapter.queryOptions,
+          ...omitUndefined({ dimensions: spec.dimensions, providerOptions: adapter.queryOptions }),
           abortSignal,
           maxRetries: 0,
         });
-        return validateVectors([embedding], 1, spec.dimensions)[0];
+        return validateVectors([embedding], 1, spec.dimensions)[0]!;
       }, { signal, timeoutError });
     },
 
@@ -89,9 +89,7 @@ export function createEmbedder(spec: EmbeddingSpec, options: EmbedderOptions = {
       const { embeddings } = await embedMany({
         model,
         values: texts,
-        dimensions: spec.dimensions,
-        providerOptions: adapter.documentOptions,
-        abortSignal: signal,
+        ...omitUndefined({ dimensions: spec.dimensions, providerOptions: adapter.documentOptions, abortSignal: signal }),
         maxParallelCalls: 2,
       });
       return validateVectors(embeddings, texts.length, spec.dimensions);

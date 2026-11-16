@@ -36,7 +36,7 @@ const LIVE_CALLS: Call[] = [
 const argv = process.argv.slice(2);
 let i = 0;
 let live = false;
-for (; i < argv.length && argv[i].startsWith('--'); i++) {
+for (; i < argv.length && argv[i]?.startsWith('--'); i++) {
   if (argv[i] === '--live') live = true;
   else if (argv[i] !== '--') { console.error(`unknown flag ${argv[i]}`); process.exit(2); }
 }
@@ -96,7 +96,13 @@ void (async () => {
   for await (const chunk of proc.stderr) stderrTail = (stderrTail + new TextDecoder().decode(chunk)).slice(-4000);
 })();
 
-type Pending = { resolve: (msg: any) => void; reject: (err: Error) => void };
+interface RpcResponse {
+  jsonrpc: '2.0';
+  id: number;
+  result?: { tools?: { name: string }[]; content?: { text?: string }[]; isError?: boolean };
+  error?: unknown;
+}
+type Pending = { resolve: (msg: RpcResponse) => void; reject: (err: Error) => void };
 const pending = new Map<number, Pending>();
 const violations: string[] = [];
 
@@ -110,16 +116,16 @@ void (async () => {
       const line = buffer.slice(0, nl).replace(/\r$/, '');
       buffer = buffer.slice(nl + 1);
       if (!line.trim()) continue;
-      let msg: any;
+      let msg: unknown;
       try {
         msg = JSON.parse(line);
       } catch {
         violations.push(line);
         continue;
       }
-      if (msg?.jsonrpc !== '2.0') { violations.push(line); continue; }
-      if (typeof msg.id === 'number' && pending.has(msg.id) && !('method' in msg)) {
-        pending.get(msg.id)!.resolve(msg);
+      if (typeof msg !== 'object' || msg === null || !('jsonrpc' in msg) || msg.jsonrpc !== '2.0') { violations.push(line); continue; }
+      if ('id' in msg && typeof msg.id === 'number' && pending.has(msg.id) && !('method' in msg)) {
+        pending.get(msg.id)!.resolve(msg as RpcResponse);
         pending.delete(msg.id);
       }
     }
@@ -129,10 +135,10 @@ void (async () => {
 
 let nextId = 1;
 function send(payload: Record<string, unknown>) {
-  proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...payload }) + '\n');
-  proc.stdin.flush();
+  void proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...payload }) + '\n');
+  void proc.stdin.flush();
 }
-function request(method: string, params: Record<string, unknown>, timeoutMs: number): Promise<any> {
+function request(method: string, params: Record<string, unknown>, timeoutMs: number): Promise<RpcResponse> {
   const id = nextId++;
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -147,8 +153,8 @@ function request(method: string, params: Record<string, unknown>, timeoutMs: num
   });
 }
 
-function resultText(msg: any): string {
-  return (msg?.result?.content ?? []).map((c: any) => c?.text ?? '').join('');
+function resultText(msg: RpcResponse): string {
+  return (msg.result?.content ?? []).map((c) => c.text ?? '').join('');
 }
 
 async function main() {
@@ -169,7 +175,7 @@ async function main() {
   if (names.size === 0) return fail('tools/list returned no tools');
   ok(`tools/list: ${names.size} tools`);
 
-  const calls = live ? LIVE_CALLS : [LIVE_CALLS[0]];
+  const calls = live ? LIVE_CALLS : LIVE_CALLS.slice(0, 1);
   await Promise.all(calls.map(async (call) => {
     if (!names.has(call.name)) return fail(`${call.name} is not registered`);
     try {
@@ -214,7 +220,7 @@ if (violations.length > 0) {
 }
 
 proc.kill();
-stub?.stop();
+void stub?.stop();
 
 if (failures.length > 0) {
   console.error(`\nstdio probe FAILED (${failures.length})\n--- server stderr (tail) ---\n${stderrTail}`);

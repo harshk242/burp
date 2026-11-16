@@ -146,11 +146,10 @@ export const handleGetSimilarStudies: ToolHandler = async (args) => {
     pageSize: 1,
   });
 
-  if (!refData.studies || refData.studies.length === 0) {
+  const referenceStudy = refData.studies?.[0];
+  if (!referenceStudy) {
     throw new Error(`Reference study not found: ${nctId}`);
   }
-
-  const referenceStudy = refData.studies[0];
   const similarityType = (args.similarityType as string) || 'CONDITION';
 
   const searchParams: Record<string, unknown> = {

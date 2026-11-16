@@ -17,24 +17,24 @@ async function pacedTransport(config: Parameters<typeof transport>[0]) {
   return transport(config);
 }
 afterAll(resetClient);
-async function invoke(name: string, args: Record<string, unknown>): Promise<{ result: any; total?: number }> {
+async function invoke(name: string, args: Record<string, unknown>): Promise<{ result: any; total?: number | undefined }> {
   let calls = 0;
   let total: number | undefined;
   initClient({}, { adapter: async config => {
     const recorder = requestRecorder();
     await recorder.adapter(config);
-    assertUniProtRequest(recorder.requests[0]);
+    assertUniProtRequest(recorder.requests[0]!);
     calls++;
     const response = await pacedTransport(config);
     if (config.url === '/uniprotkb/search') total = Number(response.headers['x-total-results']);
     return response;
   } });
   if (rejectsEmpty(name, args)) {
-    await expect(handlers[name](args)).rejects.toThrow('requires at least one');
+    await expect(handlers[name]!(args)).rejects.toThrow('requires at least one');
     expect(calls).toBe(0);
     return { result: undefined };
   }
-  const result: any = await handlers[name](args);
+  const result: any = await handlers[name]!(args);
   expect(calls).toBeGreaterThan(0);
   expect(result).toBeTruthy();
   if ((name.startsWith('search_') || ['advanced_search', 'get_protein_homologs', 'get_protein_orthologs'].includes(name))

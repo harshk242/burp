@@ -68,7 +68,7 @@ describe("experiment scoring source", () => {
     const current = item("Q00000", "reviewer");
     const outcome = await runExperiment(fakeClient("The accession is P38398."), spec([fetched(historical)], [current]));
     expect(recall(outcome, "pinned-item")).toBe(1);
-    expect(outcome.itemRuns[0].reviewed).toBe(false);
+    expect(outcome.itemRuns[0]!.reviewed).toBe(false);
     expect(outcome.summary.reviewedItems).toBe(0);
   });
 
@@ -76,7 +76,7 @@ describe("experiment scoring source", () => {
     const removed = item("P38398", "reviewer", "removed-item");
     const outcome = await runExperiment(fakeClient("P38398"), spec([fetched(removed)], []));
     expect(recall(outcome, "removed-item")).toBe(1);
-    expect(outcome.itemRuns[0].reviewed).toBe(true);
+    expect(outcome.itemRuns[0]!.reviewed).toBe(true);
   });
 
   it("rejects a pinned payload the evaluators cannot use instead of falling back to YAML", () => {

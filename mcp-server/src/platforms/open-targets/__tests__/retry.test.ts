@@ -36,7 +36,7 @@ describe('OpenTargetsClient on the shared retry', () => {
     const { client, calls, sleep } = stubOpenTargets([502, 'network', 200]);
     await expect(client.query(QUERY)).resolves.toEqual(DATA);
     expect(calls).toHaveLength(3);
-    expect(calls[0].method).toBe('post');
+    expect(calls[0]!.method).toBe('post');
     expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1_000, 2_000]);
   });
 

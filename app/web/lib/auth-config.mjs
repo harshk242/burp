@@ -7,7 +7,8 @@ export function resolveWebAuthConfig(env, production = env.NODE_ENV === "product
   }
   if (publishableKey) {
     const match = /^pk_(?:test|live)_([A-Za-z0-9+/]+={0,2})$/.exec(publishableKey);
-    const frontend = match ? Buffer.from(match[1], "base64").toString("utf8") : "";
+    const encoded = match?.[1];
+    const frontend = encoded ? Buffer.from(encoded, "base64").toString("utf8") : "";
     if (!/^[a-zA-Z0-9.-]+\$$/.test(frontend)) {
       throw new Error("Invalid NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: expected a Clerk publishable key.");
     }

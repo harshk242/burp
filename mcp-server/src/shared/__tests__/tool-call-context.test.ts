@@ -105,7 +105,7 @@ describe('tool-call context', () => {
     expect(meta!.request_count).toBe(25);
     expect(meta!.attempts).toBe(25);
     expect(meta!.requests).toHaveLength(MAX_REQUEST_RECORDS);
-    expect(meta!.requests[19].path).toBe('/item/19');
+    expect(meta!.requests[19]!.path).toBe('/item/19');
     expect(meta!.requests_truncated).toBe(true);
   });
 

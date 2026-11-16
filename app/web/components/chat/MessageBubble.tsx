@@ -13,7 +13,7 @@ import type { Message } from "@/types";
 
 interface MessageBubbleProps {
   message: Message;
-  sessionTitle?: string;
+  sessionTitle?: string | undefined;
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {

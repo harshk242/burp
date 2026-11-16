@@ -30,7 +30,7 @@ function studiesParamsFromSpec(yaml: string): Set<string> {
   const start = yaml.indexOf('\n  /studies:\n');
   const end = yaml.indexOf('\n  /', start + 1);
   const section = yaml.slice(start, end);
-  return new Set([...section.matchAll(/- name: "?([\w.]+)"?/g)].map((m) => m[1]));
+  return new Set([...section.matchAll(/- name: "?([\w.]+)"?/g)].map((m) => m[1]!));
 }
 
 beforeAll(() => {
@@ -62,7 +62,7 @@ describe.each(tools.map((tool) => [tool.name, tool] as const))('%s (live)', (_na
     { timeout: TIMEOUT_MS, retry: 0 },
     async (_label, args) => {
       await sleep(PACING_MS);
-      await expect(handlers[tool.name](args)).resolves.toBeDefined();
+      await expect(handlers[tool.name]!(args)).resolves.toBeDefined();
     },
   );
 });

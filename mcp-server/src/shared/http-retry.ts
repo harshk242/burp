@@ -44,10 +44,10 @@ export interface AttemptContext {
 
 export interface WithRetryOptions<T> extends RetryDeps {
   platform: string;
-  method?: string;
-  path?: string;
-  signal?: AbortSignal;
-  timeoutMs?: number;
+  method?: string | undefined;
+  path?: string | undefined;
+  signal?: AbortSignal | undefined;
+  timeoutMs?: number | undefined;
   statusOf?: (result: T) => number | null;
 }
 
@@ -244,7 +244,7 @@ export function requestPath(config: InternalAxiosRequestConfig): string {
   try {
     return new URL(axios.getUri(config), 'http://placeholder.invalid').pathname;
   } catch {
-    return (config.url ?? '').split('?')[0];
+    return (config.url ?? '').split('?')[0] ?? '';
   }
 }
 
@@ -256,7 +256,7 @@ function transformErrorResponse(config: InternalAxiosRequestConfig, error: unkno
   const transforms = config.transformResponse;
   const fns = Array.isArray(transforms) ? transforms : transforms ? [transforms] : [];
   try {
-    response.data = fns.reduce((data, fn) => fn.call(config, data, headers, response.status), response.data);
+    response.data = fns.reduce<unknown>((data, fn) => fn.call(config, data, headers, response.status) as unknown, response.data);
     response.headers = headers;
   } catch {
   }
@@ -278,14 +278,14 @@ export function attachRetry(
   instance.interceptors.request.use((config: RetryRequestConfig) => {
     if (config.signal instanceof AbortSignal) {
       config[CALLER_SIGNAL] = config.signal;
-      config.signal = undefined;
+      delete config.signal;
     }
     return config;
   });
   const retrying = (config: RetryRequestConfig): Promise<AxiosResponse> => {
     const callerSignal =
       config[CALLER_SIGNAL] ?? (config.signal instanceof AbortSignal ? config.signal : undefined);
-    config.signal = undefined;
+    delete config.signal;
     return withRetry(({ signal, timeoutMs }) => adapter({ ...config, signal, timeout: timeoutMs }), policy, {
       ...deps,
       platform,

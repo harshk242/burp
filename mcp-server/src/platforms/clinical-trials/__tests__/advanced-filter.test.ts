@@ -33,14 +33,14 @@ describe('ClinicalTrials field filters use filter.advanced', () => {
     ['search_by_eligibility_criteria', { sex: 'ALL', healthyVolunteers: false, inclusionKeywords: 'prior (chemo)' },
       'AREA[HealthyVolunteers]false AND AREA[EligibilityCriteria](prior chemo)'],
   ])('%s', async (tool, args, expected) => {
-    await toolHandlers[tool](args);
+    await toolHandlers[tool]!(args);
     expect(lastParams()['filter.advanced']).toBe(expected);
     expect(Object.keys(lastParams()).filter((k) => k.startsWith('filter.') && k !== 'filter.advanced'
       && k !== 'filter.overallStatus')).toEqual([]);
   });
 
   it('omits filter.advanced when no field filters are given', async () => {
-    await toolHandlers.search_by_condition({ condition: 'melanoma' });
+    await toolHandlers.search_by_condition!({ condition: 'melanoma' });
     expect(lastParams()).not.toHaveProperty('filter.advanced');
   });
 

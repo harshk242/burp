@@ -28,19 +28,19 @@ describe('first-attempt clamping', () => {
   it('cuts attempt 1 down to the time left in the tool call', async () => {
     const { client, calls } = stubClient([200], { perAttemptTimeoutMs: 30_000, totalBudgetMs: 40_000 });
     await runWithToolCallContext({ timeoutMs: 5_000 }, () => client.get('/x'));
-    expect(calls[0].timeout).toBe(5_000);
+    expect(calls[0]!.timeout).toBe(5_000);
   });
 
   it('keeps a shorter caller timeout instead of raising it', async () => {
     const { client, calls } = stubClient([200]);
     await client.get('/x', { timeout: 2_000 });
-    expect(calls[0].timeout).toBe(2_000);
+    expect(calls[0]!.timeout).toBe(2_000);
   });
 
   it('caps a longer instance timeout with perAttemptTimeoutMs', async () => {
     const { client, calls } = stubClient([200], {}, { timeout: 60_000 });
     await client.get('/x');
-    expect(calls[0].timeout).toBe(5_000);
+    expect(calls[0]!.timeout).toBe(5_000);
   });
 
   it('gives an instance with timeout: 0 the policy timeout, not "no timeout"', async () => {
@@ -244,8 +244,8 @@ describe('adapter wrapper', () => {
     const caller = new AbortController();
     const { client, calls } = stubClient([200]);
     await client.get('/x', { signal: caller.signal });
-    expect(calls[0].signal).toBeInstanceOf(AbortSignal);
-    expect(calls[0].signal).not.toBe(caller.signal);
+    expect(calls[0]!.signal).toBeInstanceOf(AbortSignal);
+    expect(calls[0]!.signal).not.toBe(caller.signal);
   });
 
   it('refuses to attach twice to the same instance', () => {

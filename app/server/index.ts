@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
 import { DB_PATH, MigrationFkError, messageFeedbackQueries, runMigrations, sqlite } from "./db";
@@ -97,6 +98,17 @@ app.use("*", async (c, next) => {
     data: { method, path, status },
     ctx: { request_id: rid },
   });
+});
+
+// Errors thrown by any handler or middleware land here (sub-apps mounted via app.route inherit it).
+app.onError((err, c) => {
+  if (err instanceof HTTPException) return err.getResponse();
+  logger.error("HTTP", "unhandled_error", {
+    error: err,
+    data: { method: c.req.method, path: c.req.path },
+    ctx: { request_id: c.get("requestId") },
+  });
+  return c.json({ error: "Internal server error" }, 500);
 });
 
 app.use("*", redirectWwwToCanonical);

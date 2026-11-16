@@ -52,7 +52,7 @@ export interface ArticleSummary {
   history?: HistoryEntry[];
   references?: string[];
   attributes?: string[];
-  pmcrefcount?: number;
+  pmcrefcount?: number | undefined;
   fulljournalname?: string;
   elocationid?: string;
   doctype?: string;
@@ -94,16 +94,16 @@ export interface HistoryEntry {
 export interface PubMedArticle {
   pmid: string;
   title: string;
-  abstract?: string;
+  abstract?: string | undefined;
   authors: AuthorInfo[];
   journal: JournalInfo;
   pubDate: string;
-  doi?: string;
-  pmcId?: string;
-  meshTerms?: MeshTerm[];
-  keywords?: string[];
-  publicationTypes?: string[];
-  grantList?: Grant[];
+  doi?: string | undefined;
+  pmcId?: string | undefined;
+  meshTerms?: MeshTerm[] | undefined;
+  keywords?: string[] | undefined;
+  publicationTypes?: string[] | undefined;
+  grantList?: Grant[] | undefined;
   affiliations?: string[];
   language?: string;
   citedByCount?: number;
@@ -113,8 +113,8 @@ export interface AuthorInfo {
   lastName?: string;
   foreName?: string;
   initials?: string;
-  affiliation?: string;
-  orcid?: string;
+  affiliation?: string | undefined;
+  orcid?: string | undefined;
   collectiveName?: string;
 }
 
@@ -130,7 +130,7 @@ export interface JournalInfo {
 
 export interface MeshTerm {
   descriptorName: string;
-  qualifierName?: string;
+  qualifierName?: string | undefined;
   majorTopic: boolean;
 }
 
@@ -162,20 +162,20 @@ export interface LinkSetDb {
 
 export interface LinkItem {
   id: string;
-  score?: number;
+  score?: number | undefined;
 }
 
 export interface SearchFilters {
   dateRange?: {
     start: string;
     end: string;
-  };
-  publicationType?: string[];
-  language?: string;
-  hasAbstract?: boolean;
-  freeFullText?: boolean;
-  humanOnly?: boolean;
-  journalList?: string[];
+  } | undefined;
+  publicationType?: string[] | undefined;
+  language?: string | undefined;
+  hasAbstract?: boolean | undefined;
+  freeFullText?: boolean | undefined;
+  humanOnly?: boolean | undefined;
+  journalList?: string[] | undefined;
 }
 
 export interface SearchResponse {
@@ -229,7 +229,7 @@ export interface FormattedCitation {
 }
 
 export interface PubMedClientOptions {
-  apiKey?: string;
+  apiKey?: string | undefined;
   cacheTtl?: number;
   maxAttempts?: number;
   retryDelay?: number;

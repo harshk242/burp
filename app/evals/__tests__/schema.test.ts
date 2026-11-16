@@ -74,10 +74,10 @@ describe("eval home", () => {
   it("starts every deep turn 1 with the shared instructions; 05 has no preamble on turn 2", () => {
     const deep = home.datasets.find((d) => d.dataset.name === "deep")!.dataset;
     const preamble = "You are supporting a drug-discovery team's target-selection review.";
-    for (const item of deep.items) expect(item.input.turns[0].startsWith(preamble)).toBe(true);
+    for (const item of deep.items) expect(item.input.turns[0]!.startsWith(preamble)).toBe(true);
     const audit = deep.items.find((i) => i.id === "ts-05-audit-crohns")!;
     expect(audit.input.turns.length).toBe(2);
-    expect(audit.input.turns[1].startsWith("Audit your previous target-selection recommendation.")).toBe(true);
+    expect(audit.input.turns[1]!.startsWith("Audit your previous target-selection recommendation.")).toBe(true);
   });
 });
 

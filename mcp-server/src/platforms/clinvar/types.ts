@@ -70,7 +70,7 @@ export interface VariantInfo {
   variationId: string;
   name: string;
   variantType?: VariantType;
-  gene?: GeneInfo;
+  gene?: GeneInfo | undefined;
   location?: GenomicLocation;
   hgvs?: HGVSExpressions;
   clinicalSignificance?: ClinicalSignificance;
@@ -78,7 +78,7 @@ export interface VariantInfo {
   lastEvaluated?: string;
   conditions?: Condition[];
   submissionCount?: number;
-  rsId?: string;
+  rsId?: string | undefined;
 }
 
 export interface GeneInfo {
@@ -114,9 +114,9 @@ export interface ClinicalSignificance {
 
 export interface Condition {
   name: string;
-  medGenId?: string;
-  omimId?: string;
-  orphanetId?: string;
+  medGenId?: string | undefined;
+  omimId?: string | undefined;
+  orphanetId?: string | undefined;
   trait?: string;
 }
 
@@ -126,11 +126,11 @@ export interface VCVRecord {
   variationId: string;
   name: string;
   variantType?: VariantType;
-  gene?: GeneInfo;
-  location?: GenomicLocation;
+  gene?: GeneInfo | undefined;
+  location?: GenomicLocation | undefined;
   hgvs?: HGVSExpressions;
   clinicalAssertions: ClinicalAssertion[];
-  aggregatedClassification?: ClinicalSignificance;
+  aggregatedClassification?: ClinicalSignificance | undefined;
   functionalConsequence?: string[];
 }
 
@@ -168,11 +168,11 @@ export interface SubmissionRecord {
   submitter: Submitter;
   clinicalSignificance: ClinicalSignificance;
   condition: Condition;
-  methodType?: string;
+  methodType?: string | undefined;
   collectionMethod?: string;
   alleleOrigin?: string;
-  dateSubmitted?: string;
-  dateLastUpdated?: string;
+  dateSubmitted?: string | undefined;
+  dateLastUpdated?: string | undefined;
   citations?: string[];
   comment?: string;
 }
@@ -210,7 +210,7 @@ export interface PopulationFrequency {
 }
 
 export interface ClinVarClientOptions {
-  apiKey?: string;
+  apiKey?: string | undefined;
   cacheTtl?: number;
   maxAttempts?: number;
   retryDelay?: number;

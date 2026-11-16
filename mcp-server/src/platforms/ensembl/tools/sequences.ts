@@ -4,7 +4,7 @@ import { getToolCallContext } from '../../../shared/tool-call-context.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidSequenceArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is {
   region: string;
   species?: string;
@@ -13,53 +13,45 @@ const isValidSequenceArgs = (
   multiple_sequences?: boolean;
 } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.region === 'string' &&
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.format === undefined || ['json', 'fasta'].includes(args.format)) &&
-    (args.mask === undefined || ['hard', 'soft'].includes(args.mask)) &&
+    (args.format === undefined || (typeof args.format === 'string' && ['json', 'fasta'].includes(args.format))) &&
+    (args.mask === undefined || (typeof args.mask === 'string' && ['hard', 'soft'].includes(args.mask))) &&
     (args.multiple_sequences === undefined || typeof args.multiple_sequences === 'boolean')
   );
 };
 
 const isValidCdsArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { transcript_id: string; species?: string; format?: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.transcript_id === 'string' &&
     args.transcript_id.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.format === undefined || ['json', 'fasta'].includes(args.format))
+    (args.format === undefined || (typeof args.format === 'string' && ['json', 'fasta'].includes(args.format)))
   );
 };
 
 const isValidTranslateArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { sequence: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.sequence === 'string' &&
     args.sequence.length > 0
   );
 };
 
 const isValidBatchSequenceArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { regions: string[]; species?: string; format?: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     Array.isArray(args.regions) &&
     args.regions.length > 0 &&
     args.regions.length <= 50 &&
-    args.regions.every((r: any) => typeof r === 'string' && r.length > 0) &&
+    args.regions.every((r: unknown) => typeof r === 'string' && r.length > 0) &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.format === undefined || ['json', 'fasta'].includes(args.format))
+    (args.format === undefined || (typeof args.format === 'string' && ['json', 'fasta'].includes(args.format)))
   );
 };
 

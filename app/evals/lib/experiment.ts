@@ -6,6 +6,7 @@ import type { DatasetItem } from "./schema";
 import { runEvaluations, summarizeRun, type ItemRun, type RunSummary } from "./aggregate";
 import { isEligibleForPassFail } from "./schema";
 import { createItemTask, type TaskContext } from "./task";
+import { omitUndefined } from "../../shared/object";
 
 export type FetchedItem = FetchedDataset["items"][number];
 
@@ -23,7 +24,7 @@ export interface ExperimentSpec {
 export interface ExperimentOutcome {
   name: string;
   runName: string;
-  datasetRunUrl?: string;
+  datasetRunUrl?: string | undefined;
   itemRuns: ItemRun[];
   /** Items whose task threw (e.g. the run was stopped); the SDK skips them. */
   missing: string[];
@@ -59,7 +60,7 @@ export async function runExperiment(client: LangfuseClient, spec: ExperimentSpec
     evaluators: [
       async ({ output }) => {
         const out = output as TaskOutput;
-        return evaluateItem(out, evalItem(spec.evalItems, out.item_id)).map((e) => ({ ...e, configId: scoreConfigId(e.name) }));
+        return evaluateItem(out, evalItem(spec.evalItems, out.item_id)).map((e) => ({ ...e, ...omitUndefined({ configId: scoreConfigId(e.name) }) }));
       },
     ],
     runEvaluators: [

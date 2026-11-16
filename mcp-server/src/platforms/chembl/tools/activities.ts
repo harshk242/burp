@@ -1,6 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
+import type { ChemblActivity } from '../types.js';
 
 export const tools: Tool[] = [
   {
@@ -143,8 +144,8 @@ async function handleGetDoseResponse(args: Record<string, unknown>) {
   const activities = response.data.activities || [];
 
   const doseResponseData = activities
-    .filter((a: any) => a.standard_value !== null && a.standard_type)
-    .map((a: any) => ({
+    .filter((a: ChemblActivity) => a.standard_value !== null && a.standard_type)
+    .map((a: ChemblActivity) => ({
       assay_chembl_id: a.assay_chembl_id,
       target_chembl_id: a.target_chembl_id,
       activity_type: a.standard_type,

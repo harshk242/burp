@@ -49,8 +49,8 @@ describe('ChEMBL tools on the shared retry', () => {
     const calls = stubChembl([200]);
     const result = await callTool(handlers, 'get_compound_info', { chembl_id: 'CHEMBL25' }, { deadline_ms: 8_000 });
     expect(result.isError).toBeUndefined();
-    expect(calls[0].timeout).toBeGreaterThan(0);
-    expect(calls[0].timeout).toBeLessThanOrEqual(3_000);
+    expect(calls[0]!.timeout).toBeGreaterThan(0);
+    expect(calls[0]!.timeout).toBeLessThanOrEqual(3_000);
   });
 });
 

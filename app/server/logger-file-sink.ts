@@ -3,7 +3,7 @@ import path from "node:path";
 
 export interface FileSinkOptions {
   directory: string;
-  fs?: Pick<typeof fs, "mkdirSync" | "existsSync" | "statSync" | "renameSync" | "readdirSync" | "unlinkSync" | "appendFileSync">;
+  fs?: Pick<typeof fs, "mkdirSync" | "existsSync" | "statSync" | "renameSync" | "readdirSync" | "unlinkSync" | "appendFileSync"> | undefined;
   report?: (message: string) => void;
   maxSize?: number;
   maxBufferBytes?: number;

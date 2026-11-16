@@ -18,7 +18,7 @@ function assertData(path: string[], data: any) {
     expect(data.PropertyTable.Properties.length).toBeGreaterThan(0);
     for (const row of data.PropertyTable.Properties) {
       expect(row.CID).toBeGreaterThan(0);
-      for (const property of path[path.indexOf('property') + 1].split(',')) {
+      for (const property of path[path.indexOf('property') + 1]!.split(',')) {
         expect(row[renamed[property] ?? property] ?? row[property], property).toBeDefined();
         if (property.includes('SMILES')) expect(row[renamed[property] ?? property] ?? row[property]).toBeTruthy();
       }
@@ -38,7 +38,7 @@ async function invoke(name: string, args: Record<string, unknown>) {
     try {
       const recorder = requestRecorder();
       await recorder.adapter(config);
-      const request = recorder.requests[0];
+      const request = recorder.requests[0]!;
       assertPubChemRequest(request);
       calls++;
       const response = await transport(config);
@@ -55,7 +55,7 @@ async function invoke(name: string, args: Record<string, unknown>) {
     } catch (error) { failures.push(error); throw error; }
   } });
   try {
-    const result: any = await platform.handlers[name](args);
+    const result: any = await platform.handlers[name]!(args);
     expect(failures).toEqual([]);
     expect(calls).toBeGreaterThan(0);
     expect(JSON.stringify(result)).not.toMatch(/not (yet )?implemented/i);

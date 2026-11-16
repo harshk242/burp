@@ -3,11 +3,9 @@ import type { ToolHandler } from '../../../types.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidXrefArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { gene_id: string; species?: string; external_db?: string; all_levels?: boolean } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.gene_id === 'string' &&
     args.gene_id.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
@@ -17,11 +15,9 @@ const isValidXrefArgs = (
 };
 
 const isValidMapCoordinatesArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { region: string; species?: string; source_assembly: string; target_assembly: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.region === 'string' &&
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&

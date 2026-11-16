@@ -4,7 +4,7 @@ export type EmbeddingProviderName = (typeof EMBEDDING_PROVIDERS)[number];
 export interface EmbeddingSpec {
   provider: EmbeddingProviderName;
   model: string;
-  dimensions?: number;
+  dimensions?: number | undefined;
 }
 
 export interface Embedder {
@@ -24,6 +24,14 @@ export class EmbeddingTimeoutError extends Error {
   override readonly name = "EmbeddingTimeoutError";
 }
 
+/** Pairs each input with its vector; embedders return exactly one vector per input, in order. */
+export function zipVectors<T>(items: readonly T[], vectors: readonly Float32Array[]): [T, Float32Array][] {
+  if (vectors.length !== items.length) {
+    throw new EmbeddingResponseError(`expected ${items.length} embeddings, got ${vectors.length}`);
+  }
+  return items.map((item, i) => [item, vectors[i]!]);
+}
+
 export function embedderId(spec: EmbeddingSpec): string {
   return `${spec.provider}:${spec.model}@${spec.dimensions ?? "native"}`;
 }
@@ -32,7 +40,7 @@ export function isValidVector(values: unknown, dimension: number): values is Arr
   if (!Array.isArray(values) && !(values instanceof Float32Array)) return false;
   if (values.length !== dimension) return false;
   for (let i = 0; i < values.length; i++) {
-    const v = values[i];
+    const v: unknown = values[i];
     if (typeof v !== "number" || !Number.isFinite(Math.fround(v))) return false;
   }
   return true;

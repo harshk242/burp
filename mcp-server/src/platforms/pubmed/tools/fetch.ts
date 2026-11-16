@@ -8,7 +8,7 @@ export async function fetchArticleDetails(
   const client = getClient();
   const formattedId = formatPmid(pmid);
   const articles = await client.fetchArticles(formattedId);
-  return articles.length > 0 ? articles[0] : null;
+  return articles[0] ?? null;
 }
 
 export async function getArticleAbstract(
@@ -23,7 +23,8 @@ export async function getArticleAbstract(
   const formattedId = formatPmid(pmid);
   const articles = await client.fetchArticles(formattedId);
 
-  if (articles.length === 0) {
+  const article = articles[0];
+  if (!article) {
     return {
       pmid: formattedId,
       title: 'Not found',
@@ -32,7 +33,6 @@ export async function getArticleAbstract(
     };
   }
 
-  const article = articles[0];
   return {
     pmid: article.pmid,
     title: article.title,
@@ -49,7 +49,7 @@ export async function getArticleSummary(
   const client = getClient();
   const formattedId = formatPmid(pmid);
   const summaries = await client.getArticleSummaries(formattedId);
-  return summaries.length > 0 ? summaries[0] : null;
+  return summaries[0] ?? null;
 }
 
 export async function batchFetchArticles(

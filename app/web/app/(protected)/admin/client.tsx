@@ -150,6 +150,7 @@ export function AdminPageClient() {
     setSavingLimits(userId);
     try {
       const edit = limitEdits[userId];
+      if (!edit) return;
       const queryVal = edit.queryLimit.trim();
       const dailyCostVal = edit.dailyCostLimit.trim();
       const monthlyCostVal = edit.monthlyCostLimit.trim();
@@ -290,7 +291,7 @@ export function AdminPageClient() {
                 onLimitChange={(userId, field, value) =>
                   setLimitEdits((prev) => ({
                     ...prev,
-                    [userId]: { ...prev[userId], [field]: value },
+                    [userId]: { queryLimit: "", dailyCostLimit: "", monthlyCostLimit: "", ...prev[userId], [field]: value },
                   }))
                 }
                 onSave={(userId) => void handleSaveLimits(userId)}
@@ -364,7 +365,7 @@ function UsersTable({
   if (isLoading) {
     return (
       <div className="space-y-3 pt-4">
-        {[...Array(3)].map((_, i) => (
+        {Array.from({ length: 3 }, (_, i) => (
           <Skeleton key={i} className="h-12 w-full" />
         ))}
       </div>
@@ -534,7 +535,7 @@ function RequestTable({
   if (isLoading) {
     return (
       <div className="space-y-3 pt-4">
-        {[...Array(3)].map((_, i) => (
+        {Array.from({ length: 3 }, (_, i) => (
           <Skeleton key={i} className="h-12 w-full" />
         ))}
       </div>

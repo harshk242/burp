@@ -13,7 +13,8 @@ export async function getMeshTerms(
   const formattedId = formatPmid(pmid);
   const articles = await client.fetchArticles(formattedId);
 
-  if (articles.length === 0) {
+  const article = articles[0];
+  if (!article) {
     return {
       pmid: formattedId,
       meshTerms: [],
@@ -21,7 +22,6 @@ export async function getMeshTerms(
     };
   }
 
-  const article = articles[0];
   const meshTerms = article.meshTerms || [];
   const majorTopics = meshTerms
     .filter((m) => m.majorTopic)
@@ -79,7 +79,8 @@ export async function formatCitation(
   const formattedId = formatPmid(pmid);
   const articles = await client.fetchArticles(formattedId);
 
-  if (articles.length === 0) {
+  const article = articles[0];
+  if (!article) {
     return {
       pmid: formattedId,
       citation: `Article not found: PMID ${formattedId}`,
@@ -87,7 +88,6 @@ export async function formatCitation(
     };
   }
 
-  const article = articles[0];
   const citation = formatCitationUtil(
     {
       authors: article.authors,

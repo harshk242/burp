@@ -160,8 +160,8 @@ describe('shared snapshot extractor', () => {
     const shared = await import('../../shared/schema.js');
     expect(extractSchema).toBe(shared.extractSchema);
     const schema = shared.extractSchema([{ key: 1 }, { key: 'two', extra: true }]);
-    expect(schema.items?.properties?.key.type).toBe('union');
-    expect(schema.items?.properties?.extra.optional).toBe(true);
+    expect(schema.items?.properties?.key!.type).toBe('union');
+    expect(schema.items?.properties?.extra!.optional).toBe(true);
     const fs = await import('node:fs');
     const capture = fs.readFileSync(new URL('../../../../scripts/capture-api-snapshots.ts', import.meta.url), 'utf8');
     expect(capture).toContain("from '../mcp-server/src/shared/schema.js'");

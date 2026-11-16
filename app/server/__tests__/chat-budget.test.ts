@@ -18,7 +18,7 @@ type StreamPart =
 
 const USER_ID = "33333333-3333-4333-8333-333333333333";
 const { provider } = loadLLMConfig();
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, provider);
 
 const t = createTestDb();
@@ -61,7 +61,7 @@ function scriptedModel(calls: StreamFactory[]) {
     doStream: async ({ abortSignal }) => {
       const make = calls[modelCalls++] ?? (() => streamOf([...text("final answer"), finish("stop")]));
       const stream = make(abortSignal);
-      await transport?.("https://model.test/", { signal: abortSignal });
+      await transport?.("https://model.test/", { signal: abortSignal ?? null });
       return { stream };
     },
   });
@@ -152,7 +152,7 @@ describe("cost budget", () => {
     expect(charges[1]).toBeGreaterThan(0);
     const ledger = t.sqlite.query<{ cost_microusd: number; usage_estimated: number }, []>("SELECT cost_microusd, usage_estimated FROM usage_events").get()!;
     expect(ledger.usage_estimated).toBe(1);
-    expect(Math.ceil((charges[0] + charges[1]) / 1e6)).toBe(ledger.cost_microusd);
+    expect(Math.ceil((charges[0]! + charges[1]!) / 1e6)).toBe(ledger.cost_microusd);
   });
 
   it("an exhausted budget fails the turn before any model call: budget_exceeded, no scores, tagged trace", async () => {
@@ -179,7 +179,7 @@ describe("cost budget", () => {
     expect(charges).toHaveLength(1);
     expect(shared.exhausted).toBe(true);
     expect(turnRow(sessionId)).toMatchObject({ status: "error", error_code: "budget_exceeded", iterations: 1 });
-    expect(Math.ceil(charges[0] / 1e6)).toBe(ledgerMicrousd());
+    expect(Math.ceil(charges[0]! / 1e6)).toBe(ledgerMicrousd());
   });
 });
 
@@ -210,7 +210,7 @@ describe("user cost budget integration", () => {
       firstBudget.release();
       secondBudget.release();
     }
-    expect(turnRow(firstSession).status).toBe("aborted");
+    expect(turnRow(firstSession)!.status).toBe("aborted");
     expect(() => registry.acquire(USER_ID, { ...limits, daily_cost_limit_microusd: ledgerMicrousd() + 1 }).check()).not.toThrow();
   });
 
@@ -272,7 +272,7 @@ describe("traceParent", () => {
     expect(root.parentSpanContext?.spanId).toBe(parent.spanId);
     expect(root.attributes["langfuse.trace.name"]).toBeUndefined();
     for (const span of mem.spans()) expect(span.spanContext().traceId).toBe(parent.traceId);
-    expect(turnRow(sessionId).trace_id).toBe(parent.traceId);
+    expect(turnRow(sessionId)!.trace_id).toBe(parent.traceId);
 
     const rootId = root.spanContext().spanId;
     expect(scores.map((s) => [s.traceId, s.observationId, s.id])).toEqual([

@@ -18,8 +18,8 @@ export interface SearchResult {
   toolName: string;
   description: string;
   score: number;
-  bm25Rank?: number;
-  semanticRank?: number;
+  bm25Rank?: number | undefined;
+  semanticRank?: number | undefined;
 }
 
 export interface ToolInfo {
@@ -184,9 +184,11 @@ export class HybridToolSearch {
     let normA = 0;
     let normB = 0;
     for (let i = 0; i < a.length; i++) {
-      dot += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+      const x = a[i] ?? 0;
+      const y = b[i] ?? 0;
+      dot += x * y;
+      normA += x * x;
+      normB += y * y;
     }
     const denom = Math.sqrt(normA) * Math.sqrt(normB);
     return denom === 0 ? 0 : dot / denom;

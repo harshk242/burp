@@ -25,7 +25,7 @@ export function assertPubChemRequest(request: RecordedRequest) {
     } else {
       expect(['smiles', 'inchi', 'sdf']).toContain(path[1]);
       expect(path).toEqual(['compound', path[1], 'cids', 'JSON']);
-      allowedBody = [path[1]];
+      allowedBody = [path[1]!];
     }
     expect(Object.keys(body)).toEqual(allowedBody);
   } else {
@@ -36,9 +36,9 @@ export function assertPubChemRequest(request: RecordedRequest) {
       expect(['cid', 'name', 'smiles', 'fastformula']).toContain(path[1]);
       expect(path[2]).toBeTruthy();
       if (path[3] === 'property') {
-        for (const property of path[4].split(',')) expect(PROPERTY_NAMES).toContain(property);
+        for (const property of path[4]!.split(',')) expect(PROPERTY_NAMES).toContain(property);
         expect(path.slice(5)).toEqual(['JSON']);
-      } else if (['cids', 'synonyms', 'classification', 'description'].includes(path[3])) {
+      } else if (['cids', 'synonyms', 'classification', 'description'].includes(path[3]!)) {
         expect(path.length).toBe(path[3] === 'description' && path.length === 4 ? 4 : 5);
         if (path.length === 5) expect(path[4]).toBe('JSON');
       } else {

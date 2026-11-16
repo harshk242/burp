@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { errorField } from "@/lib/http-error";
 
 export default function RequestAccessPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,8 +35,8 @@ export default function RequestAccessPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to submit request");
+        const data: unknown = await res.json().catch(() => ({}));
+        throw new Error(errorField(data) || "Failed to submit request");
       }
 
       setIsSubmitted(true);

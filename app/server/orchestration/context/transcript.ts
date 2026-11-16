@@ -91,10 +91,10 @@ export function appendTranscript(
 
 export interface TranscriptContext {
   messages: ModelMessage[];
-  previousLastIndex?: number;
-  previousPromptTokens?: number;
-  previousInputIdentity?: string;
-  previousFinishedAt?: number;
+  previousLastIndex?: number | undefined;
+  previousPromptTokens?: number | undefined;
+  previousInputIdentity?: string | undefined;
+  previousFinishedAt?: number | undefined;
 }
 
 export interface TranscriptCompatibility extends TranscriptTag {
@@ -117,6 +117,7 @@ function incompatibility(rows: DbTranscriptRow[], current: TranscriptCompatibili
     }
   }
   if (missing.size) return { reason: "missing_tools", missing_tools: [...missing].sort() };
+  return undefined;
 }
 
 export function loadTranscript(sessionId: string, current?: TranscriptCompatibility): TranscriptContext {

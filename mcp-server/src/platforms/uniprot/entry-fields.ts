@@ -1,4 +1,5 @@
 import { getClient } from './client.js';
+import type { UniProtEntry } from './entry-types.js';
 
 // Short per-tool return-field lists, verified against /configure/uniprotkb/result-fields
 // (request-contract.ts and the saved return-fields.json fixture). UniProt rejects a
@@ -33,17 +34,21 @@ export const INFO_FIELDS = ENTRY_FIELDS.info;
 // the app's 1 MB tool-result cap for well-studied entries.
 export const EXPORT_FORMATS = ['gff', 'txt', 'xml', 'fasta'];
 
-export function stripEvidences(value: any): any {
-  if (Array.isArray(value)) return value.map(stripEvidences);
+/** Deep copy without `evidences` keys; the shape is otherwise unchanged. */
+export function stripEvidences<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(stripEvidences) as T;
   if (value && typeof value === 'object') return Object.fromEntries(
     Object.entries(value).filter(([key]) => key !== 'evidences')
       .map(([key, child]) => [key, stripEvidences(child)]),
-  );
+  ) as T;
   return value;
 }
 
-export async function fetchProtein(accession: string, format = 'json', fields?: string) {
-  const response = await getClient().get(`/uniprotkb/${encodeURIComponent(accession)}`, {
+/** JSON yields a parsed entry; every other format returns the response body as UniProt sent it. */
+export function fetchProtein(accession: string, format: 'json', fields?: string): Promise<UniProtEntry>;
+export function fetchProtein(accession: string, format: string, fields?: string): Promise<unknown>;
+export async function fetchProtein(accession: string, format: string, fields?: string): Promise<unknown> {
+  const response = await getClient().get<unknown>(`/uniprotkb/${encodeURIComponent(accession)}`, {
     params: { format, ...(fields ? { fields } : {}) },
   });
   return response.data;
@@ -53,11 +58,11 @@ export async function fetchProtein(accession: string, format = 'json', fields?: 
 // names, get_taxonomy_info has the rest). It is the agent's main overview call. Full PDB cross-references
 // (chains, method, resolution per structure) were 60-85% of it for well-studied
 // proteins, so keep only the IDs and point to get_protein_structure for details.
-export function slimProteinInfo(data: any) {
+export function slimProteinInfo(data: UniProtEntry): UniProtEntry {
   const slim = stripEvidences(data);
   delete slim.references;
   delete slim.sequence?.value;
-  const refs: any[] = slim.uniProtKBCrossReferences ?? [];
+  const refs = slim.uniProtKBCrossReferences ?? [];
   const pdbIds = refs.filter(ref => ref.database === 'PDB').map(ref => ref.id);
   if (slim.uniProtKBCrossReferences) {
     slim.uniProtKBCrossReferences = refs.filter(ref => ref.database !== 'PDB');

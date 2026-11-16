@@ -13,6 +13,6 @@ export async function preflightThinking(config: LLMConfig, effort: Effort, api: 
   await checkCapabilities([{ model: config.chatModel, effort, max_output_tokens: config.maxOutputTokens }], config.maxContextTokens, api);
 }
 
-export function coldCacheWritten(usage: { cacheRead?: number; cacheWrite?: number }): boolean {
+export function coldCacheWritten(usage: { cacheRead?: number | undefined; cacheWrite?: number | undefined }): boolean {
   return usage.cacheRead === 0 && (usage.cacheWrite ?? 0) > 0;
 }

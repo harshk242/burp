@@ -19,7 +19,7 @@ describe('get_compound_info', () => {
     const record = { PC_Compounds: [{ id: { id: { cid: 2244 } } }] };
     mockGet.mockResolvedValueOnce({ data: record });
 
-    await expect(handlers.get_compound_info({ cid: 2244 })).resolves.toBe(record);
+    await expect(handlers.get_compound_info!({ cid: 2244 })).resolves.toBe(record);
     expect(mockGet).toHaveBeenCalledTimes(1);
     expect(mockGet).toHaveBeenCalledWith(
       'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/2244/JSON',
@@ -32,7 +32,7 @@ describe('get_compound_info', () => {
     mockGet.mockResolvedValueOnce({ data: record }).mockResolvedValueOnce({ data: descriptions });
 
     await expect(
-      handlers.get_compound_info({ cid: 2244, include_descriptions: true }),
+      handlers.get_compound_info!({ cid: 2244, include_descriptions: true }),
     ).resolves.toEqual({ record, descriptions });
     expect(mockGet).toHaveBeenNthCalledWith(
       2,
@@ -45,7 +45,7 @@ describe('get_compound_info', () => {
     mockGet.mockResolvedValueOnce({ data: { PC_Compounds: [] } }).mockRejectedValueOnce(descriptionFailure);
 
     await expect(
-      handlers.get_compound_info({ cid: 2244, include_descriptions: true }),
+      handlers.get_compound_info!({ cid: 2244, include_descriptions: true }),
     ).rejects.toBe(descriptionFailure);
     expect(mockGet).toHaveBeenCalledTimes(2);
   });

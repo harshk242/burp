@@ -33,7 +33,7 @@ function call(
 }
 
 function text(result: CallToolResult): string {
-  const item = result.content[0];
+  const item = result.content[0]!;
   if (item.type !== 'text') throw new Error('expected text content');
   return item.text;
 }

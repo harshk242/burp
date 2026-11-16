@@ -38,7 +38,7 @@ export function assertReactomeRequest(request: RecordedRequest) {
   if (params.types !== undefined) expect(['Pathway', 'Reaction', 'Protein', 'Complex']).toContain(params.types);
   if (route?.includes('{id}')) {
     const match = new RegExp('^' + route.replace('{id}', '([^/]+)') + '$').exec(path)!;
-    expect(decodeURIComponent(match[1])).toMatch(/^R-[A-Z]{3}-\d+$/);
+    expect(decodeURIComponent(match[1]!)).toMatch(/^R-[A-Z]{3}-\d+$/);
   }
   if (route?.includes('{acc}')) expect(decodeURIComponent(path.split('/').at(-2)!)).toMatch(/^[A-Z0-9]+(?:-\d+)?$/);
 }

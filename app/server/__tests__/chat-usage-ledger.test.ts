@@ -13,7 +13,7 @@ type LanguageModelV4StreamPart =
   Awaited<ReturnType<MockLanguageModelV4["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never;
 
 const USER_ID = "22222222-2222-4222-8222-222222222222";
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, loadLLMConfig().provider);
 
 const t = createTestDb();
@@ -46,7 +46,7 @@ function finish(
       inputTokens: { total: input.noCache + input.cacheRead + input.cacheWrite, ...input },
       outputTokens: { total: 50, text: 50, reasoning: 0 },
     },
-    providerMetadata: cacheCreation ? { anthropic: { usage: { cache_creation: cacheCreation } } } : undefined,
+    ...(cacheCreation && { providerMetadata: { anthropic: { usage: { cache_creation: cacheCreation } } } }),
   };
 }
 
@@ -112,7 +112,7 @@ describe("processChat usage ledger", () => {
 
     const rows = t.sqlite.query<Record<string, unknown>, []>("SELECT * FROM usage_events").all();
     expect(rows).toHaveLength(1);
-    const row = rows[0];
+    const row = rows[0]!;
     expect(row).toMatchObject({
       status: "ok",
       usage_estimated: 0,

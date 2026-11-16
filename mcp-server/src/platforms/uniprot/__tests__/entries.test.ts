@@ -60,47 +60,47 @@ const fields: [string, string | undefined][] = [
 describe('entry field selection', () => {
   it.each(fields)('%s requests %s', async (tool, fields) => {
     const calls = mock();
-    await handlers[tool]({ accession: 'P04637', accessions: ['P04637', 'P38398'] });
+    await handlers[tool]!({ accession: 'P04637', accessions: ['P04637', 'P38398'] });
     expect(calls.length).toBe(tool === 'compare_proteins' ? 2 : 1);
     for (const call of calls) expect(call.params).toEqual(fields ? { format: 'json', fields } : { format: 'json' });
   });
   it('returns every comment type, including web resources, from the full entry', async () => {
     mock({ ...entry, comments: [...entry.comments, { commentType: 'WEB RESOURCE', resourceName: 'Atlas' }] });
-    const result: any = await handlers.get_protein_features({ accession: 'P04637' });
+    const result: any = await handlers.get_protein_features!({ accession: 'P04637' });
     expect(result.comments.map((c: any) => c.commentType)).toContain('WEB RESOURCE');
     expect(result).not.toHaveProperty('references');
     expect(JSON.stringify(result)).not.toContain('evidences');
   });
   it('keeps all real secondary structure types', async () => {
     mock();
-    const result: any = await handlers.get_protein_structure({ accession: 'P04637' });
+    const result: any = await handlers.get_protein_structure!({ accession: 'P04637' });
     expect(result.structuralFeatures.map((f: any) => f.type)).toEqual(['Helix', 'Beta strand', 'Turn']);
   });
   it('compares feature totals using server counts rather than feature arrays', async () => {
     mock();
-    const result: any = await handlers.compare_proteins({ accessions: ['P04637', 'P38398'] });
+    const result: any = await handlers.compare_proteins!({ accessions: ['P04637', 'P38398'] });
     expect(result.comparison[0]).toMatchObject({ features: 10, domains: 2, length: 3, mass: 300 });
     mock({});
-    expect(await handlers.compare_proteins({ accessions: ['X', 'Y'] })).toMatchObject({
+    expect(await handlers.compare_proteins!({ accessions: ['X', 'Y'] })).toMatchObject({
       comparison: [{ features: 0, domains: 0 }, { features: 0, domains: 0 }],
     });
   });
   it('counts feature ECO annotations without returning individual evidence objects', async () => {
     mock();
-    expect(await handlers.get_annotation_confidence({ accession: 'P04637' })).toMatchObject({
+    expect(await handlers.get_annotation_confidence!({ accession: 'P04637' })).toMatchObject({
       evidenceCodes: { 'ECO:0000269': 3 }, referenceCount: 1, reviewStatus: 'Reviewed',
     });
   });
   it('groups external references once and reads PubMed links from citations', async () => {
     mock();
-    expect(await handlers.get_external_references({ accession: 'P04637' })).toEqual({
+    expect(await handlers.get_external_references!({ accession: 'P04637' })).toEqual({
       accession: 'P04637', referenceCount: 2,
       referencesByDatabase: {
         PDB: { count: 1, references: [entry.uniProtKBCrossReferences[0]] },
         GO: { count: 1, references: [{ database: 'GO', id: 'GO:123' }] },
       },
     });
-    expect(await handlers.get_literature_references({ accession: 'P04637' })).toMatchObject({
+    expect(await handlers.get_literature_references!({ accession: 'P04637' })).toMatchObject({
       pubmedReferences: [{ database: 'PubMed', id: '123' }], citationCount: 1,
     });
   });
@@ -109,8 +109,8 @@ describe('entry field selection', () => {
 describe('info and sequence formats', () => {
   it('slims info recursively without mutating the fetched entry', async () => {
     const calls = mock();
-    const result: any = await handlers.get_protein_info({ accession: 'P04637' });
-    expect(calls[0].params.fields).toBe(INFO_FIELDS);
+    const result: any = await handlers.get_protein_info!({ accession: 'P04637' });
+    expect(calls[0]!.params.fields).toBe(INFO_FIELDS);
     expect(result.references).toBeUndefined();
     expect(result.sequence.value).toBeUndefined();
     expect(result.detailTools).toMatchObject({ literature: 'get_literature_references', sequence: 'get_protein_sequence' });
@@ -122,34 +122,34 @@ describe('info and sequence formats', () => {
   });
   it('returns only sequence data for JSON', async () => {
     const calls = mock();
-    expect(await handlers.get_protein_sequence({ accession: 'P04637', format: 'json' })).toEqual({ accession: 'P04637', ...entry.sequence });
-    expect(calls[0].params).toEqual({ format: 'json', fields: ENTRY_FIELDS.sequence });
+    expect(await handlers.get_protein_sequence!({ accession: 'P04637', format: 'json' })).toEqual({ accession: 'P04637', ...entry.sequence });
+    expect(calls[0]!.params).toEqual({ format: 'json', fields: ENTRY_FIELDS.sequence });
   });
   it.each(['get_protein_info', 'get_protein_sequence'])('preserves FASTA for %s', async tool => {
     const calls = mock('>P04637\nAKD\n');
-    expect(await handlers[tool]({ accession: 'P04637', ...(tool === 'get_protein_info' ? { format: 'fasta' } : {}) })).toBe('>P04637\nAKD\n');
-    expect(calls[0].params).toEqual({ format: 'fasta' });
+    expect(await handlers[tool]!({ accession: 'P04637', ...(tool === 'get_protein_info' ? { format: 'fasta' } : {}) })).toBe('>P04637\nAKD\n');
+    expect(calls[0]!.params).toEqual({ format: 'fasta' });
   });
   it('builds slim XML and preserves field-selected TSV', async () => {
     const calls = mock();
-    const xml = await handlers.get_protein_info({ accession: 'P04637', format: 'xml' });
+    const xml = await handlers.get_protein_info!({ accession: 'P04637', format: 'xml' });
     expect(new XMLParser().parse(xml as string).protein.primaryAccession).toBe('P04637');
     expect(xml).not.toContain('evidences');
-    expect(calls[0].params).toEqual({ format: 'json', fields: INFO_FIELDS });
+    expect(calls[0]!.params).toEqual({ format: 'json', fields: INFO_FIELDS });
     mock('Entry\nP04637\n');
-    expect(await handlers.get_protein_info({ accession: 'P04637', format: 'tsv' })).toBe('Entry\nP04637\n');
+    expect(await handlers.get_protein_info!({ accession: 'P04637', format: 'tsv' })).toBe('Entry\nP04637\n');
   });
 });
 
 describe('export formats', () => {
   it.each(['gff', 'txt', 'xml', 'fasta'])('returns raw %s text', async format => {
     const calls = mock('raw export');
-    expect(await handlers.export_protein_data({ accession: 'P04637', format })).toBe('raw export');
-    expect(calls[0].params).toEqual({ format });
+    expect(await handlers.export_protein_data!({ accession: 'P04637', format })).toBe('raw export');
+    expect(calls[0]!.params).toEqual({ format });
   });
   it.each(['genbank', 'embl', 'rdf'])('rejects %s before calling UniProt', async format => {
     const calls = mock();
-    await expect(handlers.export_protein_data({ accession: 'P04637', format })).rejects.toThrow('gff, txt, xml, fasta');
+    await expect(handlers.export_protein_data!({ accession: 'P04637', format })).rejects.toThrow('gff, txt, xml, fasta');
     expect(calls).toHaveLength(0);
   });
 });

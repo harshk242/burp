@@ -53,7 +53,7 @@ async function waitHealthy(container: string): Promise<string> {
       throw new Error(`container exited during boot (code ${docker("inspect", "-f", "{{.State.ExitCode}}", container)})`);
     }
     // Ephemeral host port: re-resolve on every boot, docker start may assign a new one.
-    const port = docker("port", container, String(internalPort)).split("\n")[0].split(":").pop();
+    const port = docker("port", container, String(internalPort)).split("\n")[0]?.split(":").pop();
     const base = `http://127.0.0.1:${port}`;
     try {
       const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) });
@@ -110,6 +110,7 @@ function checkStop(container: string): void {
 
 const imageFlag = process.argv.indexOf("--image");
 const image = imageFlag > -1 ? process.argv[imageFlag + 1] : buildImage();
+if (!image) throw new Error("--image needs a tag");
 const suffix = `${process.pid}-${Date.now()}`;
 const container = `burp-smoke-${suffix}`;
 const volume = docker("volume", "create", `burp-smoke-${suffix}`);

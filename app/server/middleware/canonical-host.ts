@@ -13,5 +13,5 @@ export const redirectWwwToCanonical: MiddlewareHandler = async (c, next) => {
     return c.redirect(url.toString(), 308);
   }
 
-  await next();
+  return next();
 };

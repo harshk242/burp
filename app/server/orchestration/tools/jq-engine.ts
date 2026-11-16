@@ -96,7 +96,7 @@ async function runJq(
 export async function executeJq(
   data: unknown,
   filter: string,
-  opts?: { timeoutMs?: number; maxOutputChars?: number; signal?: AbortSignal },
+  opts?: { timeoutMs?: number; maxOutputChars?: number; signal?: AbortSignal | undefined },
 ): Promise<JqResult> {
   const timeoutMs = opts?.timeoutMs ?? appConfig.artifact.jq_timeout_ms;
   const maxOutputChars = opts?.maxOutputChars ?? appConfig.artifact.jq_max_output_chars;
@@ -168,7 +168,7 @@ export function parseJqOutput(
 
   let values: unknown[];
   try {
-    values = kept.map((line) => JSON.parse(line));
+    values = kept.map((line) => JSON.parse(line) as unknown);
   } catch {
     return { result: kept.join("\n"), truncated };
   }

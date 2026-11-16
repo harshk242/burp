@@ -14,12 +14,12 @@ async function invoke(name: string, args: Record<string, unknown>): Promise<any>
     await pace(200);
     const recorder = requestRecorder();
     await recorder.adapter(config);
-    assertEnsemblRequest(recorder.requests[0]);
+    assertEnsemblRequest(recorder.requests[0]!);
     calls++;
     // The production retry interceptor honours 429 Retry-After (including dates).
     return transport(config);
   } });
-  const result: any = await handlers[name](args);
+  const result: any = await handlers[name]!(args);
   expect(calls).toBeGreaterThanOrEqual(name === 'translate_sequence' ? 0 : 1);
   expect(result).toBeTruthy();
   if (name === 'batch_sequence_fetch') result.batch_results.forEach((row: any) => {
@@ -65,7 +65,7 @@ it('motif region and local gene/transcript filters change the output', async () 
   expect(canonical.transcripts.length).toBeLessThan(all.transcripts.length);
   canonical.transcripts.forEach((row: any) => expect(row.is_canonical).toBe(1));
   init({}, { adapter: async config => { await pace(200); return transport(config); } });
-  expect((await handlers.search_genes({ query: 'TP53', biotype: 'lncRNA' }) as any).result).toBeNull();
+  expect((await handlers.search_genes!({ query: 'TP53', biotype: 'lncRNA' }) as any).result).toBeNull();
 });
 
 it.each(['rs699', 'ENST00000269305.9:c.215C>G', '7 140753336 140753336 A/T 1'])('predicts VEP input %s live', async variant => {

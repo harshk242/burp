@@ -8,7 +8,7 @@ import { toolRegistry } from "../mcp/registry";
 import type { StreamEvent } from "../orchestration/types";
 
 const USER_ID = "55555555-5555-4555-8555-555555555555";
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, loadLLMConfig().provider);
 
 const t = createTestDb();
@@ -88,7 +88,7 @@ describe("chat during a cold start", () => {
     expect(events.filter((e) => e.type === "error")).toEqual([]);
     expect(events.some((e) => e.type === "done")).toBe(true);
 
-    const call = model.doStreamCalls[0];
+    const call = model.doStreamCalls[0]!;
     expect(call.tools?.map((tool) => tool.name)).toContain(TOOL_KEY);
     const system = call.prompt.find((m) => m.role === "system");
     expect(JSON.stringify(system)).toContain(TOOL_FULL_NAME);

@@ -12,7 +12,7 @@ type LanguageModelV4StreamPart =
   Awaited<ReturnType<MockLanguageModelV4["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never;
 
 const USER_ID = "33333333-3333-4333-8333-333333333333";
-const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0];
+const TOOL_FULL_NAME = [...ALWAYS_LOADED_TOOLS][0]!;
 const TOOL_KEY = sanitizeToolName(TOOL_FULL_NAME, loadLLMConfig().provider);
 
 const t = createTestDb();

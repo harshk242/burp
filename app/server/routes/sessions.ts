@@ -10,6 +10,7 @@ import {
   UpdateSessionSchema,
   ErrorSchema,
   MessageSchema,
+  type ToolCallSchema,
 } from "../schemas";
 import type { AppEnv } from "../types";
 
@@ -129,8 +130,7 @@ sessions.openapi(createSessionRoute, async (c) => {
   const userId = c.get("userId") as string;
 
   try {
-    const body = await c.req.json().catch(() => ({}));
-    const { title } = body;
+    const { title } = c.req.valid("json");
 
     const id = uuidv4();
     chatSessionQueries.create(id, userId, title || "New Chat");
@@ -209,7 +209,7 @@ sessions.openapi(getSessionRoute, async (c) => {
 
     const parsedMessages = messages.map((msg) => ({
       ...msg,
-      tool_calls: msg.tool_calls ? JSON.parse(msg.tool_calls) : null,
+      tool_calls: msg.tool_calls ? (JSON.parse(msg.tool_calls) as z.infer<typeof ToolCallSchema>[]) : null,
       ...(msg.role === "assistant" ? { feedback: feedback.get(msg.id) ?? null } : {}),
     }));
 

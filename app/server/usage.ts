@@ -140,9 +140,9 @@ function assertSafeInteger(value: number, what: string): number {
 function toRates(set: {
   input_usd_per_mtok: number;
   output_usd_per_mtok: number;
-  cache_read_usd_per_mtok?: number;
-  cache_write_5m_usd_per_mtok?: number;
-  cache_write_1h_usd_per_mtok?: number;
+  cache_read_usd_per_mtok?: number | undefined;
+  cache_write_5m_usd_per_mtok?: number | undefined;
+  cache_write_1h_usd_per_mtok?: number | undefined;
 }): Rates {
   const input = usdToMicrousd(set.input_usd_per_mtok);
   return {

@@ -71,9 +71,9 @@ describe("MCPManager.callTool deadlines", () => {
 
     await expect(manager.callTool("demo", "hang", {}, 20)).rejects.toThrow("Tool call timed out after 20ms");
 
-    await waitFor(() =>  serverSignals[0]?.aborted);
+    await waitFor(() => serverSignals[0]?.aborted === true);
     expect(serverSignals).toHaveLength(1);
-    expect(serverSignals[0].aborted).toBe(true);
+    expect(serverSignals[0]!.aborted).toBe(true);
   });
 
   it("cancels the request on the server when the caller aborts, without reporting a timeout", async () => {
@@ -90,8 +90,8 @@ describe("MCPManager.callTool deadlines", () => {
     );
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).not.toContain("Tool call timed out");
-    await waitFor(() =>  serverSignals[0]?.aborted);
-    expect(serverSignals[0].aborted).toBe(true);
+    await waitFor(() => serverSignals[0]?.aborted === true);
+    expect(serverSignals[0]!.aborted).toBe(true);
   });
 
   it("sends the deadline as _meta.deadline_ms and keeps the result's _meta", async () => {

@@ -49,7 +49,7 @@ describe("MCP recovery", () => {
     expect(changes).toBe(1);
     const results = await search.search("frobnicate widgets");
     expect(results.map((r) => r.fullName)).toEqual(["demo__frobnicate_widgets"]);
-    expect(results[0].server).toBe("demo");
+    expect(results[0]!.server).toBe("demo");
   }, 20_000);
 
   it("syncs embeddings for the recovered tools and attaches them", async () => {

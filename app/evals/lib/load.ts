@@ -29,7 +29,7 @@ export interface ParsedYaml {
   file: string;
 }
 
-export function parseYaml(absPath: string, rootDir: string): { parsed?: ParsedYaml; problems: string[] } {
+export function parseYaml(absPath: string, rootDir: string): { parsed?: ParsedYaml | undefined; problems: string[] } {
   const file = relative(rootDir, absPath);
   const lines = new LineCounter();
   const doc = parseDocument(readFileSync(absPath, "utf8"), { lineCounter: lines, prettyErrors: false });
@@ -57,7 +57,7 @@ export function validate<S extends z.ZodTypeAny>(
   problems: string[],
 ): z.infer<S> | undefined {
   const result = schema.safeParse(parsed.doc.toJS());
-  if (result.success) return result.data;
+  if (result.success) return result.data as z.infer<S>;
   for (const issue of result.error.issues) {
     const where = locate(parsed, issue.path);
     problems.push(`${where}: ${issue.path.join(".") || "(root)"}: ${issue.message}`);

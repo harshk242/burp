@@ -155,7 +155,7 @@ describe("usage pricing rates", () => {
 
   it("accepts rates down to whole µUSD per MTok", () => {
     const cfg = loadConfig({}, withRates({ cache_read_usd_per_mtok: 0.000001, cache_write_5m_usd_per_mtok: 0.3 }));
-    expect(cfg.usage.pricing.anthropic.m.cache_read_usd_per_mtok).toBe(0.000001);
+    expect(cfg.usage.pricing.anthropic!.m!.cache_read_usd_per_mtok).toBe(0.000001);
   });
 
   it("rejects a rate finer than 1 µUSD per MTok instead of rounding it", () => {

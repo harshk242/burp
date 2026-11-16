@@ -47,7 +47,7 @@ it('preserves axios base path joining for relative resource URLs', async () => {
   const recorder = requestRecorder();
   const axios = (await import('axios')).default;
   await axios.create({ baseURL: 'https://example.org/api/data', adapter: recorder.adapter }).get('/molecule.json');
-  expect(recorder.requests[0].url).toBe('https://example.org/api/data/molecule.json');
+  expect(recorder.requests[0]!.url).toBe('https://example.org/api/data/molecule.json');
 });
 
 it('uses valid enum alternatives and accepts singleton enums', async () => {

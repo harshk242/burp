@@ -1,10 +1,12 @@
-import { tool, type ToolResultPart } from "ai";
+import { tool, type Tool, type ToolResultPart } from "ai";
 import { z } from "zod";
 import type { LLMProviderName } from "../../llm";
 import { toolRegistry } from "../../mcp/registry";
 import { hybridSearch } from "../../search";
 
-export function createSearchTool() {
+// The AI SDK types an execute-less `tool()` with `outputSchema: undefined`, which its own `Tool`
+// union rejects under exactOptionalPropertyTypes; the value is a valid client-executed Tool.
+export function createSearchTool(): Tool {
   return tool({
     description:
       "Search for specialized bioinformatics tools by describing what you need. " +
@@ -44,8 +46,8 @@ export interface ToolSearchOptions {
    * Anthropic: A reference to a tool the request
    * doesn't declare is rejected (400).
    */
-  declared?: Readonly<Record<string, unknown>>;
-  signal?: AbortSignal;
+  declared?: Readonly<Record<string, unknown>> | undefined;
+  signal?: AbortSignal | undefined;
 }
 
 const NO_HITS = "No matching tools found; try a different query.";

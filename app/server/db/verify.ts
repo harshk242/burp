@@ -11,7 +11,7 @@ import {
 import { openDatabase } from "./connection";
 import { loadMigrations, pendingMigrations } from "./executor";
 import { diffFingerprints, fingerprintSchema } from "./introspect";
-import { baselineDiffs, LegacyAdoptionError, runCatchUp } from "./legacy";
+import { baselineDiffs, baselineMigration, LegacyAdoptionError, runCatchUp } from "./legacy";
 import { isLegacyDatabase, MigrationFkError, runMigrations, type ForeignKeyViolation } from "./migrate";
 import { MEMORY_DB_PATH, MIGRATIONS_FOLDER } from "./paths";
 
@@ -54,7 +54,7 @@ export function verifyDatabase(input: string, options: VerifyOptions = {}): Veri
     const pending = (legacy ? migrations : pendingMigrations(sqlite, migrations)).map((m) => m.tag);
     const tighten = pending.includes(TIGHTEN_MIGRATION_TAG);
     const preflight = legacy
-      ? inspectAfterCatchUp(sqlite, migrations[0], tighten)
+      ? inspectAfterCatchUp(sqlite, baselineMigration(migrations), tighten)
       : { baselineDiffs: [], tightening: tighten ? previewTightening(sqlite) : emptyTighteningPreview() };
     const report: VerifyReport = {
       input,

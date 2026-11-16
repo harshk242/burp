@@ -2,13 +2,12 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { isRejectedLookup } from '../../../shared/exceptions.js';
 import { getClient, isValidChemblIdArgs, getExternalUrl } from '../client.js';
+import type { ChemblCrossReference } from '../types.js';
 
 const isValidSubstructureSearchArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { smiles: string; limit?: number } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.smiles === 'string' &&
     args.smiles.length > 0 &&
     (args.limit === undefined || (typeof args.limit === 'number' && args.limit > 0 && args.limit <= 1000))
@@ -16,20 +15,18 @@ const isValidSubstructureSearchArgs = (
 };
 
 const isValidBatchArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { chembl_ids: string[] } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     Array.isArray(args.chembl_ids) &&
     args.chembl_ids.length > 0 &&
     args.chembl_ids.length <= 50 &&
-    args.chembl_ids.every((id: any) => typeof id === 'string' && id.length > 0)
+    args.chembl_ids.every((id: unknown) => typeof id === 'string' && id.length > 0)
   );
 };
 
 const isValidPropertyFilterArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is {
   min_mw?: number;
   max_mw?: number;
@@ -40,8 +37,6 @@ const isValidPropertyFilterArgs = (
   limit?: number;
 } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     (args.min_mw === undefined || (typeof args.min_mw === 'number' && args.min_mw >= 0)) &&
     (args.max_mw === undefined || (typeof args.max_mw === 'number' && args.max_mw >= 0)) &&
     (args.min_logp === undefined || typeof args.min_logp === 'number') &&
@@ -174,14 +169,11 @@ async function handleGetExternalReferences(args: Record<string, unknown>) {
   const entity = response.data;
   const crossRefs = entity.cross_references || [];
 
-  const databases: Record<string, Array<{ id: string; name: string; url: string }>> = {};
+  const databases: Record<string, Array<{ id: string; name: string | null | undefined; url: string }>> = {};
 
-  crossRefs.forEach((ref: any) => {
-    const source = ref.xref_src || ref.xref_name;
-    if (!databases[source]) {
-      databases[source] = [];
-    }
-    databases[source].push({
+  crossRefs.forEach((ref: ChemblCrossReference) => {
+    const source = ref.xref_src || ref.xref_name || 'Unknown';
+    (databases[source] ??= []).push({
       id: ref.xref_id,
       name: ref.xref_name,
       url: getExternalUrl(source, ref.xref_id),

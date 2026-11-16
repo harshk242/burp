@@ -8,7 +8,7 @@ import {
   type ToolEmbeddingEntry,
 } from "./index-file";
 import { withDeadline } from "./deadline";
-import { EmbeddingTimeoutError, type Embedder } from "./types";
+import { EmbeddingTimeoutError, zipVectors, type Embedder } from "./types";
 
 export interface SyncTool {
   fullName: string;
@@ -97,9 +97,9 @@ export async function syncToolEmbeddings(options: SyncOptions): Promise<SyncStat
   const vectors = await withDeadline(options.timeoutMs, (signal) => embedder.embedDocuments(texts, signal), {
     timeoutError: () => new EmbeddingTimeoutError(`sync embedding exceeded ${options.timeoutMs}ms`),
   });
-  const fresh = toEmbed.map(([fullName, text], i) => ({ fullName, text, vector: vectors[i] }));
+  const fresh = zipVectors(toEmbed, vectors).map(([[fullName, text], vector]) => ({ fullName, text, vector }));
 
-  const dimension = fresh[0].vector.length;
+  const dimension = fresh[0]!.vector.length; // toEmbed is non-empty here
   const entries = sortEntries([...kept, ...fresh, ...carried]);
   await writeToolEmbeddings(path, { embedder: embedder.id, dimension }, entries);
   stats.wrote = true;

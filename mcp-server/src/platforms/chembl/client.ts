@@ -1,5 +1,6 @@
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
+import type { ChemblMoleculeProperties } from './types.js';
 
 export interface CompoundSearchResult {
   molecule_chembl_id: string;
@@ -107,21 +108,19 @@ export function resetClient(): void {
 }
 
 export const isValidChemblIdArgs = (
-  args: any,
+  args: Record<string, unknown>,
 ): args is { chembl_id: string } => {
   return (
-    typeof args === 'object' &&
-    args !== null &&
     typeof args.chembl_id === 'string' &&
     args.chembl_id.length > 0
   );
 };
 
-export function assessAbsorption(props: any): string {
-  const mw = props.full_mwt || props.molecular_weight || 0;
-  const hbd = props.hbd || 0;
-  const hba = props.hba || 0;
-  const psa = props.psa || 0;
+export function assessAbsorption(props: ChemblMoleculeProperties): string {
+  const mw = Number(props.full_mwt || props.molecular_weight || 0);
+  const hbd = Number(props.hbd || 0);
+  const hba = Number(props.hba || 0);
+  const psa = Number(props.psa || 0);
 
   if (mw > 500 || hbd > 5 || hba > 10 || psa > 140) {
     return 'Poor oral absorption predicted';
@@ -131,9 +130,9 @@ export function assessAbsorption(props: any): string {
   return 'Moderate oral absorption predicted';
 }
 
-export function assessDistribution(props: any): string {
-  const logp = props.alogp || 0;
-  const psa = props.psa || 0;
+export function assessDistribution(props: ChemblMoleculeProperties): string {
+  const logp = Number(props.alogp || 0);
+  const psa = Number(props.psa || 0);
 
   if (logp > 5) {
     return 'High lipophilicity - may accumulate in tissues';
@@ -145,8 +144,8 @@ export function assessDistribution(props: any): string {
   return 'Moderate distribution predicted';
 }
 
-export function assessDrugLikenessFromProps(props: any): string {
-  const violations = props.num_ro5_violations || 0;
+export function assessDrugLikenessFromProps(props: ChemblMoleculeProperties): string {
+  const violations = Number(props.num_ro5_violations || 0);
   if (violations === 0) {
     return 'Excellent drug-likeness (Lipinski compliant)';
   } else if (violations === 1) {
@@ -155,9 +154,9 @@ export function assessDrugLikenessFromProps(props: any): string {
   return `Poor drug-likeness (${violations} Lipinski violations)`;
 }
 
-export function assessPermeability(props: any): string {
-  const psa = props.psa || 0;
-  const logp = props.alogp || 0;
+export function assessPermeability(props: ChemblMoleculeProperties): string {
+  const psa = Number(props.psa || 0);
+  const logp = Number(props.alogp || 0);
 
   if (psa < 90 && logp > 0 && logp < 5) {
     return 'Good membrane permeability predicted';

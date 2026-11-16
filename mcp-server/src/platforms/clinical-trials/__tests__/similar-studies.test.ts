@@ -17,8 +17,8 @@ function setup(names?: string[]) {
 it('searches intervention names with query.intr and excludes the reference study', async () => {
   const adapter = setup(['Drug A', 'Drug B', 'Drug A']);
   const result = await handleGetSimilarStudies({ nctId: 'NCT00000001', similarityType: 'INTERVENTION' });
-  expect(adapter.mock.calls[1][0].params).toMatchObject({ 'query.intr': '"Drug A" OR "Drug B"' });
-  expect(adapter.mock.calls[1][0].params).not.toHaveProperty('query.term');
+  expect(adapter.mock.calls[1]![0].params).toMatchObject({ 'query.intr': '"Drug A" OR "Drug B"' });
+  expect(adapter.mock.calls[1]![0].params).not.toHaveProperty('query.term');
   expect(result).toMatchObject({ similarStudies: [] });
 });
 

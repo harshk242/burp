@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { join } from "path";
 import { appConfig } from "../server/config";
-import { createEmbedder, toolEmbeddingText, writeToolEmbeddings } from "../server/embeddings";
+import { createEmbedder, toolEmbeddingText, writeToolEmbeddings, zipVectors } from "../server/embeddings";
 
 async function main() {
   const embedder = createEmbedder(appConfig.embedding);
@@ -29,14 +29,12 @@ async function main() {
   const texts = tools.map((t) => toolEmbeddingText(t.name, t.description || ""));
 
   console.log(`Embedding with ${embedder.id}...`);
-  const vectors = await embedder.embedDocuments(texts);
+  const entries = zipVectors(texts, await embedder.embedDocuments(texts))
+    .map(([text, vector], i) => ({ fullName: tools[i]!.name, text, vector }));
+  const dimension = entries[0]!.vector.length; // tools is non-empty here
 
-  await writeToolEmbeddings(
-    outputPath,
-    { embedder: embedder.id, dimension: vectors[0].length },
-    tools.map((t, i) => ({ fullName: t.name, text: texts[i], vector: vectors[i] }))
-  );
-  console.log(`Wrote ${tools.length} embeddings (${embedder.id}, ${vectors[0].length} dims) to ${outputPath}`);
+  await writeToolEmbeddings(outputPath, { embedder: embedder.id, dimension }, entries);
+  console.log(`Wrote ${tools.length} embeddings (${embedder.id}, ${dimension} dims) to ${outputPath}`);
   process.exit(0);
 }
 

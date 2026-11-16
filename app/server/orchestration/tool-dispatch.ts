@@ -8,6 +8,7 @@ import { runToolSearch } from "./tools/search-tool";
 import { SEARCH_TOOL_NAME, type ToolSet } from "./context/tool-catalog";
 import type { StreamEvent, ToolCallRecord } from "./types";
 import type { TurnTrace } from "../observability/turn-trace";
+import { omitUndefined } from "../../shared/object";
 
 export type { ToolSet } from "./context/tool-catalog";
 
@@ -28,9 +29,9 @@ export interface ToolCallInput {
 }
 
 export interface DispatchResult {
-  record?: ToolCallRecord;
+  record?: ToolCallRecord | undefined;
   part: ToolResultPart;
-  traceMetadata?: Record<string, unknown>;
+  traceMetadata?: Record<string, unknown> | undefined;
   traceOutput?: unknown;
 }
 
@@ -211,11 +212,11 @@ async function* runSystemTool(
       throw new Error(`System tool "${call.originalName}" not found in active tools`);
     }
 
-    const rawResult = await localTool.execute(call.input, {
+    const rawResult: unknown = await localTool.execute(call.input, {
       toolCallId: call.tc.toolCallId,
       messages: [],
       context: undefined,
-      abortSignal: dc.signal,
+      ...omitUndefined({ abortSignal: dc.signal }),
     });
     dc.signal?.throwIfAborted();
     const output = typeof rawResult === "string"

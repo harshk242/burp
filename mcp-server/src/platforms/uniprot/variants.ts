@@ -1,4 +1,5 @@
 import { stripEvidences } from './entry-fields.js';
+import type { UniProtEntry, UniProtFeature } from './entry-types.js';
 
 // UniProt variant descriptions are '; '-separated clauses, e.g.
 // "in BC; benign; functionally neutral in vitro; dbSNP:rs80357102". Curators state
@@ -29,17 +30,19 @@ function mentionedAcronyms(description: string | undefined, acronyms: string[]):
 export const DISEASE_VARIANT_CRITERION = 'A natural variant whose description names a disease acronym from this entry’s DISEASE comments (negated mentions such as "not matching LFS" ignored) and whose stated clinical significance, if any, is not benign, likely benign or uncertain significance. Those are counted in excludedDiseaseMentionCount and keep clinicalSignificance in naturalVariants. This is UniProt curation, not a clinical pathogenicity classification.';
 
 // Sporadic cancers without a named acronym remain only in naturalVariants.
-export function variantSummary(protein: any) {
-  const acronyms: string[] = [...new Set<string>((protein.comments || [])
-    .filter((c: any) => c.commentType === 'DISEASE')
-    .map((c: any) => c.disease?.acronym).filter(Boolean))];
-  const naturalVariants = stripEvidences(protein.features?.filter((f: any) => f.type === 'Natural variant') || [])
-    .map((feature: any) => {
+type AnnotatedVariant = UniProtFeature & { clinicalSignificance?: string };
+
+export function variantSummary(protein: UniProtEntry) {
+  const acronyms = [...new Set((protein.comments || [])
+    .filter((c) => c.commentType === 'DISEASE')
+    .flatMap((c) => c.disease?.acronym ? [c.disease.acronym] : []))];
+  const naturalVariants = stripEvidences(protein.features?.filter((f) => f.type === 'Natural variant') || [])
+    .map((feature): AnnotatedVariant => {
       const significance = clinicalSignificance(feature.description);
       return significance ? { ...feature, clinicalSignificance: significance } : feature;
     });
   const significanceCounts: Record<string, number> = {};
-  const diseaseVariants: any[] = [];
+  const diseaseVariants: (AnnotatedVariant & { diseases: string[] })[] = [];
   let excludedDiseaseMentionCount = 0;
   for (const variant of naturalVariants) {
     if (variant.clinicalSignificance) {
@@ -47,15 +50,15 @@ export function variantSummary(protein: any) {
     }
     const diseases = mentionedAcronyms(variant.description, acronyms);
     if (diseases.length === 0) continue;
-    if (NOT_DISEASE_CAUSING.has(variant.clinicalSignificance)) excludedDiseaseMentionCount++;
+    if (NOT_DISEASE_CAUSING.has(variant.clinicalSignificance ?? '')) excludedDiseaseMentionCount++;
     else diseaseVariants.push({ ...variant, diseases });
   }
   return {
     accession: protein.primaryAccession,
     naturalVariants,
-    mutagenesisFeatures: stripEvidences(protein.features?.filter((f: any) => f.type === 'Mutagenesis') || []),
+    mutagenesisFeatures: stripEvidences(protein.features?.filter((f) => f.type === 'Mutagenesis') || []),
     diseaseVariants,
-    polymorphisms: stripEvidences(protein.comments?.filter((c: any) => c.commentType === 'POLYMORPHISM') || []),
+    polymorphisms: stripEvidences(protein.comments?.filter((c) => c.commentType === 'POLYMORPHISM') || []),
     naturalVariantCount: naturalVariants.length,
     diseaseVariantCount: diseaseVariants.length,
     excludedDiseaseMentionCount,

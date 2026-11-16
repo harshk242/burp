@@ -22,13 +22,13 @@ export const routeParams: Record<string, string[]> = {
 };
 export function assertFilter(schema: ResourceSchema, param: string): void {
   const [field, ...rest] = param.split('__');
-  const allowed = schema.filtering?.[field];
+  const allowed = schema.filtering?.[field!];
   expect(allowed, param).toBeDefined();
   if (!rest.length) return;
   if (rest.length === 1 && Array.isArray(allowed)) expect(allowed, param).toContain(rest[0]);
   else {
     expect(allowed, param).toBe(2); // Tastypie ALL_WITH_RELATIONS
-    const child = schema.fields[field];
+    const child = schema.fields[field!]!;
     expect(child.fields, param).toBeDefined();
     assertFilter(child as ResourceSchema, rest.join('__'));
   }
@@ -37,14 +37,14 @@ export function assertChemblRequest(request: RecordedRequest) {
   assertMakesRequest([request]);
   const url = new URL(request.url);
   const parts = url.pathname.replace('/chembl/api/data/', '').replace(/\.(json|sdf)$/, '').split('/');
-  const resource = parts[0];
+  const resource = parts[0]!;
   expect(schemas[resource], request.url).toBeDefined();
   const route = parts[1] === 'search' ? `${resource}/search`
     : ['similarity', 'substructure'].includes(resource) || parts.length === 1 ? resource : 'detail';
   const params = { ...Object.fromEntries(url.searchParams), ...request.params as object };
   for (const key of Object.keys(params)) {
     expect(routeParams[route] ?? [], request.url).toContain(key);
-    if (!['q', 'limit', 'offset'].includes(key)) assertFilter(schemas[resource], key);
+    if (!['q', 'limit', 'offset'].includes(key)) assertFilter(schemas[resource]!, key);
   }
   if (route.endsWith('/search')) expect(params).toHaveProperty('q');
 }

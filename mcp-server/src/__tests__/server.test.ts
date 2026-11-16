@@ -26,12 +26,12 @@ function makePlatform(name: string, toolNames: string[]): PlatformModule {
 describe('buildToolRegistry', () => {
   it('prefixes each tool name with "<platform>__"', () => {
     const { allTools } = buildToolRegistry([makePlatform('ensembl', ['lookup_gene'])]);
-    expect(allTools[0].name).toBe('ensembl__lookup_gene');
+    expect(allTools[0]!.name).toBe('ensembl__lookup_gene');
   });
 
   it('augments tool description with "[<platform>] " prefix', () => {
     const { allTools } = buildToolRegistry([makePlatform('ensembl', ['lookup_gene'])]);
-    expect(allTools[0].description).toBe('[ensembl] lookup_gene description');
+    expect(allTools[0]!.description).toBe('[ensembl] lookup_gene description');
   });
 
   it('registers handler under the prefixed name', () => {
@@ -101,7 +101,7 @@ describe('buildToolRegistry', () => {
       cleanup: () => {},
     };
     const { allTools } = buildToolRegistry([platform]);
-    expect(allTools[0].inputSchema).toEqual({
+    expect(allTools[0]!.inputSchema).toEqual({
       type: 'object',
       properties: { gene_id: { type: 'string' } },
       required: ['gene_id'],
@@ -161,7 +161,7 @@ describe('CallTool handler over the protocol', () => {
 
     expect(result.isError).toBe(true);
     const content = result.content as Array<{ type: string; text: string }>;
-    expect(JSON.parse(content[0].text)).toMatchObject({ error: 'not_found', reason: 'not_found', status: 404 });
+    expect(JSON.parse(content[0]!.text)).toMatchObject({ error: 'not_found', reason: 'not_found', status: 404 });
     expect(result._meta?.retry).toMatchObject({ outcome: 'failed', failed_requests: 1 });
     await client.close();
   });

@@ -89,7 +89,7 @@ describe("executeJq", () => {
     try {
       const r = await executeJq(null, "def f: f; f", { timeoutMs: 30 });
       expect(r.error).toContain("timed out after 30ms");
-      const child = spawn.mock.results[0].value as ChildProcess;
+      const child = spawn.mock.results[0]!.value as ChildProcess;
       expect(child.pid).toBeGreaterThan(0);
       expect(() => process.kill(child.pid!, 0)).toThrow();
       expect(child.signalCode).toBe("SIGKILL");
@@ -143,7 +143,7 @@ describe("executeJq", () => {
       const r = await executeJq(null, 'error("x" * 1000000)', { timeoutMs: 2000 });
       expect(r.error).toStartWith("jq error: jq: error");
       expect(Buffer.byteLength(r.error!)).toBeLessThanOrEqual(65536 + 10);
-      const child = spawn.mock.results[0].value as ChildProcess;
+      const child = spawn.mock.results[0]!.value as ChildProcess;
       expect(() => process.kill(child.pid!, 0)).toThrow();
     } finally {
       spawn.mockRestore();
@@ -157,7 +157,7 @@ describe("executeJq", () => {
       const pending = executeJq(null, "def f: f; f", { signal: controller.signal });
       controller.abort();
       expect((await pending).error).toContain("aborted");
-      const child = spawn.mock.results[0].value as ChildProcess;
+      const child = spawn.mock.results[0]!.value as ChildProcess;
       expect(() => process.kill(child.pid!, 0)).toThrow();
     } finally {
       spawn.mockRestore();
@@ -185,7 +185,7 @@ describe("validateJqFilter", () => {
       expect(await validateJqFilter("$ENV")).toEqual({ valid: true });
       const calls = spawn.mock.calls;
       expect(calls).toHaveLength(2);
-      const cwd = calls[0][2]?.cwd as string;
+      const cwd = calls[0]![2]?.cwd as string;
       expect(cwd).not.toBe(process.cwd());
       expect(readdirSync(cwd)).toEqual([]);
       expect(statSync(cwd).mode & 0o777).toBe(0o700);

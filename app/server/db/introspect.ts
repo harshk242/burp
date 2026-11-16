@@ -62,7 +62,8 @@ function fingerprintTable(sqlite: Database, table: string, sql: string, master: 
     )
     .all();
   const pkCols = info.filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk);
-  const rowidAlias = pkCols.length === 1 && pkCols[0].type.toUpperCase() === "INTEGER" ? pkCols[0].name : null;
+  const [onlyPk] = pkCols;
+  const rowidAlias = pkCols.length === 1 && onlyPk?.type.toUpperCase() === "INTEGER" ? onlyPk.name : null;
 
   const columns: Record<string, ColumnFingerprint> = {};
   for (const c of info) {
@@ -100,7 +101,8 @@ function foreignKeys(sqlite: Database, table: string): string[] {
   return [...byId.values()]
     .map((group) => {
       group.sort((a, b) => a.seq - b.seq);
-      const parent = group[0].table;
+      const g = group[0]!; // every group holds at least the row that created it
+      const parent = g.table;
       // `REFERENCES users` without columns targets the parent's PK.
       const parentPk = () =>
         sqlite
@@ -111,7 +113,6 @@ function foreignKeys(sqlite: Database, table: string): string[] {
           .map((c) => c.name);
       const to = group.every((r) => r.to !== null) ? group.map((r) => r.to!) : parentPk();
       const from = group.map((r) => r.from.toLowerCase()).join(",");
-      const g = group[0];
       return `(${from}) -> ${parent.toLowerCase()}(${to.map((c) => c.toLowerCase()).join(",")}) on delete ${g.on_delete.toLowerCase()} on update ${g.on_update.toLowerCase()}`;
     })
     .sort();
@@ -153,8 +154,7 @@ function indexes(sqlite: Database, table: string, master: MasterRow[]): Pick<Tab
 function partialWhere(sql: string): string | null {
   const tokens = tokenize(sql);
   let depth = 0;
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
+  for (const [i, t] of tokens.entries()) {
     if (t.kind === "punct" && t.text === "(") depth++;
     else if (t.kind === "punct" && t.text === ")") depth--;
     else if (depth === 0 && isKeyword(t, "WHERE")) return normalizeExpression(tokens.slice(i + 1));

@@ -22,7 +22,7 @@ const DIM = 3;
 const vectorFor = (text: string) => new Float32Array([text.length, 1, 0.5]);
 
 function tool(fullName: string, description: string): SyncTool {
-  return { fullName, server: fullName.split("__")[0], description };
+  return { fullName, server: fullName.split("__")[0]!, description };
 }
 
 const A1 = tool("alpha__one", "First alpha tool");
@@ -32,7 +32,7 @@ const B1 = tool("beta__one", "First beta tool");
 function fakeEmbedder(id = "fake:model@3") {
   const batches: string[][] = [];
   const held: Array<() => void> = [];
-  const state = { fail: null as unknown, failures: [] as unknown[], defer: false };
+  const state = { fail: null as Error | null, failures: [] as Error[], defer: false };
   const embedder: Embedder = {
     id,
     spec: { provider: "openai", model: id, dimensions: DIM },
@@ -76,7 +76,7 @@ describe("syncToolEmbeddings", () => {
     expect(readIndex().embedder).toBe("fake:model@3");
     expect(readIndex().tools.map((t) => t.full_name)).toEqual(["alpha__one", "beta__one"]);
     expect(attached).toHaveLength(1);
-    expect([...attached[0].keys()].sort()).toEqual(["alpha__one", "beta__one"]);
+    expect([...attached[0]!.keys()].sort()).toEqual(["alpha__one", "beta__one"]);
   });
 
   it("valid file, nothing changed → no API call and no write, vectors attached", async () => {
@@ -107,8 +107,8 @@ describe("syncToolEmbeddings", () => {
       ["alpha__one", "alpha__two", "beta__one"],
       ["alpha__one", "alpha__two", "beta__one"],
     ]);
-    expect(attached[0].get("alpha__two")).toEqual(vectorFor(toolEmbeddingText(A2.fullName, A2.description)));
-    expect(attached[1].get("alpha__two")).toEqual(vectorFor(toolEmbeddingText(changed.fullName, changed.description)));
+    expect(attached[0]!.get("alpha__two")).toEqual(vectorFor(toolEmbeddingText(A2.fullName, A2.description)));
+    expect(attached[1]!.get("alpha__two")).toEqual(vectorFor(toolEmbeddingText(changed.fullName, changed.description)));
   });
 
   it("model mismatch → re-embeds everything under the new identity", async () => {
@@ -156,7 +156,7 @@ describe("syncToolEmbeddings", () => {
     expect(stats).toMatchObject({ kept: 1, embedded: 0, pruned: 1, carriedOver: 1, wrote: true });
     expect(fake.batches).toEqual([]);
     expect(readIndex().tools.map((t) => t.full_name)).toEqual(["alpha__one", "beta__one"]);
-    expect([...attached[0].keys()]).toEqual(["alpha__one"]);
+    expect([...attached[0]!.keys()]).toEqual(["alpha__one"]);
   });
 
   it("a stalled embedding call fails with EmbeddingTimeoutError at the deadline", async () => {
@@ -199,7 +199,7 @@ function fakeScheduler() {
   };
   const live = () => timers.filter((t) => !t.cancelled);
   const fire = () => {
-    const timer = live()[0];
+    const timer = live()[0]!;
     timer.cancelled = true;
     timer.fn();
   };
@@ -279,7 +279,7 @@ describe("ToolEmbeddingSync", () => {
       path,
       timeoutMs: 1000,
       scheduler: timers.scheduler,
-      random: () => randoms[r++],
+      random: () => randoms[r++]!,
       onReady: () => {},
     });
 

@@ -35,18 +35,18 @@ async function invoke(name: string, args: Record<string, unknown>) {
     try {
       const recorder = requestRecorder();
       await recorder.adapter(config);
-      assertChemblRequest(recorder.requests[0]);
+      assertChemblRequest(recorder.requests[0]!);
       requests++;
       const response = await transport(config);
       expect(response.status).toBe(200);
-      const url = new URL(recorder.requests[0].url);
+      const url = new URL(recorder.requests[0]!.url);
       const data = typeof response.data === 'string' && !url.pathname.endsWith('.sdf') ? JSON.parse(response.data) : response.data;
       assertFilters(data, { ...Object.fromEntries(url.searchParams), ...config.params });
       return response;
     } catch (error) { failures.push(error); throw error; }
   } });
   try {
-    const result = await platform.handlers[name](args) as any;
+    const result = await platform.handlers[name]!(args) as any;
     expect(failures).toEqual([]); // Catch errors swallowed by batch/comparison tools.
     expect(requests).toBeGreaterThan(0);
     expect(result).toBeDefined();

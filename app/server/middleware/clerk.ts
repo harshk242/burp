@@ -141,8 +141,6 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
       c.set("role", "unknown");
       c.set("dbUser", null);
     }
-
-    return next();
   } catch (err) {
     const isExpired = err instanceof Error && err.message.includes("expired");
     logger.warn("AUTH", isExpired ? "token_expired" : "token_invalid", {
@@ -155,6 +153,9 @@ export async function clerkAuth(c: Context<AppEnv>, next: Next) {
 
     return c.json({ error: "Invalid token" }, 401);
   }
+
+  // Outside the try: errors thrown downstream must not be reported as token failures.
+  return next();
 }
 
 export async function requireDbUser(c: Context<AppEnv>, next: Next) {

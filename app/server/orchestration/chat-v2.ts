@@ -36,10 +36,10 @@ export type { StreamEvent, ToolCallRecord } from "./types";
 export { generateSessionTitle } from "./session-title";
 
 export interface ProcessChatOptions {
-  traceParent?: TraceParent;
+  traceParent?: TraceParent | undefined;
   costBudget?: CostBudget;
   onUsageRecorded?: () => void;
-  llm?: TurnLLMOverride;
+  llm?: TurnLLMOverride | undefined;
 }
 
 export async function* processChat(
@@ -238,7 +238,7 @@ export async function* processChat(
         rawFinishReason,
         text: callText,
         reasoning: joinReasoning(callSegments.filter((seg) => seg.thinking).map((seg) => seg.text)),
-        toolCalls: (toolCalls ?? []).map((tc) => ({ name: tc.toolName, input: tc.input })),
+        toolCalls: (toolCalls ?? []).map((tc) => ({ name: tc.toolName, input: tc.input as unknown })),
       };
       if (finishReason === "content-filter") {
         const refusal = refusalError(rawFinishReason, finalStep.providerMetadata);

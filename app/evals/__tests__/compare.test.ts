@@ -9,9 +9,9 @@ const [sonnet, haiku, opus] = ["claude-sonnet-5-5-low", "claude-haiku-5-5-low", 
 
 function bothComplete(): SavedComparison {
   const full = structuredClone(saved);
-  const arm = full.arms[1];
+  const arm = full.arms[1]!;
   arm.status = "complete";
-  const y = arm.experiments[1].items.find((i) => i.item_id === "y")!;
+  const y = arm.experiments[1]!.items.find((i) => i.item_id === "y")!;
   Object.assign(y, { skipped: false, scores: { answer_truncated: 0, checkpoint_recall: 1, id_grounding: 1, turn_outcome: "ok" } } satisfies Partial<SavedItemRun>);
   return full;
 }
@@ -88,18 +88,18 @@ describe("comparison report", () => {
 
   it("arms that scored different items are compared on the shared items only", () => {
     const cut = structuredClone(saved);
-    const arm = cut.arms[1];
-    arm.experiments = [arm.experiments[1]];
+    const arm = cut.arms[1]!;
+    arm.experiments = [arm.experiments[1]!];
     const report = buildComparison(cut);
     const d = report.deltas.find((x) => x.score === "id_grounding")!;
     expect(d).toEqual({ arm: haiku, score: "id_grounding", shared_items: 1, repeats_compared: { baseline: 2, arm: 1 }, baseline_mean: 1, arm_mean: 1, delta: 0, noise: null, verdict: "no_repeat_spread" });
-    expect(report.arms[1].coverage).toEqual({ items: 2, scored_every_repeat: 1 });
+    expect(report.arms[1]!.coverage).toEqual({ items: 2, scored_every_repeat: 1 });
     expect(comparisonMarkdown(report)).toContain("| 1.000 {1/2 items} (Δ +0.000 on 1/2 shared items, no repeat spread (repeats 2 vs 1)) |");
   });
 
   it("an item missing from an arm (task failed) also leaves the shared set", () => {
     const cut = bothComplete();
-    const exp = cut.arms[1].experiments;
+    const exp = cut.arms[1]!.experiments;
     for (const e of exp) {
       e.items = e.items.filter((i) => i.item_id !== "y");
       e.missing = ["y"];
@@ -112,7 +112,7 @@ describe("comparison report", () => {
   it("with no item scored by both arms the delta is withheld", () => {
     const cut = structuredClone(saved);
     const only = (labelIndex: number, id: string) => {
-      for (const e of cut.arms[labelIndex].experiments) for (const i of e.items) if (i.item_id !== id) Object.assign(i, { skipped: true, scores: {} });
+      for (const e of cut.arms[labelIndex]!.experiments) for (const i of e.items) if (i.item_id !== id) Object.assign(i, { skipped: true, scores: {} });
     };
     only(0, "x");
     only(1, "y");

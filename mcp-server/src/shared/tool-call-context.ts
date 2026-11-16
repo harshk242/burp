@@ -59,7 +59,7 @@ export function createTimeoutSignal(ms: number, message = 'Deadline exceeded'): 
 
 export class ToolCallContext {
   readonly deadlineSignal: AbortSignal;
-  readonly callerSignal?: AbortSignal;
+  readonly callerSignal: AbortSignal | undefined;
   readonly deadlineAt: number;
   private readonly now: () => number;
   private readonly clearDeadline: () => void;
