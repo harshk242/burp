@@ -282,8 +282,7 @@ export async function getCredibleSetColocalisation(
         colocalisation(page: {index: $pageIndex, size: $pageSize}) {
           count
           rows {
-            leftStudyLocusId
-            rightStudyLocusId
+            studyLocusId
             rightStudyType
             chromosome
             colocalisationMethod
@@ -331,6 +330,15 @@ export async function getCredibleSets(
   pageSize: number = 10
 ): Promise<unknown> {
   const client = getClient();
+  // The upstream resolver eagerly expands nested study metadata even when an
+  // unfiltered result is empty, causing timeouts. Check emptiness before the
+  // expensive selection, preserving the complete response for nonempty results.
+  if (![studyLocusIds, studyIds, variantIds, studyTypes, regions].some((ids) => ids?.length)) {
+    const summary = await client.query<{ credibleSets?: { count: number } }>(
+      'query CredibleSetsCount { credibleSets(page: {index: 0, size: 10}) { count } }',
+    );
+    if (summary.credibleSets?.count === 0) return { credibleSets: { count: 0, rows: [] } };
+  }
   const query = `
     query CredibleSets(
       $studyLocusIds: [String!],

@@ -4,14 +4,13 @@ import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidVariantArgs = (
   args: any,
-): args is { region: string; species?: string; format?: string; consequence_type?: string[] } => {
+): args is { region: string; species?: string; consequence_type?: string[] } => {
   return (
     typeof args === 'object' &&
     args !== null &&
     typeof args.region === 'string' &&
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.format === undefined || ['json', 'vcf'].includes(args.format)) &&
     (args.consequence_type === undefined ||
       (Array.isArray(args.consequence_type) &&
         args.consequence_type.every((c: any) => typeof c === 'string')))
@@ -40,11 +39,6 @@ export const tools: Tool[] = [
       properties: {
         region: { type: 'string', description: 'Genomic region (chr:start-end)' },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
-        format: {
-          type: 'string',
-          enum: ['json', 'vcf'],
-          description: 'Output format (default: json)',
-        },
         consequence_type: {
           type: 'array',
           items: { type: 'string' },
@@ -56,14 +50,14 @@ export const tools: Tool[] = [
   },
   {
     name: 'get_variant_consequences',
-    description: 'Predict consequences of variants on genes and transcripts',
+    description: 'Predict consequences of variant IDs (rs699), HGVS (ENST00000269305.9:c.215C>G), or VEP region/allele strings (7 140753336 140753336 A/T 1). Mixed forms are supported.',
     inputSchema: {
       type: 'object',
       properties: {
         variants: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Variant IDs or HGVS notation',
+          description: 'Variant IDs, HGVS notations, or space-separated VEP region/allele strings',
         },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
       },
@@ -81,8 +75,16 @@ async function handleGetVariants(args: Record<string, unknown>) {
   const region = args.region;
   const params: Record<string, unknown> = { feature: 'variation' };
 
-  if (args.consequence_type && args.consequence_type.length > 0) {
-    params.consequence_type = args.consequence_type.join(',');
+  if (args.consequence_type?.length) {
+    // The overlap endpoint accepts one SO term per request; union multiple terms.
+    const rows = [];
+    for (const term of args.consequence_type) {
+      const response = await getClient().get(`/overlap/region/${species}/${region}`, {
+        params: { ...params, so_term: term },
+      });
+      rows.push(...response.data);
+    }
+    return [...new Map(rows.map(row => [JSON.stringify([row.id, row.start, row.end, row.alleles]), row])).values()];
   }
 
   const response = await getClient().get(`/overlap/region/${species}/${region}`, { params });
@@ -96,13 +98,19 @@ async function handleGetVariantConsequences(args: Record<string, unknown>) {
 
   const species = getDefaultSpecies(args.species);
 
-  const response = await getClient().post(
-    `/vep/${species}/region`,
-    { variants: args.variants },
-    { headers: { 'Content-Type': 'application/json' } },
-  );
-
-  return response.data;
+  const results = [];
+  for (const form of ['id', 'hgvs', 'region'] as const) {
+    const variants = args.variants.filter(v =>
+      (/\s/.test(v.trim()) ? 'region' : v.includes(':') ? 'hgvs' : 'id') === form);
+    if (!variants.length) continue;
+    const key = form === 'id' ? 'ids' : form === 'hgvs' ? 'hgvs_notations' : 'variants';
+    const response = await getClient().post(
+      "/vep/" + species + "/" + form, { [key]: variants },
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+    results.push(...response.data);
+  }
+  return results;
 }
 
 export const handlers: Record<string, ToolHandler> = {

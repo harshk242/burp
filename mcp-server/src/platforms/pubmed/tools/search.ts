@@ -96,7 +96,7 @@ export async function searchByAuthor(
 
   const result = await client.search(query, {
     maxResults,
-    sort: 'date',
+    sort: 'pub_date',
   });
 
   return {
@@ -126,7 +126,7 @@ export async function searchByJournal(
 
   const result = await client.search(query, {
     maxResults,
-    sort: 'date',
+    sort: 'pub_date',
     minDate,
     maxDate,
   });
@@ -156,7 +156,7 @@ export async function searchClinicalTrialsLiterature(
 
   const result = await client.search(query, {
     maxResults,
-    sort: 'date',
+    sort: 'pub_date',
   });
 
   return {

@@ -1,3 +1,5 @@
+import { PROPERTY_NAMES } from './properties.js';
+
 export interface CompoundSearchResult {
   IdentifierList: {
     CID: number[];
@@ -11,6 +13,8 @@ export interface PropertyData {
       MolecularFormula?: string;
       MolecularWeight?: number;
       CanonicalSMILES?: string;
+      ConnectivitySMILES?: string;
+      SMILES?: string;
       IsomericSMILES?: string;
       InChI?: string;
       InChIKey?: string;
@@ -93,12 +97,11 @@ export const isValidBatchArgs = (
 
 export const isValidConformerArgs = (
   args: unknown,
-): args is { cid: number | string; conformer_type?: string } => {
+): args is { cid: number | string } => {
   if (typeof args !== 'object' || args === null) return false;
   const a = args as Record<string, unknown>;
   return (
-    (typeof a.cid === 'number' || typeof a.cid === 'string') &&
-    (a.conformer_type === undefined || ['3d', '2d'].includes(a.conformer_type as string))
+    (typeof a.cid === 'number' || typeof a.cid === 'string')
   );
 };
 
@@ -111,6 +114,6 @@ export const isValidPropertiesArgs = (
     (typeof a.cid === 'number' || typeof a.cid === 'string') &&
     (a.properties === undefined ||
       (Array.isArray(a.properties) &&
-        a.properties.every((p: unknown) => typeof p === 'string')))
+        a.properties.length > 0 && a.properties.every((p: unknown) => typeof p === 'string' && PROPERTY_NAMES.includes(p))))
   );
 };

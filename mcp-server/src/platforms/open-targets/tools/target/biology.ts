@@ -1,4 +1,5 @@
 import { getClient } from '../../client.js';
+import { paginateTargetLists } from './pagination.js';
 import { filterNoneValues } from '../../utils.js';
 
 export async function getTargetExpression(ensemblId: string): Promise<unknown> {
@@ -8,10 +9,13 @@ export async function getTargetExpression(ensemblId: string): Promise<unknown> {
       target(ensemblId: $ensemblId) {
         id
         approvedSymbol
-        expressions {
-          tissue { id, label, organs, anatomicalSystems }
-          rna { level, unit, value, zscore }
-          protein { level, reliability, cellType { name, level, reliability } }
+        baselineExpression(page: {index: 0, size: 1000}) {
+          count
+          rows {
+            unit datatypeId datasourceId min median max q1 q3
+            tissueBiosample { biosampleId biosampleName }
+            celltypeBiosample { biosampleId biosampleName }
+          }
         }
       }
     }
@@ -21,8 +25,8 @@ export async function getTargetExpression(ensemblId: string): Promise<unknown> {
 
 export async function getTargetPathwaysAndGoTerms(
   ensemblId: string,
-  _pageIndex: number = 0,
-  _pageSize: number = 10
+  pageIndex: number = 0,
+  pageSize: number = 10
 ): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -42,13 +46,13 @@ export async function getTargetPathwaysAndGoTerms(
           source
           term {
             id
-            name
+            label
           }
         }
       }
     }
   `;
-  return client.query(query, { ensemblId });
+  return paginateTargetLists(await client.query(query, { ensemblId }), ['pathways', 'geneOntology'], pageIndex, pageSize);
 }
 
 export async function getTargetHomologues(ensemblId: string): Promise<unknown> {
@@ -120,8 +124,8 @@ export async function getTargetGeneticConstraint(ensemblId: string): Promise<unk
 
 export async function getTargetMousePhenotypes(
   ensemblId: string,
-  _pageIndex: number = 0,
-  _pageSize: number = 10
+  pageIndex: number = 0,
+  pageSize: number = 10
 ): Promise<unknown> {
   const client = getClient();
   const query = `
@@ -145,7 +149,7 @@ export async function getTargetMousePhenotypes(
       }
     }
   `;
-  return client.query(query, { ensemblId });
+  return paginateTargetLists(await client.query(query, { ensemblId }), ['mousePhenotypes'], pageIndex, pageSize);
 }
 
 export async function getTargetHallmarks(ensemblId: string): Promise<unknown> {

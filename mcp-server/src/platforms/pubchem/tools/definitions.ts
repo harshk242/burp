@@ -1,3 +1,4 @@
+import { PROPERTY_NAMES } from '../properties.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 const searchCompounds: Tool = {
@@ -56,29 +57,6 @@ const searchBySmiles: Tool = {
   },
 };
 
-const searchByInchi: Tool = {
-  name: 'search_by_inchi',
-  description: 'Search for compounds by InChI or InChI key',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      inchi: { type: 'string', description: 'InChI string or InChI key' },
-    },
-    required: ['inchi'],
-  },
-};
-const searchByCasNumber: Tool = {
-  name: 'search_by_cas_number',
-  description: 'Search for compounds by CAS Registry Number',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cas_number: { type: 'string', description: 'CAS Registry Number (e.g., 50-78-2)' },
-    },
-    required: ['cas_number'],
-  },
-};
-
 const getCompoundSynonyms: Tool = {
   name: 'get_compound_synonyms',
   description: 'Get all names and synonyms for a compound',
@@ -115,54 +93,13 @@ const searchSimilarCompounds: Tool = {
   },
 };
 
-const substructureSearch: Tool = {
-  name: 'substructure_search',
-  description: 'Find compounds containing a specific substructure',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      smiles: { type: 'string', description: 'SMILES string of the substructure query' },
-      max_records: {
-        type: 'number',
-        description: 'Maximum number of results (1-10000, default: 100)',
-        minimum: 1,
-        maximum: 10000,
-      },
-    },
-    required: ['smiles'],
-  },
-};
-
-const superstructureSearch: Tool = {
-  name: 'superstructure_search',
-  description: 'Find larger compounds that contain the query structure',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      smiles: { type: 'string', description: 'SMILES string of the query structure' },
-      max_records: {
-        type: 'number',
-        description: 'Maximum number of results (1-10000, default: 100)',
-        minimum: 1,
-        maximum: 10000,
-      },
-    },
-    required: ['smiles'],
-  },
-};
-
 const get3dConformers: Tool = {
   name: 'get_3d_conformers',
-  description: 'Get 3D conformer data and structural information',
+  description: 'Get 3D volume and conformer count properties',
   inputSchema: {
     type: 'object',
     properties: {
       cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-      conformer_type: {
-        type: 'string',
-        enum: ['3d', '2d'],
-        description: 'Type of conformer data (default: 3d)',
-      },
     },
     required: ['cid'],
   },
@@ -189,104 +126,18 @@ const getCompoundProperties: Tool = {
       cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
       properties: {
         type: 'array',
-        items: { type: 'string' },
-        description: 'Specific properties to retrieve (optional)',
+        items: { type: 'string', enum: PROPERTY_NAMES },
+        description: 'Supported property tags to retrieve (optional)',
+        minItems: 1,
       },
     },
     required: ['cid'],
-  },
-};
-
-const calculateDescriptors: Tool = {
-  name: 'calculate_descriptors',
-  description: 'Calculate comprehensive molecular descriptors and fingerprints',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-      descriptor_type: {
-        type: 'string',
-        enum: ['all', 'basic', 'topological', '3d'],
-        description: 'Type of descriptors (default: all)',
-      },
-    },
-    required: ['cid'],
-  },
-};
-
-const predictAdmetProperties: Tool = {
-  name: 'predict_admet_properties',
-  description:
-    'Predict ADMET properties (Absorption, Distribution, Metabolism, Excretion, Toxicity)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-      smiles: { type: 'string', description: 'SMILES string (alternative to CID)' },
-    },
-    required: [],
-  },
-};
-
-const assessDrugLikeness: Tool = {
-  name: 'assess_drug_likeness',
-  description:
-    'Assess drug-likeness using Lipinski Rule of Five, Veber rules, and PAINS filters',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-      smiles: { type: 'string', description: 'SMILES string (alternative to CID)' },
-    },
-    required: [],
-  },
-};
-const analyzeMolecularComplexity: Tool = {
-  name: 'analyze_molecular_complexity',
-  description: 'Analyze molecular complexity and synthetic accessibility',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-    },
-    required: ['cid'],
-  },
-};
-const getPharmacophoreFeatures: Tool = {
-  name: 'get_pharmacophore_features',
-  description: 'Get pharmacophore features and binding site information',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-    },
-    required: ['cid'],
-  },
-};
-
-const searchBioassays: Tool = {
-  name: 'search_bioassays',
-  description: 'Search for biological assays by target, description, or source',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      query: { type: 'string', description: 'General search query' },
-      target: { type: 'string', description: 'Target protein or gene name' },
-      source: { type: 'string', description: 'Data source (e.g., ChEMBL, NCGC)' },
-      max_records: {
-        type: 'number',
-        description: 'Maximum number of results (1-1000, default: 100)',
-        minimum: 1,
-        maximum: 1000,
-      },
-    },
-    required: [],
   },
 };
 
 const getAssayInfo: Tool = {
   name: 'get_assay_info',
-  description: 'Get detailed information for a specific bioassay by AID',
+  description: 'Get metadata and descriptions for a specific bioassay by AID',
   inputSchema: {
     type: 'object',
     properties: {
@@ -296,135 +147,9 @@ const getAssayInfo: Tool = {
   },
 };
 
-const getCompoundBioactivities: Tool = {
-  name: 'get_compound_bioactivities',
-  description: 'Get all bioassay results and activities for a compound',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-      activity_outcome: {
-        type: 'string',
-        enum: ['active', 'inactive', 'inconclusive', 'all'],
-        description: 'Filter by activity outcome (default: all)',
-      },
-    },
-    required: ['cid'],
-  },
-};
-
-const searchByTarget: Tool = {
-  name: 'search_by_target',
-  description: 'Find compounds tested against a specific biological target',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      target: { type: 'string', description: 'Target name (gene, protein, or pathway)' },
-      activity_type: { type: 'string', description: 'Type of activity (e.g., IC50, EC50, Ki)' },
-      max_records: {
-        type: 'number',
-        description: 'Maximum number of results (1-1000, default: 100)',
-        minimum: 1,
-        maximum: 1000,
-      },
-    },
-    required: ['target'],
-  },
-};
-
-const compareActivityProfiles: Tool = {
-  name: 'compare_activity_profiles',
-  description: 'Compare bioactivity profiles across multiple compounds',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cids: {
-        type: 'array',
-        items: { type: 'number' },
-        description: 'Array of PubChem CIDs (2-50)',
-        minItems: 2,
-        maxItems: 50,
-      },
-      activity_type: {
-        type: 'string',
-        description: 'Specific activity type for comparison (optional)',
-      },
-    },
-    required: ['cids'],
-  },
-};
-
 const getSafetyData: Tool = {
   name: 'get_safety_data',
-  description: 'Get GHS hazard classifications and safety information',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-    },
-    required: ['cid'],
-  },
-};
-const getToxicityInfo: Tool = {
-  name: 'get_toxicity_info',
-  description: 'Get toxicity data including LD50, carcinogenicity, and mutagenicity',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-    },
-    required: ['cid'],
-  },
-};
-const assessEnvironmentalFate: Tool = {
-  name: 'assess_environmental_fate',
-  description: 'Assess environmental fate including biodegradation and bioaccumulation',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-    },
-    required: ['cid'],
-  },
-};
-const getRegulatoryInfo: Tool = {
-  name: 'get_regulatory_info',
-  description: 'Get regulatory information from FDA, EPA, and international agencies',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-    },
-    required: ['cid'],
-  },
-};
-
-const getExternalReferences: Tool = {
-  name: 'get_external_references',
-  description: 'Get links to external databases (ChEMBL, DrugBank, KEGG, etc.)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-    },
-    required: ['cid'],
-  },
-};
-const searchPatents: Tool = {
-  name: 'search_patents',
-  description: 'Search for chemical patents and intellectual property information',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      cid: { type: ['number', 'string'], description: 'PubChem Compound ID (CID)' },
-      query: { type: 'string', description: 'Patent search query (alternative to CID)' },
-    },
-    required: [],
-  },
-};
-const getLiteratureReferences: Tool = {
-  name: 'get_literature_references',
-  description: 'Get PubMed citations and scientific literature references',
+  description: 'Get compound classification hierarchies from PubChem',
   inputSchema: {
     type: 'object',
     properties: {
@@ -461,31 +186,12 @@ export const tools: Tool[] = [
   searchCompounds,
   getCompoundInfo,
   searchBySmiles,
-  searchByInchi,
-  searchByCasNumber,
   getCompoundSynonyms,
   searchSimilarCompounds,
-  substructureSearch,
-  superstructureSearch,
   get3dConformers,
   analyzeStereochemistry,
   getCompoundProperties,
-  calculateDescriptors,
-  predictAdmetProperties,
-  assessDrugLikeness,
-  analyzeMolecularComplexity,
-  getPharmacophoreFeatures,
-  searchBioassays,
   getAssayInfo,
-  getCompoundBioactivities,
-  searchByTarget,
-  compareActivityProfiles,
   getSafetyData,
-  getToxicityInfo,
-  assessEnvironmentalFate,
-  getRegulatoryInfo,
-  getExternalReferences,
-  searchPatents,
-  getLiteratureReferences,
   batchCompoundLookup,
 ];

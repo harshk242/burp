@@ -55,29 +55,10 @@ export async function getTargetChemicalProbes(ensemblId: string): Promise<unknow
           mechanismOfAction
           origin
           probesDrugsScore
-          probeMinerScore
           scoreInCells
           scoreInOrganisms
           targetFromSourceId
           urls { niceName, url }
-        }
-      }
-    }
-  `;
-  return client.query(query, { ensemblId });
-}
-
-export async function getTargetTep(ensemblId: string): Promise<unknown> {
-  const client = getClient();
-  const query = `
-    query TargetTEP($ensemblId: String!) {
-      target(ensemblId: $ensemblId) {
-        id
-        approvedSymbol
-        tep {
-          name
-          therapeuticArea
-          uri
         }
       }
     }

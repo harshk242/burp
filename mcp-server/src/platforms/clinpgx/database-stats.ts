@@ -23,7 +23,7 @@ export async function fetchDatabaseStats(
   }
   const [genes, pathways, clinicalAnnotations, guidelines, labels] = await Promise.all([
     sample('/data/gene', { cpicGene: true }, 'Returned CPIC gene records'),
-    sample('/data/pathway', { cpicGene: true }, 'Returned pathways matching cpicGene=true'),
+    sample('/data/pathway', { 'genes.symbol': 'CYP2D6' }, 'Returned CYP2D6 pathways'),
     sample('/data/clinicalAnnotation', { 'location.genes.symbol': 'CYP2D6' }, 'Returned CYP2D6 clinical annotations'),
     sample('/data/guidelineAnnotation', { 'relatedGenes.symbol': 'CYP2D6' }, 'Returned CYP2D6 guidelines'),
     sample('/data/labelAnnotation', { 'relatedGenes.symbol': 'CYP2D6' }, 'Returned CYP2D6 labels'),

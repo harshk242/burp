@@ -10,8 +10,7 @@ export const tools: Tool[] = [
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Drug name or search query' },
-        development_phase: { type: 'string', description: 'Development phase filter (e.g., Approved, Phase III)' },
-        therapeutic_area: { type: 'string', description: 'Therapeutic area filter' },
+        development_phase: { type: 'string', enum: ['Approved', 'Phase III', 'Phase II', 'Phase I'], description: 'Maximum development phase filter' },
         limit: { type: 'number', description: 'Number of results to return (1-1000, default: 25)', minimum: 1, maximum: 1000 },
       },
       required: ['query'],
@@ -34,8 +33,7 @@ export const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        indication: { type: 'string', description: 'Disease or indication search term' },
-        drug_type: { type: 'string', description: 'Drug type filter (e.g., Small molecule, Antibody)' },
+        indication: { type: 'string', description: 'MeSH disease heading substring (case insensitive)' },
         limit: { type: 'number', description: 'Number of results to return (1-1000, default: 25)', minimum: 1, maximum: 1000 },
       },
       required: ['indication'],
@@ -65,6 +63,15 @@ async function handleSearchDrugs(args: Record<string, unknown>) {
     limit: (args.limit as number) || 25,
   };
 
+  // Filter before pagination so early pages are not depleted by non-drugs.
+  const phases: Record<string, number> = { Approved: 4, 'Phase III': 3, 'Phase II': 2, 'Phase I': 1 };
+  if (args.development_phase !== undefined) {
+    const phase = phases[String(args.development_phase)];
+    if (phase === undefined) throw new Error('Invalid development phase');
+    params.max_phase = phase;
+  } else {
+    params.max_phase__gte = 1;
+  }
   const response = await client.get('/molecule/search.json', { params });
   const molecules = response.data.molecules || [];
   const drugs = molecules.filter((m: any) => m.max_phase && m.max_phase >= 1);
@@ -106,7 +113,7 @@ async function handleSearchDrugIndications(args: Record<string, unknown>) {
 
   const client = getClient();
   const response = await client.get('/drug_indication.json', {
-    params: { q: args.indication, limit: (args.limit as number) || 25 },
+    params: { mesh_heading__icontains: args.indication, limit: (args.limit as number) || 25 },
   });
   return response.data;
 }

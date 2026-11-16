@@ -52,6 +52,7 @@ export async function lookupByCoordinates(
   stop?: number,
   options?: { maxResults?: number }
 ): Promise<{
+  assembly: 'GRCh38';
   coordinates: string;
   count: number;
   variantIds: string[];
@@ -69,6 +70,7 @@ export async function lookupByCoordinates(
     : [];
 
   return {
+    assembly: 'GRCh38',
     coordinates: coordStr,
     count: result.count,
     variantIds: result.ids,

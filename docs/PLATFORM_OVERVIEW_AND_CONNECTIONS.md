@@ -31,7 +31,7 @@
 **Purpose**: Genomic sequences and gene annotations for 200+ species
 **Data**: Gene structures, transcripts, exons, variants, regulatory features, comparative genomics
 **Use Cases**: Gene annotation, variant consequence prediction, comparative genomics, genomic coordinate mapping
-**Key Tools**: 25 tools for genes, sequences, variants, homologs, regulatory features
+**Key Tools**: 20 tools for genes, sequences, variants, homologs, regulatory features and binding matrices
 
 ---
 
@@ -39,7 +39,7 @@
 **Purpose**: Chemical compound database with 110M+ compounds (NCBI)
 **Data**: Chemical structures, 2D/3D conformers, bioassay results, toxicity, patents, safety data
 **Use Cases**: Chemical property screening, bioassay mining, drug-likeness prediction, safety assessment
-**Key Tools**: 24 tools for chemical search, structure analysis, properties, bioassays, safety/toxicity
+**Key Tools**: 11 tools for compound search, records, synonyms, similarity, 3D properties, stereochemistry, property tables, assay records, classifications, and batch lookup. Unimplemented tools are hidden.
 
 ---
 
@@ -47,7 +47,7 @@
 **Purpose**: Integrates target-disease-drug associations (24+ evidence sources)
 **Data**: Target-disease scores, drug mechanisms, genetic variants, clinical trials, literature evidence
 **Use Cases**: Target prioritization, drug repurposing, clinical validation, genetic variant interpretation
-**Key Tools**: 45+ tools—the **most interconnected platform** (hub linking all others)
+**Key Tools**: 53 tools—the **most interconnected platform** (hub linking all others)
 
 ---
 
@@ -71,7 +71,7 @@
 **Purpose**: Registry of 400K+ clinical trials from 220+ countries
 **Data**: Trial status, eligibility criteria, outcomes, locations, sponsors, conditions
 **Use Cases**: Clinical validation of targets/drugs, patient recruitment, competitive landscape, trial outcome analysis
-**Key Tools**: 18 tools for trial search, recruiting status, outcomes, eligibility, timeline
+**Key Tools**: 17 tools for trial search, recruiting status, outcomes, eligibility, timeline
 
 ---
 
@@ -79,7 +79,7 @@
 **Purpose**: Biomedical literature database with 35M+ citations (NCBI)
 **Data**: Journal articles, abstracts, MeSH indexing, citations, author networks
 **Use Cases**: Literature discovery, evidence base construction, citation networks, publication trends
-**Key Tools**: 13 tools for search, fetch articles, citations, MeSH terms, trends
+**Key Tools**: 15 tools for search, fetch articles, citations, MeSH terms, trends
 
 ---
 
@@ -87,9 +87,11 @@
 **Purpose**: Pharmacogenomics database linking genes to drug response
 **Data**: Gene-drug interactions, star alleles, dosing guidelines (CPIC/DPWG), clinical annotations
 **Use Cases**: Personalized medicine, precision dosing, drug response prediction, adverse event risk
-**Key Tools**: 16 tools for genes, drugs, variants, clinical annotations, dosing guidelines
+**Key Tools**: 19 tools for genes, drugs, variants, clinical annotations, dosing guidelines
 
 ---
+
+Counts above reflect the implemented registry (2026-11-13): 208 tools. The relationships below describe upstream databases; they are not a promise of a direct tool for every connection. PubChem external-reference and literature retrieval are not implemented. Use shared structures with ChEMBL and explicit PubMed searches instead.
 
 ## All Connection Permutations
 
@@ -103,7 +105,7 @@
 
 2. ChEMBL ↔ PubChem
    └─ Mapping: ChEMBL ID ↔ PubChem CID via InChI/SMILES/CAS (e.g., CHEMBL25 ↔ 2244)
-   └─ Tool: External references in both databases
+   └─ Implemented route: ChEMBL external references or matching structures; PubChem has no external-reference tool
    └─ Use: Cross-database compound validation
 
 3. ChEMBL ↔ Open Targets
@@ -207,7 +209,7 @@
    └─ Use: Genomic discovery literature
 
 7. PubChem → PubMed
-   └─ Flow: Compounds link to bioassay and chemical literature
+   └─ Upstream relationship: Compounds link to bioassay and chemical literature; no PubChem literature tool is implemented
    └─ Mapping: CID → PMID
    └─ Use: Chemical property and bioactivity literature
 
@@ -238,8 +240,8 @@
 | Ensembl | Open Targets | ↔ | ENSG (foundational) | Target queries |
 | Ensembl | UniProt | ↔ | ENSG ↔ Accession | get_xrefs |
 | Ensembl | PubMed | → | Gene → PMID | Literature |
-| PubChem | ChEMBL | ↔ | CID ↔ ChEMBL_ID | External refs |
-| PubChem | PubMed | → | CID → PMID | Literature refs |
+| PubChem | ChEMBL | ↔ | CID ↔ ChEMBL_ID | Upstream relationship; use structure matching or ChEMBL external refs |
+| PubChem | PubMed | → | CID → PMID | Upstream relationship; PubChem literature retrieval is not implemented |
 | Open Targets | ChEMBL | ↔ | ENSG + ChEMBL_ID | get_known_drugs |
 | Open Targets | UniProt | ↔ | ENSG ↔ Accession | Target info |
 | Open Targets | Ensembl | ↔ | ENSG (primary) | All queries |
@@ -312,7 +314,7 @@ Start: Aspirin (compound)
       - ClinicalTrials.search_by_intervention("Aspirin") → Trials
 
   ↓ Get bioactivity:
-    • PubChem.get_compound_bioactivities(CID 2244) → Assays
+    • PubChem.get_assay_info(aid=1) → Assay record (requires a known AID)
     • ChEMBL.search_activities(molecule_id=CHEMBL25) → Activities
 
   ↓ Get pharmacogenomics:
@@ -476,7 +478,7 @@ Result: Clinical interpretation with personalized drug recommendations
 | **Metric** | **Count** |
 |-----------|----------|
 | Total Platforms | 10 |
-| Total Tools Across All Platforms | 214 |
+| Total Tools Across All Platforms | 208 |
 | Bidirectional Connections | 16 |
 | Unidirectional Connections | 8 |
 | Total Connection Paths | 40+ |

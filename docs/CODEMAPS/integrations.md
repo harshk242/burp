@@ -12,7 +12,7 @@
 |--------|-------|-------|-------|------------|
 | `open-targets` | 4,678 | 22 | 53 | Open Targets GraphQL |
 | `pubmed` | 2,800 | 13 | 15 | NCBI E-utilities (XML) |
-| `uniprot` | 1,305 | 11 | 26 | UniProt REST |
+| `uniprot` | 1,320 | 11 | 26 | UniProt REST |
 | `clinvar` | 2,260 | 11 | 12 | NCBI ClinVar (XML) |
 | `clinpgx` | 2,224 | 12 | 19 | PharmGKB REST |
 | `chembl` | 1,971 | 1 | 27 | ChEMBL REST |

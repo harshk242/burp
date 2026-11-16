@@ -54,7 +54,7 @@ export async function getGeneOntologyTerms(goIds: string[]): Promise<unknown> {
     query GeneOntologyTerms($goIds: [String!]!) {
       geneOntologyTerms(goIds: $goIds) {
         id
-        name
+        label
       }
     }
   `;

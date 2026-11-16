@@ -81,7 +81,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'lookup_by_coordinates',
-    description: 'Find variants at specific genomic coordinates.',
+    description: 'Find variants at 1-based, inclusive GRCh38 genomic coordinates. GRCh37 coordinates must be lifted over before calling.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -91,11 +91,11 @@ const TOOLS: Tool[] = [
         },
         start: {
           type: 'number',
-          description: 'Start position',
+          description: 'Start position on GRCh38 (1-based)',
         },
         stop: {
           type: 'number',
-          description: 'Stop position (optional, for range queries)',
+          description: 'Stop position on GRCh38 (inclusive; optional for range queries)',
         },
         max_results: {
           type: 'number',

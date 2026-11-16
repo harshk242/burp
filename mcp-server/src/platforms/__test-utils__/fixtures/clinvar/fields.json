@@ -1,0 +1,190 @@
+[
+  {
+    "name": "ALL",
+    "fullname": "All Fields"
+  },
+  {
+    "name": "UID",
+    "fullname": "UID"
+  },
+  {
+    "name": "FILT",
+    "fullname": "Filter"
+  },
+  {
+    "name": "TITL",
+    "fullname": "Name of the ClinVar record"
+  },
+  {
+    "name": "WORD",
+    "fullname": "Text Word"
+  },
+  {
+    "name": "ORGN",
+    "fullname": "Organism"
+  },
+  {
+    "name": "MDAT",
+    "fullname": "Modification Date"
+  },
+  {
+    "name": "CHR",
+    "fullname": "Chromosome"
+  },
+  {
+    "name": "GENE",
+    "fullname": "Gene Name"
+  },
+  {
+    "name": "MIM",
+    "fullname": "MIM"
+  },
+  {
+    "name": "DIS",
+    "fullname": "Disease/Phenotype"
+  },
+  {
+    "name": "ACCN",
+    "fullname": "ClinVar accession"
+  },
+  {
+    "name": "VRID",
+    "fullname": "External allele ID"
+  },
+  {
+    "name": "TRID",
+    "fullname": "Trait identifier"
+  },
+  {
+    "name": "PROP",
+    "fullname": "Properties"
+  },
+  {
+    "name": "CDAT",
+    "fullname": "Creation Date"
+  },
+  {
+    "name": "PMID",
+    "fullname": "PubMed ID"
+  },
+  {
+    "name": "GID",
+    "fullname": "Gene ID"
+  },
+  {
+    "name": "TID",
+    "fullname": "Taxonomy ID"
+  },
+  {
+    "name": "CPOS",
+    "fullname": "Base Position"
+  },
+  {
+    "name": "GFN",
+    "fullname": "Gene Full Name"
+  },
+  {
+    "name": "SBM",
+    "fullname": "Submitter"
+  },
+  {
+    "name": "VRNM",
+    "fullname": "Variant name"
+  },
+  {
+    "name": "VRTP",
+    "fullname": "Type of variation"
+  },
+  {
+    "name": "MCNS",
+    "fullname": "Molecular consequence"
+  },
+  {
+    "name": "RVST",
+    "fullname": "Review status"
+  },
+  {
+    "name": "ALID",
+    "fullname": "AlleleID"
+  },
+  {
+    "name": "ORIG",
+    "fullname": "Origin"
+  },
+  {
+    "name": "SID",
+    "fullname": "Submitter Batch"
+  },
+  {
+    "name": "CYT",
+    "fullname": "Cytogenetic band"
+  },
+  {
+    "name": "GTRT",
+    "fullname": "Accession for a test registered in GTR"
+  },
+  {
+    "name": "STNM",
+    "fullname": "Study Name"
+  },
+  {
+    "name": "CMPL",
+    "fullname": "Complexity"
+  },
+  {
+    "name": "C37",
+    "fullname": "Base Position for Assembly GRCh37"
+  },
+  {
+    "name": "VLEN",
+    "fullname": "Length of the variant"
+  },
+  {
+    "name": "ACCN",
+    "fullname": "Nucleotide/Protein Accession"
+  },
+  {
+    "name": "HGNC",
+    "fullname": "HGNC identifier for human gene"
+  },
+  {
+    "name": "VID",
+    "fullname": "Variation ID"
+  },
+  {
+    "name": "IMOD",
+    "fullname": "Last interpreted"
+  },
+  {
+    "name": "CLINSIG_LAST_CHANGED",
+    "fullname": "Date of last change to clinical significance"
+  },
+  {
+    "name": "VACC",
+    "fullname": "Variant Accession"
+  },
+  {
+    "name": "RPLD",
+    "fullname": "Replaced Variation ID"
+  },
+  {
+    "name": "COMB",
+    "fullname": "Combination Variation ID"
+  },
+  {
+    "name": "CSPDI",
+    "fullname": "Canonical SPDI"
+  },
+  {
+    "name": "COMMONNAME",
+    "fullname": "Common Name"
+  },
+  {
+    "name": "COLLMETHOD",
+    "fullname": "Collection method"
+  },
+  {
+    "name": "FCNS",
+    "fullname": "Functional consequence"
+  }
+]

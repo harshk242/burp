@@ -1,3 +1,4 @@
+import { normalizeProperties } from '../properties.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient } from '../client.js';
 import { compoundDescriptions, compoundRecord } from '../endpoints.js';
@@ -19,10 +20,14 @@ const handleSearchCompounds: ToolHandler = async (args) => {
   const maxRecords = args.max_records || 100;
   const api = getClient();
 
-  const response = await api.get(
-    `/compound/${searchType}/${encodeURIComponent(args.query)}/cids/JSON`,
-    { params: { MaxRecords: maxRecords } },
-  );
+  const response = ['smiles', 'inchi', 'sdf'].includes(searchType)
+    ? await api.post(`/compound/${searchType}/cids/JSON`,
+      new URLSearchParams({ [searchType]: args.query }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+    : await api.get(`/compound/${searchType === 'formula' ? 'fastformula' : searchType}/${encodeURIComponent(args.query)}/cids/JSON`);
+  if (response.data?.IdentifierList?.CID) {
+    response.data.IdentifierList.CID = response.data.IdentifierList.CID.slice(0, maxRecords);
+  }
 
   if (response.data?.IdentifierList?.CID?.length > 0) {
     const cids = response.data.IdentifierList.CID.slice(0, 10);
@@ -33,7 +38,7 @@ const handleSearchCompounds: ToolHandler = async (args) => {
       query: args.query,
       search_type: searchType,
       total_found: response.data.IdentifierList.CID.length,
-      details: detailsResponse.data,
+      details: normalizeProperties(detailsResponse.data),
     };
   }
 
@@ -64,9 +69,9 @@ const handleSearchBySmiles: ToolHandler = async (args) => {
   }
 
   const api = getClient();
-  const response = await api.get(
-    `/compound/smiles/${encodeURIComponent(args.smiles)}/cids/JSON`,
-  );
+  const response = await api.post('/compound/smiles/cids/JSON',
+    new URLSearchParams({ smiles: args.smiles }).toString(),
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
   if (response.data?.IdentifierList?.CID?.length > 0) {
     const cid = response.data.IdentifierList.CID[0];
@@ -76,19 +81,11 @@ const handleSearchBySmiles: ToolHandler = async (args) => {
     return {
       query_smiles: args.smiles,
       found_cid: cid,
-      details: detailsResponse.data,
+      details: normalizeProperties(detailsResponse.data),
     };
   }
 
   return { message: 'No exact match found', query_smiles: args.smiles };
-};
-
-const handleSearchByInchi: ToolHandler = async (args) => {
-  return { message: 'InChI search not yet implemented', args };
-};
-
-const handleSearchByCasNumber: ToolHandler = async (args) => {
-  return { message: 'CAS search not yet implemented', args };
 };
 
 const handleGetCompoundSynonyms: ToolHandler = async (args) => {
@@ -106,25 +103,17 @@ const handleSearchSimilarCompounds: ToolHandler = async (args) => {
     throw new Error('Invalid similarity search arguments');
   }
 
-  const threshold = args.threshold || 90;
+  const threshold = args.threshold ?? 90;
   const maxRecords = args.max_records || 100;
   const api = getClient();
 
-  const response = await api.post('/compound/similarity/smiles/JSON', {
-    smiles: args.smiles,
-    Threshold: threshold,
-    MaxRecords: maxRecords,
-  });
+  const response = await api.post('/compound/fastsimilarity_2d/smiles/cids/JSON',
+    new URLSearchParams({ smiles: args.smiles }).toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      params: { Threshold: threshold, MaxRecords: maxRecords },
+    });
 
   return response.data;
-};
-
-const handleSubstructureSearch: ToolHandler = async (args) => {
-  return { message: 'Substructure search not yet implemented', args };
-};
-
-const handleSuperstructureSearch: ToolHandler = async (args) => {
-  return { message: 'Superstructure search not yet implemented', args };
 };
 
 const handleGet3dConformers: ToolHandler = async (args) => {
@@ -139,7 +128,6 @@ const handleGet3dConformers: ToolHandler = async (args) => {
 
   return {
     cid: args.cid,
-    conformer_type: args.conformer_type || '3d',
     properties: response.data,
   };
 };
@@ -154,7 +142,7 @@ const handleAnalyzeStereochemistry: ToolHandler = async (args) => {
     `/compound/cid/${args.cid}/property/AtomStereoCount,DefinedAtomStereoCount,BondStereoCount,DefinedBondStereoCount,IsomericSMILES/JSON`,
   );
 
-  return { cid: args.cid, stereochemistry: response.data };
+  return { cid: args.cid, stereochemistry: normalizeProperties(response.data) };
 };
 
 const handleGetCompoundProperties: ToolHandler = async (args) => {
@@ -172,50 +160,14 @@ const handleGetCompoundProperties: ToolHandler = async (args) => {
     `/compound/cid/${args.cid}/property/${properties.join(',')}/JSON`,
   );
 
-  return response.data;
-};
-
-const handleCalculateDescriptors: ToolHandler = async (args) => {
-  return { message: 'Descriptor calculation not yet implemented', args };
-};
-
-const handlePredictAdmetProperties: ToolHandler = async (args) => {
-  return { message: 'ADMET prediction not yet implemented', args };
-};
-
-const handleAssessDrugLikeness: ToolHandler = async (args) => {
-  return { message: 'Drug-likeness assessment not yet implemented', args };
-};
-
-const handleAnalyzeMolecularComplexity: ToolHandler = async (args) => {
-  return { message: 'Molecular complexity analysis not yet implemented', args };
-};
-
-const handleGetPharmacophoreFeatures: ToolHandler = async (args) => {
-  return { message: 'Pharmacophore features not yet implemented', args };
-};
-
-const handleSearchBioassays: ToolHandler = async (args) => {
-  return { message: 'Bioassay search not yet implemented', args };
+  return normalizeProperties(response.data);
 };
 
 const handleGetAssayInfo: ToolHandler = async (args) => {
   const a = args as Record<string, unknown>;
   const api = getClient();
-  const response = await api.get(`/assay/aid/${a.aid}/JSON`);
+  const response = await api.get(`/assay/aid/${a.aid}/description/JSON`);
   return response.data;
-};
-
-const handleGetCompoundBioactivities: ToolHandler = async (args) => {
-  return { message: 'Bioactivity search not yet implemented', args };
-};
-
-const handleSearchByTarget: ToolHandler = async (args) => {
-  return { message: 'Target search not yet implemented', args };
-};
-
-const handleCompareActivityProfiles: ToolHandler = async (args) => {
-  return { message: 'Activity profile comparison not yet implemented', args };
 };
 
 const handleGetSafetyData: ToolHandler = async (args) => {
@@ -228,30 +180,6 @@ const handleGetSafetyData: ToolHandler = async (args) => {
   return response.data;
 };
 
-const handleGetToxicityInfo: ToolHandler = async (args) => {
-  return { message: 'Toxicity info not yet implemented', args };
-};
-
-const handleAssessEnvironmentalFate: ToolHandler = async (args) => {
-  return { message: 'Environmental fate assessment not yet implemented', args };
-};
-
-const handleGetRegulatoryInfo: ToolHandler = async (args) => {
-  return { message: 'Regulatory info not yet implemented', args };
-};
-
-const handleGetExternalReferences: ToolHandler = async (args) => {
-  return { message: 'External references not yet implemented', args };
-};
-
-const handleSearchPatents: ToolHandler = async (args) => {
-  return { message: 'Patent search not yet implemented', args };
-};
-
-const handleGetLiteratureReferences: ToolHandler = async (args) => {
-  return { message: 'Literature references not yet implemented', args };
-};
-
 const handleBatchCompoundLookup: ToolHandler = async (args) => {
   if (!isValidBatchArgs(args)) {
     throw new Error('Invalid batch arguments');
@@ -260,12 +188,13 @@ const handleBatchCompoundLookup: ToolHandler = async (args) => {
   const api = getClient();
   const results = [];
 
-  for (const cid of args.cids.slice(0, 10)) {
+  for (const cid of args.cids) {
     try {
       const response = await api.get(
-        `/compound/cid/${cid}/property/MolecularWeight,CanonicalSMILES,IUPACName/JSON`,
+        `/compound/cid/${cid}/${args.operation && args.operation !== 'property'
+          ? args.operation : 'property/MolecularWeight,CanonicalSMILES,IUPACName'}/JSON`,
       );
-      results.push({ cid, data: response.data, success: true });
+      results.push({ cid, data: normalizeProperties(response.data), success: true });
     } catch (error) {
       results.push({
         cid,
@@ -282,31 +211,12 @@ export const handlers: Record<string, ToolHandler> = {
   search_compounds: handleSearchCompounds,
   get_compound_info: handleGetCompoundInfo,
   search_by_smiles: handleSearchBySmiles,
-  search_by_inchi: handleSearchByInchi,
-  search_by_cas_number: handleSearchByCasNumber,
   get_compound_synonyms: handleGetCompoundSynonyms,
   search_similar_compounds: handleSearchSimilarCompounds,
-  substructure_search: handleSubstructureSearch,
-  superstructure_search: handleSuperstructureSearch,
   get_3d_conformers: handleGet3dConformers,
   analyze_stereochemistry: handleAnalyzeStereochemistry,
   get_compound_properties: handleGetCompoundProperties,
-  calculate_descriptors: handleCalculateDescriptors,
-  predict_admet_properties: handlePredictAdmetProperties,
-  assess_drug_likeness: handleAssessDrugLikeness,
-  analyze_molecular_complexity: handleAnalyzeMolecularComplexity,
-  get_pharmacophore_features: handleGetPharmacophoreFeatures,
-  search_bioassays: handleSearchBioassays,
   get_assay_info: handleGetAssayInfo,
-  get_compound_bioactivities: handleGetCompoundBioactivities,
-  search_by_target: handleSearchByTarget,
-  compare_activity_profiles: handleCompareActivityProfiles,
   get_safety_data: handleGetSafetyData,
-  get_toxicity_info: handleGetToxicityInfo,
-  assess_environmental_fate: handleAssessEnvironmentalFate,
-  get_regulatory_info: handleGetRegulatoryInfo,
-  get_external_references: handleGetExternalReferences,
-  search_patents: handleSearchPatents,
-  get_literature_references: handleGetLiteratureReferences,
   batch_compound_lookup: handleBatchCompoundLookup,
 };

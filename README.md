@@ -40,7 +40,7 @@ flowchart LR
         CTX --> LLM --> DISP --> CTX
     end
 
-    DISP -->|core + discovered tools| MCP[Unified MCP server<br/>~230 tools · 10 platforms]
+    DISP -->|core + discovered tools| MCP[Unified MCP server<br/>208 tools · 10 platforms]
     DISP -->|search_available_tools| HS[Hybrid tool search<br/>BM25 + embeddings · RRF]
     DISP -->|inspect_artifact| ART[Artifact store<br/>jq queries]
     MCP -->|large output| LO[Noise filters → artifact + schema preview]
@@ -52,7 +52,7 @@ flowchart LR
     LOOP --> DB[(SQLite · Drizzle<br/>transcripts · usage ledger)]
 ```
 
-### 1. ~230 tools don't fit in a prompt, so the catalog has two tiers
+### 1. 208 tools don't fit in a prompt, so the catalog has two tiers
 
 Loading every tool schema on every call would fill a large share of the context window before the user has asked anything, and tool-choice accuracy drops as the list grows.
 

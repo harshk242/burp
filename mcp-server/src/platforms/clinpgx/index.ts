@@ -286,15 +286,16 @@ const TOOLS: Tool[] = [
       properties: {
         query: {
           type: 'string',
-          description: 'Optional search query for pathways',
+          description: 'Required gene symbol; results are scoped to that gene',
         },
       },
+      required: ['query'],
     },
   },
 
   {
     name: 'get_database_stats',
-    description: 'Get scoped sample counts for CPIC genes/pathways and CYP2D6 annotations/guidelines/labels; drugs and variants are unsupported. Counts describe returned records, not database totals. Each sample reports available or failed status.',
+    description: 'Get scoped sample counts for CPIC genes and CYP2D6 pathways/annotations/guidelines/labels; drugs and variants are unsupported. Counts describe returned records, not database totals. Each sample reports available or failed status.',
     inputSchema: {
       type: 'object' as const,
       properties: {},
@@ -377,15 +378,14 @@ const handlers: Record<string, ToolHandler> = {
     const drug = args.drug as string | undefined;
     const source = args.source as 'CPIC' | 'DPWG' | undefined;
 
-    if (gene && source) {
-      return tools.getGuidelinesBySource(gene, source);
-    } else if (gene) {
-      return tools.getDosingGuidelinesForGene(gene);
-    } else if (drug) {
-      return tools.getDosingGuidelinesForDrug(drug);
-    } else {
-      throw new Error('Either gene or drug must be provided');
-    }
+    if (!gene && !drug) throw new Error('Either gene or drug must be provided');
+    const guidelines = gene
+      ? await tools.getDosingGuidelinesForGene(gene)
+      : await tools.getDosingGuidelinesForDrug(drug!);
+    return guidelines.filter(guideline =>
+      (!drug || guideline.drugs.some(name => name.toLowerCase() === drug.toLowerCase())) &&
+      (!source || guideline.source === source)
+    );
   },
   get_guidelines_for_pair: async (args) => {
     return tools.getGuidelinesForDrugGenePair(
@@ -398,8 +398,9 @@ const handlers: Record<string, ToolHandler> = {
   },
 
   get_pathways: async (args) => {
+    if (typeof args.query !== "string" || !args.query.trim()) throw new Error("get_pathways requires a nonblank gene symbol in query");
     const client = getClient();
-    return client.getPathways(args.query as string | undefined);
+    return client.getPathways(args.query as string);
   },
 
   get_database_stats: async () => {
