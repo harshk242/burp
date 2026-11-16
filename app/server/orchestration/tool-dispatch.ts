@@ -212,7 +212,7 @@ async function* runSystemTool(
       throw new Error(`System tool "${call.originalName}" not found in active tools`);
     }
 
-    const rawResult = await localTool.execute(call.input, {
+    const rawResult: unknown = await localTool.execute(call.input, {
       toolCallId: call.tc.toolCallId,
       messages: [],
       context: undefined,

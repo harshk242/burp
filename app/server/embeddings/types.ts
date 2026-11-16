@@ -40,7 +40,7 @@ export function isValidVector(values: unknown, dimension: number): values is Arr
   if (!Array.isArray(values) && !(values instanceof Float32Array)) return false;
   if (values.length !== dimension) return false;
   for (let i = 0; i < values.length; i++) {
-    const v = values[i];
+    const v: unknown = values[i];
     if (typeof v !== "number" || !Number.isFinite(Math.fround(v))) return false;
   }
   return true;

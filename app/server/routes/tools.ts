@@ -314,7 +314,7 @@ const callToolRoute = createRoute({
 
 tools.openapi(callToolRoute, async (c) => {
   const { server, name } = c.req.valid("param");
-  const input = await c.req.json();
+  const input = c.req.valid("json");
   const elapsed = startTimer();
 
   const tool = toolRegistry.get(server, name);

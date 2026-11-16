@@ -1,0 +1,4 @@
+{
+  "//": "Lets editors and type-aware lint resolve scripts/ against tsconfig.scripts.json.",
+  "extends": "../tsconfig.scripts.json"
+}

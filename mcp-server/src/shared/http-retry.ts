@@ -256,7 +256,7 @@ function transformErrorResponse(config: InternalAxiosRequestConfig, error: unkno
   const transforms = config.transformResponse;
   const fns = Array.isArray(transforms) ? transforms : transforms ? [transforms] : [];
   try {
-    response.data = fns.reduce((data, fn) => fn.call(config, data, headers, response.status), response.data);
+    response.data = fns.reduce<unknown>((data, fn) => fn.call(config, data, headers, response.status) as unknown, response.data);
     response.headers = headers;
   } catch {
   }

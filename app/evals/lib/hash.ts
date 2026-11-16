@@ -17,7 +17,7 @@ function encode(value: unknown, path: string): string {
       if (Array.isArray(value)) {
         return `[${value.map((v, i) => (v === undefined ? "null" : encode(v, `${path}[${i}]`))).join(",")}]`;
       }
-      const proto = Object.getPrototypeOf(value);
+      const proto: unknown = Object.getPrototypeOf(value);
       if (proto !== Object.prototype && proto !== null) {
         throw new Error(`canonicalJson: unsupported object at ${path}`);
       }

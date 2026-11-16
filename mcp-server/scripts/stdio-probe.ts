@@ -135,8 +135,8 @@ void (async () => {
 
 let nextId = 1;
 function send(payload: Record<string, unknown>) {
-  proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...payload }) + '\n');
-  proc.stdin.flush();
+  void proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...payload }) + '\n');
+  void proc.stdin.flush();
 }
 function request(method: string, params: Record<string, unknown>, timeoutMs: number): Promise<RpcResponse> {
   const id = nextId++;
@@ -220,7 +220,7 @@ if (violations.length > 0) {
 }
 
 proc.kill();
-stub?.stop();
+void stub?.stop();
 
 if (failures.length > 0) {
   console.error(`\nstdio probe FAILED (${failures.length})\n--- server stderr (tail) ---\n${stderrTail}`);

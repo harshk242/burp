@@ -3,6 +3,17 @@ import { RateLimitError } from "@/types";
 import { isRateLimitErrorCode, RATE_LIMIT_ERROR_CODES } from "../../shared/rate-limit";
 import type { ChatCompletion } from "../../shared/chat";
 
+/** JSON error body of a failed chat request; 429s carry the rate-limit fields. */
+interface ErrorBody {
+  error?: string;
+  message?: string;
+  limit?: number;
+  used?: number;
+  cost_limit_microusd?: number;
+  cost_used_microusd?: number;
+  resetAt?: number;
+}
+
 export interface StreamOwner {
   signal: AbortSignal;
   isCurrent: () => boolean;
@@ -48,7 +59,7 @@ async function consumeChat(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
+    const error = (await response.json().catch(() => ({ error: "Request failed" }))) as ErrorBody;
     if (response.status === 429) {
       const errorCode = isRateLimitErrorCode(error.error) ? error.error : undefined;
       let message: string;

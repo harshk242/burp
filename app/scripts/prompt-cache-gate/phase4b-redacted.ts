@@ -30,7 +30,7 @@ export async function checkRedactedOffline(): Promise<{ pass: boolean; detail: s
   });
   for await (const _ of first.stream);
   const response = (await first.finalStep).response.messages;
-  const parsed: ModelMessage[] = JSON.parse(JSON.stringify(response));
+  const parsed = JSON.parse(JSON.stringify(response)) as ModelMessage[];
   const reasoning = assistantParts(parsed).find((p) => p.type === "reasoning");
   const kept = reasoning?.providerOptions?.anthropic?.redactedData === DATA;
 

@@ -20,7 +20,7 @@ export class UsageRecoveryJournal {
 
   constructor(private readonly path: string, private readonly apply: (job: UsageRecoveryJob) => void,
     private readonly recorded: (id: string) => boolean) {
-    this.jobs = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : [];
+    this.jobs = existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as UsageRecoveryJob[]) : [];
   }
 
   submit(job: UsageRecoveryJob): void {

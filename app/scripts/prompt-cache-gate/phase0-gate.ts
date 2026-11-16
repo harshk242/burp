@@ -365,7 +365,7 @@ async function main() {
   }
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set (run from app/ so .env loads)");
   if (target === "all" || target === "4b") await ensureThinkingCapabilities();
-  const pkg = async (p: string) => (await import(`${p}/package.json`, { with: { type: "json" } })).default.version;
+  const pkg = async (p: string) => ((await import(`${p}/package.json`, { with: { type: "json" } })) as { default: { version: string } }).default.version;
   console.log("model:", MODEL_ID, "| ai", await pkg("ai"), "| @ai-sdk/anthropic", await pkg("@ai-sdk/anthropic"), "| run", RUN_ID);
 
   runMigrations(sqlite);

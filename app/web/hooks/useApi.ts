@@ -3,6 +3,7 @@
 import { useAuth } from "@/lib/auth";
 import { useCallback } from "react";
 import { buildApiUrl } from "@/lib/api-url";
+import { errorField } from "@/lib/http-error";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -20,11 +21,11 @@ export function useApi() {
       const res = await fetch(buildApiUrl(path, API_BASE), { ...options, headers });
 
       if (!res.ok) {
-        const error = await res.json().catch(() => ({ error: "Request failed" }));
-        throw new Error(error.error || `HTTP ${res.status}`);
+        const error: unknown = await res.json().catch(() => ({ error: "Request failed" }));
+        throw new Error(errorField(error) || `HTTP ${res.status}`);
       }
 
-      return res.json();
+      return res.json() as Promise<T>;
     },
     [getToken]
   );

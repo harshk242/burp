@@ -57,7 +57,7 @@ export function validate<S extends z.ZodTypeAny>(
   problems: string[],
 ): z.infer<S> | undefined {
   const result = schema.safeParse(parsed.doc.toJS());
-  if (result.success) return result.data;
+  if (result.success) return result.data as z.infer<S>;
   for (const issue of result.error.issues) {
     const where = locate(parsed, issue.path);
     problems.push(`${where}: ${issue.path.join(".") || "(root)"}: ${issue.message}`);

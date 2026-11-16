@@ -10,6 +10,7 @@ import {
   ErrorSchema,
   MessageSchema,
 } from "../schemas";
+import type { Context, Next } from "hono";
 import type { AppEnv } from "../types";
 
 const waitlist = new OpenAPIHono<AppEnv>();
@@ -136,21 +137,21 @@ const listRequestsRoute = createRoute({
   },
 });
 
-waitlist.use("/", async (c, next) => {
+waitlist.use("/", async (c: Context<AppEnv>, next: Next) => {
   if (c.req.method === "POST") {
     return next();
   }
   return clerkAuth(c, next);
 });
 
-waitlist.use("/", async (c, next) => {
+waitlist.use("/", async (c: Context<AppEnv>, next: Next) => {
   if (c.req.method === "POST") {
     return next();
   }
   return requireDbUser(c, next);
 });
 
-waitlist.use("/", async (c, next) => {
+waitlist.use("/", async (c: Context<AppEnv>, next: Next) => {
   if (c.req.method === "POST") {
     return next();
   }

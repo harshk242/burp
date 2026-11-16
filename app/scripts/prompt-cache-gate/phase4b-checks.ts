@@ -82,7 +82,7 @@ async function call(label: string, tools: Record<string, Tool>, messages: ModelM
       cacheRead: u.inputTokenDetails?.cacheReadTokens, cacheWrite: u.inputTokenDetails?.cacheWriteTokens,
       outputTokens: u.outputTokens, reasoningTokens: u.outputTokenDetails?.reasoningTokens,
       finishReason: step.finishReason,
-      toolCalls: step.toolCalls.map((t) => ({ toolCallId: t.toolCallId, toolName: t.toolName, input: t.input })),
+      toolCalls: step.toolCalls.map((t) => ({ toolCallId: t.toolCallId, toolName: t.toolName, input: t.input as unknown })),
       responseMessages: step.response.messages,
     };
   }
@@ -158,7 +158,7 @@ function degrade(turn: ModelMessage[]): ModelMessage[] {
 }
 
 const stripCacheControl = (v: unknown): unknown =>
-  JSON.parse(JSON.stringify(v), (k, val) => (k === "cache_control" ? undefined : val));
+  JSON.parse(JSON.stringify(v), (k, val: unknown) => (k === "cache_control" ? undefined : val)) as unknown;
 
 const Q1 =
   "First, without tools: how many positive divisors of 7! are perfect squares? Work it out carefully; call it N. " +

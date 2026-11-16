@@ -168,7 +168,7 @@ export function parseJqOutput(
 
   let values: unknown[];
   try {
-    values = kept.map((line) => JSON.parse(line));
+    values = kept.map((line) => JSON.parse(line) as unknown);
   } catch {
     return { result: kept.join("\n"), truncated };
   }
