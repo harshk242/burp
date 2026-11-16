@@ -8,15 +8,12 @@ export const developmentAuth = process.env.NEXT_PUBLIC_AUTH_MODE === "developmen
 const developmentSession = { isLoaded: true, isSignedIn: true, getToken: async () => null };
 const developmentClerk = { signOut: async (options?: { redirectUrl?: string }) => { window.location.assign(options?.redirectUrl || "/"); } };
 
-export function useAuth() {
-  if (developmentAuth) return developmentSession;
-  return Clerk.useAuth();
-}
+// developmentAuth is fixed at build time, so pick each hook once instead of branching per render.
+export const useAuth: () => typeof developmentSession | ReturnType<typeof Clerk.useAuth> =
+  developmentAuth ? () => developmentSession : Clerk.useAuth;
 
-export function useClerk() {
-  if (developmentAuth) return developmentClerk;
-  return Clerk.useClerk();
-}
+export const useClerk: () => typeof developmentClerk | ReturnType<typeof Clerk.useClerk> =
+  developmentAuth ? () => developmentClerk : Clerk.useClerk;
 
 export function SignedIn({ children }: { children: ReactNode }) {
   return developmentAuth ? <>{children}</> : <Clerk.SignedIn>{children}</Clerk.SignedIn>;

@@ -44,7 +44,8 @@
     "typescript/consistent-return": "off",
     "import/no-named-as-default-member": "off",
 
-    "react/react-in-jsx-scope": "off"
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }]
   },
   "overrides": [
     {

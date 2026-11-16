@@ -31,12 +31,12 @@ export function useUsage() {
   }, [get, setUsage, user]);
 
   useEffect(() => {
-    fetchUsage();
+    void fetchUsage();
   }, [fetchUsage]);
 
   useEffect(() => {
     if (!isStreaming) {
-      fetchUsage();
+      void fetchUsage();
     }
   }, [isStreaming, fetchUsage]);
 

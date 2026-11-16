@@ -55,7 +55,7 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
 
   return (
     <button
-      onClick={handleCopy}
+      onClick={() => void handleCopy()}
       className={cn(
         "p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors duration-150",
         className
@@ -97,7 +97,7 @@ function DownloadButton({
 
   return (
     <button
-      onClick={handleDownload}
+      onClick={() => void handleDownload()}
       disabled={isExporting}
       className={cn(
         "p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",

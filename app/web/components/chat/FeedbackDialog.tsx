@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,14 +35,17 @@ export function FeedbackDialog({ value, open, onOpenChange, onSubmit, saving, re
   const [categories, setCategories] = useState<FeedbackCategoryId[]>([]);
   const [comment, setComment] = useState("");
   const [error, setError] = useState(false);
+  const [wasOpen, setWasOpen] = useState(open);
 
-  useEffect(() => {
+  // Start each opening with an empty form (adjusting state during render, not in an effect).
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setCategories([]);
       setComment("");
       setError(false);
     }
-  }, [open]);
+  }
 
   const canSend = canSendFeedback(comment, categories.length, saving);
   const canDismiss = canDismissFeedback(saving);

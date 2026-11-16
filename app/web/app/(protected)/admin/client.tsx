@@ -109,23 +109,21 @@ export function AdminPageClient() {
     }
   }, [user, router]);
 
-  const fetchRequests = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const data = await get<{ requests: AccessRequest[] }>("/waitlist/all");
-      setRequests(data.requests);
-    } catch (err) {
-      console.error("Failed to fetch access requests:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [get]);
-
   useEffect(() => {
-    if (user?.role === "admin") {
-      fetchRequests();
-    }
-  }, [user, fetchRequests]);
+    if (user?.role !== "admin") return;
+    let stale = false;
+    get<{ requests: AccessRequest[] }>("/waitlist/all")
+      .then((data) => {
+        if (!stale) setRequests(data.requests);
+      })
+      .catch((err: unknown) => console.error("Failed to fetch access requests:", err))
+      .finally(() => {
+        if (!stale) setIsLoading(false);
+      });
+    return () => {
+      stale = true;
+    };
+  }, [user, get]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -241,7 +239,7 @@ export function AdminPageClient() {
             </div>
           </div>
 
-          <Tabs defaultValue="pending" onValueChange={(v) => { if (v === "users" && adminUsers.length === 0) fetchUsers(); }}>
+          <Tabs defaultValue="pending" onValueChange={(v) => { if (v === "users" && adminUsers.length === 0) void fetchUsers(); }}>
             <TabsList>
               <TabsTrigger value="pending">
                 Pending{" "}
@@ -295,7 +293,7 @@ export function AdminPageClient() {
                     [userId]: { ...prev[userId], [field]: value },
                   }))
                 }
-                onSave={handleSaveLimits}
+                onSave={(userId) => void handleSaveLimits(userId)}
               />
             </TabsContent>
           </Tabs>
@@ -332,10 +330,9 @@ export function AdminPageClient() {
             <Button
               variant={confirmDialog.action === "approve" ? "default" : "destructive"}
               disabled={actionLoading !== null}
-              onClick={() =>
-                confirmDialog.request &&
-                handleAction(confirmDialog.action, confirmDialog.request.id)
-              }
+              onClick={() => {
+                if (confirmDialog.request) void handleAction(confirmDialog.action, confirmDialog.request.id);
+              }}
             >
               {actionLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

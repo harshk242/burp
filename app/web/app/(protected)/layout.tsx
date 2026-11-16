@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useMounted } from "@/hooks/useMounted";
 import { useAuth, useClerk } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -16,14 +17,9 @@ export default function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const [isSynced, setIsSynced] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!mounted) {
     return (
@@ -139,7 +135,7 @@ function ProtectedContent({
             </Button>
             <Button
               variant="outline"
-              onClick={() => signOut({ redirectUrl: "/" })}
+              onClick={() => void signOut({ redirectUrl: "/" })}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out

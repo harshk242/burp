@@ -69,7 +69,7 @@ export function MessageFeedback({ message }: { message: Message }) {
       <button
         ref={upRef}
         type="button"
-        onClick={() => onThumb(1)}
+        onClick={() => void onThumb(1)}
         disabled={disabled}
         className={thumbClass(current?.value === 1)}
         title={current?.value === 1 ? "Remove rating" : "Good response"}
@@ -81,7 +81,7 @@ export function MessageFeedback({ message }: { message: Message }) {
       <button
         ref={downRef}
         type="button"
-        onClick={() => onThumb(0)}
+        onClick={() => void onThumb(0)}
         disabled={disabled}
         className={thumbClass(current?.value === 0)}
         title={current?.value === 0 ? "Remove rating" : "Bad response"}

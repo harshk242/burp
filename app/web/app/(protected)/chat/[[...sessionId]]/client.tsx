@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useRef } from "react";
+import { useMounted } from "@/hooks/useMounted";
 import { developmentAuth, useAuth } from "@/lib/auth";
 import { useChatStore } from "@/stores/chatStore";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -25,15 +26,11 @@ interface ChatPageClientProps {
 }
 
 export function ChatPageClient({ sessionId: _initialSessionId }: ChatPageClientProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
 
   const initialSessionId = typeof window !== "undefined"
     ? extractSessionIdFromLocation(window.location)
     : _initialSessionId;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!mounted) {
     return (
@@ -122,6 +119,8 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     }
     if (controller.selected(currentSessionId)) return;
     const work = controller.select(currentSessionId);
+    // Reset alongside controller.select(), which only happens here when the selected session changes.
+    // oxlint-disable-next-line react/set-state-in-effect
     setRateLimitInfo(null);
     void controller.loadHistory(work, get);
   }, [currentSessionId, get, setActiveSession, controller]);
@@ -152,7 +151,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
           setActiveSession(data.id);
           window.history.replaceState(null, "", buildChatUrl(data.id));
           sessionId = data.id;
-        } catch (err) {
+        } catch {
           work.commit((store) => store.setError("Failed to create session"));
           return;
         }
@@ -236,7 +235,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
               </div>
             </div>
           )}
-          <MessageInput onSend={handleSend} disabled={isStreaming || isLoadingHistory} />
+          <MessageInput onSend={(content) => void handleSend(content)} disabled={isStreaming || isLoadingHistory} />
         </ChatContainer>
       </div>
     </div>
