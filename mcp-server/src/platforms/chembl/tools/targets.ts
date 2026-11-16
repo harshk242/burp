@@ -68,9 +68,10 @@ export const tools: Tool[] = [
 
 async function handleSearchTargets(args: Record<string, unknown>) {
   const client = getClient();
-  const response = await client.get('/target/search.json', {
-    params: { q: args.query as string, limit: (args.limit as number) || 25 },
-  });
+  const params: Record<string, unknown> = { q: args.query, limit: (args.limit as number) || 25 };
+  if (args.target_type) params.target_type = args.target_type;
+  if (args.organism) params.organism = args.organism;
+  const response = await client.get('/target/search.json', { params });
   return response.data;
 }
 

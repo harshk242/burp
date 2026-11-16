@@ -80,6 +80,7 @@ export const tools: Tool[] = [
 async function handleSearchActivities(args: Record<string, unknown>) {
   const client = getClient();
   const params: Record<string, unknown> = { limit: (args.limit as number) || 25 };
+  if (args.assay_chembl_id) params.assay_chembl_id = args.assay_chembl_id;
   if (args.target_chembl_id) params.target_chembl_id = args.target_chembl_id;
   if (args.molecule_chembl_id) params.molecule_chembl_id = args.molecule_chembl_id;
   if (args.activity_type) params.standard_type = args.activity_type;

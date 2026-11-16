@@ -178,10 +178,15 @@ export function buildClinVarSearchTerm(params: {
     terms.push(`"${params.condition}"[dis]`);
   }
   if (params.clinicalSignificance) {
-    terms.push(`"${params.clinicalSignificance}"[clinsig]`);
+    const significance = params.clinicalSignificance.trim().toLowerCase().replace(/\s+/g, '_');
+    // NCBI's property vocabulary abbreviates uncertain significance as VUS.
+    terms.push(`clinsig_${significance === 'uncertain_significance' ? 'vus' : significance}[prop]`);
   }
   if (params.molecularConsequence) {
-    terms.push(`"${params.molecularConsequence}"[molecular consequence]`);
+    // ClinVar indexes donor and acceptor consequences separately.
+    terms.push(params.molecularConsequence === 'splice site variant'
+      ? '("splice donor variant"[mcns] OR "splice acceptor variant"[mcns])'
+      : `"${params.molecularConsequence}"[mcns]`);
   }
   if (params.reviewStatus) {
     terms.push(`"${params.reviewStatus}"[review status]`);

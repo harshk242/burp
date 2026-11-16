@@ -1,0 +1,234 @@
+{
+  "/data/pathway": [
+    {
+      "name": "name",
+      "in": "query",
+      "description": "the name of the Pathway",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "accessionId",
+      "in": "query",
+      "description": "the ClinPGx identifier of the Pathway",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "view",
+      "in": "query",
+      "description": "How much data to retrieve on the object",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "min",
+          "base",
+          "max"
+        ]
+      }
+    }
+  ],
+  "/data/gene": [
+    {
+      "name": "accessionId",
+      "in": "query",
+      "description": "the ClinPGx identifier of the Gene",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "symbol",
+      "in": "query",
+      "description": "the HGNC symbol for the gene",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "view",
+      "in": "query",
+      "description": "How much data to retrieve on the object",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "min",
+          "base",
+          "max"
+        ]
+      }
+    }
+  ],
+  "/data/gene/{id}": [
+    {
+      "name": "id",
+      "in": "path",
+      "description": "the Gene's ClinPGx accession identifier",
+      "required": true,
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "view",
+      "in": "query",
+      "description": "How much data to retrieve on the object",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "min",
+          "base",
+          "max"
+        ]
+      }
+    }
+  ],
+  "/data/chemical": [
+    {
+      "name": "accessionId",
+      "in": "query",
+      "description": "the ClinPGx identifier of the Chemical",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "name",
+      "in": "query",
+      "description": "the name of the Chemical",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "view",
+      "in": "query",
+      "description": "How much data to retrieve on the object",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "min",
+          "base",
+          "max"
+        ]
+      }
+    }
+  ],
+  "/data/chemical/{id}": [
+    {
+      "name": "id",
+      "in": "path",
+      "description": "the Chemical's ClinPGx accession identifier",
+      "required": true,
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "view",
+      "in": "query",
+      "description": "How much data to retrieve on the object",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "min",
+          "base",
+          "max"
+        ]
+      }
+    }
+  ],
+  "/data/variant/": [
+    {
+      "name": "symbol",
+      "in": "query",
+      "description": "the Variant's symbol, often the dbSNP RSID",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "view",
+      "in": "query",
+      "description": "How much data to retrieve on the object",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "min",
+          "base",
+          "max"
+        ]
+      }
+    }
+  ],
+  "/data/variant/{id}": [
+    {
+      "name": "id",
+      "in": "path",
+      "description": "the Variant's ClinPGx accession identifier",
+      "required": true,
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "view",
+      "in": "query",
+      "description": "How much data to retrieve on the object",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "min",
+          "base",
+          "max"
+        ]
+      }
+    }
+  ],
+  "/data/guidelineAnnotation": [
+    {
+      "name": "source",
+      "in": "query",
+      "description": "the source of the Guideline Annotation",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "cpic",
+          "dpwg",
+          "pro"
+        ]
+      }
+    },
+    {
+      "name": "relatedChemicals.accessionId",
+      "in": "query",
+      "description": "the accession ID of a chemical associated with the Guideline Annotation",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "relatedGenes.accessionId",
+      "in": "query",
+      "description": "the accession ID of a gene associated with the Guideline Annotation",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "view",
+      "in": "query",
+      "description": "How much data to retrieve on the object",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "min",
+          "base",
+          "max"
+        ]
+      }
+    }
+  ]
+}

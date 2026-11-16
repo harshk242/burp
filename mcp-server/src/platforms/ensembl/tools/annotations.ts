@@ -18,13 +18,15 @@ const isValidXrefArgs = (
 
 const isValidMapCoordinatesArgs = (
   args: any,
-): args is { region: string; species?: string; target_assembly: string } => {
+): args is { region: string; species?: string; source_assembly: string; target_assembly: string } => {
   return (
     typeof args === 'object' &&
     args !== null &&
     typeof args.region === 'string' &&
     args.region.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
+    typeof args.source_assembly === 'string' &&
+    args.source_assembly.length > 0 &&
     typeof args.target_assembly === 'string' &&
     args.target_assembly.length > 0
   );
@@ -59,9 +61,10 @@ export const tools: Tool[] = [
       properties: {
         region: { type: 'string', description: 'Genomic region (chr:start-end)' },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
+        source_assembly: { type: 'string', description: 'Source assembly name (e.g., GRCh38)' },
         target_assembly: { type: 'string', description: 'Target assembly name' },
       },
-      required: ['region', 'target_assembly'],
+      required: ['region', 'source_assembly', 'target_assembly'],
     },
   },
 ];
@@ -94,7 +97,7 @@ async function handleMapCoordinates(args: Record<string, unknown>) {
   const region = args.region;
 
   const response = await getClient().get(
-    `/map/coords/${species}/${args.target_assembly}/${region}`,
+    `/map/${species}/${args.source_assembly}/${region}/${args.target_assembly}`,
   );
   return response.data;
 }

@@ -153,7 +153,7 @@ export class PubMedClient {
       {
         db: params.db || 'pubmed',
         term: params.term,
-        retmax: params.retmax || 20,
+        retmax: params.retmax ?? 20,
         retstart: params.retstart || 0,
         sort: params.sort,
         datetype: params.datetype,
@@ -219,9 +219,10 @@ export class PubMedClient {
   ): Promise<{ count: number; pmids: string[]; queryTranslation: string }> {
     const result = await this.esearch({
       term: query,
-      retmax: options?.maxResults || 20,
+      retmax: options?.maxResults ?? 20,
       retstart: options?.start || 0,
-      sort: options?.sort,
+      sort: options?.sort ? ({ date: 'pub_date', first_author: 'Author', journal: 'JournalName' } as Record<string, string>)[options.sort] ?? options.sort : undefined,
+      datetype: options?.minDate || options?.maxDate ? 'pdat' : undefined,
       mindate: options?.minDate,
       maxdate: options?.maxDate,
     });

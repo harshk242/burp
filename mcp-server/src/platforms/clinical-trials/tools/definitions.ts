@@ -104,7 +104,17 @@ export const tools: Tool[] = [
         },
         filters: {
           type: 'object', description: 'Optional filters to apply',
-          properties: { condition: { type: 'string' }, phase: { type: 'string' }, status: { type: 'string' } },
+          properties: {
+            condition: { type: 'string' },
+            phase: PHASE_PROP,
+            status: {
+              type: 'string', description: 'Overall recruitment status',
+              enum: [
+                'RECRUITING', 'NOT_YET_RECRUITING', 'ACTIVE_NOT_RECRUITING', 'ENROLLING_BY_INVITATION',
+                'COMPLETED', 'SUSPENDED', 'TERMINATED', 'WITHDRAWN', 'UNKNOWN',
+              ],
+            },
+          },
         },
       },
     },

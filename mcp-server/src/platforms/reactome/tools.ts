@@ -10,11 +10,11 @@ export const tools: Tool[] = [
         query: { type: 'string', description: 'Search query (pathway name, process, keywords)' },
         type: {
           type: 'string',
-          enum: ['pathway', 'reaction', 'protein', 'complex', 'disease'],
-          description: 'Type of entity to search for (default: pathway)',
+          enum: ['Pathway', 'Reaction', 'Protein', 'Complex'],
+          description: 'Type of entity to search for (default: Pathway)',
         },
         size: {
-          type: 'number',
+          type: 'integer',
           description: 'Number of results to return (1-100, default: 20)',
           minimum: 1,
           maximum: 100,
@@ -49,7 +49,7 @@ export const tools: Tool[] = [
         },
         species: {
           type: 'string',
-          description: 'Species name or taxon ID (default: Homo sapiens)',
+          description: 'Exact species name (default: Homo sapiens)',
         },
       },
       required: ['gene'],
@@ -63,7 +63,7 @@ export const tools: Tool[] = [
       properties: {
         disease: { type: 'string', description: 'Disease name or DOID identifier' },
         size: {
-          type: 'number',
+          type: 'integer',
           description: 'Number of pathways to return (1-100, default: 25)',
           minimum: 1,
           maximum: 100,
@@ -112,11 +112,6 @@ export const tools: Tool[] = [
       type: 'object',
       properties: {
         pathwayId: { type: 'string', description: 'Reactome pathway stable identifier' },
-        interactionType: {
-          type: 'string',
-          enum: ['protein-protein', 'regulatory', 'catalysis', 'all'],
-          description: 'Type of interactions to retrieve (default: all)',
-        },
       },
       required: ['pathwayId'],
     },

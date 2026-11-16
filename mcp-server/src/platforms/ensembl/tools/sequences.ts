@@ -39,14 +39,12 @@ const isValidCdsArgs = (
 
 const isValidTranslateArgs = (
   args: any,
-): args is { sequence: string; genetic_code?: number } => {
+): args is { sequence: string } => {
   return (
     typeof args === 'object' &&
     args !== null &&
     typeof args.sequence === 'string' &&
-    args.sequence.length > 0 &&
-    (args.genetic_code === undefined ||
-      (typeof args.genetic_code === 'number' && args.genetic_code >= 1 && args.genetic_code <= 31))
+    args.sequence.length > 0
   );
 };
 
@@ -82,14 +80,14 @@ export const tools: Tool[] = [
           enum: ['json', 'fasta'],
           description: 'Output format (default: fasta)',
         },
+        multiple_sequences: {
+          type: 'boolean',
+          description: 'Return all matching sequences for an ID (default: false); only valid for ID requests',
+        },
         mask: {
           type: 'string',
           enum: ['hard', 'soft'],
           description: 'Repeat masking type (optional)',
-        },
-        multiple_sequences: {
-          type: 'boolean',
-          description: 'Return multiple sequences if applicable (default: false)',
         },
       },
       required: ['region'],
@@ -114,17 +112,11 @@ export const tools: Tool[] = [
   },
   {
     name: 'translate_sequence',
-    description: 'Translate DNA sequence to protein sequence',
+    description: 'Translate DNA sequence to protein sequence using the standard genetic code',
     inputSchema: {
       type: 'object',
       properties: {
         sequence: { type: 'string', description: 'DNA sequence to translate' },
-        genetic_code: {
-          type: 'number',
-          description: 'Genetic code table (default: 1 for standard)',
-          minimum: 1,
-          maximum: 31,
-        },
       },
       required: ['sequence'],
     },
@@ -170,18 +162,19 @@ async function fetchSingleSequence(args: {
   if (region.startsWith('ENS')) {
     endpoint = `/sequence/id/${region}`;
     params.type = 'genomic';
+    if (args.multiple_sequences !== undefined) params.multiple_sequences = args.multiple_sequences ? 1 : 0;
+    params.species = species;
   } else {
+    if (args.multiple_sequences !== undefined) throw new Error('multiple_sequences is only supported for ID-based sequence requests');
     endpoint = `/sequence/region/${species}/${region}`;
   }
 
   if (args.mask) {
     params.mask = args.mask;
   }
-  if (args.multiple_sequences) {
-    params.multiple_sequences = 1;
-  }
 
-  const response = await getClient().get(endpoint, { params });
+  params['content-type'] = args.format === 'json' ? 'application/json' : 'text/x-fasta';
+  const response = await getClient().get(endpoint, { params, headers: { 'Content-Type': String(params['content-type'] || 'application/json'), Accept: String(params['content-type'] || 'application/json') } });
   return response.data;
 }
 
@@ -200,7 +193,8 @@ async function handleGetCdsSequence(args: Record<string, unknown>) {
   const species = getDefaultSpecies(args.species);
 
   const response = await getClient().get(`/sequence/id/${args.transcript_id}`, {
-    params: { type: 'cds', species },
+    params: { type: 'cds', species, 'content-type': args.format === 'json' ? 'application/json' : 'text/x-fasta' },
+    headers: { 'Content-Type': args.format === 'json' ? 'application/json' : 'text/x-fasta', Accept: args.format === 'json' ? 'application/json' : 'text/x-fasta' },
   });
 
   return response.data;
@@ -211,7 +205,7 @@ async function handleTranslateSequence(args: Record<string, unknown>) {
     throw new Error('Invalid translate sequence arguments');
   }
 
-  const geneticCode = args.genetic_code || 1;
+  const geneticCode = 1;
 
   const codonTable: Record<string, string> = {
     TTT: 'F', TTC: 'F', TTA: 'L', TTG: 'L',

@@ -20,15 +20,10 @@ export async function getVariantAnnotations(
   const client = getClient();
 
   const variant = await client.getVariantInfo(variantId);
-  if (!variant || !variant.gene) {
-    return [];
-  }
-
-  const annotations = await client.getClinicalAnnotationsForGene(variant.gene);
-  return annotations.filter(annotation =>
-    annotation.variant?.toLowerCase().includes(variantId.toLowerCase()) ||
-    (variant.rsid && annotation.variant?.includes(variant.rsid))
-  );
+  if (!variant) return [];
+  const fingerprint = variant.rsid ?? variant.name;
+  if (!fingerprint) throw new Error('Variant response is missing a fingerprint');
+  return client.getClinicalAnnotationsForVariant(fingerprint);
 }
 
 export async function searchVariantsByGene(
@@ -55,9 +50,5 @@ export async function getVariantsWithAnnotations(
 
 export async function getStarAlleles(gene: string): Promise<VariantInfo[]> {
   const client = getClient();
-  const result = await client.searchVariants(`${gene}*`, 100);
-  return result.results.filter(variant =>
-    variant.name?.includes('*') &&
-    variant.gene?.toLowerCase() === gene.toLowerCase()
-  );
+  return client.getStarAlleles(gene);
 }

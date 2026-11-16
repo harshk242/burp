@@ -176,7 +176,7 @@ export default function HomePage() {
             Connected Databases
           </h2>
           <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-            210+ specialized tools across 10 biomedical databases, ready to answer
+            200+ specialized tools across 10 biomedical databases, ready to answer
             your research questions.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 max-w-4xl mx-auto">

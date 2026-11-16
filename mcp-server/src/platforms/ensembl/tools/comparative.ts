@@ -105,10 +105,10 @@ async function handleGetHomologs(args: Record<string, unknown>) {
     params.target_species = args.target_species;
   }
   if (format !== 'json') {
-    params.format = format;
+    params['content-type'] = 'text/xml';
   }
 
-  const response = await getClient().get(`/homology/id/${species}/${args.gene_id}`, { params });
+  const response = await getClient().get(`/homology/id/${species}/${args.gene_id}`, { params, headers: { 'Content-Type': format === 'xml' ? 'text/xml' : 'application/json', Accept: format === 'xml' ? 'text/xml' : 'application/json' } });
   return response.data;
 }
 
@@ -118,17 +118,17 @@ async function handleGetGeneTree(args: Record<string, unknown>) {
   }
 
   const format = args.format || 'json';
-  const endpoint = `/genetree/id/${args.gene_id}`;
+  const endpoint = `/genetree/member/id/${getDefaultSpecies(args.species)}/${args.gene_id}`;
   const params: Record<string, unknown> = {};
 
   if (args.clusterset_id) {
     params.clusterset_id = args.clusterset_id;
   }
   if (format !== 'json') {
-    params.format = format;
+    params["content-type"] = format === "newick" ? "text/x-nh" : "text/x-phyloxml+xml";
   }
 
-  const response = await getClient().get(endpoint, { params });
+  const response = await getClient().get(endpoint, { params, headers: { 'Content-Type': String(params['content-type'] || 'application/json'), Accept: String(params['content-type'] || 'application/json') } });
   return response.data;
 }
 

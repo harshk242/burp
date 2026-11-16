@@ -5,15 +5,14 @@ import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidGeneArgs = (
   args: any,
-): args is { gene_id: string; species?: string; expand?: boolean; format?: string } => {
+): args is { gene_id: string; species?: string; expand?: boolean } => {
   return (
     typeof args === 'object' &&
     args !== null &&
     typeof args.gene_id === 'string' &&
     args.gene_id.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.expand === undefined || typeof args.expand === 'boolean') &&
-    (args.format === undefined || ['json', 'fasta', 'gff'].includes(args.format))
+    (args.expand === undefined || typeof args.expand === 'boolean')
   );
 };
 
@@ -32,22 +31,20 @@ const isValidTranscriptArgs = (
 
 const isValidSearchArgs = (
   args: any,
-): args is { query: string; species?: string; feature?: string; biotype?: string; limit?: number } => {
+): args is { query: string; species?: string; biotype?: string } => {
   return (
     typeof args === 'object' &&
     args !== null &&
     typeof args.query === 'string' &&
     args.query.length > 0 &&
     (args.species === undefined || typeof args.species === 'string') &&
-    (args.feature === undefined || ['gene', 'transcript'].includes(args.feature)) &&
-    (args.biotype === undefined || typeof args.biotype === 'string') &&
-    (args.limit === undefined || (typeof args.limit === 'number' && args.limit > 0 && args.limit <= 200))
+    (args.biotype === undefined || typeof args.biotype === 'string')
   );
 };
 
 const isValidBatchArgs = (
   args: any,
-): args is { gene_ids: string[]; species?: string; format?: string } => {
+): args is { gene_ids: string[]; species?: string } => {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -55,8 +52,7 @@ const isValidBatchArgs = (
     args.gene_ids.length > 0 &&
     args.gene_ids.length <= 200 &&
     args.gene_ids.every((id: any) => typeof id === 'string' && id.length > 0) &&
-    (args.species === undefined || typeof args.species === 'string') &&
-    (args.format === undefined || ['json', 'xml'].includes(args.format))
+    (args.species === undefined || typeof args.species === 'string')
   );
 };
 
@@ -77,11 +73,6 @@ export const tools: Tool[] = [
         expand: {
           type: 'boolean',
           description: 'Include transcript and exon details (default: false)',
-        },
-        format: {
-          type: 'string',
-          enum: ['json', 'fasta', 'gff'],
-          description: 'Output format (default: json)',
         },
       },
       required: ['gene_id'],
@@ -116,20 +107,9 @@ export const tools: Tool[] = [
             'Gene symbol (e.g., BRCA1, TP53, EGFR). Returns Ensembl gene ID and details.',
         },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
-        feature: {
-          type: 'string',
-          enum: ['gene', 'transcript'],
-          description: 'Feature type to search (default: gene)',
-        },
         biotype: {
           type: 'string',
-          description: 'Filter by biotype (e.g., protein_coding, lncRNA)',
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum results (1-200, default: 25)',
-          minimum: 1,
-          maximum: 200,
+          description: 'Filter the exact symbol result locally by biotype (e.g., protein_coding, lncRNA)',
         },
       },
       required: ['query'],
@@ -149,11 +129,6 @@ export const tools: Tool[] = [
           maxItems: 200,
         },
         species: { type: 'string', description: 'Species name (default: homo_sapiens)' },
-        format: {
-          type: 'string',
-          enum: ['json', 'xml'],
-          description: 'Output format (default: json)',
-        },
       },
       required: ['gene_ids'],
     },
@@ -166,15 +141,11 @@ async function handleLookupGene(args: Record<string, unknown>) {
   }
 
   const species = getDefaultSpecies(args.species);
-  const format = args.format || 'json';
   const endpoint = `/lookup/id/${args.gene_id}`;
   const params: Record<string, unknown> = { species };
 
   if (args.expand) {
     params.expand = 1;
-  }
-  if (format !== 'json') {
-    params.format = format;
   }
 
   const response = await getClient().get(endpoint, { params });
@@ -215,13 +186,13 @@ async function handleSearchGenes(args: Record<string, unknown>) {
 
   try {
     const response = await getClient().get(`/lookup/symbol/${species}/${args.query}`, {
-      params: { object_type: args.feature || 'gene' },
+      params: {},
     });
 
     return {
       search_type: 'exact_symbol_match',
       note: 'REST API only supports exact gene symbol lookup, not fuzzy search',
-      result: response.data,
+      result: args.biotype && response.data.biotype !== args.biotype ? null : response.data,
     };
   } catch (error) {
     if (!(error instanceof UpstreamError) || (error.kind !== 'not_found' && error.kind !== 'bad_request')) {
@@ -239,14 +210,8 @@ async function handleBatchGeneLookup(args: Record<string, unknown>) {
   }
 
   const species = getDefaultSpecies(args.species);
-  const format = args.format || 'json';
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (format === 'xml') {
-    headers['Accept'] = 'text/xml';
-  } else {
-    headers['Accept'] = 'application/json';
-  }
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
 
   const response = await getClient().post(
     '/lookup/id',

@@ -1,4 +1,5 @@
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import { UpstreamError } from '../../shared/exceptions.js';
 import { GraphQLError, OpenTargetsAPIError } from './exceptions.js';
 import { filterNoneValues, generateCacheKey } from './utils.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
@@ -35,7 +36,6 @@ export function createOpenTargetsHttp(options: OpenTargetsHttpOptions = {}): Axi
     baseURL: options.baseUrl ?? OPEN_TARGETS_GRAPHQL_URL,
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
     },
     timeout: 30000,
     ...(options.adapter ? { adapter: options.adapter } : {}),
@@ -98,7 +98,14 @@ export class OpenTargetsClient {
         query,
         variables: cleanVariables,
       }
-    );
+    ).catch((error: unknown) => {
+      const cause = error instanceof UpstreamError ? error.cause : error;
+      const errors = axios.isAxiosError(cause) ? cause.response?.data?.errors : undefined;
+      if (Array.isArray(errors) && errors.some((e) => /Cannot query field|Unknown argument|Unknown type|Syntax Error|is never used/.test(e.message))) {
+        throw new GraphQLError('Open Targets query is incompatible with the upstream schema; the integration must be updated: ' + errors.map((e) => e.message).join('; '), errors);
+      }
+      throw error;
+    });
 
     const { data, errors } = response.data;
 

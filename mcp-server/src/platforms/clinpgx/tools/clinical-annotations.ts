@@ -45,8 +45,8 @@ export async function getAnnotationsByEvidenceLevel(
   }
 
   return annotations.filter(annotation => {
-    const level = annotation.levelOfEvidence || '4';
-    const levelIndex = levelOrder.indexOf(level);
+    const level = annotation.levelOfEvidence?.match(/(?:^|Level )(1A|1B|2A|2B|3|4)(?:\b|$)/)?.[1];
+    const levelIndex = levelOrder.indexOf(level ?? 'Unknown');
     return levelIndex !== -1 && levelIndex <= minLevelIndex;
   });
 }

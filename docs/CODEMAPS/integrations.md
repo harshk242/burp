@@ -10,18 +10,18 @@
 
 | Server | Lines | Files | Tools | API Target |
 |--------|-------|-------|-------|------------|
-| `open-targets` | 4,678 | 22 | 45+ | Open Targets GraphQL |
-| `pubmed` | 2,800 | 13 | 13 | NCBI E-utilities (XML) |
+| `open-targets` | 4,678 | 22 | 53 | Open Targets GraphQL |
+| `pubmed` | 2,800 | 13 | 15 | NCBI E-utilities (XML) |
 | `uniprot` | 2,432 | 2 | 26 | UniProt REST |
 | `clinvar` | 2,260 | 11 | 12 | NCBI ClinVar (XML) |
-| `clinpgx` | 2,224 | 12 | 16 | PharmGKB REST |
+| `clinpgx` | 2,224 | 12 | 19 | PharmGKB REST |
 | `chembl` | 1,971 | 1 | 27 | ChEMBL REST |
-| `clinical-trials` | 1,935 | 1 | 18 | ClinicalTrials.gov v2 |
-| `ensembl` | 1,647 | 1 | 25 | Ensembl REST |
-| `pubchem` | 1,237 | 1 | 24 | PubChem PUG REST |
+| `clinical-trials` | 1,935 | 1 | 17 | ClinicalTrials.gov v2 |
+| `ensembl` | 1,647 | 1 | 20 | Ensembl REST |
+| `pubchem` | 1,237 | 1 | 11 | PubChem PUG REST |
 | `reactome` | 1,073 | 1 | 8 | Reactome Content Service |
 
-**Total:** 210+ tools across all servers
+**Total:** 208 tools in the unified registry (counted from platform exports on 2026-11-13). Line/file counts above are historical.
 
 ## Architecture Patterns
 

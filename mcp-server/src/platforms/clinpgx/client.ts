@@ -2,8 +2,6 @@ import { decodeEnvelope, list } from './response-decoding.js';
 import { fetchDatabaseStats } from './database-stats.js';
 import { parseGeneInfo, parseDrugInfo, parseVariantInfo, parseClinicalAnnotation, parseDosingGuideline, parseDrugLabel, parsePathway } from './response-parsers.js';
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
-import { NotFoundError } from './exceptions.js';
-import { UpstreamError } from '../../shared/exceptions.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import {
@@ -96,17 +94,9 @@ export class PharmGKBClient {
       return decodeEnvelope(cachedEntry.data);
     }
 
-    let response;
-    try {
-      response = await this.axiosInstance.get(endpoint, {
-        params: filterNoneValues(params || {}),
-      });
-    } catch (error) {
-      if (error instanceof UpstreamError && error.status === 404) {
-        throw new NotFoundError(`Resource not found: ${endpoint}`);
-      }
-      throw error;
-    }
+    const response = await this.axiosInstance.get(endpoint, {
+      params: filterNoneValues(params || {}),
+    });
 
     const data = decodeEnvelope(response.data as unknown);
 
@@ -121,29 +111,18 @@ export class PharmGKBClient {
   async searchGenes(query: string, maxResults: number = 20): Promise<SearchResult<GeneInfo>> {
     query = query.trim();
     if (!query) throw new Error('Gene symbol query must not be blank; use listCPICGenes');
-    try {
-      const params: Record<string, unknown> = { symbol: query };
+    const params: Record<string, unknown> = { symbol: query };
 
-      const response = await this.request('/data/gene', params);
+    const response = await this.request('/data/gene', params);
 
-      const data = list(response.data);
-      const results: GeneInfo[] = data.slice(0, maxResults).map((gene) => parseGeneInfo(gene));
+    const data = list(response.data);
+    const results: GeneInfo[] = data.slice(0, maxResults).map((gene) => parseGeneInfo(gene));
 
-      return {
-        totalCount: response.total ?? data.length,
-        results,
-        query,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return {
-          totalCount: 0,
-          results: [],
-          query,
-        };
-      }
-      throw error;
-    }
+    return {
+      totalCount: response.total ?? data.length,
+      results,
+      query,
+    };
   }
 
   async listCPICGenes(maxResults: number = 100): Promise<SearchResult<GeneInfo>> {
@@ -153,274 +132,176 @@ export class PharmGKBClient {
   }
 
   async getGeneInfo(idOrSymbol: string): Promise<GeneInfo | null> {
-    try {
-      if (isPharmGKBAccession(idOrSymbol)) {
-        const response = await this.request(`/data/gene/${encodeURIComponent(idOrSymbol)}`);
-        return parseGeneInfo(response.data);
-      }
-
-      const response = await this.request('/data/gene', {
-        symbol: idOrSymbol,
-      });
-
-      const data = list(response.data);
-      if (data.length === 0) {
-        return null;
-      }
-
-      return parseGeneInfo(data[0]);
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return null;
-      }
-      throw error;
+    if (isPharmGKBAccession(idOrSymbol)) {
+      const response = await this.request(`/data/gene/${encodeURIComponent(idOrSymbol)}`);
+      return parseGeneInfo(response.data);
     }
+
+    const response = await this.request('/data/gene', {
+      symbol: idOrSymbol,
+    });
+
+    const data = list(response.data);
+    if (data.length === 0) {
+      return null;
+    }
+
+    return parseGeneInfo(data[0]);
   }
 
   async searchDrugs(query: string, maxResults: number = 20): Promise<SearchResult<DrugInfo>> {
-    try {
-      if (!query || !query.trim()) {
-        return {
-          totalCount: 0,
-          results: [],
-          query: query || '',
-        };
-      }
-
-      const response = await this.request('/data/chemical', {
-        name: query,
-      });
-
-      const data = list(response.data);
-      const results: DrugInfo[] = data.slice(0, maxResults).map((drug) => parseDrugInfo(drug));
-
+    if (!query || !query.trim()) {
       return {
-        totalCount: response.total ?? data.length,
-        results,
-        query,
+        totalCount: 0,
+        results: [],
+        query: query || '',
       };
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return {
-          totalCount: 0,
-          results: [],
-          query,
-        };
-      }
-      throw error;
     }
+
+    const response = await this.request('/data/chemical', {
+      name: query,
+    });
+
+    const data = list(response.data);
+    const results: DrugInfo[] = data.slice(0, maxResults).map((drug) => parseDrugInfo(drug));
+
+    return {
+      totalCount: response.total ?? data.length,
+      results,
+      query,
+    };
   }
 
   async getDrugInfo(idOrName: string): Promise<DrugInfo | null> {
-    try {
-      if (isPharmGKBAccession(idOrName)) {
-        const response = await this.request(`/data/chemical/${encodeURIComponent(idOrName)}`);
-        return parseDrugInfo(response.data);
-      }
-
-      const response = await this.request('/data/chemical', {
-        name: idOrName,
-      });
-
-      const data = list(response.data);
-      if (data.length === 0) {
-        return null;
-      }
-
-      return parseDrugInfo(data[0]);
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return null;
-      }
-      throw error;
+    if (isPharmGKBAccession(idOrName)) {
+      const response = await this.request(`/data/chemical/${encodeURIComponent(idOrName)}`);
+      return parseDrugInfo(response.data);
     }
+
+    const response = await this.request('/data/chemical', {
+      name: idOrName,
+    });
+
+    const data = list(response.data);
+    if (data.length === 0) {
+      return null;
+    }
+
+    return parseDrugInfo(data[0]);
   }
 
   async searchVariants(query: string, maxResults: number = 20): Promise<SearchResult<VariantInfo>> {
-    try {
-      if (!query || !query.trim()) {
-        return {
-          totalCount: 0,
-          results: [],
-          query: query || '',
-        };
-      }
-
-      const response = await this.request('/data/variant', {
-        symbol: query,
-      });
-
-      const data = list(response.data);
-      const results: VariantInfo[] = data.slice(0, maxResults).map((variant) => parseVariantInfo(variant));
-
+    if (!query || !query.trim()) {
       return {
-        totalCount: response.total ?? data.length,
-        results,
-        query,
+        totalCount: 0,
+        results: [],
+        query: query || '',
       };
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return {
-          totalCount: 0,
-          results: [],
-          query,
-        };
-      }
-      throw error;
     }
+
+    const response = await this.request('/data/variant', {
+      symbol: query,
+    });
+
+    const data = list(response.data);
+    const results: VariantInfo[] = data.slice(0, maxResults).map((variant) => parseVariantInfo(variant));
+
+    return {
+      totalCount: response.total ?? data.length,
+      results,
+      query,
+    };
   }
 
   async getVariantInfo(idOrRsId: string): Promise<VariantInfo | null> {
-    try {
-      if (isPharmGKBAccession(idOrRsId)) {
-        const response = await this.request(`/data/variant/${encodeURIComponent(idOrRsId)}`);
-        return parseVariantInfo(response.data);
-      }
-
-      const response = await this.request('/data/variant', {
-        symbol: idOrRsId,
-      });
-
-      const data = list(response.data);
-      if (data.length === 0) {
-        return null;
-      }
-
-      return parseVariantInfo(data[0]);
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return null;
-      }
-      throw error;
+    if (isPharmGKBAccession(idOrRsId)) {
+      const response = await this.request(`/data/variant/${encodeURIComponent(idOrRsId)}`);
+      return parseVariantInfo(response.data);
     }
+
+    const response = await this.request('/data/variant', {
+      symbol: idOrRsId,
+    });
+
+    const data = list(response.data);
+    if (data.length === 0) {
+      return null;
+    }
+
+    return parseVariantInfo(data[0]);
   }
 
   async getClinicalAnnotationsForGene(gene: string): Promise<ClinicalAnnotation[]> {
-    try {
-      const response = await this.request('/data/clinicalAnnotation', {
-        'location.genes.symbol': gene,
-      });
+    const response = await this.request('/data/clinicalAnnotation', {
+      'location.genes.symbol': gene,
+    });
 
-      const data = list(response.data);
-      return data.map((annotation) => parseClinicalAnnotation(annotation));
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return [];
-      }
-      throw error;
-    }
+    const data = list(response.data);
+    return data.map((annotation) => parseClinicalAnnotation(annotation));
   }
 
   async getClinicalAnnotationsForDrug(drug: string): Promise<ClinicalAnnotation[]> {
-    try {
-      const response = await this.request('/data/clinicalAnnotation', {
-        'relatedChemicals.name': drug,
-      });
+    const response = await this.request('/data/clinicalAnnotation', {
+      'relatedChemicals.name': drug,
+    });
 
-      const data = list(response.data);
-      return data.map((annotation) => parseClinicalAnnotation(annotation));
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return [];
-      }
-      throw error;
-    }
+    const data = list(response.data);
+    return data.map((annotation) => parseClinicalAnnotation(annotation));
   }
 
   async getDrugGeneAnnotations(drug: string, gene: string): Promise<ClinicalAnnotation[]> {
-    try {
-      const response = await this.request('/data/clinicalAnnotation', {
-        'relatedChemicals.name': drug,
-        'location.genes.symbol': gene,
-      });
+    const response = await this.request('/data/clinicalAnnotation', {
+      'relatedChemicals.name': drug,
+      'location.genes.symbol': gene,
+    });
 
-      const data = list(response.data);
-      return data.map((annotation) => parseClinicalAnnotation(annotation));
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return [];
-      }
-      throw error;
-    }
+    const data = list(response.data);
+    return data.map((annotation) => parseClinicalAnnotation(annotation));
   }
 
   async getDosingGuidelinesForGene(gene: string): Promise<DosingGuideline[]> {
-    try {
-      const response = await this.request('/data/guidelineAnnotation', {
-        'relatedGenes.symbol': gene,
-      });
+    const response = await this.request('/data/guidelineAnnotation', {
+      'relatedGenes.symbol': gene,
+    });
 
-      const data = list(response.data);
-      return data.map((guideline) => parseDosingGuideline(guideline));
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return [];
-      }
-      throw error;
-    }
+    const data = list(response.data);
+    return data.map((guideline) => parseDosingGuideline(guideline));
   }
 
   async getDosingGuidelinesForDrug(drug: string): Promise<DosingGuideline[]> {
-    try {
-      const response = await this.request('/data/guidelineAnnotation', {
-        'relatedChemicals.name': drug,
-      });
+    const response = await this.request('/data/guidelineAnnotation', {
+      'relatedChemicals.name': drug,
+    });
 
-      const data = list(response.data);
-      return data.map((guideline) => parseDosingGuideline(guideline));
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return [];
-      }
-      throw error;
-    }
+    const data = list(response.data);
+    return data.map((guideline) => parseDosingGuideline(guideline));
   }
 
   async getDrugLabels(drug: string): Promise<DrugLabel[]> {
-    try {
-      const response = await this.request('/data/labelAnnotation', {
-        'relatedChemicals.name': drug,
-      });
+    const response = await this.request('/data/labelAnnotation', {
+      'relatedChemicals.name': drug,
+    });
 
-      const data = list(response.data);
-      return data.map((label) => parseDrugLabel(label));
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return [];
-      }
-      throw error;
-    }
+    const data = list(response.data);
+    return data.map((label) => parseDrugLabel(label));
   }
 
-  async getPathways(query?: string): Promise<Pathway[]> {
-    try {
-      const params = query ? { 'genes.symbol': query } : { cpicGene: true };
-      const response = await this.request('/data/pathway', params);
+  async getPathways(query: string): Promise<Pathway[]> {
+    if (typeof query !== 'string' || !query.trim()) throw new Error('get_pathways requires a nonblank gene symbol in query');
+    const params = { 'genes.symbol': query.trim() };
+    const response = await this.request('/data/pathway', params);
 
-      const data = list(response.data);
-      return data.map(parsePathway);
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return [];
-      }
-      throw error;
-    }
+    const data = list(response.data);
+    return data.map(parsePathway);
   }
 
   async getGenePathways(gene: string): Promise<Pathway[]> {
-    try {
-      const response = await this.request('/data/pathway', {
-        'genes.symbol': gene,
-      });
+    const response = await this.request('/data/pathway', {
+      'genes.symbol': gene,
+    });
 
-      const data = list(response.data);
-      return data.map(parsePathway);
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return [];
-      }
-      throw error;
-    }
+    const data = list(response.data);
+    return data.map(parsePathway);
   }
 
   async getDrugGeneInteractions(gene: string): Promise<DrugGeneInteraction[]> {
@@ -459,6 +340,16 @@ export class PharmGKBClient {
     }
 
     return Array.from(interactionMap.values());
+  }
+
+  async getClinicalAnnotationsForVariant(fingerprint: string): Promise<ClinicalAnnotation[]> {
+    const response = await this.request('/data/clinicalAnnotation', { 'location.fingerprint': fingerprint });
+    return list(response.data).map(parseClinicalAnnotation);
+  }
+
+  async getStarAlleles(gene: string): Promise<VariantInfo[]> {
+    const response = await this.request('/data/haplotype', { 'gene.symbol': gene });
+    return list(response.data).map(parseVariantInfo).filter(allele => allele.name?.includes('*'));
   }
 
   async getDatabaseStats() {

@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
 import { CLINPGX_POLICY, PHARMGKB_BASE_URL, createClinPGxHttp } from '../client.js';
+import { pacedTransport } from './live-pacing.js';
 
 const BASE = PHARMGKB_BASE_URL;
 const CLINPGX_CONTRACT_TIMEOUT_MS = 150_000;
@@ -12,7 +13,7 @@ const CONTRACT_OVERRIDES = {
   jitter: 0,
 };
 
-const http = createClinPGxHttp({ policy: { ...CLINPGX_POLICY, ...CONTRACT_OVERRIDES } });
+const http = createClinPGxHttp({ policy: { ...CLINPGX_POLICY, ...CONTRACT_OVERRIDES }, adapter: pacedTransport });
 
 async function fetchJson(url: string, params?: Record<string, string>): Promise<unknown> {
   const res = await http.get(url, { params });

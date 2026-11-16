@@ -1,3 +1,4 @@
+import { paginateTargetLists } from './target/pagination.js';
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
 
@@ -126,11 +127,11 @@ export async function getVariantPharmacogenomics(
 ): Promise<unknown> {
   const client = getClient();
   const query = `
-    query VariantPharmacogenomics($variantId: String!, $pageIndex: Int!, $pageSize: Int!) {
+    query VariantPharmacogenomics($variantId: String!) {
       variant(variantId: $variantId) {
         id
         rsIds
-        pharmacogenomics(page: {index: $pageIndex, size: $pageSize}) {
+        pharmacogenomics {
           variantId
           variantRsId
           variantFunctionalConsequenceId
@@ -171,7 +172,7 @@ export async function getVariantPharmacogenomics(
       }
     }
   `;
-  return client.query(query, { variantId, pageIndex, pageSize });
+  return paginateTargetLists(await client.query(query, { variantId }), ['pharmacogenomics'], pageIndex, pageSize, 'variant');
 }
 
 export async function getVariantEvidences(
@@ -252,7 +253,7 @@ export async function getVariantIntervals(
         rsIds
         chromosome
         position
-        intervals(page: {index: $pageIndex, size: $pageSize}) {
+        enhancerToGenes(page: {index: $pageIndex, size: $pageSize}) {
           count
           rows {
             chromosome
