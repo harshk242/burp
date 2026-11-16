@@ -11,8 +11,10 @@ export const samples: Samples = {
   minMass: 10000, maxMass: 250000, keywords: ['Kinase'],
 };
 export function argVariants(tool: Tool) {
-  // Excluding TP53 itself leaves no other reviewed human ortholog; use mouse.
-  const result = variants(tool, tool.name === 'get_protein_orthologs' ? { ...samples, organism: 'Mus musculus' } : samples);
+  // Homologs match the exact protein name and orthologs the primary gene. Excluding
+  // TP53 itself leaves no other reviewed human match for either; use mouse.
+  const mouse = ['get_protein_homologs', 'get_protein_orthologs'].includes(tool.name);
+  const result = variants(tool, mouse ? { ...samples, organism: 'Mus musculus' } : samples);
   // These schemas cannot express their at-least-one constraint. Keep the empty
   // required-only case and test its validation, plus both valid minimal choices.
   const alternatives = tool.name === 'search_by_function' ? ['goTerm', 'function']
@@ -22,6 +24,17 @@ export function argVariants(tool: Tool) {
 }
 export const rejectsEmpty = (name: string, args: Record<string, unknown>) =>
   ['search_by_function', 'search_by_taxonomy'].includes(name) && Object.keys(args).length === 0;
-export const clientSide = {
-  format: 'Comparison TSV is rendered locally from the same JSON protein entries; output tested in both formats.',
+export const clientSide: Record<string, Record<string, string>> = {
+  compare_proteins: {
+    format: 'Comparison TSV is rendered locally from the same JSON protein entries; output tested in both formats.',
+  },
+  // UniProt ignores fields= for XML, so these request projected JSON and build XML
+  // locally (search.test.ts and entries.test.ts parse the XML output).
+  search_proteins: { 'format="xml"': 'Summary XML is built locally from the field-projected JSON search.' },
+  get_protein_info: { 'format="xml"': 'Slim XML is built locally from the field-projected JSON entry.' },
+};
+// batch_protein_lookup de-duplicates accessions before one /uniprotkb/accessions
+// request, so the generic duplicated-array alternative would not change it.
+export const alternatives: Record<string, Record<string, unknown>> = {
+  batch_protein_lookup: { accessions: ['P38398', 'P04637-2'] },
 };

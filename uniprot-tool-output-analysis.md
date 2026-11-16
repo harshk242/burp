@@ -1,3 +1,5 @@
+> Historical analysis: resolved by the UniProt summary/entry projections and compact JSON/raw text serialization (a177499, 27eaf71, b33fa5f). UniProt is enabled; see [current integration behavior](docs/CODEMAPS/integrations.md).
+
 # UniProt Tool Output Analysis for Noise Reduction Design
 
 **Date**: 2026-03-29

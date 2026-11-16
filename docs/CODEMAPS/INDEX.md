@@ -10,7 +10,7 @@ A unified AI research platform connecting 10 biomedical databases via MCP server
 |------|-------|-------|-----------------|
 | [Backend](./backend.md) | 16 | 4,079 | `app/server/` |
 | [Frontend](./frontend.md) | 45 | 2,985 | `app/web/` |
-| [Integrations](./integrations.md) | 65 | 22,257 | `mcp-servers/` |
+| [Integrations](./integrations.md) | — | — | `mcp-server/src/platforms/` |
 | [Database](./database.md) | 27 | ~2,000 | `app/server/db/` |
 
 ## Repository Structure
@@ -31,7 +31,7 @@ burp/
 │       ├── stores/              #   Zustand state
 │       ├── hooks/               #   Custom hooks
 │       └── lib/                 #   Utilities (SSE, etc.)
-├── mcp-servers/                 # 10 biomedical MCP servers
+├── mcp-server/src/platforms/     # 10 biomedical platforms in one MCP server
 │   ├── open-targets/            #   Target-disease-drug associations
 │   ├── ensembl/                 #   Genes, transcripts, sequences
 │   ├── chembl/                  #   Compounds, bioactivity, drugs
@@ -41,7 +41,7 @@ burp/
 │   ├── pubmed/                  #   Literature, citations, MeSH
 │   ├── reactome/                #   Pathways, reactions
 │   ├── clinpgx/                 #   Pharmacogenomics, dosing
-│   └── uniprot/                 #   Protein sequences, domains
+│   └── uniprot/                 #   Protein summaries, annotations, variants, sequences
 ├── data/                        # SQLite database (app.db)
 ├── docs/                        # Documentation & reports
 ├── .mcp.json                    # MCP server launch config
@@ -67,4 +67,4 @@ Review each area file and update manually, or re-run the exploration.
 - [Frontend](./frontend.md) — UI components, pages, state, hooks
 - [Backend](./backend.md) — API routes, orchestration, MCP management
 - [Database](./database.md) — Schema, queries, migrations
-- [Integrations](./integrations.md) — 10 MCP biomedical database servers
+- [Integrations](./integrations.md) — 10 biomedical database platforms in the unified MCP server

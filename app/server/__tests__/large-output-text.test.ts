@@ -21,6 +21,29 @@ const inspect = createInspectArtifactTool("text-session");
 const options = { toolCallId: "inspect", messages: [], context: undefined };
 
 describe("large text artifacts", () => {
+  it.each(['##gff-version 3\n', '>P38398\n', '<protein>\n', 'id\tname\n', '{not JSON}\n', '[not JSON]\n'])(
+    "preserves raw %j text inline and in pageable artifacts",
+    async (header) => {
+      const inline = header + '🧬é\n';
+      expect((await handleLargeOutput("demo__export", {}, inline, "text-session", {})).output).toBe(inline);
+      const text = header + '🧬é\n'.repeat(appConfig.artifact.inline_max_chars);
+      const result = await handleLargeOutput("demo__export", {}, text, "text-session", {});
+      expect(JSON.parse(result.output)._meta.artifact_type).toBe("text");
+      const range = await inspect.execute!({ artifact_id: result.artifactId!, text_range: { start: 0, length: 100 } }, options as never);
+      expect(JSON.parse(range as string).text).toBe(text.slice(0, 100));
+    },
+  );
+
+  it.each([{ value: "x".repeat(20_000) }, ["x".repeat(20_000)]])(
+    "retains JSON artifact handling for raw strings containing valid JSON",
+    async (value) => {
+      const result = await handleLargeOutput("demo__json", {}, JSON.stringify(value), "text-session", {});
+      expect(result.handling).toBe("artifact");
+      expect(q.artifactQueries.findForSession(result.artifactId!, "text-session")!.artifact_type).toBe("json");
+      expect((await artifactStore.query(result.artifactId!, "text-session", ".")).error).toBeUndefined();
+    },
+  );
+
   it("preserves multi-document MCP output across DB reload and bounded range inspection", async () => {
     const text = '{"document":1}\n{"document":2}\n' + "🧬漢é\n".repeat(appConfig.artifact.inline_max_chars) + "FINAL RECORD";
     const result = await handleLargeOutput("demo__documents", {}, text, "text-session", {});

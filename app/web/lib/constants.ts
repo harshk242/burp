@@ -12,7 +12,7 @@ export const DATABASE_LABELS: Record<string, string> = {
 };
 
 export const DATABASE_DESCRIPTIONS: Record<string, string> = {
-  uniprot: "Protein sequences, structures, and annotations",
+  uniprot: "Reviewed protein summaries, sequences, and focused annotations",
   chembl: "Drug compounds, bioactivity, and pharmacology data",
   pubchem: "Chemical structures, properties, and bioassays",
   ensembl: "Genomic sequences, gene annotations, and variants",

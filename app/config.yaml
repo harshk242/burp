@@ -131,10 +131,9 @@ platforms:
     always_loaded_tools: []
 
   uniprot:
-    enabled: false
+    enabled: true
     always_loaded_tools:
       - search_by_gene
-      - get_external_references
 
 artifact:
   inline_max_chars: 15000
@@ -155,9 +154,7 @@ artifact:
     platforms:
       uniprot:
         noise_filters:
-          - "if .results then .results |= map(del(.sequence.value)) else del(.sequence.value) end"
           - "del(.. | .evidences?)"
-          - "if .results then .results |= .[:10] else . end"
       chembl:
         noise_filters:
           - "if .molecules then .molecules |= .[:25] else . end"

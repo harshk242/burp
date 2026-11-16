@@ -1,3 +1,5 @@
+> Historical analysis: resolved by the UniProt summary/entry projections and compact JSON/raw text serialization (a177499, 27eaf71, b33fa5f). UniProt is enabled; see [current integration behavior](CODEMAPS/integrations.md).
+
 # UniProt Data Extraction Plan
 
 Covers how to call `search_by_gene`, filter the response down to relevant entries,

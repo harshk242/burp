@@ -56,7 +56,9 @@ function errorResult(error: unknown): CallToolResult {
 async function runTool(name: string, handler: ToolHandler, args: Record<string, unknown>): Promise<CallToolResult> {
   try {
     const result = await handler(args);
-    const serialized = JSON.stringify(result, null, 2);
+    // Preserve text formats verbatim; JSON data needs no display indentation.
+    // Measure the exact text payload below, after serialization.
+    const serialized = typeof result === 'string' ? result : JSON.stringify(result);
     const sizeBytes = Buffer.byteLength(serialized, 'utf-8');
 
     if (sizeBytes > SERVER_HARD_CAP_BYTES) {

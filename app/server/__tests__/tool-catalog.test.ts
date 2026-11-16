@@ -54,6 +54,13 @@ afterEach(() => {
 afterAll(() => t.sqlite.close());
 
 describe("buildToolCatalog (anthropic)", () => {
+  it("loads the UniProt gene bridge and defers detailed reference lookup", () => {
+    register(["uniprot__search_by_gene", "uniprot__get_external_references"]);
+    const tools = buildToolCatalog("anthropic", identity, "s1");
+    expect(deferred(tools, "uniprot__search_by_gene")).toBe(false);
+    expect(deferred(tools, "uniprot__get_external_references")).toBe(true);
+  });
+
   it("declares every registered tool, available or not, sorted by name", () => {
     const tools = buildToolCatalog("anthropic", identity, "s1");
     const keys = Object.keys(tools);
