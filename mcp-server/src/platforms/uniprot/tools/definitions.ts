@@ -102,7 +102,7 @@ export const tools: Tool[] = [
 
   {
     name: 'get_protein_info',
-    description: 'Get detailed information for a specific protein by UniProt accession',
+    description: 'Get curated protein details without evidence arrays, literature citations or raw sequence. Use get_literature_references, get_protein_features and get_protein_sequence for these details. XML uses the same slim protein schema.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -159,7 +159,7 @@ export const tools: Tool[] = [
   },
   {
     name: 'get_protein_variants',
-    description: 'Disease-associated variants and mutations',
+    description: 'All natural variants and mutagenesis, without evidence arrays, with counts. diseaseVariants matches whole DISEASE comment acronyms in descriptions; this is not a pathogenicity classification.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -262,16 +262,16 @@ export const tools: Tool[] = [
 
   {
     name: 'batch_protein_lookup',
-    description: 'Process multiple accessions efficiently',
+    description: 'Compact per-entry summaries in one search request (missing accessions reported individually). TSV summaries or FASTA sequences also supported; FASTA is limited to 10 accessions.',
     inputSchema: {
       type: 'object',
       properties: {
         accessions: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Array of UniProt accession numbers (1-100)',
+          description: 'Array of UniProt accession numbers (1-25)',
           minItems: 1,
-          maxItems: 100,
+          maxItems: 25,
         },
         format: { type: 'string', enum: ['json', 'tsv', 'fasta'], description: 'Output format (default: json)' },
       },
@@ -280,7 +280,7 @@ export const tools: Tool[] = [
   },
   {
     name: 'get_external_references',
-    description: 'Links to other databases (PDB, EMBL, RefSeq, etc.)',
+    description: 'External references grouped by database (including PDB, EMBL, RefSeq, Ensembl and GO), with per-database counts and no duplicated arrays.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -302,7 +302,7 @@ export const tools: Tool[] = [
   },
   {
     name: 'get_annotation_confidence',
-    description: 'Quality scores for different annotations',
+    description: 'Quality scores, reference count and counts per ECO evidence code across feature annotations.',
     inputSchema: {
       type: 'object',
       properties: {
