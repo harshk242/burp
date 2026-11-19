@@ -12,7 +12,7 @@ import { useSessionStore } from "@/stores/sessionStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useApi } from "@/hooks/useApi";
 import { buildChatUrl } from "@/lib/chatUrl";
-import type { SessionListResponse } from "@/types";
+import { sessionListResponseSchema } from "@/lib/api-schemas";
 
 export function Sidebar() {
   const { get, patch, delete: del } = useApi();
@@ -34,7 +34,7 @@ export function Sidebar() {
     async function fetchSessions() {
       setLoading(true);
       try {
-        const data = await get<SessionListResponse>("/sessions");
+        const data = await get("/sessions", sessionListResponseSchema);
         setSessions(data.sessions);
       } catch (error) {
         console.error("Failed to fetch sessions:", error);

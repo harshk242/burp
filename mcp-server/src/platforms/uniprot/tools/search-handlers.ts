@@ -1,4 +1,5 @@
 import type { ToolHandler } from '../../../types.js';
+import { optionalStringArray } from '../../../shared/args.js';
 import { andQuery, quoteQuery, reviewedQuery, searchSummaries } from '../search-fields.js';
 import { resolveOrganismFilter, resolveSpeciesFilter } from '../extractors.js';
 
@@ -20,11 +21,6 @@ function optNumber(args: Record<string, unknown>, key: string): number | undefin
   return typeof v === 'number' ? v : undefined;
 }
 
-function optStringArray(args: Record<string, unknown>, key: string): string[] | undefined {
-  const v = args[key];
-  return Array.isArray(v) ? (v as string[]) : undefined;
-}
-
 const handleSearchProteins: ToolHandler = async (args) => {
   const query_base = requireString(args, 'query', 'search_proteins');
   const organism = optString(args, 'organism');
@@ -41,7 +37,7 @@ const handleSearchProteins: ToolHandler = async (args) => {
 
 const handleSearchByGene: ToolHandler = async (args) => {
   const gene = requireString(args, 'gene', 'search_by_gene');
-  const species = optStringArray(args, 'species');
+  const species = optionalStringArray(args, 'species');
   const size = args.size;
 
   let query = `${reviewedQuery(args)} AND gene:${quoteQuery(gene)}`;
@@ -105,7 +101,7 @@ const handleAdvancedSearch: ToolHandler = async (args) => {
   const maxLength = optNumber(args, 'maxLength');
   const minMass = optNumber(args, 'minMass');
   const maxMass = optNumber(args, 'maxMass');
-  const keywords = optStringArray(args, 'keywords');
+  const keywords = optionalStringArray(args, 'keywords');
   const size = args.size;
 
   let query = andQuery([

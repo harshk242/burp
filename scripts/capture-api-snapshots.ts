@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { extractSchema, type SchemaNode } from '../mcp-server/src/shared/schema.js';
+import { isRecord } from '../mcp-server/src/shared/json.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.join(
@@ -44,8 +45,9 @@ async function graphql(
     signal: AbortSignal.timeout(25_000),
   });
   if (!res.ok) throw new Error(`POST ${url} failed: ${res.status} ${res.statusText}`);
-  const json = (await res.json()) as { data?: unknown; errors?: unknown[] };
-  if (json.errors?.length) {
+  const json: unknown = await res.json();
+  if (!isRecord(json)) throw new Error(`POST ${url}: expected a JSON object`);
+  if (Array.isArray(json.errors) && json.errors.length > 0) {
     throw new Error(`GraphQL errors: ${JSON.stringify(json.errors)}`);
   }
   return json.data;
@@ -193,7 +195,7 @@ async function main(): Promise<void> {
     try {
       await fn();
     } catch (err) {
-      console.error(`\n❌  ${name} failed:`, (err as Error).message);
+      console.error(`\n❌  ${name} failed:`, err instanceof Error ? err.message : String(err));
       failed.push(name);
     }
   }

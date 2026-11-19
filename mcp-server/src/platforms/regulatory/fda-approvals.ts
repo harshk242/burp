@@ -1,6 +1,7 @@
 import {
   anyOf, applicationNumbers, dailyMedUrl, drugNameQuery, excerpt, isoDate, labelNameQuery, openFdaGet, phrase, sectionText,
 } from './openfda-query.js';
+import { decodeDrugsFdaRecord, decodeLabelRecord } from './decode.js';
 import type { DrugsFdaRecord, FdaApplication, FdaLabelSummary, FdaSubmission, LabelRecord } from './types.js';
 
 export interface ApprovalSearchArgs {
@@ -132,7 +133,7 @@ async function fetchApplications(numbers: string[]): Promise<Map<string, DrugsFd
   const found = new Map<string, DrugsFdaRecord>();
   for (let i = 0; i < numbers.length; i += BATCH) {
     const chunk = numbers.slice(i, i + BATCH);
-    const page = await openFdaGet<DrugsFdaRecord>('drugsfda', anyOf('application_number', chunk), { limit: chunk.length });
+    const page = await openFdaGet('drugsfda', anyOf('application_number', chunk), { limit: chunk.length }, decodeDrugsFdaRecord);
     for (const record of page.results) if (record.application_number) found.set(record.application_number, record);
   }
   return found;
@@ -145,7 +146,7 @@ interface Collected {
 }
 
 async function fromLabels(search: string, term: string | undefined, notes: string[]): Promise<Collected> {
-  const labels = await openFdaGet<LabelRecord>('label', search, { limit: LABEL_PAGE, sort: 'effective_time:desc' });
+  const labels = await openFdaGet('label', search, { limit: LABEL_PAGE, sort: 'effective_time:desc' }, decodeLabelRecord);
   if (labels.total > labels.results.length) {
     notes.push(`${labels.total} labels matched; only the ${labels.results.length} most recently updated were scanned. Narrow the query to see the rest.`);
   }
@@ -160,7 +161,7 @@ async function fromLabels(search: string, term: string | undefined, notes: strin
 }
 
 async function fromDrugsFda(search: string, limit: number, notes: string[]): Promise<Collected> {
-  const page = await openFdaGet<DrugsFdaRecord>('drugsfda', search, { limit });
+  const page = await openFdaGet('drugsfda', search, { limit }, decodeDrugsFdaRecord);
   if (page.total > page.results.length) notes.push(`${page.total} applications matched; only ${page.results.length} were scanned. Narrow the query.`);
   return { applications: page.results.map(normalizeApplication), lastUpdated: page.lastUpdated, notes };
 }

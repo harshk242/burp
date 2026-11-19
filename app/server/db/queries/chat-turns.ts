@@ -7,15 +7,15 @@ export type ChatTurnStatus = DbChatTurn["status"];
 
 export interface ChatTurnOutcome {
   status: Exclude<ChatTurnStatus, "running">;
-  errorCode?: string | null;
-  errorMessage?: string | null;
+  errorCode?: string | null | undefined;
+  errorMessage?: string | null | undefined;
   iterations: number;
-  assistantMessageId?: string | null;
+  assistantMessageId?: string | null | undefined;
   lastPromptTokens?: number | null | undefined;
   lastInputMessageCount?: number | null | undefined;
   lastInputIdentity?: string | null | undefined;
-  finalFinishReason?: string | null;
-  toolErrorCount?: number;
+  finalFinishReason?: string | null | undefined;
+  toolErrorCount?: number | undefined;
 }
 
 export function createChatTurnQueries(db: DrizzleDb) {

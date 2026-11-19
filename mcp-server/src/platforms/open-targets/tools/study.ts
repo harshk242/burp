@@ -1,5 +1,6 @@
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
+import { path } from '../../../shared/json.js';
 
 export async function getStudyInfo(studyId: string): Promise<unknown> {
   const client = getClient();
@@ -334,10 +335,10 @@ export async function getCredibleSets(
   // unfiltered result is empty, causing timeouts. Check emptiness before the
   // expensive selection, preserving the complete response for nonempty results.
   if (![studyLocusIds, studyIds, variantIds, studyTypes, regions].some((ids) => ids?.length)) {
-    const summary = await client.query<{ credibleSets?: { count: number } }>(
+    const summary = await client.query(
       'query CredibleSetsCount { credibleSets(page: {index: 0, size: 10}) { count } }',
     );
-    if (summary.credibleSets?.count === 0) return { credibleSets: { count: 0, rows: [] } };
+    if (path(summary, 'credibleSets', 'count') === 0) return { credibleSets: { count: 0, rows: [] } };
   }
   const query = `
     query CredibleSets(

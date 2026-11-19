@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createTestDb, type TestDb } from "../__test-utils__/db";
 import { createQueries, type Queries } from "../db/queries";
+import type { DbUser } from "../types";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_ID = "22222222-2222-4222-8222-222222222222";
@@ -13,7 +14,7 @@ beforeEach(() => {
   q = createQueries(t.db);
 });
 
-function addUser(id = USER_ID, email = "a@example.com", role = "user") {
+function addUser(id = USER_ID, email = "a@example.com", role: DbUser["role"] = "user") {
   q.userQueries.create(id, `clerk_${id}`, email, "Ada", null, role, "MIT", null);
 }
 
@@ -74,6 +75,7 @@ describe("userQueries", () => {
   });
 
   it("rejects roles outside the CHECK constraint", () => {
+    // @ts-expect-error -- an out-of-enum role, to reach the database CHECK constraint
     expect(() => addUser(USER_ID, "a@example.com", "superuser")).toThrow();
   });
 

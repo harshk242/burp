@@ -28,42 +28,9 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, XCircle, Loader2, Clock, Users, Save } from "lucide-react";
-
-interface AccessRequest {
-  id: string;
-  email: string;
-  name: string;
-  institution: string | null;
-  research_area: string | null;
-  use_case: string | null;
-  status: "pending" | "approved" | "rejected";
-  submitted_at: number;
-  reviewed_at: number | null;
-  reviewed_by: string | null;
-}
-
-interface AdminUser {
-  id: string;
-  email: string;
-  name: string | null;
-  role: "waitlist" | "user" | "admin";
-  total_queries: number;
-  daily_query_limit: number | null;
-  daily_cost_limit_microusd: number | null;
-  monthly_cost_limit_microusd: number | null;
-  created_at: number;
-  last_active_at: number | null;
-  today_queries: number;
-  today_input_tokens: number;
-  today_output_tokens: number;
-  today_cost_microusd: number;
-  month_cost_microusd: number;
-  effective_limits: {
-    daily_query_limit: number;
-    daily_cost_limit_microusd: number;
-    monthly_cost_limit_microusd: number;
-  };
-}
+import {
+  accessRequestListResponseSchema, adminUserListResponseSchema, type AccessRequest, type AdminUser,
+} from "@/lib/api-schemas";
 
 interface LimitEdit {
   queryLimit: string;
@@ -112,7 +79,7 @@ export function AdminPageClient() {
   useEffect(() => {
     if (user?.role !== "admin") return;
     let stale = false;
-    get<{ requests: AccessRequest[] }>("/waitlist/all")
+    get("/waitlist/all", accessRequestListResponseSchema)
       .then((data) => {
         if (!stale) setRequests(data.requests);
       })
@@ -128,7 +95,7 @@ export function AdminPageClient() {
   const fetchUsers = useCallback(async () => {
     try {
       setUsersLoading(true);
-      const data = await get<{ users: AdminUser[] }>("/admin/users");
+      const data = await get("/admin/users", adminUserListResponseSchema);
       setAdminUsers(data.users);
       const edits: Record<string, LimitEdit> = {};
       for (const u of data.users) {

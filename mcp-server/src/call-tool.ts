@@ -27,10 +27,12 @@ export interface UpstreamErrorPayload {
   message: string;
 }
 
+function isUpstreamReason(reason: string): reason is UpstreamReason {
+  return Object.hasOwn(REASON_TO_KIND, reason);
+}
+
 export function upstreamErrorPayload(error: UpstreamError): UpstreamErrorPayload {
-  const info = Object.hasOwn(REASON_TO_KIND, error.reason)
-    ? REASON_TO_KIND[error.reason as UpstreamReason]
-    : undefined;
+  const info = isUpstreamReason(error.reason) ? REASON_TO_KIND[error.reason] : undefined;
   const hint = info?.hint;
   const message = hint && !error.message.includes(hint) ? `${error.message} ${hint}` : error.message;
   return {

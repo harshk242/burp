@@ -1,4 +1,6 @@
+import { optString, path, recordArray, stringArray } from '../../shared/json.js';
 import { getClient } from './client.js';
+import { toSearchResponse } from './narrow.js';
 import { SEARCH_FIELDS, summarizeSearch, type UniProtSearchSummary } from './search-fields.js';
 
 // UniProt's documented accession pattern (https://www.uniprot.org/help/accession_numbers)
@@ -19,10 +21,19 @@ interface InactiveReason { inactiveReasonType?: string; mergeDemergeTo?: string[
 // whole request on one malformed accession (so callers validate first) and
 // silently omits inactive (merged, demerged or deleted) accessions.
 async function fetchAccessions(accessions: string[], format: string, fields?: string) {
-  const response = await getClient().get('/uniprotkb/accessions', {
+  const response = await getClient().get<unknown>('/uniprotkb/accessions', {
     params: { accessions: accessions.join(','), format, ...(fields ? { fields } : {}) },
   });
   return response.data;
+}
+
+function inactiveReason(value: unknown): InactiveReason {
+  const inactiveReasonType = optString(path(value, 'inactiveReasonType'));
+  const mergeDemergeTo = path(value, 'mergeDemergeTo');
+  return {
+    ...(inactiveReasonType === undefined ? {} : { inactiveReasonType }),
+    ...(Array.isArray(mergeDemergeTo) ? { mergeDemergeTo: stringArray(mergeDemergeTo) } : {}),
+  };
 }
 
 // The search endpoint returns stub entries for inactive accessions, including
@@ -30,15 +41,16 @@ async function fetchAccessions(accessions: string[], format: string, fields?: st
 async function fetchInactive(accessions: string[]): Promise<Map<string, InactiveReason>> {
   const inactive = new Map<string, InactiveReason>();
   if (accessions.length === 0) return inactive;
-  const response = await getClient().get('/uniprotkb/search', {
+  const response = await getClient().get<unknown>('/uniprotkb/search', {
     params: {
       query: accessions.map(accession => `accession:${accession}`).join(' OR '),
       fields: 'accession', format: 'json', size: accessions.length,
     },
   });
-  for (const entry of response.data?.results ?? []) {
-    if (entry.entryType === 'Inactive' && entry.primaryAccession) {
-      inactive.set(String(entry.primaryAccession).toUpperCase(), entry.inactiveReason ?? {});
+  for (const entry of recordArray(path(response.data, 'results'))) {
+    const accession = optString(entry.primaryAccession);
+    if (entry.entryType === 'Inactive' && accession) {
+      inactive.set(accession.toUpperCase(), inactiveReason(entry.inactiveReason));
     }
   }
   return inactive;
@@ -47,7 +59,7 @@ async function fetchInactive(accessions: string[]): Promise<Map<string, Inactive
 async function summaries(accessions: string[]): Promise<Map<string, UniProtSearchSummary>> {
   const found = new Map<string, UniProtSearchSummary>();
   if (accessions.length === 0) return found;
-  for (const summary of summarizeSearch(await fetchAccessions(accessions, 'json', SEARCH_FIELDS)).results) {
+  for (const summary of summarizeSearch(toSearchResponse(await fetchAccessions(accessions, 'json', SEARCH_FIELDS))).results) {
     if (summary.accession) found.set(summary.accession.toUpperCase(), summary);
   }
   return found;
@@ -67,7 +79,7 @@ function inactiveResult(accession: string, reason: InactiveReason) {
 export async function batchLookup(accessions: unknown, format = 'json') {
   if (
     !Array.isArray(accessions) || accessions.length === 0 || accessions.length > MAX_BATCH ||
-    !accessions.every((a: unknown) => typeof a === 'string' && a.trim().length > 0)
+    !accessions.every((a: unknown): a is string => typeof a === 'string' && a.trim().length > 0)
   ) {
     throw new Error(`batch_protein_lookup: accessions must be an array of 1-${MAX_BATCH} non-empty strings`);
   }
@@ -75,7 +87,7 @@ export async function batchLookup(accessions: unknown, format = 'json') {
   if (format === 'fasta' && accessions.length > MAX_FASTA_BATCH) {
     throw new Error(`FASTA batches are limited to ${MAX_FASTA_BATCH} accessions`);
   }
-  const inputs = accessions as string[];
+  const inputs = accessions;
   const normalized = inputs.map(normalizeAccession);
   const invalid = inputs.filter((input) => !ACCESSION_PATTERN.test(normalizeAccession(input)));
   const valid = [...new Set(normalized.filter(accession => ACCESSION_PATTERN.test(accession)))];

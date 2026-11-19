@@ -1,5 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { asRecord, type JsonRecord } from '../../../shared/json.js';
 import {
   getClient,
   isValidChemblIdArgs,
@@ -9,6 +10,7 @@ import {
   assessPermeability,
   getDrugLikenessRecommendation,
 } from '../client.js';
+import { moleculeProperties } from '../narrow.js';
 
 export const tools: Tool[] = [
   {
@@ -57,15 +59,19 @@ export const tools: Tool[] = [
   },
 ];
 
+async function fetchMolecule(chemblId: string): Promise<JsonRecord> {
+  const response = await getClient().get<unknown>(`/molecule/${chemblId}.json`);
+  return asRecord(response.data);
+}
+
 async function handleAnalyzeAdmetProperties(args: Record<string, unknown>) {
   if (!isValidChemblIdArgs(args)) {
     throw new Error('Invalid ADMET analysis arguments');
   }
 
-  const client = getClient();
-  const response = await client.get(`/molecule/${args.chembl_id}.json`);
-  const molecule = response.data;
-  const props = molecule.molecule_properties || {};
+  const molecule = await fetchMolecule(args.chembl_id);
+  const record = asRecord(molecule.molecule_properties);
+  const props = moleculeProperties(record);
 
   return {
     chembl_id: args.chembl_id,
@@ -75,7 +81,7 @@ async function handleAnalyzeAdmetProperties(args: Record<string, unknown>) {
       hbd: props.hbd,
       hba: props.hba,
       psa: props.psa,
-      ro3_pass: props.ro3_pass,
+      ro3_pass: record.ro3_pass,
       assessment: assessAbsorption(props),
     },
     distribution: {
@@ -86,10 +92,10 @@ async function handleAnalyzeAdmetProperties(args: Record<string, unknown>) {
     drug_likeness: {
       lipinski_violations: props.num_ro5_violations,
       rotatable_bonds: props.rtb,
-      aromatic_rings: props.aromatic_rings,
+      aromatic_rings: record.aromatic_rings,
       assessment: assessDrugLikenessFromProps(props),
     },
-    molecular_properties: props,
+    molecular_properties: record,
   };
 }
 
@@ -98,19 +104,17 @@ async function handleCalculateDescriptors(args: Record<string, unknown>) {
     throw new Error('Invalid descriptor calculation arguments');
   }
 
-
-  const client = getClient();
-  const response = await client.get(`/molecule/${args.chembl_id}.json`);
-  const molecule = response.data;
-  const props = molecule.molecule_properties || {};
-  const structures = molecule.molecule_structures || {};
+  const molecule = await fetchMolecule(args.chembl_id);
+  const record = asRecord(molecule.molecule_properties);
+  const props = moleculeProperties(record);
+  const structures = asRecord(molecule.molecule_structures);
 
   return {
     chembl_id: molecule.molecule_chembl_id,
     basic_properties: {
       molecular_weight: props.full_mwt || props.molecular_weight,
       exact_mass: props.full_mwt,
-      molecular_formula: props.molecular_formula,
+      molecular_formula: record.molecular_formula,
     },
     lipophilicity: {
       alogp: props.alogp,
@@ -126,15 +130,15 @@ async function handleCalculateDescriptors(args: Record<string, unknown>) {
     },
     complexity: {
       rotatable_bonds: props.rtb,
-      aromatic_rings: props.aromatic_rings,
-      heavy_atoms: props.heavy_atoms,
-      num_atoms: props.num_atoms,
+      aromatic_rings: record.aromatic_rings,
+      heavy_atoms: record.heavy_atoms,
+      num_atoms: record.num_atoms,
     },
     drug_likeness_metrics: {
       ro5_violations: props.num_ro5_violations,
-      ro3_pass: props.ro3_pass,
-      cx_logp: props.cx_logp,
-      cx_logd: props.cx_logd,
+      ro3_pass: record.ro3_pass,
+      cx_logp: record.cx_logp,
+      cx_logd: record.cx_logd,
     },
     structures: {
       smiles: structures.canonical_smiles,
@@ -149,31 +153,31 @@ async function handlePredictSolubility(args: Record<string, unknown>) {
     throw new Error('Invalid solubility prediction arguments');
   }
 
-
-  const client = getClient();
-  const response = await client.get(`/molecule/${args.chembl_id}.json`);
-  const molecule = response.data;
-  const props = molecule.molecule_properties || {};
+  const molecule = await fetchMolecule(args.chembl_id);
+  const record = asRecord(molecule.molecule_properties);
+  const props = moleculeProperties(record);
 
   const logp = props.alogp || 0;
   const psa = props.psa || 0;
   const mw = props.full_mwt || props.molecular_weight || 0;
   const hbd = props.hbd || 0;
   const hba = props.hba || 0;
+  const logpValue = Number(logp);
+  const psaValue = Number(psa);
 
   let solubilityClass = 'Moderate';
   let permeability = 'Moderate';
 
-  if (logp < 0 && psa > 100) {
+  if (logpValue < 0 && psaValue > 100) {
     solubilityClass = 'High';
     permeability = 'Low';
-  } else if (logp > 5 || psa < 40) {
+  } else if (logpValue > 5 || psaValue < 40) {
     solubilityClass = 'Low';
     permeability = 'High';
-  } else if (logp > 3 && psa < 70) {
+  } else if (logpValue > 3 && psaValue < 70) {
     solubilityClass = 'Low-Moderate';
     permeability = 'High';
-  } else if (logp < 2 && psa > 80) {
+  } else if (logpValue < 2 && psaValue > 80) {
     solubilityClass = 'Moderate-High';
     permeability = 'Low-Moderate';
   }
@@ -185,8 +189,8 @@ async function handlePredictSolubility(args: Record<string, unknown>) {
       logp,
       psa,
       factors: {
-        lipophilicity: logp > 3 ? 'High (reduces solubility)' : 'Moderate',
-        polar_surface_area: psa > 100 ? 'High (increases solubility)' : 'Moderate',
+        lipophilicity: logpValue > 3 ? 'High (reduces solubility)' : 'Moderate',
+        polar_surface_area: psaValue > 100 ? 'High (increases solubility)' : 'Moderate',
         hydrogen_bonding: `${hbd} donors, ${hba} acceptors`,
       },
     },
@@ -209,27 +213,27 @@ async function handleAssessDrugLikeness(args: Record<string, unknown>) {
     throw new Error('Invalid drug-likeness assessment arguments');
   }
 
+  const molecule = await fetchMolecule(args.chembl_id);
+  const record = asRecord(molecule.molecule_properties);
+  const props = moleculeProperties(record);
 
-  const client = getClient();
-  const response = await client.get(`/molecule/${args.chembl_id}.json`);
-  const molecule = response.data;
-  const props = molecule.molecule_properties || {};
-
+  // Echo the values as ChEMBL serialised them; compare them as numbers.
   const mw = props.full_mwt || props.molecular_weight || 0;
   const logp = props.alogp || 0;
   const hbd = props.hbd || 0;
   const hba = props.hba || 0;
-
-  const lipinskiViolations = [
-    mw > 500 ? 'Molecular weight > 500 Da' : null,
-    logp > 5 ? 'LogP > 5' : null,
-    hbd > 5 ? 'H-bond donors > 5' : null,
-    hba > 10 ? 'H-bond acceptors > 10' : null,
-  ].filter((v): v is string => v !== null);
-
   const rtb = props.rtb || 0;
   const psa = props.psa || 0;
-  const veberPass = rtb <= 10 && psa <= 140;
+  const n = { mw: Number(mw), logp: Number(logp), hbd: Number(hbd), hba: Number(hba), rtb: Number(rtb), psa: Number(psa) };
+
+  const lipinskiViolations = [
+    n.mw > 500 ? 'Molecular weight > 500 Da' : null,
+    n.logp > 5 ? 'LogP > 5' : null,
+    n.hbd > 5 ? 'H-bond donors > 5' : null,
+    n.hba > 10 ? 'H-bond acceptors > 10' : null,
+  ].filter((v): v is string => v !== null);
+
+  const veberPass = n.rtb <= 10 && n.psa <= 140;
 
   return {
     chembl_id: molecule.molecule_chembl_id,
@@ -238,17 +242,17 @@ async function handleAssessDrugLikeness(args: Record<string, unknown>) {
       details: lipinskiViolations.length > 0 ? lipinskiViolations : ['All criteria met'],
       pass: lipinskiViolations.length === 0,
       criteria: {
-        molecular_weight: { value: mw, limit: 500, pass: mw <= 500 },
-        logp: { value: logp, limit: 5, pass: logp <= 5 },
-        hbd: { value: hbd, limit: 5, pass: hbd <= 5 },
-        hba: { value: hba, limit: 10, pass: hba <= 10 },
+        molecular_weight: { value: mw, limit: 500, pass: n.mw <= 500 },
+        logp: { value: logp, limit: 5, pass: n.logp <= 5 },
+        hbd: { value: hbd, limit: 5, pass: n.hbd <= 5 },
+        hba: { value: hba, limit: 10, pass: n.hba <= 10 },
       },
     },
     veber_rules: {
       pass: veberPass,
       criteria: {
-        rotatable_bonds: { value: rtb, limit: 10, pass: rtb <= 10 },
-        psa: { value: psa, limit: 140, pass: psa <= 140 },
+        rotatable_bonds: { value: rtb, limit: 10, pass: n.rtb <= 10 },
+        psa: { value: psa, limit: 140, pass: n.psa <= 140 },
       },
     },
     overall_assessment: {
@@ -257,7 +261,7 @@ async function handleAssessDrugLikeness(args: Record<string, unknown>) {
       oral_bioavailability: veberPass && lipinskiViolations.length <= 1 ? 'Likely' : 'Uncertain',
       recommendation: getDrugLikenessRecommendation(lipinskiViolations.length, veberPass),
     },
-    molecular_properties: props,
+    molecular_properties: record,
   };
 }
 

@@ -1,5 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { asRecord } from '../../../shared/json.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidAssemblyArgs = (
@@ -61,7 +62,7 @@ async function handleListSpecies(args: Record<string, unknown>) {
     params.division = args.division;
   }
 
-  const response = await getClient().get('/info/species', { params });
+  const response = await getClient().get<unknown>('/info/species', { params });
   return response.data;
 }
 
@@ -77,7 +78,7 @@ async function handleGetAssemblyInfo(args: Record<string, unknown>) {
     params.bands = 1;
   }
 
-  const response = await getClient().get(`/info/assembly/${species}`, { params });
+  const response = await getClient().get<unknown>(`/info/assembly/${species}`, { params });
   return response.data;
 }
 
@@ -88,15 +89,16 @@ async function handleGetKaryotype(args: Record<string, unknown>) {
 
   const species = getDefaultSpecies(args.species);
 
-  const response = await getClient().get(`/info/assembly/${species}`, {
+  const response = await getClient().get<unknown>(`/info/assembly/${species}`, {
     params: { bands: 1 },
   });
 
+  const assembly = asRecord(response.data);
   return {
     species,
-    assembly_name: response.data.assembly_name,
-    karyotype: response.data.karyotype || [],
-    chromosomes: response.data.top_level_region || [],
+    assembly_name: assembly.assembly_name,
+    karyotype: assembly.karyotype || [],
+    chromosomes: assembly.top_level_region || [],
   };
 }
 

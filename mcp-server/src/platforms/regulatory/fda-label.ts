@@ -1,4 +1,5 @@
 import { anyOf, applicationNumbers, dailyMedUrl, isoDate, labelNameQuery, openFdaGet, phrase, sectionText } from './openfda-query.js';
+import { decodeLabelRecord } from './decode.js';
 import type { LabelRecord } from './types.js';
 
 export const LABEL_SECTIONS = [
@@ -45,14 +46,14 @@ function identity(label: LabelRecord) {
 
 async function findLabels(args: LabelArgs) {
   const sort = 'effective_time:desc';
-  if (args.setId) return openFdaGet<LabelRecord>('label', `set_id:${phrase(args.setId)}`, { limit: CANDIDATES, sort });
+  if (args.setId) return openFdaGet('label', `set_id:${phrase(args.setId)}`, { limit: CANDIDATES, sort }, decodeLabelRecord);
   if (args.applicationNumber) {
-    return openFdaGet<LabelRecord>('label', anyOf('openfda.application_number', applicationNumbers(args.applicationNumber)), { limit: CANDIDATES, sort });
+    return openFdaGet('label', anyOf('openfda.application_number', applicationNumbers(args.applicationNumber)), { limit: CANDIDATES, sort }, decodeLabelRecord);
   }
   // Prefer the innovator (NDA/BLA) label; fall back to any label, e.g. for drugs sold only as generics.
   const byName = labelNameQuery(args.drug ?? '');
-  const branded = await openFdaGet<LabelRecord>('label', `${byName} AND ${EXCLUDE_ANDA_LABEL}`, { limit: CANDIDATES, sort });
-  return branded.results.length > 0 ? branded : openFdaGet<LabelRecord>('label', byName, { limit: CANDIDATES, sort });
+  const branded = await openFdaGet('label', `${byName} AND ${EXCLUDE_ANDA_LABEL}`, { limit: CANDIDATES, sort }, decodeLabelRecord);
+  return branded.results.length > 0 ? branded : openFdaGet('label', byName, { limit: CANDIDATES, sort }, decodeLabelRecord);
 }
 
 export async function getFdaLabel(args: LabelArgs) {

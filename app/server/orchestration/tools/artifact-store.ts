@@ -1,3 +1,4 @@
+import { errorCode } from "../../../shared/json";
 import { appConfig } from "../../config";
 import { artifactQueries } from "../../db";
 import { logger } from "../../logger";
@@ -17,7 +18,7 @@ const MAX_ID_ATTEMPTS = 5;
 
 function isPrimaryKeyConflict(err: unknown): boolean {
   for (let e: unknown = err; e instanceof Error; e = e.cause) {
-    if ((e as { code?: unknown }).code === "SQLITE_CONSTRAINT_PRIMARYKEY") return true;
+    if (errorCode(e) === "SQLITE_CONSTRAINT_PRIMARYKEY") return true;
   }
   return false;
 }
@@ -83,8 +84,13 @@ export class ArtifactStore {
     rawSizeChars: number,
     type: "json" | "text" = "json",
   ): string {
-    if (type === "text" && typeof data !== "string") throw new Error("Text artifacts require string data");
-    const json = type === "text" ? data as string : JSON.stringify(data);
+    let json: string;
+    if (type === "text") {
+      if (typeof data !== "string") throw new Error("Text artifacts require string data");
+      json = data;
+    } else {
+      json = JSON.stringify(data);
+    }
     const uncompressedUtf8Bytes = Buffer.byteLength(json, "utf8");
     const gzipped = Buffer.from(Bun.gzipSync(json));
     const now = Date.now();
@@ -246,7 +252,8 @@ export class ArtifactStore {
     if (!Number.isSafeInteger(start) || start < 0 || !Number.isSafeInteger(length) || length < 1 || length > MAX_TEXT_RANGE_CHARS) {
       return { error: "text_range requires a nonnegative start and length between 1 and " + MAX_TEXT_RANGE_CHARS + " UTF-16 code units." };
     }
-    const text = lookup.artifact.data as string;
+    const text = lookup.artifact.data;
+    if (typeof text !== "string") return { error: "JSON artifacts require jq_filter inspection." };
     const end = Math.min(start + length, text.length);
     if (start > text.length) return { error: "text_range start exceeds the artifact length." };
     return { text: text.slice(start, end), start, end, total_chars: text.length, next_start: end < text.length ? end : null };

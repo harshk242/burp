@@ -1,3 +1,4 @@
+import { isRecord } from "../../shared/json";
 import { DatasetItemSchema, type DatasetItem } from "./schema";
 import type { FetchedItem } from "./verify-dataset";
 
@@ -8,9 +9,13 @@ export class PinnedItemError extends Error {
   }
 }
 
+function withoutContentHash(metadata: Record<string, unknown>): Record<string, unknown> {
+  const { content_hash: _hash, ...rest } = metadata;
+  return rest;
+}
+
 function parsePinnedItem(item: FetchedItem): DatasetItem | string {
-  const metadata = item.metadata && typeof item.metadata === "object" ? { ...(item.metadata as Record<string, unknown>) } : item.metadata;
-  if (metadata && typeof metadata === "object") delete (metadata as Record<string, unknown>).content_hash;
+  const metadata = isRecord(item.metadata) ? withoutContentHash(item.metadata) : item.metadata;
   const parsed = DatasetItemSchema.safeParse({ id: item.id, input: item.input, expected_output: item.expectedOutput, metadata });
   if (parsed.success) return parsed.data;
   return `${item.id}: ${parsed.error.issues.map((i) => `${i.path.join(".") || "(item)"} ${i.message}`).join("; ")}`;

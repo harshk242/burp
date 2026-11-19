@@ -31,7 +31,7 @@ interface JsonRpcResponse {
   jsonrpc: '2.0';
   id: number;
   result?: unknown;
-  error?: { code?: number; message?: string };
+  error?: { code?: number | undefined; message?: string | undefined } | undefined;
 }
 
 interface PendingRequest {
@@ -52,6 +52,40 @@ function readJson(filePath: string): unknown {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every((item) => typeof item === 'string');
+}
+
+/** The config file's servers; an entry without a string `command` is an error, as it cannot be started. */
+function parseConfig(value: unknown, filePath: string): McpConfig {
+  if (!isRecord(value)) throw new Error(`${filePath}: expected a JSON object`);
+  if (value.mcpServers === undefined) return {};
+  if (!isRecord(value.mcpServers)) throw new Error(`${filePath}: "mcpServers" must be an object`);
+  const mcpServers: Record<string, ServerConfig> = {};
+  for (const [name, entry] of Object.entries(value.mcpServers)) {
+    if (!isRecord(entry) || typeof entry.command !== 'string') throw new Error(`${filePath}: server "${name}" needs a string "command"`);
+    mcpServers[name] = {
+      command: entry.command,
+      ...(isStringArray(entry.args) ? { args: entry.args } : {}),
+      ...(isStringRecord(entry.env) ? { env: entry.env } : {}),
+    };
+  }
+  return { mcpServers };
+}
+
+function rpcError(value: unknown): JsonRpcResponse['error'] {
+  if (value === undefined || value === null) return undefined;
+  const error = isRecord(value) ? value : {};
+  return {
+    code: typeof error.code === 'number' ? error.code : undefined,
+    message: typeof error.message === 'string' ? error.message : undefined,
+  };
 }
 
 function parseArgs(argv: string[]): { opts: Options; rest: string[] } {
@@ -181,7 +215,7 @@ class MCPServerProcess {
       return;
     }
     this.pending.delete(message.id);
-    const response = message as unknown as JsonRpcResponse;
+    const response: JsonRpcResponse = { jsonrpc: '2.0', id: message.id, result: message.result, error: rpcError(message.error) };
     if (response.error) {
       pending.reject(new Error(response.error.message || 'MCP error'));
     } else {
@@ -358,7 +392,8 @@ async function main(): Promise<void> {
     process.exit(opts.help ? 0 : 1);
   }
 
-  const config = readJson(resolveConfigPath(opts.config)) as McpConfig;
+  const configPath = resolveConfigPath(opts.config);
+  const config = parseConfig(readJson(configPath), configPath);
 
   const [command, ...args] = rest;
   if (command === 'list-servers') {

@@ -3,12 +3,12 @@ import { LINK_BLUE, CODE_BG, BLOCKQUOTE_BORDER } from './styles';
 /** The mdast fields the converter reads; remark nodes carry more, which are ignored. */
 export interface MdNode {
   type: string;
-  children?: MdNode[];
-  value?: string;
-  depth?: number;
-  ordered?: boolean | null;
-  url?: string;
-  alt?: string | null;
+  children?: MdNode[] | undefined;
+  value?: string | undefined;
+  depth?: number | undefined;
+  ordered?: boolean | null | undefined;
+  url?: string | undefined;
+  alt?: string | null | undefined;
 }
 
 export interface Root extends MdNode {
@@ -18,8 +18,11 @@ export interface Root extends MdNode {
 
 export type PdfContent = Record<string, unknown> | string;
 
+/** Drops the nodes that produced nothing (`null` or empty text). */
+const isContent = (content: PdfContent | null): content is PdfContent => Boolean(content);
+
 export function mdastToPdfmakeContent(tree: Root): PdfContent[] {
-  return tree.children.map(convertNode).filter(Boolean) as PdfContent[];
+  return tree.children.map(convertNode).filter(isContent);
 }
 
 function convertNode(node: MdNode): PdfContent | null {
@@ -157,7 +160,7 @@ function convertNode(node: MdNode): PdfContent | null {
 }
 
 function convertListItem(node: MdNode): PdfContent {
-  const children = (node.children ?? []).map(convertNode).filter(Boolean) as PdfContent[];
+  const children = (node.children ?? []).map(convertNode).filter(isContent);
 
   if (children.length === 1) {
     const first = children[0];
@@ -179,7 +182,7 @@ function convertListItem(node: MdNode): PdfContent {
 
 function convertInline(nodes: MdNode[] | undefined): PdfContent | PdfContent[] {
   if (!nodes || nodes.length === 0) return '';
-  const result = nodes.map(convertInlineNode).filter(Boolean) as PdfContent[];
+  const result = nodes.map(convertInlineNode).filter(isContent);
   const [only] = result;
   if (result.length === 1 && only !== undefined) return only;
   return result;

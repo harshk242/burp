@@ -1,7 +1,8 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
-import type { ChemblMolecule } from '../types.js';
+import { optionalNumber } from '../../../shared/args.js';
+import { asArray, asRecord, path, recordArray } from '../../../shared/json.js';
 
 export const tools: Tool[] = [
   {
@@ -74,9 +75,9 @@ async function handleSearchDrugs(args: Record<string, unknown>) {
   } else {
     params.max_phase__gte = 1;
   }
-  const response = await client.get('/molecule/search.json', { params });
-  const molecules = response.data.molecules || [];
-  const drugs = molecules.filter((m: ChemblMolecule) => Number(m.max_phase) >= 1);
+  const response = await client.get<unknown>('/molecule/search.json', { params });
+  const molecules = recordArray(path(response.data, 'molecules'));
+  const drugs = molecules.filter((m) => Number(m.max_phase) >= 1);
 
   return {
     query: args.query,
@@ -92,18 +93,19 @@ async function handleGetDrugInfo(args: Record<string, unknown>) {
 
   const client = getClient();
 
-  const moleculeResponse = await client.get(`/molecule/${args.chembl_id}.json`);
+  const moleculeResponse = await client.get<unknown>(`/molecule/${args.chembl_id}.json`);
   const molecule = moleculeResponse.data;
+  const developmentPhase = asRecord(molecule).max_phase;
 
-  const indicationResponse = await client.get('/drug_indication.json', {
+  const indicationResponse = await client.get<unknown>('/drug_indication.json', {
     params: { molecule_chembl_id: args.chembl_id, limit: 50 },
   });
-  const indications = indicationResponse.data.drug_indications || [];
+  const indications = asArray(path(indicationResponse.data, 'drug_indications'));
 
   return {
     chembl_id: args.chembl_id,
     molecule_info: molecule,
-    development_phase: molecule.max_phase,
+    development_phase: developmentPhase,
     indications,
   };
 }
@@ -114,8 +116,8 @@ async function handleSearchDrugIndications(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const response = await client.get('/drug_indication.json', {
-    params: { mesh_heading__icontains: args.indication, limit: (args.limit as number) || 25 },
+  const response = await client.get<unknown>('/drug_indication.json', {
+    params: { mesh_heading__icontains: args.indication, limit: optionalNumber(args, 'limit') || 25 },
   });
   return response.data;
 }
@@ -126,7 +128,7 @@ async function handleGetMechanismOfAction(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const response = await client.get('/mechanism.json', {
+  const response = await client.get<unknown>('/mechanism.json', {
     params: { molecule_chembl_id: args.chembl_id, limit: 50 },
   });
   return response.data;

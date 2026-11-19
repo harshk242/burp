@@ -124,7 +124,8 @@ export function normalizePhenotypeCategory(category: unknown): string {
 
   let categoryStr: string;
   if (Array.isArray(category)) {
-    categoryStr = category[0] || 'Unknown';
+    const first: unknown = category[0];
+    categoryStr = typeof first === 'string' && first ? first : 'Unknown';
   } else if (typeof category === 'string') {
     categoryStr = category;
   } else {

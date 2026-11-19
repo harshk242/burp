@@ -1,5 +1,7 @@
 import { getClient } from './client.js';
+import { isRecord } from '../../shared/json.js';
 import type { UniProtEntry } from './entry-types.js';
+import { toUniProtEntry } from './narrow.js';
 
 // Short per-tool return-field lists, verified against /configure/uniprotkb/result-fields
 // (request-contract.ts and the saved return-fields.json fixture). UniProt rejects a
@@ -35,18 +37,16 @@ export const INFO_FIELDS = ENTRY_FIELDS.info;
 export const EXPORT_FORMATS = ['gff', 'txt', 'xml', 'fasta'];
 
 /** Deep copy without `evidences` keys; the shape is otherwise unchanged. */
-export function stripEvidences<T>(value: T): T {
-  if (Array.isArray(value)) return value.map(stripEvidences) as T;
-  if (value && typeof value === 'object') return Object.fromEntries(
+export function stripEvidences(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripEvidences);
+  if (isRecord(value)) return Object.fromEntries(
     Object.entries(value).filter(([key]) => key !== 'evidences')
       .map(([key, child]) => [key, stripEvidences(child)]),
-  ) as T;
+  );
   return value;
 }
 
-/** JSON yields a parsed entry; every other format returns the response body as UniProt sent it. */
-export function fetchProtein(accession: string, format: 'json', fields?: string): Promise<UniProtEntry>;
-export function fetchProtein(accession: string, format: string, fields?: string): Promise<unknown>;
+/** The response body as UniProt sent it (parsed JSON for `json`, text otherwise). */
 export async function fetchProtein(accession: string, format: string, fields?: string): Promise<unknown> {
   const response = await getClient().get<unknown>(`/uniprotkb/${encodeURIComponent(accession)}`, {
     params: { format, ...(fields ? { fields } : {}) },
@@ -54,12 +54,17 @@ export async function fetchProtein(accession: string, format: string, fields?: s
   return response.data;
 }
 
+/** The JSON entry, narrowed to the fields the tools read (all other fields pass through). */
+export async function fetchEntry(accession: string, fields?: string): Promise<UniProtEntry> {
+  return toUniProtEntry(await fetchProtein(accession, 'json', fields));
+}
+
 // get_protein_info omits `lineage` (detailed ranks; organism.lineage already has the
 // names, get_taxonomy_info has the rest). It is the agent's main overview call. Full PDB cross-references
 // (chains, method, resolution per structure) were 60-85% of it for well-studied
 // proteins, so keep only the IDs and point to get_protein_structure for details.
 export function slimProteinInfo(data: UniProtEntry): UniProtEntry {
-  const slim = stripEvidences(data);
+  const slim = toUniProtEntry(stripEvidences(data));
   delete slim.references;
   delete slim.sequence?.value;
   const refs = slim.uniProtKBCrossReferences ?? [];

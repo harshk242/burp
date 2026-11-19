@@ -20,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { RATE_LIMIT_ERROR_CODES } from "../../../../../shared/rate-limit";
 import { RateLimitError } from "@/types";
+import { sessionCreatedResponseSchema, sessionWithMessagesResponseSchema } from "@/lib/api-schemas";
 
 interface ChatPageClientProps {
   sessionId: string | null;
@@ -122,7 +123,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
     // Reset alongside controller.select(), which only happens here when the selected session changes.
     // oxlint-disable-next-line react/set-state-in-effect
     setRateLimitInfo(null);
-    void controller.loadHistory(work, get);
+    void controller.loadHistory(work, (path, options) => get(path, sessionWithMessagesResponseSchema, options));
   }, [currentSessionId, get, setActiveSession, controller]);
 
   const handleSend = useCallback(
@@ -134,7 +135,7 @@ function ChatPageContent({ initialSessionId }: { initialSessionId: string | null
 
       if (!sessionId) {
         try {
-          const data = await post<{ id: string; title: string }>("/sessions", {}, { signal: work.signal });
+          const data = await post("/sessions", {}, sessionCreatedResponseSchema, { signal: work.signal });
           const adopted = controller.adoptSession(work, data.id);
           if (!adopted) return;
           work = adopted;

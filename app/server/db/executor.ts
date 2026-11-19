@@ -10,6 +10,7 @@
  */
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "fs";
+import { isRecord } from "../../shared/json";
 import { join } from "path";
 import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
 
@@ -27,13 +28,13 @@ interface HistoryRow {
 
 export function loadMigrations(migrationsFolder: string): Migration[] {
   const metas = readMigrationFiles({ migrationsFolder });
-  const journal = JSON.parse(readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf-8")) as {
-    entries: Array<{ tag: string }>;
-  };
+  const journal: unknown = JSON.parse(readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf-8"));
+  const entries = isRecord(journal) && Array.isArray(journal.entries) ? journal.entries : [];
   return metas.map((meta, i) => {
-    const entry = journal.entries[i];
-    if (!entry) throw new Error(`migration ${i} has no entry in ${migrationsFolder}/meta/_journal.json`);
-    return { ...meta, tag: entry.tag };
+    const entry: unknown = entries[i];
+    const tag = isRecord(entry) ? entry.tag : undefined;
+    if (typeof tag !== "string") throw new Error(`migration ${i} has no entry in ${migrationsFolder}/meta/_journal.json`);
+    return { ...meta, tag };
   });
 }
 

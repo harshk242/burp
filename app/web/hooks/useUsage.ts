@@ -5,7 +5,7 @@ import { useApi } from "@/hooks/useApi";
 import { useUserStore, type UsageInfo } from "@/stores/userStore";
 import { useChatStore } from "@/stores/chatStore";
 
-import type { UsageResponse } from "../../shared/usage";
+import { usageResponseSchema } from "@/lib/api-schemas";
 
 export function useUsage() {
   const { get } = useApi();
@@ -16,7 +16,7 @@ export function useUsage() {
   const fetchUsage = useCallback(async () => {
     if (!user) return;
     try {
-      const data = await get<UsageResponse>("/usage");
+      const data = await get("/usage", usageResponseSchema);
       const info: UsageInfo = {
         used: data.used,
         limit: data.limit,

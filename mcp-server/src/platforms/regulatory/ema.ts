@@ -1,4 +1,5 @@
 import { EMA_MEDICINES_PATH, getClients, onClientReset } from './client.js';
+import { decodeEmaDataset } from './decode.js';
 import type { EmaDataset, EmaMedicine } from './types.js';
 
 export const EMA_STATUSES = [
@@ -37,15 +38,12 @@ const INDICATION_CHARS = 600;
 let cached: { loadedAt: number; dataset: Promise<EmaDataset> } | null = null;
 onClientReset(() => { cached = null; });
 
-function isDataset(value: unknown): value is EmaDataset {
-  return typeof value === 'object' && value !== null && Array.isArray((value as EmaDataset).data);
-}
-
 async function download(): Promise<EmaDataset> {
   const response = await getClients().ema.get<unknown>(EMA_MEDICINES_PATH, { responseType: 'json' });
   const data: unknown = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
-  if (!isDataset(data)) throw new Error('EMA medicines file has an unexpected shape (no data array)');
-  return data;
+  const dataset = decodeEmaDataset(data);
+  if (!dataset) throw new Error('EMA medicines file has an unexpected shape (no data array)');
+  return dataset;
 }
 
 export function loadEmaDataset(now = Date.now()): Promise<EmaDataset> {

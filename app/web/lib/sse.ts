@@ -2,16 +2,32 @@ import type { ChatState } from "@/stores/chatStore";
 import { RateLimitError } from "@/types";
 import { isRateLimitErrorCode, RATE_LIMIT_ERROR_CODES } from "../../shared/rate-limit";
 import type { ChatCompletion } from "../../shared/chat";
+import { asRecord, optString } from "../../shared/json";
 
 /** JSON error body of a failed chat request; 429s carry the rate-limit fields. */
 interface ErrorBody {
-  error?: string;
-  message?: string;
-  limit?: number;
-  used?: number;
-  cost_limit_microusd?: number;
-  cost_used_microusd?: number;
-  resetAt?: number;
+  error?: string | undefined;
+  message?: string | undefined;
+  limit?: number | undefined;
+  used?: number | undefined;
+  cost_limit_microusd?: number | undefined;
+  cost_used_microusd?: number | undefined;
+  resetAt?: number | undefined;
+}
+
+const optNumber = (value: unknown): number | undefined => (typeof value === "number" ? value : undefined);
+
+function errorBody(value: unknown): ErrorBody {
+  const body = asRecord(value);
+  return {
+    error: optString(body.error),
+    message: optString(body.message),
+    limit: optNumber(body.limit),
+    used: optNumber(body.used),
+    cost_limit_microusd: optNumber(body.cost_limit_microusd),
+    cost_used_microusd: optNumber(body.cost_used_microusd),
+    resetAt: optNumber(body.resetAt),
+  };
 }
 
 export interface StreamOwner {
@@ -59,7 +75,7 @@ async function consumeChat(
   }
 
   if (!response.ok) {
-    const error = (await response.json().catch(() => ({ error: "Request failed" }))) as ErrorBody;
+    const error = errorBody(await response.json().catch(() => ({ error: "Request failed" })));
     if (response.status === 429) {
       const errorCode = isRateLimitErrorCode(error.error) ? error.error : undefined;
       let message: string;
@@ -175,55 +191,47 @@ function handleSSEEvent(
       break;
 
     case "tool_start": {
-      const toolStart = data as {
-        id: string;
-        tool: string;
-        server: string;
-        toolName: string;
-        input: Record<string, unknown>;
-      };
+      const toolStart = asRecord(data);
+      if (typeof toolStart.id !== "string") break;
       store.addToolCall({
         id: toolStart.id,
-        name: toolStart.tool,
-        server: toolStart.server,
-        toolName: toolStart.toolName,
-        input: toolStart.input,
+        name: optString(toolStart.tool) ?? "",
+        server: optString(toolStart.server) ?? "",
+        toolName: optString(toolStart.toolName) ?? "",
+        input: asRecord(toolStart.input),
         status: "running",
       });
       break;
     }
 
     case "tool_end": {
-      const toolEnd = data as {
-        id: string;
-        output?: unknown;
-        error?: string;
-      };
+      const toolEnd = asRecord(data);
+      if (typeof toolEnd.id !== "string") break;
+      const error = optString(toolEnd.error);
       store.updateToolCall(toolEnd.id, {
         output: toolEnd.output,
-        error: toolEnd.error,
-        status: toolEnd.error ? "error" : "complete",
+        error,
+        status: error ? "error" : "complete",
       });
       break;
     }
 
     case "title": {
       const title =
-        typeof data === "string" ? data : (data as { title?: string }).title || "";
+        typeof data === "string" ? data : optString(asRecord(data).title) || "";
       if (onTitle && title) onTitle(title);
       break;
     }
 
     case "text_block_end": {
-      const { isReasoning } = data as { isReasoning: boolean };
-      if (isReasoning) {
+      if (asRecord(data).isReasoning === true) {
         store.moveStreamingToReasoning();
       }
       break;
     }
 
     case "reasoning": {
-      const { text, newBlock } = data as { text?: string; newBlock?: boolean };
+      const { text, newBlock } = asRecord(data);
       if (typeof text === "string") store.appendReasoning(text, newBlock === true);
       break;
     }
@@ -244,7 +252,7 @@ function handleSSEEvent(
       const errorMsg =
         typeof data === "string"
           ? data
-          : (data as { error?: string }).error || "Unknown error";
+          : optString(asRecord(data).error) || "Unknown error";
       store.setError(errorMsg);
       return true;
     }

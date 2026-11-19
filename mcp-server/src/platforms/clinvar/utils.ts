@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { isRecord } from '../../shared/json.js';
 
 export function filterNoneValues<T extends Record<string, unknown>>(
   obj: T
@@ -37,13 +38,13 @@ export function extractText(obj: unknown): string {
   if (typeof obj === 'number') {
     return String(obj);
   }
-  if (obj && typeof obj === 'object') {
+  if (isRecord(obj)) {
     if ('#text' in obj) {
-      return String((obj as Record<string, unknown>)['#text']);
+      return String(obj['#text']);
     }
     for (const key of ['_', 'text', 'value', '$t']) {
       if (key in obj) {
-        return String((obj as Record<string, unknown>)[key]);
+        return String(obj[key]);
       }
     }
   }

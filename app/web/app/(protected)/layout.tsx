@@ -10,7 +10,7 @@ import { useUserStore } from "@/stores/userStore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Clock, LogOut } from "lucide-react";
-import type { User } from "@/types";
+import { userSchema } from "@/lib/api-schemas";
 
 export default function ProtectedLayout({
   children,
@@ -65,7 +65,7 @@ function ProtectedContent({
 
   useEffect(() => {
     if (isSignedIn && !isSynced) {
-      post<User>("/users/sync", {})
+      post("/users/sync", {}, userSchema)
         .then((user) => {
           useUserStore.getState().setUser(user);
           if (user.role === "waitlist") {

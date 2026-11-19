@@ -3,6 +3,7 @@ import { appConfig, type AppConfig } from "../config";
 import type { DbUsageEvent } from "../types";
 import { logger, type LogContext } from "../logger";
 import { priceCall, resolvePricing, summarizeTurnCost, type CallCost, type CallUsage, type ChatCost } from "../usage";
+import { isRecord } from "../../shared/json";
 
 export interface CallLogInfo {
   iteration: number;
@@ -38,9 +39,7 @@ export function shortHash(text: string): string {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
+  return isRecord(value) ? value : undefined;
 }
 
 function count(value: unknown): number {

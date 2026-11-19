@@ -1,3 +1,4 @@
+import { isRecord } from "../../../shared/json";
 import { appConfig } from "../../config";
 
 interface PreviewOpts {
@@ -56,9 +57,9 @@ function introspect(
     return introspectArray(value, depth, maxSampleItems, maxCharsPerValue);
   }
 
-  if (typeof value === "object") {
+  if (isRecord(value)) {
     return introspectObject(
-      value as Record<string, unknown>,
+      value,
       depth,
       maxSampleItems,
       maxCharsPerValue,
@@ -140,12 +141,12 @@ function introspectObject(
           maxCharsPerValue,
         );
       }
-    } else if (typeof val === "object") {
+    } else if (isRecord(val)) {
       if (depth + 1 >= MAX_DEPTH) {
-        result[key] = summarizeObject(val as Record<string, unknown>);
+        result[key] = summarizeObject(val);
       } else {
         result[key] = introspectObject(
-          val as Record<string, unknown>,
+          val,
           depth + 1,
           maxSampleItems,
           maxCharsPerValue,

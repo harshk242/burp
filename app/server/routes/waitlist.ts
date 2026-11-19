@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { v4 as uuidv4 } from "uuid";
 import { accessRequestQueries, userQueries } from "../db";
-import { clerkAuth, requireAdmin, requireDbUser } from "../middleware/clerk";
+import { authedUserId, clerkAuth, requireAdmin, requireDbUser } from "../middleware/clerk";
 import {
   CreateAccessRequestSchema,
   AccessRequestCreatedSchema,
@@ -255,7 +255,7 @@ waitlist.use("/:id/*", clerkAuth, requireDbUser, requireAdmin);
 
 waitlist.openapi(approveRequestRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const adminUserId = c.get("userId") as string;
+  const adminUserId = authedUserId(c);
 
   try {
     const request = accessRequestQueries.findById(id);
@@ -319,7 +319,7 @@ const rejectRequestRoute = createRoute({
 
 waitlist.openapi(rejectRequestRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const adminUserId = c.get("userId") as string;
+  const adminUserId = authedUserId(c);
 
   try {
     const request = accessRequestQueries.findById(id);

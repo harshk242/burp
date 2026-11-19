@@ -4,6 +4,7 @@ import { dailyUsageQueries, rateLimitQueries, usageEventQueries } from "../db";
 import { appConfig } from "../config";
 import { logger } from "../logger";
 import type { AppEnv } from "../types";
+import { authedUserId } from "./clerk";
 import {
   assertPricingConfigured,
   getNextUtcMidnight,
@@ -12,7 +13,7 @@ import {
 } from "../usage";
 
 export async function rateLimitMiddleware(c: Context<AppEnv>, next: Next) {
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
   const role = c.get("role");
   const dbUser = c.get("dbUser")!;
 

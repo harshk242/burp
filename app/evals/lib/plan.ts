@@ -1,3 +1,4 @@
+import { isRecord } from "../../shared/json";
 import { canonicalJson, contentHash, datasetHash } from "./hash";
 import type {
   DatasetBody,
@@ -70,7 +71,7 @@ export function itemBody(datasetName: string, item: DatasetItem): DatasetItemBod
 }
 
 export function remoteContentHash(item: { input?: unknown; expectedOutput?: unknown; metadata?: unknown }): string {
-  return contentHash({ input: item.input, expected_output: item.expectedOutput, metadata: item.metadata as Record<string, unknown> | null });
+  return contentHash({ input: item.input, expected_output: item.expectedOutput, metadata: isRecord(item.metadata) ? item.metadata : null });
 }
 
 export function localDatasetHash(dataset: LoadedDataset["dataset"]): string {

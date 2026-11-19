@@ -1,12 +1,13 @@
 import type { AuthorInfo } from './types.js';
 import { ensureArray, extractText } from './utils.js';
 import { XMLParseError } from './exceptions.js';
+import { isRecord, type JsonRecord } from '../../shared/json.js';
 
-function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+function record(value: unknown): JsonRecord {
+  if (!isRecord(value)) {
     throw new XMLParseError('Invalid PubMed author element');
   }
-  return value as Record<string, unknown>;
+  return value;
 }
 
 export function decodeAuthors(value: unknown): AuthorInfo[] {

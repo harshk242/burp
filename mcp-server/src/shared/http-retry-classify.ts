@@ -1,4 +1,5 @@
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
+import { isRecord } from './json.js';
 
 export type RetryReason =
   | 'network'
@@ -135,13 +136,11 @@ export function getErrorStatus(error: unknown): number | null {
 }
 
 export function getHeader(headers: unknown, name: string): string | undefined {
-  if (!headers || typeof headers !== 'object') return undefined;
   const lower = name.toLowerCase();
-  const maybe = headers as Record<string, unknown> & { get?: (n: string) => unknown };
-  let value: unknown = typeof maybe.get === 'function' ? maybe.get(lower) : undefined;
-  if (value === undefined || value === null) {
-    const key = Object.keys(maybe).find((k) => k.toLowerCase() === lower);
-    value = key === undefined ? undefined : maybe[key];
+  let value: unknown = headers instanceof AxiosHeaders || headers instanceof Headers ? headers.get(lower) : undefined;
+  if ((value === undefined || value === null) && isRecord(headers)) {
+    const key = Object.keys(headers).find((k) => k.toLowerCase() === lower);
+    value = key === undefined ? undefined : headers[key];
   }
   if (Array.isArray(value)) value = value[0];
   if (typeof value === 'number') return String(value);

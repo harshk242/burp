@@ -1,4 +1,5 @@
 import type { TaskOutput, TaskToolCall, TaskTurn } from "../evaluators/types";
+import { asRecord, isRecord, optString } from "../../shared/json";
 
 export interface TurnRow {
   id: string;
@@ -36,12 +37,25 @@ export interface SessionRows {
 }
 
 interface Part {
-  type?: string;
-  toolCallId?: string;
-  toolName?: string;
+  type?: string | undefined;
+  toolCallId?: string | undefined;
+  toolName?: string | undefined;
   input?: unknown;
-  output?: { type?: string; value?: unknown };
-  text?: string;
+  output?: { type?: string | undefined; value?: unknown } | undefined;
+  text?: string | undefined;
+}
+
+function toPart(value: unknown): Part {
+  const part = asRecord(value);
+  const output = isRecord(part.output) ? { type: optString(part.output.type), value: part.output.value } : undefined;
+  return {
+    type: optString(part.type),
+    toolCallId: optString(part.toolCallId),
+    toolName: optString(part.toolName),
+    input: part.input,
+    output,
+    text: optString(part.text),
+  };
 }
 
 export function outputText(output: Part["output"]): string {
@@ -55,8 +69,8 @@ export function outputText(output: Part["output"]): string {
 }
 
 function partsOf(row: TranscriptRow): Part[] {
-  const message = JSON.parse(row.content_json) as { content?: unknown };
-  return Array.isArray(message.content) ? (message.content as Part[]) : [];
+  const content = asRecord(JSON.parse(row.content_json)).content;
+  return Array.isArray(content) ? content.map(toPart) : [];
 }
 
 function toolCallsOf(rows: TranscriptRow[], toolName: (name: string) => string): TaskToolCall[] {

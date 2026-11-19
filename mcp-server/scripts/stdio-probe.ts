@@ -16,6 +16,12 @@ const CANONICAL_ID = 'ENSG00000142515';
 const CALL_TIMEOUT_MS = { stub: 15_000, live: 120_000 };
 
 type Call = { name: string; arguments: Record<string, unknown> };
+type JsonRecord = Record<string, unknown>;
+
+// Inline narrowing (no imports: the probe also runs as a lone file inside the production image).
+const isRecord = (v: unknown): v is JsonRecord => typeof v === 'object' && v !== null && !Array.isArray(v);
+const records = (v: unknown): JsonRecord[] => (Array.isArray(v) ? v.filter(isRecord) : []);
+const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 const LIVE_CALLS: Call[] = [
   { name: 'open-targets__search_entities', arguments: { query_string: 'KLK3' } },
@@ -61,7 +67,9 @@ function startStub() {
     hostname: '127.0.0.1',
     port: 0,
     async fetch(req) {
-      const { query, variables } = (await req.json()) as { query: string; variables: Record<string, unknown> };
+      const body: unknown = await req.json();
+      const query = isRecord(body) && typeof body.query === 'string' ? body.query : '';
+      const variables = isRecord(body) && isRecord(body.variables) ? body.variables : {};
       if (query.includes('mapIds(')) {
         return Response.json({ data: { mapIds: { total: 1, mappings: [{
           term: 'KLK3',
@@ -100,8 +108,20 @@ void (async () => {
 interface RpcResponse {
   jsonrpc: '2.0';
   id: number;
-  result?: { tools?: { name: string }[]; content?: { text?: string }[]; isError?: boolean };
+  result?: { tools: { name: string }[]; content: { text?: string | undefined }[]; isError: boolean } | undefined;
   error?: unknown;
+}
+
+/** The fields of a JSON-RPC response the probe reads. */
+function rpcResponse(id: number, msg: JsonRecord): RpcResponse {
+  const result = isRecord(msg.result)
+    ? {
+      tools: records(msg.result.tools).flatMap((t) => (typeof t.name === 'string' ? [{ name: t.name }] : [])),
+      content: records(msg.result.content).map((c) => ({ text: typeof c.text === 'string' ? c.text : undefined })),
+      isError: msg.result.isError === true,
+    }
+    : undefined;
+  return { jsonrpc: '2.0', id, result, ...('error' in msg ? { error: msg.error } : {}) };
 }
 type Pending = { resolve: (msg: RpcResponse) => void; reject: (err: Error) => void };
 const pending = new Map<number, Pending>();
@@ -124,9 +144,9 @@ void (async () => {
         violations.push(line);
         continue;
       }
-      if (typeof msg !== 'object' || msg === null || !('jsonrpc' in msg) || msg.jsonrpc !== '2.0') { violations.push(line); continue; }
-      if ('id' in msg && typeof msg.id === 'number' && pending.has(msg.id) && !('method' in msg)) {
-        pending.get(msg.id)!.resolve(msg as RpcResponse);
+      if (!isRecord(msg) || msg.jsonrpc !== '2.0') { violations.push(line); continue; }
+      if (typeof msg.id === 'number' && pending.has(msg.id) && !('method' in msg)) {
+        pending.get(msg.id)!.resolve(rpcResponse(msg.id, msg));
         pending.delete(msg.id);
       }
     }
@@ -189,7 +209,7 @@ async function main() {
       if (!live && !resultText(res).includes(CANONICAL_ID)) return fail(`${call.name}: canonical ID missing from result`);
       ok(call.name);
     } catch (error) {
-      const msg = `${call.name}: ${(error as Error).message}`;
+      const msg = `${call.name}: ${errorMessage(error)}`;
       if (live) console.error(`  warn ${msg}`);
       else fail(msg);
     }
@@ -209,7 +229,7 @@ async function main() {
 try {
   await main();
 } catch (error) {
-  fail((error as Error).message);
+  fail(errorMessage(error));
 }
 
 // Let any trailing stdout bytes arrive before judging the stream.

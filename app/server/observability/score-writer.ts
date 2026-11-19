@@ -1,3 +1,5 @@
+import { isRecord } from "../../shared/json";
+
 type Env = Record<string, string | undefined>;
 
 export interface ScoreUpsert {
@@ -67,8 +69,8 @@ export function createScoreWriter(options: ScoreWriterOptions): ScoreWriter {
     },
     async exists(id) {
       const res = await call("GET", `/api/public/v3/scores?id=${encodeURIComponent(id)}&limit=1`);
-      const json = (await res.json()) as { data?: unknown[] };
-      return Array.isArray(json.data) && json.data.length > 0;
+      const json: unknown = await res.json();
+      return isRecord(json) && Array.isArray(json.data) && json.data.length > 0;
     },
   };
 }

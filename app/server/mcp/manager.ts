@@ -5,7 +5,9 @@ import { toolRegistry } from "./registry";
 import { enabledPlatforms } from "./platforms.config";
 import { logger, startTimer, estimateTokens } from "../logger";
 import { appConfig } from "../config";
-import { omitUndefined } from "../../shared/object";
+import type { Tool as McpToolDefinition } from "@modelcontextprotocol/sdk/types.js";
+import { definedEntries, omitUndefined } from "../../shared/object";
+import { isRecord } from "../../shared/json";
 
 const MCP_SERVERS_BASE = appConfig.server.mcp_servers_base;
 
@@ -37,7 +39,8 @@ function isRequestTimeout(error: unknown, timeoutMs: number): boolean {
   return (
     error instanceof McpError &&
     error.code === (ErrorCode.RequestTimeout as number) &&
-    (error.data as { timeout?: unknown } | undefined)?.timeout === timeoutMs
+    isRecord(error.data) &&
+    error.data.timeout === timeoutMs
   );
 }
 
@@ -56,7 +59,7 @@ export interface MCPServer {
 export interface ToolDefinition {
   name: string;
   description?: string;
-  inputSchema: Record<string, unknown>;
+  inputSchema: McpToolDefinition["inputSchema"];
 }
 
 export interface ToolResult {
@@ -111,7 +114,7 @@ export class MCPManager {
       const transport = new StdioClientTransport({
         command: server.config.command,
         args: server.config.args,
-        env: { ...process.env, ...server.config.env } as Record<string, string>,
+        env: definedEntries({ ...process.env, ...server.config.env }),
         ...omitUndefined({ cwd: server.config.cwd }),
       });
 
@@ -311,7 +314,7 @@ export class MCPManager {
     return result.tools.map((tool) => ({
       name: tool.name,
       ...(tool.description !== undefined && { description: tool.description }),
-      inputSchema: tool.inputSchema as Record<string, unknown>,
+      inputSchema: tool.inputSchema,
     }));
   }
 
@@ -422,7 +425,7 @@ export class MCPManager {
 
     return {
       content,
-      isError: (result.isError ?? false) as boolean,
+      isError: result.isError === true,
       ...(meta && { meta }),
     };
   }

@@ -6,7 +6,7 @@ import { applyCacheMarkers, cachedInstructions } from "../../server/orchestratio
 import { buildToolCatalog, SEARCH_TOOL_NAME } from "../../server/orchestration/context/tool-catalog";
 import { toDeclarations } from "../../server/orchestration/tool-dispatch";
 import { parseGateEffort, preflightThinking } from "./gate-config";
-import { assistantParts, bodyBlocks, MOA_HITS, parseWireBody, sha, verdict, type GatePart, type WireBlock, type WireBody } from "./gate-lib";
+import { assistantParts, bodyBlocks, gateFetch, isReasoning, isText, MOA_HITS, parseModelMessageValue, parseWireBody, requestBody, sha, verdict, type GatePart, type ReasoningPart, type WireBlock, type WireBody } from "./gate-lib";
 import { checkRedactedOffline, REDACTED_TRIGGER } from "./phase4b-redacted";
 import { omitUndefined } from "../../shared/object";
 
@@ -23,14 +23,15 @@ const providerOptions = chatProviderOptions({ ...config, effort: EFFORT });
 
 interface Req { raw: string; body: WireBody; status: number; errorText?: string; signal?: AbortSignal | null | undefined }
 const requests: Req[] = [];
-const loggingFetch = (async (url: string | URL | Request, init?: RequestInit) => {
-  const req: Req = { raw: (init?.body as string), body: parseWireBody(init?.body as string), status: -1, signal: init?.signal };
+const loggingFetch = gateFetch(async (url, init) => {
+  const raw = requestBody(init);
+  const req: Req = { raw, body: parseWireBody(raw), status: -1, signal: init?.signal };
   requests.push(req);
   const res = await fetch(url, init);
   req.status = res.status;
   if (!res.ok) req.errorText = await res.clone().text();
   return res;
-}) as typeof fetch;
+});
 const model = getChatModel({ fetch: loggingFetch });
 
 interface Call {
@@ -98,7 +99,7 @@ const status = (c?: Call) => `HTTP ${c?.status}${c?.error ? ` — ${c.error.slic
 const THINKING_ERROR = /thinking|signature/i;
 
 const HITS = [...MOA_HITS.map((h) => h.name), "chembl__get_target_info"];
-const STUBS: Record<string, unknown> = {
+const STUBS: Record<string, Record<string, string>> = {
   chembl__get_mechanism_of_action: { molecule_chembl_id: "CHEMBL941", mechanism_of_action: "BCR/ABL, KIT and PDGFR tyrosine kinase inhibitor", action_type: "INHIBITOR", target_chembl_id: "CHEMBL1862" },
   chembl__get_target_info: { target_chembl_id: "CHEMBL1862", pref_name: "Tyrosine-protein kinase ABL1", target_type: "SINGLE PROTEIN", organism: "Homo sapiens", accession: "P00519" },
 };
@@ -106,7 +107,7 @@ function stubOutput(toolName: string) {
   if (toolName === SEARCH_TOOL_NAME) {
     return { type: "content" as const, value: HITS.map((name) => ({ type: "custom" as const, providerOptions: { anthropic: { type: "tool-reference", toolName: name } } })) };
   }
-  return { type: "text" as const, value: JSON.stringify({ ...(STUBS[toolName] as object ?? { note: "no data" }), fetched_at: "2026-10-10T12:00:00Z" }) };
+  return { type: "text" as const, value: JSON.stringify({ ...(STUBS[toolName] ?? { note: "no data" }), fetched_at: "2026-10-10T12:00:00Z" }) };
 }
 
 interface Turn { appended: ModelMessage[]; calls: Call[]; aborted: boolean; requestsMade: number }
@@ -143,17 +144,17 @@ db.run("CREATE TABLE model_transcript (session_id TEXT, seq INTEGER, content_jso
 function storeAndLoad(sessionId: string, msgs: ModelMessage[]): ModelMessage[] {
   const insert = db.prepare("INSERT INTO model_transcript VALUES (?, ?, ?)");
   msgs.forEach((m, seq) => insert.run(sessionId, seq, JSON.stringify(m)));
-  return db.query("SELECT content_json FROM model_transcript WHERE session_id = ? ORDER BY seq").all(sessionId)
-    .map((r) => JSON.parse((r as { content_json: string }).content_json) as ModelMessage);
+  return db.query<{ content_json: string }, [string]>("SELECT content_json FROM model_transcript WHERE session_id = ? ORDER BY seq").all(sessionId)
+    .map((r) => parseModelMessageValue(JSON.parse(r.content_json)));
 }
 
-const thinkingParts = (msgs: ModelMessage[]) => assistantParts(msgs).filter((p) => p.type === "reasoning");
+const thinkingParts = (msgs: ModelMessage[]) => assistantParts(msgs).filter(isReasoning);
 const signed = (msgs: ModelMessage[]) => thinkingParts(msgs).filter((p) => p.providerOptions?.anthropic?.signature);
 const redacted = (msgs: ModelMessage[]) => thinkingParts(msgs).filter((p) => p.providerOptions?.anthropic?.redactedData);
 
 function degrade(turn: ModelMessage[]): ModelMessage[] {
   const user = turn[0]!;
-  const finalText = assistantParts([turn.at(-1)!]).filter((p) => p.type === "text").map((p) => p.text).join("");
+  const finalText = assistantParts([turn.at(-1)!]).filter(isText).map((p) => p.text).join("");
   return [{ role: "user", content: typeof user.content === "string" ? user.content : "" }, { role: "assistant", content: finalText }];
 }
 
@@ -175,7 +176,8 @@ export async function check4b(nonce: string) {
   const tools = toDeclarations(buildToolCatalog(config.provider, (n) => sanitizeToolName(n, config.provider), "phase4b-gate"));
   const searchTool = tools[SEARCH_TOOL_NAME];
   if (!searchTool) throw new Error(`${SEARCH_TOOL_NAME} is not in the catalog`);
-  tools[SEARCH_TOOL_NAME] = { ...searchTool, description: `${searchTool.description} (gate run ${nonce})` } as Tool;
+  // Object.assign, not a spread: a spread of the Tool union does not type-check against Tool.
+  tools[SEARCH_TOOL_NAME] = Object.assign({}, searchTool, { description: `${searchTool.description} (gate run ${nonce})` });
   for (const n of HITS) if (!tools[n]) throw new Error(`${n} is not in the catalog`);
   console.log(`4b: ${Object.keys(tools).length} tools, model ${config.chatModel}, effort ${EFFORT}, display ${config.thinkingDisplay}, nonce ${nonce}`);
 
@@ -231,14 +233,15 @@ export async function check4b(nonce: string) {
   verdict("4b.6c lossless T1 + degraded T2 → 200", "required", ok(c6c), status(c6c));
   for (const c of [c6a, c6b, c6c]) if (c.error && THINKING_ERROR.test(c.error)) console.log(`  !! ${c.label}: preserved-thinking error → 4b.4 needs a redesign`);
 
-  const editThinking = (msgs: ModelMessage[], edit: (p: GatePart) => GatePart | null): ModelMessage[] =>
+  const editThinking = (msgs: ModelMessage[], edit: (p: ReasoningPart) => ReasoningPart | null): ModelMessage[] =>
     msgs.map((m) => (m.role === "assistant" && Array.isArray(m.content)
-      ? ({ ...m, content: assistantParts([m]).map((p) => (p.type === "reasoning" ? edit(p) : p)).filter(Boolean) } as ModelMessage)
+      ? { ...m, content: m.content.map((p) => (isReasoning(p) ? edit(p) : p)).filter((p): p is GatePart => p !== null) }
       : m));
   const c6d = await call("6d control: T1 thinking text edited", tools, [...editThinking(stored1, (p) => ({ ...p, text: `${p.text} (edited)` })), { role: "user", content: Q3 }]);
   const c6e = await call("6e control: T1 thinking removed", tools, [...editThinking(stored1, () => null), { role: "user", content: Q3 }]);
   const c6f = await call("6f control: T1 thinking signature edited", tools, [...editThinking(stored1, (p) => {
-    const sig = p.providerOptions?.anthropic?.signature ?? "";
+    const signature = p.providerOptions?.anthropic?.signature;
+    const sig = typeof signature === "string" ? signature : "";
     return { ...p, providerOptions: { anthropic: { ...p.providerOptions?.anthropic, signature: `${sig.slice(0, 40)}${sig[40] === "A" ? "B" : "A"}${sig.slice(41)}` } } };
   }), { role: "user", content: Q3 }]);
   verdict("4b.6d control: edited thinking text → 400", "warn", c6d.status === 400, status(c6d));
@@ -254,7 +257,7 @@ export async function check4b(nonce: string) {
   if (liveRedacted > 0) {
     const r2 = await call("R2 replay redacted", tools, [...rStored, { role: "user", content: "Reply with one more word." }], rStored.length - 1);
     const sent = bodyBlocks(r2.req?.body, "redacted_thinking");
-    const same = sent.map((x) => x.data).join() === redacted(r1.appended).map((p) => p.providerOptions?.anthropic?.redactedData).join();
+    const same = sent.map((x) => x.data).join() === redacted(r1.appended).map((p) => { const data = p.providerOptions?.anthropic?.redactedData; return typeof data === "string" ? data : ""; }).join();
     verdict("4b.2 redacted thinking replayed live → 200, data intact", "required", ok(r2) && same, `${status(r2)}; ${sent.length} redacted_thinking blocks sent, data identical ${same}`);
   }
   const off = await checkRedactedOffline();
