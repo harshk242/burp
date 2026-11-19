@@ -28,7 +28,7 @@ async function invoke(name: string, args: Record<string, unknown>) {
 const key = process.env.NCBI_API_KEY ? { api_key: process.env.NCBI_API_KEY } : {};
 it('matches the saved NCBI einfo field list including additions', async () => {
   await paceNcbi();
-  const response = await createClinVarNcbiHttp().get('einfo.fcgi', {
+  const response = await createClinVarNcbiHttp({ apiKey: process.env.NCBI_API_KEY }).get('einfo.fcgi', {
     params: { db: 'clinvar', retmode: 'json', ...key },
   });
   const live = response.data.einforesult.dbinfo[0].fieldlist.map(
@@ -54,7 +54,7 @@ it('pathogenic properties narrow TP53 without matching All Fields text', async (
   expect(pathogenic.count).toBeGreaterThan(0);
   expect(pathogenic.count).toBeLessThan(all.count);
   await paceNcbi();
-  const response = await createClinVarNcbiHttp().get('esearch.fcgi', {
+  const response = await createClinVarNcbiHttp({ apiKey: process.env.NCBI_API_KEY }).get('esearch.fcgi', {
     params: { db: 'clinvar', retmode: 'json', retmax: 0, term: 'TP53[gene] AND pathogenic[All Fields]', ...key },
   });
   expect(pathogenic.count).toBeLessThan(Number(response.data.esearchresult.count));

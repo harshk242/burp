@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { describe, expect, it, vi } from 'vitest';
-import { UpstreamError } from '../exceptions.js';
+import { RateLimiterQueueFullError, UpstreamError } from '../exceptions.js';
 import { attachRetry, computeBackoffMs, withRetry, type RetryPolicy } from '../http-retry.js';
 import { runWithToolCallContext } from '../tool-call-context.js';
 import { axiosFailure, basePolicy, fakeClock, rejection, stubClient } from './retry-test-utils.js';
@@ -253,6 +253,24 @@ describe('beforeAttempt', () => {
     const { client, calls } = stubClient([200], { beforeAttempt: async () => { throw failure; } });
     expect(await rejection(client.get('/x'))).toBe(failure);
     expect(calls).toHaveLength(0);
+  });
+
+  it('fails fast with queue_full when the rate limiter queue is full', async () => {
+    const full = new RateLimiterQueueFullError(4_000);
+    const { client, calls } = stubClient([200], { beforeAttempt: async () => { throw full; } });
+    const error = await rejection(client.get('/x'));
+    expect(error).toBeInstanceOf(UpstreamError);
+    expect(error).toMatchObject({ kind: 'rate_limited', reason: 'queue_full', attempts: 0, retryAfterMs: 4_000, cause: full });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('stops retrying with queue_full when the queue fills between attempts', async () => {
+    const beforeAttempt = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new RateLimiterQueueFullError(2_000));
+    const { client, calls } = stubClient([500, 200], { beforeAttempt });
+    expect(await rejection(client.get('/x'))).toMatchObject({ reason: 'queue_full', attempts: 1, status: 500, retryAfterMs: 2_000 });
+    expect(calls).toHaveLength(1);
   });
 });
 

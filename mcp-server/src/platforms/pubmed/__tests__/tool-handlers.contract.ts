@@ -30,7 +30,7 @@ async function invoke(name: string, args: Record<string, unknown>) {
 }
 it('matches the saved PubMed einfo field list including additions', async () => {
   await paceNcbi();
-  const response = await createPubMedHttp().get('einfo.fcgi', {
+  const response = await createPubMedHttp({ apiKey: process.env.NCBI_API_KEY }).get('einfo.fcgi', {
     params: { db: 'pubmed', retmode: 'json', ...(process.env.NCBI_API_KEY ? { api_key: process.env.NCBI_API_KEY } : {}) },
   });
   assertNcbiFieldsMatch(response.data.einforesult.dbinfo[0].fieldlist, fields);
