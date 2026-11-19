@@ -2,119 +2,132 @@ import { TOOLS } from './tools/definitions.js';
 import type { PlatformModule, ToolHandler } from '../../types.js';
 import { initializeClient, closeClient } from './client.js';
 import * as tools from './tools/index.js';
+import {
+  optionalBoolean,
+  optionalEnum,
+  optionalNumber,
+  optionalString,
+  optionalStringArray,
+  requireNumber,
+  requireString,
+  requireStringArray,
+} from '../../shared/args.js';
 
+const CITATION_STYLES = ['apa', 'mla', 'vancouver', 'bibtex'] as const;
 
 const toolHandlers: Record<string, ToolHandler> = {
   search_pubmed: async (args) => {
     return tools.searchPubmed(
-      args.query as string,
-      args.max_results as number | undefined,
-      args.start as number | undefined,
-      args.sort as string | undefined
+      requireString(args, 'query'),
+      optionalNumber(args, 'max_results'),
+      optionalNumber(args, 'start'),
+      optionalString(args, 'sort')
     );
   },
 
   search_with_filters: async (args) => {
+    const dateStart = optionalString(args, 'date_start');
+    const dateEnd = optionalString(args, 'date_end');
     const filters = {
-      dateRange: args.date_start || args.date_end
-        ? { start: (args.date_start as string) || '1000/01/01', end: (args.date_end as string) || '3000/12/31' }
+      dateRange: dateStart || dateEnd
+        ? { start: dateStart || '1000/01/01', end: dateEnd || '3000/12/31' }
         : undefined,
-      publicationType: args.publication_types as string[] | undefined,
-      language: args.language as string | undefined,
-      hasAbstract: args.has_abstract as boolean | undefined,
-      freeFullText: args.free_full_text as boolean | undefined,
-      humanOnly: args.human_only as boolean | undefined,
-      journalList: args.journals as string[] | undefined,
+      publicationType: optionalStringArray(args, 'publication_types'),
+      language: optionalString(args, 'language'),
+      hasAbstract: optionalBoolean(args, 'has_abstract'),
+      freeFullText: optionalBoolean(args, 'free_full_text'),
+      humanOnly: optionalBoolean(args, 'human_only'),
+      journalList: optionalStringArray(args, 'journals'),
     };
     return tools.searchWithFilters(
-      args.query as string,
+      requireString(args, 'query'),
       filters,
-      args.max_results as number | undefined
+      optionalNumber(args, 'max_results')
     );
   },
 
   search_by_author: async (args) => {
     return tools.searchByAuthor(
-      args.author_name as string,
-      args.additional_query as string | undefined,
-      args.max_results as number | undefined
+      requireString(args, 'author_name'),
+      optionalString(args, 'additional_query'),
+      optionalNumber(args, 'max_results')
     );
   },
 
   search_by_journal: async (args) => {
     return tools.searchByJournal(
-      args.journal_name as string,
-      args.additional_query as string | undefined,
-      args.max_results as number | undefined,
-      args.min_date as string | undefined,
-      args.max_date as string | undefined
+      requireString(args, 'journal_name'),
+      optionalString(args, 'additional_query'),
+      optionalNumber(args, 'max_results'),
+      optionalString(args, 'min_date'),
+      optionalString(args, 'max_date')
     );
   },
 
   search_clinical_trials_literature: async (args) => {
     return tools.searchClinicalTrialsLiterature(
-      args.condition as string,
-      args.intervention as string | undefined,
-      args.max_results as number | undefined
+      requireString(args, 'condition'),
+      optionalString(args, 'intervention'),
+      optionalNumber(args, 'max_results')
     );
   },
 
   fetch_article_details: async (args) => {
-    return tools.fetchArticleDetails(args.pmid as string);
+    return tools.fetchArticleDetails(requireString(args, 'pmid'));
   },
 
   get_article_abstract: async (args) => {
-    return tools.getArticleAbstract(args.pmid as string);
+    return tools.getArticleAbstract(requireString(args, 'pmid'));
   },
 
   get_article_summary: async (args) => {
-    return tools.getArticleSummary(args.pmid as string);
+    return tools.getArticleSummary(requireString(args, 'pmid'));
   },
 
   batch_fetch_articles: async (args) => {
     return tools.batchFetchArticles(
-      args.pmids as string[],
-      args.include_abstracts as boolean | undefined
+      requireStringArray(args, 'pmids'),
+      optionalBoolean(args, 'include_abstracts')
     );
   },
 
   find_related_articles: async (args) => {
     return tools.findRelatedArticles(
-      args.pmid as string,
-      args.max_results as number | undefined
+      requireString(args, 'pmid'),
+      optionalNumber(args, 'max_results')
     );
   },
 
   get_citations: async (args) => {
     return tools.getCitations(
-      args.pmid as string,
-      args.max_results as number | undefined
+      requireString(args, 'pmid'),
+      optionalNumber(args, 'max_results')
     );
   },
 
   get_references: async (args) => {
     return tools.getReferences(
-      args.pmid as string,
-      args.max_results as number | undefined
+      requireString(args, 'pmid'),
+      optionalNumber(args, 'max_results')
     );
   },
 
   get_mesh_terms: async (args) => {
-    return tools.getMeshTerms(args.pmid as string);
+    return tools.getMeshTerms(requireString(args, 'pmid'));
   },
 
   get_publication_trends: async (args) => {
     return tools.getPublicationTrends(
-      args.query as string,
-      args.start_year as number,
-      args.end_year as number | undefined
+      requireString(args, 'query'),
+      requireNumber(args, 'start_year'),
+      optionalNumber(args, 'end_year')
     );
   },
 
   format_citation: async (args) => {
     return tools.formatCitation(
-      args.pmid as string,
-      args.style as 'apa' | 'mla' | 'vancouver' | 'bibtex' | undefined
+      requireString(args, 'pmid'),
+      optionalEnum(args, 'style', CITATION_STYLES)
     );
   },
 };

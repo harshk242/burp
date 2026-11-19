@@ -1,3 +1,5 @@
+import { path, recordArray } from '../../shared/json.js';
+
 /** Property tags documented at https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest#section=Compound-Property-Tables */
 export const PROPERTY_NAMES = [
   'MolecularFormula', 'MolecularWeight', 'CanonicalSMILES', 'IsomericSMILES',
@@ -14,8 +16,7 @@ export const PROPERTY_NAMES = [
 ];
 
 export function normalizeProperties<T>(data: T): T {
-  const rows = (data as { PropertyTable?: { Properties?: Array<Record<string, unknown>> } })?.PropertyTable?.Properties;
-  for (const row of rows ?? []) {
+  for (const row of recordArray(path(data, 'PropertyTable', 'Properties'))) {
     if (row.ConnectivitySMILES) row.CanonicalSMILES ??= row.ConnectivitySMILES;
     if (row.SMILES) row.IsomericSMILES ??= row.SMILES;
   }

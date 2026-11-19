@@ -1,5 +1,6 @@
 import { AISDKError, type ProviderMetadata } from "ai";
 import { v4 as uuidv4 } from "uuid";
+import { asRecord } from "../../shared/json";
 import { db, chatSessionQueries, chatTurnQueries, messageQueries } from "../db";
 import { logger, type LogContext } from "../logger";
 import { turnSignals, writeTurnScores } from "../observability/turn-signals";
@@ -48,19 +49,14 @@ export function providerError(error: unknown): TurnError {
   return new TurnError("provider_error", messageOf(error), undefined, { cause: error });
 }
 
-interface StopDetails {
-  type?: string;
-  category?: string;
-  explanation?: string;
-}
-
 export function refusalError(rawFinishReason: string | undefined, providerMetadata: ProviderMetadata | undefined): TurnError {
-  const details = providerMetadata?.anthropic?.stopDetails as StopDetails | undefined;
-  const category = details?.category ?? undefined;
+  const details = asRecord(providerMetadata?.anthropic?.stopDetails);
+  const category = typeof details.category === "string" ? details.category : undefined;
+  const explanation = typeof details.explanation === "string" ? details.explanation : undefined;
   const message = [
     `stop_reason=${rawFinishReason ?? "content-filter"}`,
     category && `category=${category}`,
-    details?.explanation && `explanation=${details.explanation}`,
+    explanation && `explanation=${explanation}`,
   ]
     .filter(Boolean)
     .join("; ");

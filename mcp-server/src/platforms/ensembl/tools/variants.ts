@@ -1,5 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { asArray, asRecord } from '../../../shared/json.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidVariantArgs = (
@@ -73,17 +74,20 @@ async function handleGetVariants(args: Record<string, unknown>) {
 
   if (args.consequence_type?.length) {
     // The overlap endpoint accepts one SO term per request; union multiple terms.
-    const rows = [];
+    const rows: unknown[] = [];
     for (const term of args.consequence_type) {
-      const response = await getClient().get(`/overlap/region/${species}/${region}`, {
+      const response = await getClient().get<unknown>(`/overlap/region/${species}/${region}`, {
         params: { ...params, so_term: term },
       });
-      rows.push(...response.data);
+      rows.push(...asArray(response.data));
     }
-    return [...new Map(rows.map(row => [JSON.stringify([row.id, row.start, row.end, row.alleles]), row])).values()];
+    return [...new Map(rows.map(row => {
+      const { id, start, end, alleles } = asRecord(row);
+      return [JSON.stringify([id, start, end, alleles]), row];
+    })).values()];
   }
 
-  const response = await getClient().get(`/overlap/region/${species}/${region}`, { params });
+  const response = await getClient().get<unknown>(`/overlap/region/${species}/${region}`, { params });
   return response.data;
 }
 
@@ -94,17 +98,17 @@ async function handleGetVariantConsequences(args: Record<string, unknown>) {
 
   const species = getDefaultSpecies(args.species);
 
-  const results = [];
+  const results: unknown[] = [];
   for (const form of ['id', 'hgvs', 'region'] as const) {
     const variants = args.variants.filter(v =>
       (/\s/.test(v.trim()) ? 'region' : v.includes(':') ? 'hgvs' : 'id') === form);
     if (!variants.length) continue;
     const key = form === 'id' ? 'ids' : form === 'hgvs' ? 'hgvs_notations' : 'variants';
-    const response = await getClient().post(
+    const response = await getClient().post<unknown>(
       "/vep/" + species + "/" + form, { [key]: variants },
       { headers: { 'Content-Type': 'application/json' } },
     );
-    results.push(...response.data);
+    results.push(...asArray(response.data));
   }
   return results;
 }

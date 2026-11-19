@@ -1,71 +1,11 @@
-import axios, { type AxiosAdapter, type AxiosInstance, type AxiosResponse } from 'axios';
+import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
 import { UpstreamError } from '../../shared/exceptions.js';
 import { getHeader } from '../../shared/http-retry-classify.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
+import { optString, path } from '../../shared/json.js';
+import { decodeStudySearchResponse, type Study, type StudySearchResponse } from './study.js';
 
-export interface StudySearchResponse {
-  studies: Study[];
-  /** Only present when the request sets `countTotal=true`. */
-  totalCount?: number;
-  nextPageToken?: string;
-}
-
-export interface Study {
-  hasResults?: boolean;
-  protocolSection: {
-    identificationModule: {
-      nctId: string;
-      briefTitle: string;
-      officialTitle?: string;
-      /** Registry trial name, e.g. "ENGAGE". The only registry-backed name for an NCT ID. */
-      acronym?: string;
-      orgStudyIdInfo?: { id: string };
-      secondaryIdInfos?: Array<{ id: string; type?: string }>;
-    };
-    statusModule: {
-      overallStatus: string;
-      startDateStruct?: {
-        date: string;
-        type: string;
-      };
-      primaryCompletionDateStruct?: {
-        date: string;
-        type: string;
-      };
-    };
-    sponsorCollaboratorsModule?: {
-      leadSponsor: {
-        name: string;
-        class: string;
-      };
-    };
-    armsInterventionsModule?: {
-      interventions?: Array<{ name: string; type?: string }>;
-    };
-    conditionsModule?: {
-      conditions: string[];
-    };
-    designModule?: {
-      phases?: string[];
-      studyType: string;
-    };
-    contactsLocationsModule?: {
-      locations?: Array<{
-        facility: string;
-        city: string;
-        state?: string;
-        country: string;
-      }>;
-    };
-    eligibilityModule?: {
-      eligibilityCriteria: string;
-      healthyVolunteers: boolean;
-      sex: string;
-      minimumAge?: string;
-      maximumAge?: string;
-    };
-  };
-}
+export type { Study, StudySearchResponse } from './study.js';
 
 export const CLINICAL_TRIALS_POLICY: RetryPolicy = Object.freeze({
   maxAttempts: 1,
@@ -119,14 +59,14 @@ const MAX_API_MESSAGE_CHARS = 500;
 
 function apiErrorMessage(cause: unknown): string | undefined {
   if (!axios.isAxiosError(cause) || !cause.response) return undefined;
-  const { data, headers } = cause.response;
-  let text: unknown;
+  const data: unknown = cause.response.data;
+  let text: string | undefined;
   if (typeof data === 'string') {
-    if (getHeader(headers, 'content-type')?.toLowerCase().startsWith('text/plain')) text = data;
-  } else if (data && typeof data === 'object') {
-    text = (data as { message?: unknown }).message;
+    if (getHeader(cause.response.headers, 'content-type')?.toLowerCase().startsWith('text/plain')) text = data;
+  } else {
+    text = optString(path(data, 'message'));
   }
-  if (typeof text !== 'string' || !text.trim()) return undefined;
+  if (!text?.trim()) return undefined;
   return text.trim().slice(0, MAX_API_MESSAGE_CHARS);
 }
 
@@ -156,15 +96,16 @@ export async function fetchStudies(
     throw new Error(`Unsupported ClinicalTrials.gov /studies params: ${unknown.join(', ')}`);
   }
   try {
-    const response: AxiosResponse<StudySearchResponse> = await getClient().get(
+    const response = await getClient().get<unknown>(
       '/studies',
       { params: { countTotal: true, ...params } },
     );
-    return response.data;
+    return decodeStudySearchResponse(response.data);
   } catch (error) {
-    const apiMessage = error instanceof UpstreamError ? apiErrorMessage(error.cause) : undefined;
+    if (!(error instanceof UpstreamError)) throw error;
+    const apiMessage = apiErrorMessage(error.cause);
     if (!apiMessage) throw error;
-    const upstream = error as UpstreamError;
+    const upstream = error;
     throw new UpstreamError(`ClinicalTrials API error: ${apiMessage}. ${upstream.message}`, {
       kind: upstream.kind,
       reason: upstream.reason,
@@ -276,11 +217,11 @@ function groupByField(studies: Study[], field: string) {
   const groups: Record<string, number> = {};
 
   for (const study of studies) {
-    let value: string | string[];
+    let value: string;
 
     switch (field) {
       case 'status':
-        value = study.protocolSection.statusModule.overallStatus;
+        value = study.protocolSection.statusModule.overallStatus ?? 'Unknown';
         break;
       case 'phase':
         value =
@@ -303,8 +244,7 @@ function groupByField(studies: Study[], field: string) {
         value = 'Unknown';
     }
 
-    const key = Array.isArray(value) ? value[0] : value;
-    groups[key] = (groups[key] || 0) + 1;
+    groups[value] = (groups[value] || 0) + 1;
   }
 
   return groups;

@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { v4 as uuidv4 } from "uuid";
 import { chatSessionQueries, messageFeedbackQueries, messageQueries } from "../db";
-import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
+import { authedUserId, clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import {
   CreateSessionSchema,
   SessionCreatedSchema,
@@ -10,11 +10,20 @@ import {
   UpdateSessionSchema,
   ErrorSchema,
   MessageSchema,
-  type ToolCallSchema,
+  ToolCallSchema,
 } from "../schemas";
 import type { AppEnv } from "../types";
 
 const sessions = new OpenAPIHono<AppEnv>();
+
+// Passthrough keeps fields the schema does not list (e.g. `toolName`), as the stored JSON is returned as is.
+const StoredToolCallsSchema = z.array(ToolCallSchema.passthrough());
+
+/** The stored `tool_calls` JSON; `null` when it is not an array of tool calls. */
+function parseStoredToolCalls(json: string): z.infer<typeof StoredToolCallsSchema> | null {
+  const parsed = StoredToolCallsSchema.safeParse(JSON.parse(json));
+  return parsed.success ? parsed.data : null;
+}
 
 sessions.use("*", clerkAuth, requireDbUser, requireUser);
 
@@ -62,7 +71,7 @@ const listSessionsRoute = createRoute({
 });
 
 sessions.openapi(listSessionsRoute, async (c) => {
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
 
   try {
     const chatSessions = chatSessionQueries.findByUserId(userId);
@@ -127,7 +136,7 @@ const createSessionRoute = createRoute({
 });
 
 sessions.openapi(createSessionRoute, async (c) => {
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
 
   try {
     const { title } = c.req.valid("json");
@@ -192,7 +201,7 @@ const getSessionRoute = createRoute({
 
 sessions.openapi(getSessionRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
 
   try {
     const session = chatSessionQueries.findById(id);
@@ -209,7 +218,7 @@ sessions.openapi(getSessionRoute, async (c) => {
 
     const parsedMessages = messages.map((msg) => ({
       ...msg,
-      tool_calls: msg.tool_calls ? (JSON.parse(msg.tool_calls) as z.infer<typeof ToolCallSchema>[]) : null,
+      tool_calls: msg.tool_calls ? parseStoredToolCalls(msg.tool_calls) : null,
       ...(msg.role === "assistant" ? { feedback: feedback.get(msg.id) ?? null } : {}),
     }));
 
@@ -270,7 +279,7 @@ const deleteSessionRoute = createRoute({
 
 sessions.openapi(deleteSessionRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
 
   try {
     const session = chatSessionQueries.findById(id);
@@ -357,7 +366,7 @@ const updateSessionRoute = createRoute({
 sessions.openapi(updateSessionRoute, async (c) => {
   const { id } = c.req.valid("param");
   const { title } = c.req.valid("json");
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
 
   try {
     const session = chatSessionQueries.findById(id);

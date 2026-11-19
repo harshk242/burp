@@ -11,11 +11,12 @@ import { buildSystemPrompt } from "../../server/orchestration/context/system-pro
 import { createSearchTool } from "../../server/orchestration/tools/search-tool";
 import { createInspectArtifactTool } from "../../server/orchestration/tools/artifact-inspector";
 import { toDeclarations } from "../../server/orchestration/tool-dispatch";
-import { assistantParts, MOA_HITS, parseWireBody, sha, verdict, verdicts, type WireBlock, type WireBody } from "./gate-lib";
+import { assistantParts, gateFetch, MOA_HITS, parseWireBody, requestBody, sha, verdict, verdicts, wireBlocks, type WireBody } from "./gate-lib";
 import { coldCacheWritten } from "./gate-config";
 import { check4b, ensureThinkingCapabilities } from "./phase4b-checks";
 import { checkRedactedOffline } from "./phase4b-redacted";
 import { omitUndefined } from "../../shared/object";
+import { asRecord } from "../../shared/json";
 
 const MODEL_ID = loadLLMConfig().chatModel;
 const MAX_OUTPUT = 256;
@@ -28,14 +29,14 @@ let last: Capture | null = null;
 
 const anthropic = createAnthropic({
   ...omitUndefined({ apiKey: process.env.ANTHROPIC_API_KEY }),
-  fetch: (async (url, init) => {
-    const body = parseWireBody(init?.body as string);
+  fetch: gateFetch(async (url, init) => {
+    const body = parseWireBody(requestBody(init));
     const headers = new Headers(init?.headers);
     const res = await fetch(url, init);
     last = { status: res.status, beta: headers.get("anthropic-beta"), body };
     if (!res.ok) last.errorText = await res.clone().text();
     return res;
-  }) as typeof fetch,
+  }),
 });
 
 type Mode = "core-only" | "deferred" | "all-loaded";
@@ -53,7 +54,8 @@ function buildCatalog(mode: Mode, nonce: string): Record<string, Tool> {
   });
   const searchTool = system[SEARCH];
   if (!searchTool) throw new Error(`${SEARCH} is missing from the system tools`);
-  system[SEARCH] = { ...searchTool, description: `${searchTool.description} (gate run ${nonce})` } as Tool;
+  // Object.assign, not a spread: a spread of the Tool union does not type-check against Tool.
+  system[SEARCH] = Object.assign({}, searchTool, { description: `${searchTool.description} (gate run ${nonce})` });
   const names = toolRegistry.getAll().map((t) => `${t.server}__${t.name}`);
   const entries: [string, Tool][] = Object.entries(system);
   for (const name of names) {
@@ -118,7 +120,7 @@ async function runCall(
     for await (const t of result.textStream) text += t;
     const usage = await result.usage;
     const step = await result.finalStep;
-    const raw = step.providerMetadata?.anthropic?.usage as Record<string, unknown> | undefined;
+    const raw = asRecord(step.providerMetadata?.anthropic?.usage);
     r = {
       label,
       cache,
@@ -129,7 +131,7 @@ async function runCall(
       noCache: usage.inputTokenDetails?.noCacheTokens,
       cacheRead: usage.inputTokenDetails?.cacheReadTokens,
       cacheWrite: usage.inputTokenDetails?.cacheWriteTokens,
-      cacheCreation: raw?.cache_creation,
+      cacheCreation: raw.cache_creation,
       outputTokens: usage.outputTokens,
       finishReason: await result.finishReason,
       toolCalls: (await result.toolCalls).map((c) => c.toolName),
@@ -197,8 +199,8 @@ function inspectBody(body: WireBody | undefined) {
     if (!Array.isArray(m.content)) return;
     m.content.forEach((b, bi) => {
       if (b.cache_control) marked.push(`messages[${mi}].${b.type}[${bi}]`);
-      if (b.type === "tool_result" && Array.isArray(b.content))
-        for (const c of b.content as WireBlock[]) if (c.type === "tool_reference" && c.tool_name) refs.push(c.tool_name);
+      if (b.type === "tool_result")
+        for (const c of wireBlocks(b.content)) if (c.type === "tool_reference" && c.tool_name) refs.push(c.tool_name);
     });
   });
   return { toolReferences: refs, cacheControlOn: marked };
@@ -249,7 +251,8 @@ async function check23() {
 
   const c1 = await run("2/3 call1 (user question)", "cold", ask(MOA_QUESTION));
   const searchCall = toolCallsOf(c1.responseMessages).find((p) => p.toolName === SEARCH);
-  const query = searchCall?.input?.query ?? "mechanism of action of a drug in ChEMBL";
+  const searchQuery = asRecord(searchCall?.input).query;
+  const query = typeof searchQuery === "string" ? searchQuery : "mechanism of action of a drug in ChEMBL";
   console.log(`call1: model ${searchCall ? `called ${SEARCH} (query: ${JSON.stringify(query)})` : "did NOT call search → constructing the tool_use"}`);
   const id = searchCall?.toolCallId ?? "toolu_phase0_search_1";
   const base: ModelMessage[] = searchCall
@@ -365,7 +368,11 @@ async function main() {
   }
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set (run from app/ so .env loads)");
   if (target === "all" || target === "4b") await ensureThinkingCapabilities();
-  const pkg = async (p: string) => ((await import(`${p}/package.json`, { with: { type: "json" } })) as { default: { version: string } }).default.version;
+  const pkg = async (p: string) => {
+    const mod: unknown = await import(`${p}/package.json`, { with: { type: "json" } });
+    const version = asRecord(asRecord(mod).default).version;
+    return typeof version === "string" ? version : "unknown";
+  };
   console.log("model:", MODEL_ID, "| ai", await pkg("ai"), "| @ai-sdk/anthropic", await pkg("@ai-sdk/anthropic"), "| run", RUN_ID);
 
   runMigrations(sqlite);

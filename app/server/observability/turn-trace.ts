@@ -4,6 +4,7 @@ import type { CallCost } from "../usage";
 import { logger } from "../logger";
 import { tracingActive } from "./langfuse";
 import { omitUndefined } from "../../shared/object";
+import { stringArray } from "../../shared/json";
 
 export type TurnTraceStatus = "ok" | "error" | "aborted" | "closed";
 
@@ -294,7 +295,7 @@ export class TurnTrace {
     const root = this.root;
     if (!root) return;
     if (outcome.tags?.length) {
-      const tags = [...((this.traceAttributes[LangfuseOtelSpanAttributes.TRACE_TAGS] as string[] | undefined) ?? []), ...outcome.tags];
+      const tags = [...stringArray(this.traceAttributes[LangfuseOtelSpanAttributes.TRACE_TAGS]), ...outcome.tags];
       safely("trace_end_failed", () => root.otelSpan.setAttribute(LangfuseOtelSpanAttributes.TRACE_TAGS, tags), undefined);
     }
     safely(

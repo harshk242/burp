@@ -5,6 +5,7 @@ import { z } from "zod";
 import { APP_DIR } from "./app-dir";
 import { EMBEDDING_PROVIDERS } from "./embeddings/types";
 import { EnvironmentLimitSchema, IntegerLimitSchema, LimitSchema } from "./schemas/limits";
+import { asRecord } from "../shared/json";
 
 const PlatformSchema = z.object({
   enabled: z.boolean().default(true),
@@ -181,7 +182,8 @@ const CONFIG_PATH = join(APP_DIR, "config.yaml");
 function loadYamlFile(): Record<string, unknown> {
   try {
     const raw = readFileSync(CONFIG_PATH, "utf-8");
-    return (parseYaml(raw) as Record<string, unknown>) ?? {};
+    const parsed: unknown = parseYaml(raw);
+    return asRecord(parsed);
   } catch {
     return {};
   }
@@ -219,7 +221,7 @@ function applyEmbeddingEnv(cfg: AppConfig, e: Env): void {
 }
 
 function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
-  if (e.LLM_PROVIDER) cfg.llm.provider = e.LLM_PROVIDER as AppConfig["llm"]["provider"];
+  if (e.LLM_PROVIDER) cfg.llm.provider = AppConfigSchema.shape.llm.shape.provider.parse(e.LLM_PROVIDER, { path: ["llm", "provider"] });
   if (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL) cfg.llm.chat_model = (e.LLM_CHAT_MODEL || e.CLAUDE_MODEL)!;
   if (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL) cfg.llm.title_model = (e.LLM_TITLE_MODEL || e.CLAUDE_TITLE_MODEL)!;
   if (e.LLM_EFFORT) cfg.llm.effort = AppConfigSchema.shape.llm.shape.effort.parse(e.LLM_EFFORT, { path: ["llm", "effort"] });
@@ -242,7 +244,7 @@ function applyEnvOverrides(cfg: AppConfig, e: Env): AppConfig {
   }
   if (e.CORS_ORIGINS) cfg.server.cors_origins = e.CORS_ORIGINS.split(",").map((o) => o.trim());
   if (e.LOG_DIR) cfg.server.log_dir = e.LOG_DIR;
-  if (e.LOG_LEVEL) cfg.server.log_level = e.LOG_LEVEL as AppConfig["server"]["log_level"];
+  if (e.LOG_LEVEL) cfg.server.log_level = AppConfigSchema.shape.server.shape.log_level.parse(e.LOG_LEVEL, { path: ["server", "log_level"] });
 
   if (e.TOOL_SEARCH_BM25_WEIGHT) cfg.tool_search.bm25_weight = parseFloat(e.TOOL_SEARCH_BM25_WEIGHT);
   if (e.TOOL_SEARCH_SEMANTIC_WEIGHT) cfg.tool_search.semantic_weight = parseFloat(e.TOOL_SEARCH_SEMANTIC_WEIGHT);

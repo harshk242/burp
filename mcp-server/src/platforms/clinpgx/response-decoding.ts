@@ -1,10 +1,11 @@
 import { APIError } from '../../shared/exceptions.js';
+import { isRecord, type JsonRecord } from '../../shared/json.js';
 
-export function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+export function record(value: unknown): JsonRecord {
+  if (!isRecord(value)) {
     throw new APIError('Invalid ClinPGx response: expected a record');
   }
-  return value as Record<string, unknown>;
+  return value;
 }
 
 export function list(value: unknown): unknown[] {

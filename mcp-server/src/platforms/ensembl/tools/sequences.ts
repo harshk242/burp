@@ -167,7 +167,7 @@ async function fetchSingleSequence(args: {
 
   const contentType = args.format === 'json' ? 'application/json' : 'text/x-fasta';
   params['content-type'] = contentType;
-  const response = await getClient().get(endpoint, { params, headers: { 'Content-Type': contentType, Accept: contentType } });
+  const response = await getClient().get<unknown>(endpoint, { params, headers: { 'Content-Type': contentType, Accept: contentType } });
   return response.data;
 }
 
@@ -185,7 +185,7 @@ async function handleGetCdsSequence(args: Record<string, unknown>) {
 
   const species = getDefaultSpecies(args.species);
 
-  const response = await getClient().get(`/sequence/id/${args.transcript_id}`, {
+  const response = await getClient().get<unknown>(`/sequence/id/${args.transcript_id}`, {
     params: { type: 'cds', species, 'content-type': args.format === 'json' ? 'application/json' : 'text/x-fasta' },
     headers: { 'Content-Type': args.format === 'json' ? 'application/json' : 'text/x-fasta', Accept: args.format === 'json' ? 'application/json' : 'text/x-fasta' },
   });

@@ -1,4 +1,4 @@
-import { jsonSchema, type Tool } from "ai";
+import { jsonSchema, type JSONSchema7, type Tool } from "ai";
 import type { mcpManager as MCPManagerType, ToolDefinition } from "./manager";
 import { ALWAYS_LOADED_TOOLS } from "./platforms.config";
 import { logger, startTimer } from "../logger";
@@ -7,7 +7,7 @@ export interface MCPTool {
   name: string;
   description: string;
   server: string;
-  inputSchema: Record<string, unknown>;
+  inputSchema: JSONSchema7;
   available: boolean;
 }
 
@@ -96,7 +96,7 @@ class ToolRegistry {
       const key = sanitize ? sanitize(fullName) : fullName;
       result[key] = {
         description: `[${tool.server}] ${tool.description}`,
-        inputSchema: jsonSchema(tool.inputSchema as Parameters<typeof jsonSchema>[0]),
+        inputSchema: jsonSchema(tool.inputSchema),
       };
     }
     return result;

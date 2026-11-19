@@ -27,6 +27,13 @@ import { assertSearchReady, PROBE_QUERY, RunAbort } from "./search-check";
 import { experimentName, gitState, runMetadata, scoringHashes, type SearchState } from "./run-meta";
 import type { DatasetFile } from "./schema";
 import { checkDataset, datasetMatches, driftMessage } from "./verify-dataset";
+import { asRecord } from "../../shared/json";
+
+/** The item's turn count for the cost estimate (1 when `input.turns` is not a list). */
+function turnCount(input: unknown): number {
+  const turns = asRecord(input).turns;
+  return Array.isArray(turns) ? turns.length : 1;
+}
 
 export interface RunEnv {
   runId: string;
@@ -118,7 +125,7 @@ export async function runEval(args: RunArgs, env: RunEnv, deps: RunDependencies)
 
     const concurrency = args.concurrency ?? dataset.run_defaults?.concurrency ?? DEFAULT_CONCURRENCY;
     const maxCostUsd = args.maxCostUsd ?? dataset.run_defaults?.max_cost_usd ?? DEFAULT_MAX_COST_USD;
-    const estimates = armEstimates(arms, pinned.items.map((i) => ({ turns: (i.input as { turns?: unknown[] } | undefined)?.turns?.length ?? 1 })), args.repeat);
+    const estimates = armEstimates(arms, pinned.items.map((i) => ({ turns: turnCount(i.input) })), args.repeat);
     log(`budget $${maxCostUsd} shared by ${arms.length} arm(s) × ${args.repeat} repeat(s) (overshoot ≤ ~1 call per concurrent item), concurrency ${concurrency}`);
     arms.forEach((arm, i) => {
       const estimate = estimates[i]!; // armEstimates returns one estimate per arm

@@ -2,7 +2,7 @@ import type { UsageResponse } from "../../shared/usage";
 import { UNLIMITED } from "../../shared/limits";
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { UsageSchema, ErrorSchema } from "../schemas";
-import { clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
+import { authedUserId, clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
 import { dailyUsageQueries, rateLimitQueries, usageEventQueries } from "../db";
 import type { AppEnv } from "../types";
 import {
@@ -46,7 +46,7 @@ A limit of -1 means unlimited (admin users).`,
 });
 
 usage.openapi(getUsageRoute, async (c) => {
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
   const role = c.get("role");
   const dbUser = c.get("dbUser")!;
 
@@ -74,7 +74,7 @@ usage.openapi(getUsageRoute, async (c) => {
       remaining,
       resetAt,
       total_queries: dbUser.total_queries,
-      role: role as "waitlist" | "user" | "admin",
+      role: dbUser.role,
       tokens: {
         used_today: tokensUsedToday,
         limit: tokenLimit,

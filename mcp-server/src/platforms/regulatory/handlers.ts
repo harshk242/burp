@@ -1,9 +1,14 @@
 import type { ToolHandler } from '../../types.js';
+import { asArray } from '../../shared/json.js';
 import { EMA_STATUSES, searchEmaMedicines, type EmaStatus } from './ema.js';
 import { searchFdaApprovals } from './fda-approvals.js';
 import { DEFAULT_LABEL_SECTIONS, LABEL_SECTIONS, getFdaLabel, type LabelSection } from './fda-label.js';
 
 type Args = Record<string, unknown>;
+
+const isLabelSection = (name: unknown): name is LabelSection =>
+  typeof name === 'string' && (LABEL_SECTIONS as readonly string[]).includes(name);
+const isEmaStatus = (status: string): status is EmaStatus => (EMA_STATUSES as readonly string[]).includes(status);
 
 function text(args: Args, key: string): string | undefined {
   const value = args[key];
@@ -23,10 +28,10 @@ function date(args: Args, key: string): string | undefined {
 function integer(args: Args, key: string, fallback: number, min: number, max: number): number {
   const value = args[key];
   if (value === undefined) return fallback;
-  if (!Number.isInteger(value) || (value as number) < min || (value as number) > max) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
     throw new Error(`${key} must be an integer from ${min} to ${max}`);
   }
-  return value as number;
+  return value;
 }
 
 function oneOf(args: Args, keys: string[], required: boolean): void {
@@ -39,11 +44,12 @@ function sections(args: Args): LabelSection[] {
   const value = args.sections;
   if (value === undefined) return DEFAULT_LABEL_SECTIONS;
   if (!Array.isArray(value) || value.length === 0) throw new Error('sections must be a non-empty array');
-  const allowed = new Set<string>(LABEL_SECTIONS);
-  for (const name of value) {
-    if (typeof name !== 'string' || !allowed.has(name)) throw new Error(`Unknown label section: ${String(name)}. Allowed: ${LABEL_SECTIONS.join(', ')}`);
+  const names: LabelSection[] = [];
+  for (const name of asArray(value)) {
+    if (!isLabelSection(name)) throw new Error(`Unknown label section: ${String(name)}. Allowed: ${LABEL_SECTIONS.join(', ')}`);
+    names.push(name);
   }
-  return [...new Set(value as LabelSection[])];
+  return [...new Set(names)];
 }
 
 export const handlers: Record<string, ToolHandler> = {
@@ -77,8 +83,8 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   search_ema_medicines: async (args) => {
-    const status = (text(args, 'status') ?? 'any') as EmaStatus;
-    if (!EMA_STATUSES.includes(status)) throw new Error(`status must be one of: ${EMA_STATUSES.join(', ')}`);
+    const status = text(args, 'status') ?? 'any';
+    if (!isEmaStatus(status)) throw new Error(`status must be one of: ${EMA_STATUSES.join(', ')}`);
     const query = text(args, 'query');
     const therapeuticArea = text(args, 'therapeutic_area');
     const authorisedFrom = date(args, 'authorised_from');

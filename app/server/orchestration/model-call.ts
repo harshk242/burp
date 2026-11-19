@@ -44,7 +44,7 @@ export async function* streamModelCall(req: ModelCallRequest): AsyncGenerator<St
   tracker.begin(req.iteration);
   const result = streamText({
     model: wrapLanguageModel({
-      model: getChatModel({ fetch: tracker.fetch, model: llmConfig.chatModel }) as Parameters<typeof wrapLanguageModel>[0]["model"],
+      model: getChatModel({ fetch: tracker.fetch, model: llmConfig.chatModel }),
       middleware: {
         specificationVersion: "v4",
         wrapStream: async ({ doStream }) => {

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "fs/promises";
 import { dirname } from "path";
+import { errorCode, isRecord } from "../../shared/json";
 import { logger, startTimer } from "../logger";
 import { isValidVector } from "./types";
 
@@ -50,7 +51,7 @@ export async function inspectToolEmbeddings(
   try {
     raw = await readFile(path, "utf-8");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { ok: false, reason: "file_missing" };
+    if (errorCode(err) === "ENOENT") return { ok: false, reason: "file_missing" };
     return { ok: false, reason: "read_failed", cause: err };
   }
 
@@ -154,8 +155,4 @@ export async function writeToolEmbeddings(
     await unlink(tmp).catch(() => {});
     throw err;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

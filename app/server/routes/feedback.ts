@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { chatSessionQueries, messageFeedbackQueries, messageQueries, type DbMessageFeedback } from "../db";
-import { clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
+import { authedUserId, clerkAuth, requireDbUser, requireUser } from "../middleware/clerk";
 import { requestFeedbackSync } from "../observability/feedback-sync";
 import { ErrorSchema, FeedbackRequestSchema, FeedbackResponseSchema } from "../schemas";
 import { categoriesForValue, normalizeCategories } from "../schemas/feedback-categories";
@@ -40,7 +40,7 @@ function checkOwnership(messageId: string, userId: string): OwnershipCheck {
 
 const toResponse = (row: DbMessageFeedback | null) =>
   row && row.value !== null
-    ? { feedback: { value: row.value as 0 | 1, comment: row.comment, categories: row.categories } }
+    ? { feedback: { value: row.value, comment: row.comment, categories: row.categories } }
     : { feedback: null };
 
 const putFeedbackRoute = createRoute({
@@ -61,7 +61,7 @@ const putFeedbackRoute = createRoute({
 feedback.openapi(putFeedbackRoute, async (c) => {
   const { messageId } = c.req.valid("param");
   const { value, comment, categories } = c.req.valid("json");
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
   try {
     const check = checkOwnership(messageId, userId);
     if (!check.ok) return c.json({ error: check.error }, check.status);
@@ -93,7 +93,7 @@ const deleteFeedbackRoute = createRoute({
 
 feedback.openapi(deleteFeedbackRoute, async (c) => {
   const { messageId } = c.req.valid("param");
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
   try {
     const check = checkOwnership(messageId, userId);
     if (!check.ok) return c.json({ error: check.error }, check.status);

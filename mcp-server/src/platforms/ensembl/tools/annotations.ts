@@ -80,7 +80,7 @@ async function handleGetXrefs(args: Record<string, unknown>) {
     params.all_levels = 1;
   }
 
-  const response = await getClient().get(`/xrefs/id/${args.gene_id}`, { params });
+  const response = await getClient().get<unknown>(`/xrefs/id/${args.gene_id}`, { params });
   return response.data;
 }
 
@@ -92,7 +92,7 @@ async function handleMapCoordinates(args: Record<string, unknown>) {
   const species = getDefaultSpecies(args.species);
   const region = args.region;
 
-  const response = await getClient().get(
+  const response = await getClient().get<unknown>(
     `/map/${species}/${args.source_assembly}/${region}/${args.target_assembly}`,
   );
   return response.data;

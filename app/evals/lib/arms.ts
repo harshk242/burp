@@ -33,17 +33,21 @@ export const MatrixFileSchema = z
 
 export class ArmsError extends Error {}
 
+function isEffort(value: string): value is Effort {
+  return (EFFORT_LEVELS as readonly string[]).includes(value);
+}
+
 export function parseArmFlag(value: string): ArmSpec {
   const parts = value.split(":");
   if (parts.length < 2 || parts.length > 3) {
     throw new ArmsError(`--arm must be <model>:<effort>[:<max_output_tokens>], got "${value}"`);
   }
-  const [model, effort, maxOut] = parts as [string, string, string | undefined];
+  const [model = "", effort = "", maxOut] = parts;
   if (!MODEL_ID.test(model)) throw new ArmsError(`--arm "${value}": "${model}" is not a model id (e.g. claude-sonnet-5-5)`);
-  if (!(EFFORT_LEVELS as readonly string[]).includes(effort)) {
+  if (!isEffort(effort)) {
     throw new ArmsError(`--arm "${value}": effort must be one of ${EFFORT_LEVELS.join(", ")}, got "${effort}"`);
   }
-  const arm: ArmSpec = { model, effort: effort as Effort };
+  const arm: ArmSpec = { model, effort };
   if (maxOut !== undefined) {
     const n = Number(maxOut);
     if (!Number.isInteger(n) || n < 1) throw new ArmsError(`--arm "${value}": max_output_tokens must be a positive integer, got "${maxOut}"`);

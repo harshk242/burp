@@ -1,17 +1,22 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { useCallback } from "react";
+import { useMemo } from "react";
 import { buildApiUrl } from "@/lib/api-url";
 import { errorField } from "@/lib/http-error";
+import { parseResponse, type ResponseSchema } from "@/lib/api-schemas";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
+/**
+ * Authenticated API calls. A call given a response schema returns the body parsed with it (a
+ * mismatch throws); a call without one returns the body as `unknown`, for callers that ignore it.
+ */
 export function useApi() {
   const { getToken } = useAuth();
 
-  const request = useCallback(
-    async <T>(path: string, options?: RequestInit): Promise<T> => {
+  return useMemo(() => {
+    async function request(path: string, options?: RequestInit): Promise<unknown> {
       const token = await getToken();
 
       const headers = new Headers({ "Content-Type": "application/json" });
@@ -25,38 +30,45 @@ export function useApi() {
         throw new Error(errorField(error) || `HTTP ${res.status}`);
       }
 
-      return res.json() as Promise<T>;
-    },
-    [getToken]
-  );
+      const body: unknown = await res.json();
+      return body;
+    }
 
-  const get = useCallback(
-    <T>(path: string, options?: RequestInit) => request<T>(path, options),
-    [request]
-  );
+    async function call<T>(path: string, schema: ResponseSchema<T> | undefined, options?: RequestInit): Promise<unknown> {
+      const body = await request(path, options);
+      return schema ? parseResponse(schema, body, path) : body;
+    }
 
-  const post = useCallback(
-    <T>(path: string, body?: unknown, options?: RequestInit) =>
-      request<T>(path, { ...options, method: "POST", body: JSON.stringify(body) }),
-    [request]
-  );
+    function get<T>(path: string, schema: ResponseSchema<T>, options?: RequestInit): Promise<T>;
+    function get(path: string, schema?: undefined, options?: RequestInit): Promise<unknown>;
+    function get<T>(path: string, schema?: ResponseSchema<T>, options?: RequestInit): Promise<unknown> {
+      return call(path, schema, options);
+    }
 
-  const put = useCallback(
-    <T>(path: string, body?: unknown) =>
-      request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
-    [request]
-  );
+    function post<T>(path: string, body: unknown, schema: ResponseSchema<T>, options?: RequestInit): Promise<T>;
+    function post(path: string, body?: unknown, schema?: undefined, options?: RequestInit): Promise<unknown>;
+    function post<T>(path: string, body?: unknown, schema?: ResponseSchema<T>, options?: RequestInit): Promise<unknown> {
+      return call(path, schema, { ...options, method: "POST", body: JSON.stringify(body) });
+    }
 
-  const patch = useCallback(
-    <T>(path: string, body?: unknown) =>
-      request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
-    [request]
-  );
+    function put<T>(path: string, body: unknown, schema: ResponseSchema<T>): Promise<T>;
+    function put(path: string, body?: unknown): Promise<unknown>;
+    function put<T>(path: string, body?: unknown, schema?: ResponseSchema<T>): Promise<unknown> {
+      return call(path, schema, { method: "PUT", body: JSON.stringify(body) });
+    }
 
-  const del = useCallback(
-    <T>(path: string) => request<T>(path, { method: "DELETE" }),
-    [request]
-  );
+    function patch<T>(path: string, body: unknown, schema: ResponseSchema<T>): Promise<T>;
+    function patch(path: string, body?: unknown): Promise<unknown>;
+    function patch<T>(path: string, body?: unknown, schema?: ResponseSchema<T>): Promise<unknown> {
+      return call(path, schema, { method: "PATCH", body: JSON.stringify(body) });
+    }
 
-  return { get, post, put, patch, delete: del };
+    function del<T>(path: string, schema: ResponseSchema<T>): Promise<T>;
+    function del(path: string): Promise<unknown>;
+    function del<T>(path: string, schema?: ResponseSchema<T>): Promise<unknown> {
+      return call(path, schema, { method: "DELETE" });
+    }
+
+    return { get, post, put, patch, delete: del };
+  }, [getToken]);
 }

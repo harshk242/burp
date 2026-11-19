@@ -2,6 +2,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { PlatformModule, ToolHandler } from '../../types.js';
 import { initializeClient, closeClient } from './client.js';
 import * as tools from './tools/index.js';
+import { optionalNumber, optionalString, requireNumber, requireString, requireStringArray } from '../../shared/args.js';
 
 const TOOLS: Tool[] = [
   {
@@ -238,69 +239,69 @@ const TOOLS: Tool[] = [
 
 const handlers: Record<string, ToolHandler> = {
   search_variants_by_gene: async (args) => {
-    return tools.searchVariantsByGene(args.gene as string, {
-      maxResults: args.max_results as number | undefined,
-      clinicalSignificance: args.clinical_significance as string | undefined,
+    return tools.searchVariantsByGene(requireString(args, 'gene'), {
+      maxResults: optionalNumber(args, 'max_results'),
+      clinicalSignificance: optionalString(args, 'clinical_significance'),
     });
   },
 
   get_variant_info: async (args) => {
-    return tools.getVariantInfo(args.variation_id as string);
+    return tools.getVariantInfo(requireString(args, 'variation_id'));
   },
 
   get_clinical_significance: async (args) => {
-    return tools.getClinicalSignificance(args.variation_id as string);
+    return tools.getClinicalSignificance(requireString(args, 'variation_id'));
   },
 
   search_by_condition: async (args) => {
-    return tools.searchByCondition(args.condition as string, {
-      maxResults: args.max_results as number | undefined,
-      clinicalSignificance: args.clinical_significance as string | undefined,
+    return tools.searchByCondition(requireString(args, 'condition'), {
+      maxResults: optionalNumber(args, 'max_results'),
+      clinicalSignificance: optionalString(args, 'clinical_significance'),
     });
   },
 
   lookup_by_coordinates: async (args) => {
     return tools.lookupByCoordinates(
-      args.chromosome as string,
-      args.start as number,
-      args.stop as number | undefined,
-      { maxResults: args.max_results as number | undefined }
+      requireString(args, 'chromosome'),
+      requireNumber(args, 'start'),
+      optionalNumber(args, 'stop'),
+      { maxResults: optionalNumber(args, 'max_results') }
     );
   },
 
   get_variant_submissions: async (args) => {
-    return tools.getVariantSubmissions(args.variation_id as string);
+    return tools.getVariantSubmissions(requireString(args, 'variation_id'));
   },
 
   search_by_molecular_consequence: async (args) => {
-    return tools.searchByMolecularConsequence(args.consequence as string, {
-      gene: args.gene as string | undefined,
-      maxResults: args.max_results as number | undefined,
+    return tools.searchByMolecularConsequence(requireString(args, 'consequence'), {
+      gene: optionalString(args, 'gene'),
+      maxResults: optionalNumber(args, 'max_results'),
     });
   },
 
   get_vcv_record: async (args) => {
-    return tools.getVCVRecord(args.variation_id as string);
+    return tools.getVCVRecord(requireString(args, 'variation_id'));
   },
 
   batch_variant_lookup: async (args) => {
-    return tools.batchVariantLookup(args.variation_ids as string[]);
+    return tools.batchVariantLookup(requireStringArray(args, 'variation_ids'));
   },
 
   get_variant_frequency: async (args) => {
-    return tools.getVariantFrequency(args.variation_id as string);
+    return tools.getVariantFrequency(requireString(args, 'variation_id'));
   },
 
   search_by_review_status: async (args) => {
-    return tools.searchByReviewStatus(args.review_status as string, {
-      gene: args.gene as string | undefined,
-      clinicalSignificance: args.clinical_significance as string | undefined,
-      maxResults: args.max_results as number | undefined,
+    return tools.searchByReviewStatus(requireString(args, 'review_status'), {
+      gene: optionalString(args, 'gene'),
+      clinicalSignificance: optionalString(args, 'clinical_significance'),
+      maxResults: optionalNumber(args, 'max_results'),
     });
   },
 
   lookup_by_rsid: async (args) => {
-    return tools.lookupByRsId(args.rs_id as string);
+    return tools.lookupByRsId(requireString(args, 'rs_id'));
   },
 };
 

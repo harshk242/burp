@@ -1,4 +1,6 @@
 import type { ToolHandler } from '../../../types.js';
+import { optionalString } from '../../../shared/args.js';
+import { optRecord } from '../../../shared/json.js';
 import {
   fetchStudies,
   formatStudySummary,
@@ -35,8 +37,8 @@ export const handleSearchStudies: ToolHandler = async (args) => {
 };
 
 export const handleGetStudyDetails: ToolHandler = async (args) => {
-  const nctId = args.nctId as string;
-  if (!nctId || !/^NCT\d{8}$/.test(nctId)) {
+  const nctId = args.nctId;
+  if (typeof nctId !== 'string' || !/^NCT\d{8}$/.test(nctId)) {
     throw new Error('Valid NCT ID is required (format: NCT########)');
   }
 
@@ -131,9 +133,8 @@ export const handleGetTrialStatistics: ToolHandler = async (args) => {
     pageSize: 100,
   };
 
-  const filters = args.filters as
-    | Record<string, unknown>
-    | undefined;
+  const filters = optRecord(args.filters);
+  const groupBy = optionalString(args, 'groupBy');
   if (filters?.condition) params['query.cond'] = filters.condition;
   if (filters?.status) params['filter.overallStatus'] = filters.status;
   applyAdvancedFilter(params, [area('Phase', filters?.phase)]);
@@ -145,9 +146,9 @@ export const handleGetTrialStatistics: ToolHandler = async (args) => {
     totalStudies: data.totalCount ?? null,
     analyzedStudies: studies.length,
     note: `statistics are computed from a sample of the first ${studies.length} matching studies, not all totalStudies`,
-    groupBy: (args.groupBy as string) || 'none',
+    groupBy: groupBy || 'none',
     filters: filters || {},
-    statistics: calculateStatistics(studies, args.groupBy as string | undefined),
+    statistics: calculateStatistics(studies, groupBy),
   };
 };
 

@@ -1,6 +1,7 @@
 import { XMLBuilder } from 'fast-xml-parser';
 import { getClient } from './client.js';
 import type { UniProtEntry, UniProtSearchResponse } from './entry-types.js';
+import { toSearchResponse } from './narrow.js';
 
 // Verified against /configure/uniprotkb/result-fields. JSON still includes nested
 // evidence and lineage for these fields, so project again before returning it.
@@ -95,7 +96,7 @@ export async function searchSummaries(query: string, size: unknown, format = 'js
   if (!['json', 'tsv', 'fasta', 'xml'].includes(format)) throw new Error('Unsupported search format');
   // UniProt ignores fields for XML. Build summary XML from the projected JSON
   // instead; TSV supports fields, and FASTA needs sequences rather than summaries.
-  const response = await getClient().get('/uniprotkb/search', {
+  const response = await getClient().get<unknown>('/uniprotkb/search', {
     params: {
       query, size: format === 'fasta' ? Math.min(boundedSize, 10) : boundedSize,
       format: format === 'xml' ? 'json' : format,
@@ -105,7 +106,7 @@ export async function searchSummaries(query: string, size: unknown, format = 'js
     },
   });
   if (format !== 'json' && format !== 'xml') return String(response.data);
-  const summary = summarizeSearch(response.data, totalResultsHeader(response.headers));
+  const summary = summarizeSearch(toSearchResponse(response.data), totalResultsHeader(response.headers));
   if (summary.results.length === 0 && /(^|[^A-Za-z0-9_])reviewed:true\b/i.test(query)) summary.hint = UNREVIEWED_HINT;
   if (format === 'xml') {
     const { results, ...rest } = summary;

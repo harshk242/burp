@@ -2,6 +2,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { PlatformModule, ToolHandler } from '../../types.js';
 import { initializeClient, closeClient, getClient } from './client.js';
 import * as tools from './tools/index.js';
+import { optionalEnum, optionalNumber, optionalString, requireString } from '../../shared/args.js';
 
 const TOOLS: Tool[] = [
   {
@@ -305,53 +306,53 @@ const TOOLS: Tool[] = [
 
 const handlers: Record<string, ToolHandler> = {
   list_cpic_genes: async (args) => {
-    return getClient().listCPICGenes(args.maxResults as number | undefined);
+    return getClient().listCPICGenes(optionalNumber(args, 'maxResults'));
   },
   search_genes: async (args) => {
     return tools.searchGenes(
-      args.query as string,
-      args.maxResults as number | undefined
+      requireString(args, 'query'),
+      optionalNumber(args, 'maxResults')
     );
   },
   get_gene_info: async (args) => {
-    return tools.getGeneInfo(args.gene as string);
+    return tools.getGeneInfo(requireString(args, 'gene'));
   },
   get_gene_pathways: async (args) => {
-    return tools.getGenePathways(args.gene as string);
+    return tools.getGenePathways(requireString(args, 'gene'));
   },
 
   search_drugs: async (args) => {
     return tools.searchDrugs(
-      args.query as string,
-      args.maxResults as number | undefined
+      requireString(args, 'query'),
+      optionalNumber(args, 'maxResults')
     );
   },
   get_drug_info: async (args) => {
-    return tools.getDrugInfo(args.drug as string);
+    return tools.getDrugInfo(requireString(args, 'drug'));
   },
   get_drug_labels: async (args) => {
-    return tools.getDrugLabels(args.drug as string);
+    return tools.getDrugLabels(requireString(args, 'drug'));
   },
 
   search_variants: async (args) => {
     return tools.searchVariants(
-      args.query as string,
-      args.maxResults as number | undefined
+      requireString(args, 'query'),
+      optionalNumber(args, 'maxResults')
     );
   },
   get_variant_info: async (args) => {
-    return tools.getVariantInfo(args.variantId as string);
+    return tools.getVariantInfo(requireString(args, 'variantId'));
   },
   get_variant_annotations: async (args) => {
-    return tools.getVariantAnnotations(args.variantId as string);
+    return tools.getVariantAnnotations(requireString(args, 'variantId'));
   },
   get_star_alleles: async (args) => {
-    return tools.getStarAlleles(args.gene as string);
+    return tools.getStarAlleles(requireString(args, 'gene'));
   },
 
   get_clinical_annotations: async (args) => {
-    const gene = args.gene as string | undefined;
-    const drug = args.drug as string | undefined;
+    const gene = optionalString(args, 'gene');
+    const drug = optionalString(args, 'drug');
 
     if (gene && drug) {
       return tools.getDrugGeneAnnotations(drug, gene);
@@ -364,19 +365,19 @@ const handlers: Record<string, ToolHandler> = {
     }
   },
   get_drug_gene_interactions: async (args) => {
-    return tools.getDrugGeneInteractions(args.gene as string);
+    return tools.getDrugGeneInteractions(requireString(args, 'gene'));
   },
   get_annotations_by_evidence: async (args) => {
     return tools.getAnnotationsByEvidenceLevel(
-      args.gene as string,
-      args.minLevel as string | undefined
+      requireString(args, 'gene'),
+      optionalString(args, 'minLevel')
     );
   },
 
   get_dosing_guidelines: async (args) => {
-    const gene = args.gene as string | undefined;
-    const drug = args.drug as string | undefined;
-    const source = args.source as 'CPIC' | 'DPWG' | undefined;
+    const gene = optionalString(args, 'gene');
+    const drug = optionalString(args, 'drug');
+    const source = optionalEnum(args, 'source', ['CPIC', 'DPWG']);
 
     if (!gene && !drug) throw new Error('Either gene or drug must be provided');
     const guidelines = gene
@@ -389,12 +390,12 @@ const handlers: Record<string, ToolHandler> = {
   },
   get_guidelines_for_pair: async (args) => {
     return tools.getGuidelinesForDrugGenePair(
-      args.drug as string,
-      args.gene as string
+      requireString(args, 'drug'),
+      requireString(args, 'gene')
     );
   },
   get_actionable_pairs: async (args) => {
-    return tools.getActionablePairs(args.gene as string);
+    return tools.getActionablePairs(requireString(args, 'gene'));
   },
 
   get_pathways: async (args) => {

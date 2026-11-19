@@ -1,3 +1,4 @@
+import { isRecord } from '../../shared/json.js';
 import { PROPERTY_NAMES } from './properties.js';
 
 export interface CompoundSearchResult {
@@ -40,13 +41,14 @@ export interface PropertyData {
 export const isValidCompoundSearchArgs = (
   args: unknown,
 ): args is { query: string; search_type?: string; max_records?: number } => {
-  if (typeof args !== 'object' || args === null) return false;
-  const a = args as Record<string, unknown>;
+  if (!isRecord(args)) return false;
+  const a = args;
   return (
     typeof a.query === 'string' &&
     (a.query).length > 0 &&
     (a.search_type === undefined ||
-      ['name', 'smiles', 'inchi', 'sdf', 'cid', 'formula'].includes(a.search_type as string)) &&
+      (typeof a.search_type === 'string' &&
+        ['name', 'smiles', 'inchi', 'sdf', 'cid', 'formula'].includes(a.search_type))) &&
     (a.max_records === undefined ||
       (typeof a.max_records === 'number' && a.max_records > 0 && a.max_records <= 10000))
   );
@@ -55,12 +57,12 @@ export const isValidCompoundSearchArgs = (
 export const isValidCidArgs = (
   args: unknown,
 ): args is { cid: number | string; format?: string; include_descriptions?: boolean } => {
-  if (typeof args !== 'object' || args === null) return false;
-  const a = args as Record<string, unknown>;
+  if (!isRecord(args)) return false;
+  const a = args;
   return (
     (typeof a.cid === 'number' || typeof a.cid === 'string') &&
     (a.format === undefined ||
-      ['json', 'sdf', 'xml', 'asnt', 'asnb'].includes(a.format as string)) &&
+      (typeof a.format === 'string' && ['json', 'sdf', 'xml', 'asnt', 'asnb'].includes(a.format))) &&
     (a.include_descriptions === undefined || typeof a.include_descriptions === 'boolean')
   );
 };
@@ -68,8 +70,8 @@ export const isValidCidArgs = (
 export const isValidSmilesArgs = (
   args: unknown,
 ): args is { smiles: string; threshold?: number; max_records?: number } => {
-  if (typeof args !== 'object' || args === null) return false;
-  const a = args as Record<string, unknown>;
+  if (!isRecord(args)) return false;
+  const a = args;
   return (
     typeof a.smiles === 'string' &&
     (a.smiles).length > 0 &&
@@ -83,23 +85,24 @@ export const isValidSmilesArgs = (
 export const isValidBatchArgs = (
   args: unknown,
 ): args is { cids: number[]; operation?: string } => {
-  if (typeof args !== 'object' || args === null) return false;
-  const a = args as Record<string, unknown>;
+  if (!isRecord(args)) return false;
+  const a = args;
   return (
     Array.isArray(a.cids) &&
     a.cids.length > 0 &&
     a.cids.length <= 200 &&
     a.cids.every((cid: unknown) => typeof cid === 'number' && (cid) > 0) &&
     (a.operation === undefined ||
-      ['property', 'synonyms', 'classification', 'description'].includes(a.operation as string))
+      (typeof a.operation === 'string' &&
+        ['property', 'synonyms', 'classification', 'description'].includes(a.operation)))
   );
 };
 
 export const isValidConformerArgs = (
   args: unknown,
 ): args is { cid: number | string } => {
-  if (typeof args !== 'object' || args === null) return false;
-  const a = args as Record<string, unknown>;
+  if (!isRecord(args)) return false;
+  const a = args;
   return (
     (typeof a.cid === 'number' || typeof a.cid === 'string')
   );
@@ -108,8 +111,8 @@ export const isValidConformerArgs = (
 export const isValidPropertiesArgs = (
   args: unknown,
 ): args is { cid: number | string; properties?: string[] } => {
-  if (typeof args !== 'object' || args === null) return false;
-  const a = args as Record<string, unknown>;
+  if (!isRecord(args)) return false;
+  const a = args;
   return (
     (typeof a.cid === 'number' || typeof a.cid === 'string') &&
     (a.properties === undefined ||

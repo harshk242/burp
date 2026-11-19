@@ -1,6 +1,4 @@
 import type PdfMake from 'pdfmake/build/pdfmake';
-import type RemarkGfm from 'remark-gfm';
-import type RemarkParse from 'remark-parse';
 import { PAGE_MARGINS, pdfStyles, buildTitleBlock, buildFooter } from './styles';
 import { mdastToPdfmakeContent, type Root } from './mdastToPdfmake';
 
@@ -14,9 +12,9 @@ function sanitizeFilename(title: string): string {
   return sanitized || 'chat-export';
 }
 
-/** Next.js may hand back a CJS/UMD module either as its exports or wrapped as { default: exports }. */
-function interopDefault<T>(mod: T | { default?: T }): T {
-  return ((mod as { default?: T }).default ?? mod) as T;
+/** Next.js may hand back a CJS/UMD module either as its exports or wrapped as { default: exports }. (remark-* are ESM, so their `default` is always set.) */
+function interopDefault<T extends object>(mod: T & { default?: T }): T {
+  return mod.default ?? mod;
 }
 
 export async function generatePdfFromMarkdown(
@@ -35,9 +33,9 @@ export async function generatePdfFromMarkdown(
 
   // pdfmake is CJS — Next.js dynamic import wraps it as { default: cjsExports }.
   const pdfMake = interopDefault<typeof PdfMake>(pdfMod);
-  const remarkParse = interopDefault<typeof RemarkParse>(remarkParseMod);
+  const remarkParse = remarkParseMod.default;
   const { unified } = unifiedMod;
-  const remarkGfm = interopDefault<typeof RemarkGfm>(remarkGfmMod);
+  const remarkGfm = remarkGfmMod.default;
 
   // vfs_fonts.js only self-registers when window.pdfMake exists (UMD side-effect).
   const robotoVfs = interopDefault<Record<string, unknown>>(vfsFontsMod);
@@ -47,7 +45,7 @@ export async function generatePdfFromMarkdown(
   pdfMake.addFontContainer(courier);
 
   // The converter reads a small subset of mdast fields (see MdNode).
-  const tree = unified().use(remarkParse).use(remarkGfm).parse(markdown) as Root;
+  const tree: Root = unified().use(remarkParse).use(remarkGfm).parse(markdown);
 
   const body = mdastToPdfmakeContent(tree);
 

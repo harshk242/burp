@@ -6,6 +6,7 @@ import type { TraceParent } from "../../server/observability/turn-trace";
 import type { SharedCostBudget } from "../../server/orchestration/cost-budget";
 import { processChat } from "../../server/orchestration/chat-v2";
 import type { TaskOutput } from "../evaluators/types";
+import { asRecord } from "../../shared/json";
 import type { RunLifecycle } from "./lifecycle";
 import { buildTaskOutput } from "./task-output";
 
@@ -54,7 +55,7 @@ type ItemLike = { id?: string; input?: unknown };
 export function createItemTask(ctx: TaskContext): (item: ItemLike) => Promise<TaskOutput> {
   return async (item) => {
     const itemId = item.id ?? "unknown";
-    const turns = (item.input as { turns?: unknown } | undefined)?.turns;
+    const turns = asRecord(item.input).turns;
     if (!Array.isArray(turns) || !turns.every((t) => typeof t === "string")) throw new Error(`item ${itemId}: input.turns must be strings`);
     if (ctx.lifecycle.stopping) throw new RunStoppedError(itemId);
 

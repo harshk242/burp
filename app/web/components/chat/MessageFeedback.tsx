@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useApi } from "@/hooks/useApi";
 import { useChatStore } from "@/stores/chatStore";
 import type { Feedback, Message } from "@/types";
+import { feedbackResponseSchema } from "@/lib/api-schemas";
 import { FeedbackDialog } from "./FeedbackDialog";
 
 export function MessageFeedback({ message }: { message: Message }) {
@@ -30,8 +31,8 @@ export function MessageFeedback({ message }: { message: Message }) {
     try {
       const path = `/messages/${message.id}/feedback`;
       const res = next
-        ? await put<{ feedback: Feedback | null }>(path, next)
-        : await del<{ feedback: Feedback | null }>(path);
+        ? await put(path, next, feedbackResponseSchema)
+        : await del(path, feedbackResponseSchema);
       setFeedback(message.id, res.feedback);
       return true;
     } catch (err) {

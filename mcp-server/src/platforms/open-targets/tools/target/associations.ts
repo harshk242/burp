@@ -1,5 +1,6 @@
 import { getClient } from '../../client.js';
 import { filterNoneValues, truncateArray } from '../../utils.js';
+import { asArray, asRecord, optRecord, path } from '../../../../shared/json.js';
 import { TARGET_ASSOCIATED_DISEASES_OPERATION } from './operations.js';
 
 export async function getTargetAssociatedDiseases(
@@ -9,17 +10,6 @@ export async function getTargetAssociatedDiseases(
 ): Promise<unknown> {
   const client = getClient();
   return client.query(TARGET_ASSOCIATED_DISEASES_OPERATION, { ensemblId, pageIndex, pageSize });
-}
-
-interface LiteratureResult {
-  target?: {
-    literatureOcurrences?: {
-      rows?: unknown[];
-      [key: string]: unknown;
-    };
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
 }
 
 export async function getTargetLiteratureOccurrences(
@@ -76,16 +66,19 @@ export async function getTargetLiteratureOccurrences(
     cursor,
   });
 
-  const result = await client.query<LiteratureResult>(query, variables);
+  const result = await client.query(query, variables);
+  const target = optRecord(path(result, 'target'));
+  const literature = optRecord(target?.literatureOcurrences);
+  const rows = literature?.rows;
 
-  if (size > 0 && result?.target?.literatureOcurrences?.rows) {
+  if (size > 0 && target && literature && Array.isArray(rows)) {
     return {
-      ...result,
+      ...asRecord(result),
       target: {
-        ...result.target,
+        ...target,
         literatureOcurrences: {
-          ...result.target.literatureOcurrences,
-          rows: truncateArray(result.target.literatureOcurrences.rows, size),
+          ...literature,
+          rows: truncateArray(asArray(rows), size),
         },
       },
     };

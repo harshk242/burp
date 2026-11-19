@@ -1,11 +1,12 @@
+import { isRecord, type JsonRecord } from '../../shared/json.js';
 import { NCBIAPIError } from './exceptions.js';
 import type { PopulationFrequency, VariantFrequencyResult } from './types.js';
 
-function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+function record(value: unknown): JsonRecord {
+  if (!isRecord(value)) {
     throw new NCBIAPIError('Invalid ClinVar frequency summary');
   }
-  return value as Record<string, unknown>;
+  return value;
 }
 
 function errorText(error: unknown): string {

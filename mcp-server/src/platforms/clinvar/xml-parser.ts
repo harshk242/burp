@@ -184,29 +184,29 @@ export function parseESummaryResult(xml: string): VariantInfo[] {
     return ensureArray(docSums).map((doc: XmlValue) => {
       const uid = extractText(at(doc, '@_uid')) || extractText(at(doc, 'Id'));
       const items = ensureArray(at(doc, 'Item') || []);
-      const itemMap: Record<string, string> = Object.create(null);
+      const itemMap = new Map<string, string>();
       for (const item of items) {
         const itemObj = item;
         const name = required(at(itemObj, '@_Name'), 'item name');
-        itemMap[name] = extractText(item);
+        itemMap.set(name, extractText(item));
       }
-      const geneSymbol = itemMap.gene_sort || extractText(at(doc, 'gene_sort')) ||
+      const geneSymbol = itemMap.get('gene_sort') || extractText(at(doc, 'gene_sort')) ||
         extractText(at(ensureArray(at(doc, 'genes', 'gene'))[0], 'symbol'));
       // Since the 2024 DTD the classification is `germline_classification`;
       // `clinical_significance` is the pre-2024 element.
       const classification = (at(doc, 'germline_classification') || at(doc, 'clinical_significance') || {});
       const variation = ensureArray(at(doc, 'variation_set', 'variation'))[0];
       const dbsnpXref = ensureArray(at(variation, 'variation_xrefs', 'variation_xref')).find((xref: XmlValue) => extractText(at(xref, 'db_source')) === 'dbSNP');
-      const rsNumber = itemMap.rs || extractText(at(variation, 'dbsnp_id')) || extractText(at(dbsnpXref, 'db_id'));
+      const rsNumber = itemMap.get('rs') || extractText(at(variation, 'dbsnp_id')) || extractText(at(dbsnpXref, 'db_id'));
       return {
         variationId: required(uid, 'variation ID'),
-        name: required(itemMap.title || at(doc, 'title') || at(variation, 'variation_name'), 'variant name'),
-        variantType: itemMap.variant_type || extractText(at(variation, 'variant_type')) ||
+        name: required(itemMap.get('title') || at(doc, 'title') || at(variation, 'variation_name'), 'variant name'),
+        variantType: itemMap.get('variant_type') || extractText(at(variation, 'variant_type')) ||
           extractText(at(doc, 'variant_type')) || extractText(at(doc, 'obj_type')),
         gene: geneSymbol ? { symbol: geneSymbol } : undefined,
         clinicalSignificance: {
-          description: normalizeClinicalSignificance(itemMap.clinical_significance || extractText(at(classification, 'description'))),
-          reviewStatus: normalizeReviewStatus(itemMap.review_status || extractText(at(classification, 'review_status')) || extractText(at(doc, 'review_status'))),
+          description: normalizeClinicalSignificance(itemMap.get('clinical_significance') || extractText(at(classification, 'description'))),
+          reviewStatus: normalizeReviewStatus(itemMap.get('review_status') || extractText(at(classification, 'review_status')) || extractText(at(doc, 'review_status'))),
         },
         rsId: rsNumber ? `rs${rsNumber.replace(/^rs/i, '')}` : undefined,
       };

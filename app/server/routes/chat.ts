@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { streamSSE } from "hono/streaming";
 import { v4 as uuidv4 } from "uuid";
 import { ChatRequestSchema, ErrorSchema } from "../schemas";
-import { clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
+import { authedUserId, clerkAuth, requireUser, requireDbUser } from "../middleware/clerk";
 import { rateLimitMiddleware } from "../middleware/rateLimit";
 import { processChat, generateSessionTitle } from "../orchestration/chat-v2";
 import { chatSessionQueries, messageQueries } from "../db";
@@ -114,7 +114,7 @@ data: {"messageId":"0b6c1f5e-6a1d-4e5b-9d65-0f2a4c8e7a11","inputTokens":100,"out
 
 chat.openapi(chatRoute, async (c) => {
   const { message, sessionId: providedSessionId } = c.req.valid("json");
-  const userId = c.get("userId") as string;
+  const userId = authedUserId(c);
 
   if (message.length > appConfig.usage.max_chat_input_chars) {
     return c.json(

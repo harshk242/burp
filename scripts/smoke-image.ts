@@ -6,19 +6,45 @@
 // Only unauthenticated routes are checked: the dev-agent token is disabled in production.
 // Usage: bun scripts/smoke-image.ts [--image <tag>]   (default: build ./Dockerfile)
 import { join } from "path";
+import { optNumber, optRecord, optString, optText, path } from "../mcp-server/src/shared/json.js";
 
 const REPO_ROOT = join(import.meta.dir, "..");
 const BOOT_TIMEOUT_MS = 30_000;
 
 interface FlyConfig {
-  kill_timeout?: string;
-  build?: { dockerfile?: string; args?: Record<string, string> };
-  env?: Record<string, string>;
+  kill_timeout?: string | undefined;
+  build?: { dockerfile?: string | undefined; args?: Record<string, string> | undefined };
+  env?: Record<string, string> | undefined;
   http_service: { internal_port: number };
   mounts: { destination: string };
 }
 
-const fly = Bun.TOML.parse(await Bun.file(join(REPO_ROOT, "fly.toml")).text()) as FlyConfig;
+/** A TOML table of scalars as text (`[env]` values may be numbers); `undefined` when absent. */
+function textTable(value: unknown): Record<string, string> | undefined {
+  const table = optRecord(value);
+  if (!table) return undefined;
+  return Object.fromEntries(Object.entries(table).flatMap(([k, v]) => {
+    const text = optText(v);
+    return text === undefined ? [] : [[k, text]];
+  }));
+}
+
+function parseFlyConfig(raw: unknown): FlyConfig {
+  const internalPort = optNumber(path(raw, "http_service", "internal_port"));
+  const destination = optString(path(raw, "mounts", "destination"));
+  if (internalPort === undefined || destination === undefined) {
+    throw new Error("fly.toml needs [http_service] internal_port and [mounts] destination");
+  }
+  return {
+    kill_timeout: optString(path(raw, "kill_timeout")),
+    build: { dockerfile: optString(path(raw, "build", "dockerfile")), args: textTable(path(raw, "build", "args")) },
+    env: textTable(path(raw, "env")),
+    http_service: { internal_port: internalPort },
+    mounts: { destination },
+  };
+}
+
+const fly = parseFlyConfig(Bun.TOML.parse(await Bun.file(join(REPO_ROOT, "fly.toml")).text()));
 const killTimeoutSec = Number.parseInt(fly.kill_timeout ?? "5s", 10);
 const internalPort = fly.http_service.internal_port;
 
@@ -57,9 +83,9 @@ async function waitHealthy(container: string): Promise<string> {
     const base = `http://127.0.0.1:${port}`;
     try {
       const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) });
-      const body = (await res.json()) as { mcpServers?: Record<string, { status: string; error?: string }> };
-      if (res.ok && body.mcpServers?.unified?.status === "running") return base;
-      last = `${res.status} ${JSON.stringify(body.mcpServers)}`;
+      const body: unknown = await res.json();
+      if (res.ok && path(body, "mcpServers", "unified", "status") === "running") return base;
+      last = `${res.status} ${JSON.stringify(path(body, "mcpServers"))}`;
     } catch (error) {
       last = String(error);
     }

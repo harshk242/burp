@@ -104,7 +104,7 @@ async function handleGetHomologs(args: Record<string, unknown>) {
     params['content-type'] = 'text/xml';
   }
 
-  const response = await getClient().get(`/homology/id/${species}/${args.gene_id}`, { params, headers: { 'Content-Type': format === 'xml' ? 'text/xml' : 'application/json', Accept: format === 'xml' ? 'text/xml' : 'application/json' } });
+  const response = await getClient().get<unknown>(`/homology/id/${species}/${args.gene_id}`, { params, headers: { 'Content-Type': format === 'xml' ? 'text/xml' : 'application/json', Accept: format === 'xml' ? 'text/xml' : 'application/json' } });
   return response.data;
 }
 
@@ -126,7 +126,7 @@ async function handleGetGeneTree(args: Record<string, unknown>) {
     params["content-type"] = contentType;
   }
 
-  const response = await getClient().get(endpoint, { params, headers: { 'Content-Type': contentType, Accept: contentType } });
+  const response = await getClient().get<unknown>(endpoint, { params, headers: { 'Content-Type': contentType, Accept: contentType } });
   return response.data;
 }
 

@@ -1,5 +1,6 @@
 import { getClients } from './client.js';
-import type { LabelRecord, OpenFdaResponse } from './types.js';
+import { asRecord, optNumber, optString, path, recordArray, type JsonRecord } from '../../shared/json.js';
+import type { LabelRecord } from './types.js';
 
 export type OpenFdaEndpoint = 'drugsfda' | 'label';
 
@@ -50,9 +51,10 @@ export async function openFdaGet<T>(
   endpoint: OpenFdaEndpoint,
   search: string,
   options: { limit: number; sort?: string },
+  decode: (record: JsonRecord) => T,
 ): Promise<OpenFdaPage<T>> {
   const { openFda, openFdaApiKey } = getClients();
-  const response = await openFda.get<OpenFdaResponse<T>>(`/drug/${endpoint}.json`, {
+  const response = await openFda.get<unknown>(`/drug/${endpoint}.json`, {
     params: {
       search,
       limit: options.limit,
@@ -60,17 +62,19 @@ export async function openFdaGet<T>(
       ...(openFdaApiKey ? { api_key: openFdaApiKey } : {}),
     },
   });
-  const body = response.data;
+  const body = asRecord(response.data);
+  const errorCode = optString(path(body, 'error', 'code'));
+  const errorMessage = optString(path(body, 'error', 'message'));
   if (response.status === 404) {
-    if (body?.error?.code === 'NOT_FOUND') return { results: [], total: 0, lastUpdated: null };
-    throw new Error(`openFDA ${endpoint} returned HTTP 404: ${body?.error?.message ?? 'unknown route'}`);
+    if (errorCode === 'NOT_FOUND') return { results: [], total: 0, lastUpdated: null };
+    throw new Error(`openFDA ${endpoint} returned HTTP 404: ${errorMessage ?? 'unknown route'}`);
   }
-  if (body?.error) throw new Error(`openFDA ${endpoint} error: ${body.error.message ?? body.error.code ?? 'unknown'}`);
-  const results = body?.results ?? [];
+  if (body.error) throw new Error(`openFDA ${endpoint} error: ${errorMessage ?? errorCode ?? 'unknown'}`);
+  const results = recordArray(body.results).map(decode);
   return {
     results,
-    total: body?.meta?.results?.total ?? results.length,
-    lastUpdated: body?.meta?.last_updated ?? null,
+    total: optNumber(path(body, 'meta', 'results', 'total')) ?? results.length,
+    lastUpdated: optString(path(body, 'meta', 'last_updated')) ?? null,
   };
 }
 

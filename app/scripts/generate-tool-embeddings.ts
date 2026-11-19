@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { join } from "path";
+import { definedEntries } from "../shared/object";
 import { appConfig } from "../server/config";
 import { createEmbedder, toolEmbeddingText, writeToolEmbeddings, zipVectors } from "../server/embeddings";
 
@@ -16,7 +17,7 @@ async function main() {
   const transport = new StdioClientTransport({
     command: "node",
     args: [join(appConfig.server.mcp_servers_base, "dist", "index.js")],
-    env: { ...process.env } as Record<string, string>,
+    env: definedEntries(process.env),
   });
   const client = new Client({ name: "embedding-generator", version: "1.0.0" }, { capabilities: {} });
 

@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { decodeAuthors } from './author-decoder.js';
 import { XMLParseError } from './exceptions.js';
 import { ensureArray, extractText } from './utils.js';
+import { asRecord, optRecord, optText, path, recordList, type JsonRecord } from '../../shared/json.js';
 import type {
   ESearchResult,
   ArticleSummary,
@@ -9,13 +10,9 @@ import type {
   MeshTerm,
   Grant,
   LinkResult,
-  Author,
+  SummaryListItem,
+  SummaryStructure,
 } from './types.js';
-
-type AnyObject = Record<string, unknown>;
-
-/** A child element that may occur once or repeat; fast-xml-parser yields an object or an array. */
-const nodes = (value: unknown): AnyObject[] => ensureArray(value as AnyObject | AnyObject[] | undefined);
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -56,29 +53,28 @@ export function decodeCharacterReferences(xml: string): string {
   });
 }
 
-const parse = (xml: string) => parser.parse(decodeCharacterReferences(xml));
+const parse = (xml: string): unknown => parser.parse(decodeCharacterReferences(xml));
 
 export function parseESearchResult(xml: string): ESearchResult {
   try {
-    const result = parse(xml);
-    const searchResult = result.eSearchResult;
+    const searchResult = optRecord(path(parse(xml), 'eSearchResult'));
 
     if (!searchResult) {
       throw new XMLParseError('Invalid ESearch response: missing eSearchResult');
     }
 
-    const idList = searchResult.IdList?.Id || [];
+    const idList = path(searchResult, 'IdList', 'Id') || [];
 
     return {
-      count: parseInt(searchResult.Count || '0', 10),
-      retmax: parseInt(searchResult.RetMax || '0', 10),
-      retstart: parseInt(searchResult.RetStart || '0', 10),
+      count: parseInt(optText(searchResult.Count) || '0', 10),
+      retmax: parseInt(optText(searchResult.RetMax) || '0', 10),
+      retstart: parseInt(optText(searchResult.RetStart) || '0', 10),
       idList: ensureArray(idList).map(String),
-      translationSet: nodes(searchResult.TranslationSet?.Translation || []).map((t) => ({
+      translationSet: recordList(path(searchResult, 'TranslationSet', 'Translation')).map((t) => ({
         from: extractText(t.From),
         to: extractText(t.To),
       })),
-      translationStack: nodes(searchResult.TranslationStack?.TermSet || []).map((ts) => ({
+      translationStack: recordList(path(searchResult, 'TranslationStack', 'TermSet')).map((ts) => ({
         term: extractText(ts.Term),
         field: extractText(ts.Field),
         count: parseInt(extractText(ts.Count) || '0', 10),
@@ -92,61 +88,74 @@ export function parseESearchResult(xml: string): ESearchResult {
   }
 }
 
+/** An ESummary item's value: text, a `Structure` of named texts, or a `List` of either. */
+type SummaryValue = string | SummaryStructure | SummaryListItem[];
+
+const summaryText = (value: SummaryValue | undefined): string | undefined =>
+  typeof value === 'string' ? value : undefined;
+
+const summaryList = (value: SummaryValue | undefined): SummaryListItem[] | undefined =>
+  Array.isArray(value) ? value : undefined;
+
+const summaryTextList = (value: SummaryValue | undefined): string[] | undefined =>
+  summaryList(value)?.filter((item): item is string => typeof item === 'string');
+
 export function parseESummaryResult(xml: string): ArticleSummary[] {
   try {
-    const result = parse(xml);
-    const docSums = result.eSummaryResult?.DocSum || result.eSummaryResult?.DocumentSummarySet?.DocumentSummary || [];
+    const summaryResult = asRecord(path(parse(xml), 'eSummaryResult'));
+    const docSums = summaryResult.DocSum || path(summaryResult, 'DocumentSummarySet', 'DocumentSummary');
 
-    return nodes(docSums).map((doc) => {
-      const items = ensureArray(doc.Item || []);
-      const itemMap: AnyObject = {};
+    return recordList(docSums).map((doc) => {
+      const itemMap: Record<string, SummaryValue> = {};
 
-      for (const item of items) {
-        const itemObj = item as AnyObject;
-        const name = itemObj['@_Name'] as string;
-        const type = itemObj['@_Type'] as string;
+      for (const item of recordList(doc.Item)) {
+        const name = optText(item['@_Name']);
+        if (name === undefined) continue;
+        const type = item['@_Type'];
 
         if (type === 'List') {
-          itemMap[name] = nodes(itemObj.Item || []).map((subItem) => {
+          itemMap[name] = recordList(item.Item).map((subItem) => {
             if (subItem['@_Type'] === 'Structure') {
               return parseStructureItem(subItem);
             }
             return extractText(subItem);
           });
         } else if (type === 'Structure') {
-          itemMap[name] = parseStructureItem(itemObj);
+          itemMap[name] = parseStructureItem(item);
         } else {
           itemMap[name] = extractText(item);
         }
       }
 
+      const pmcRefCount = summaryText(itemMap.PmcRefCount);
+
       return {
-        uid: extractText(ensureArray(doc.Id)[0]) || doc['@_uid'] as string || '',
-        pubdate: (itemMap.PubDate as string) || '',
-        epubdate: itemMap.EPubDate as string,
-        source: (itemMap.Source as string) || '',
-        authors: (itemMap.AuthorList as Author[]) || [],
-        lastauthor: itemMap.LastAuthor as string,
-        title: (itemMap.Title as string) || '',
-        sorttitle: itemMap.SortTitle as string,
-        volume: itemMap.Volume as string,
-        issue: itemMap.Issue as string,
-        pages: itemMap.Pages as string,
-        lang: itemMap.Lang as string[],
-        nlmuniqueid: itemMap.NlmUniqueID as string,
-        issn: itemMap.ISSN as string,
-        essn: itemMap.ESSN as string,
-        pubtype: itemMap.PubTypeList as string[],
-        recordstatus: itemMap.RecordStatus as string,
-        pubstatus: itemMap.PubStatus as string,
-        articleids: itemMap.ArticleIds as { idtype: string; idtypen: number; value: string }[],
-        history: itemMap.History as { pubstatus: string; date: string }[],
-        references: itemMap.References as string[],
-        pmcrefcount: itemMap.PmcRefCount ? parseInt(itemMap.PmcRefCount as string, 10) : undefined,
-        fulljournalname: itemMap.FullJournalName as string,
-        elocationid: itemMap.ELocationID as string,
-        sortpubdate: itemMap.SortPubDate as string,
-        sortfirstauthor: itemMap.SortFirstAuthor as string,
+        uid: extractText(ensureArray(doc.Id)[0]) || optText(doc['@_uid']) || '',
+        pubdate: summaryText(itemMap.PubDate) || '',
+        epubdate: summaryText(itemMap.EPubDate),
+        source: summaryText(itemMap.Source) || '',
+        authors: summaryTextList(itemMap.AuthorList) || [],
+        lastauthor: summaryText(itemMap.LastAuthor),
+        title: summaryText(itemMap.Title) || '',
+        sorttitle: summaryText(itemMap.SortTitle),
+        volume: summaryText(itemMap.Volume),
+        issue: summaryText(itemMap.Issue),
+        pages: summaryText(itemMap.Pages),
+        lang: summaryTextList(itemMap.Lang),
+        nlmuniqueid: summaryText(itemMap.NlmUniqueID),
+        issn: summaryText(itemMap.ISSN),
+        essn: summaryText(itemMap.ESSN),
+        pubtype: summaryTextList(itemMap.PubTypeList),
+        recordstatus: summaryText(itemMap.RecordStatus),
+        pubstatus: summaryText(itemMap.PubStatus),
+        articleids: summaryList(itemMap.ArticleIds),
+        history: summaryList(itemMap.History),
+        references: summaryList(itemMap.References),
+        pmcrefcount: pmcRefCount ? parseInt(pmcRefCount, 10) : undefined,
+        fulljournalname: summaryText(itemMap.FullJournalName),
+        elocationid: summaryText(itemMap.ELocationID),
+        sortpubdate: summaryText(itemMap.SortPubDate),
+        sortfirstauthor: summaryText(itemMap.SortFirstAuthor),
       };
     });
   } catch (error) {
@@ -155,14 +164,12 @@ export function parseESummaryResult(xml: string): ArticleSummary[] {
   }
 }
 
-function parseStructureItem(item: AnyObject): AnyObject {
-  const result: AnyObject = {};
-  const subItems = ensureArray(item.Item || []);
+function parseStructureItem(item: JsonRecord): SummaryStructure {
+  const result: SummaryStructure = {};
 
-  for (const subItem of subItems) {
-    const subItemObj = subItem as AnyObject;
-    const name = subItemObj['@_Name'] as string;
-    result[name] = extractText(subItem);
+  for (const subItem of recordList(item.Item)) {
+    const name = optText(subItem['@_Name']);
+    if (name !== undefined) result[name] = extractText(subItem);
   }
 
   return result;
@@ -170,16 +177,14 @@ function parseStructureItem(item: AnyObject): AnyObject {
 
 export function parseEFetchResult(xml: string): PubMedArticle[] {
   try {
-    const result = parse(xml);
-    const articles = result.PubmedArticleSet?.PubmedArticle || [];
+    const articles = recordList(path(parse(xml), 'PubmedArticleSet', 'PubmedArticle'));
 
     const parsedArticles: PubMedArticle[] = [];
 
-    for (const article of ensureArray(articles)) {
-      const articleObj = article as AnyObject;
-      const medlineCitation = articleObj.MedlineCitation as AnyObject;
-      const articleData = medlineCitation?.Article as AnyObject;
-      const pubmedData = articleObj.PubmedData as AnyObject;
+    for (const article of articles) {
+      const medlineCitation = optRecord(article.MedlineCitation);
+      const articleData = optRecord(medlineCitation?.Article);
+      const pubmedData = optRecord(article.PubmedData);
 
       if (!medlineCitation || !articleData) {
         continue;
@@ -189,8 +194,7 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
 
       const title = extractText(articleData.ArticleTitle);
 
-      const abstractObj = articleData.Abstract as AnyObject | undefined;
-      const abstractText = abstractObj?.AbstractText;
+      const abstractText = path(articleData, 'Abstract', 'AbstractText');
       let abstract: string | undefined;
       if (abstractText) {
         if (Array.isArray(abstractText)) {
@@ -202,23 +206,22 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
 
       const authors = decodeAuthors(articleData.AuthorList);
 
-      const journalData = articleData.Journal as AnyObject | undefined;
-      const journalIssue = journalData?.JournalIssue as AnyObject | undefined;
-      const pagination = articleData.Pagination as AnyObject | undefined;
+      const journalData = optRecord(articleData.Journal);
+      const journalIssue = optRecord(journalData?.JournalIssue);
+      const pagination = optRecord(articleData.Pagination);
       const journal = {
         title: extractText(journalData?.Title) || extractText(journalData?.ISOAbbreviation),
         isoAbbreviation: extractText(journalData?.ISOAbbreviation),
         issn: extractText(journalData?.ISSN),
         volume: extractText(journalIssue?.Volume),
         issue: extractText(journalIssue?.Issue),
-        pubDate: formatPubDate(journalIssue?.PubDate as AnyObject | undefined),
+        pubDate: formatPubDate(optRecord(journalIssue?.PubDate)),
         pages: extractText(pagination?.MedlinePgn),
       };
 
-      const meshHeadingList = medlineCitation.MeshHeadingList as AnyObject | undefined;
-      const meshList = meshHeadingList?.MeshHeading || [];
-      const meshTerms: MeshTerm[] = nodes(meshList).map((mesh) => {
-        const descriptorName = mesh.DescriptorName as AnyObject | undefined;
+      const meshList = recordList(path(medlineCitation, 'MeshHeadingList', 'MeshHeading'));
+      const meshTerms: MeshTerm[] = meshList.map((mesh) => {
+        const descriptorName = optRecord(mesh.DescriptorName);
         return {
           descriptorName: extractText(mesh.DescriptorName),
           qualifierName: mesh.QualifierName ? extractText(mesh.QualifierName) : undefined,
@@ -226,31 +229,26 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
         };
       });
 
-      const keywordListObj = medlineCitation.KeywordList as AnyObject | undefined;
-      const keywordList = keywordListObj?.Keyword || [];
+      const keywordList = path(medlineCitation, 'KeywordList', 'Keyword') || [];
       const keywords = ensureArray(keywordList).map((kw: unknown) => extractText(kw));
 
-      const pubTypeListObj = articleData.PublicationTypeList as AnyObject | undefined;
-      const pubTypeList = pubTypeListObj?.PublicationType || [];
+      const pubTypeList = path(articleData, 'PublicationTypeList', 'PublicationType') || [];
       const publicationTypes = ensureArray(pubTypeList).map((pt: unknown) => extractText(pt));
 
-      const grantListObj = articleData.GrantList as AnyObject | undefined;
-      const grantList = grantListObj?.Grant || [];
-      const grants: Grant[] = nodes(grantList).map((grant) => ({
+      const grantList = recordList(path(articleData, 'GrantList', 'Grant'));
+      const grants: Grant[] = grantList.map((grant) => ({
         grantId: extractText(grant.GrantID),
         acronym: extractText(grant.Acronym),
         agency: extractText(grant.Agency),
         country: extractText(grant.Country),
       }));
 
-      const articleIdListObj = pubmedData?.ArticleIdList as AnyObject | undefined;
-      const articleIdList = articleIdListObj?.ArticleId || [];
+      const articleIdList = recordList(path(pubmedData, 'ArticleIdList', 'ArticleId'));
       let doi: string | undefined;
       let pmcId: string | undefined;
 
-      for (const id of ensureArray(articleIdList)) {
-        const idObj = id as AnyObject;
-        const idType = idObj['@_IdType'];
+      for (const id of articleIdList) {
+        const idType = id['@_IdType'];
         const idValue = extractText(id);
         if (idType === 'doi') {
           doi = idValue;
@@ -285,7 +283,7 @@ export function parseEFetchResult(xml: string): PubMedArticle[] {
   }
 }
 
-function formatPubDate(pubDate: AnyObject | undefined): string {
+function formatPubDate(pubDate: JsonRecord | undefined): string {
   if (!pubDate) return '';
 
   const year = extractText(pubDate.Year);
@@ -313,10 +311,9 @@ function formatPubDate(pubDate: AnyObject | undefined): string {
 
 export function parseELinkResult(xml: string): LinkResult {
   try {
-    const result = parse(xml);
-    const linkSet = result.eLinkResult?.LinkSet;
+    const linkSetObj = recordList(path(parse(xml), 'eLinkResult', 'LinkSet'))[0];
 
-    if (!linkSet) {
+    if (!linkSetObj) {
       return {
         dbFrom: '',
         idList: [],
@@ -324,10 +321,8 @@ export function parseELinkResult(xml: string): LinkResult {
       };
     }
 
-    const linkSetObj = ensureArray(linkSet)[0] as AnyObject;
-    const idListObj = linkSetObj.IdList as AnyObject | undefined;
-    const idList = ensureArray(idListObj?.Id || []).map(String);
-    const linkSetDbList = nodes(linkSetObj.LinkSetDb || []);
+    const idList = ensureArray(path(linkSetObj, 'IdList', 'Id') || []).map(String);
+    const linkSetDbList = recordList(linkSetObj.LinkSetDb);
 
     return {
       dbFrom: extractText(linkSetObj.DbFrom) || 'pubmed',
@@ -335,7 +330,7 @@ export function parseELinkResult(xml: string): LinkResult {
       linkSetDb: linkSetDbList.map((lsdb) => ({
         dbTo: extractText(lsdb.DbTo) || '',
         linkName: extractText(lsdb.LinkName) || '',
-        link: nodes(lsdb.Link || []).map((link) => ({
+        link: recordList(lsdb.Link).map((link) => ({
           id: extractText(ensureArray(link.Id)[0]) || '',
           score: link.Score ? parseInt(extractText(link.Score), 10) : undefined,
         })),

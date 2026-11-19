@@ -51,13 +51,13 @@ function locate({ doc, lines, file }: ParsedYaml, path: ReadonlyArray<string | n
   return `${file}:1:1`;
 }
 
-export function validate<S extends z.ZodTypeAny>(
-  schema: S,
+export function validate<T>(
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
   parsed: ParsedYaml,
   problems: string[],
-): z.infer<S> | undefined {
+): T | undefined {
   const result = schema.safeParse(parsed.doc.toJS());
-  if (result.success) return result.data as z.infer<S>;
+  if (result.success) return result.data;
   for (const issue of result.error.issues) {
     const where = locate(parsed, issue.path);
     problems.push(`${where}: ${issue.path.join(".") || "(root)"}: ${issue.message}`);

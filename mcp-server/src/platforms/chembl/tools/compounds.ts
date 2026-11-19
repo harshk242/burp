@@ -1,5 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { optionalNumber, optionalString } from '../../../shared/args.js';
+import { asRecord, optRecord } from '../../../shared/json.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
 
 const isValidCompoundSearchArgs = (
@@ -94,7 +96,7 @@ async function handleSearchCompounds(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const response = await client.get('/molecule/search.json', {
+  const response = await client.get<unknown>('/molecule/search.json', {
     params: { q: args.query, limit: args.limit || 25, offset: args.offset || 0 },
   });
   return response.data;
@@ -106,7 +108,7 @@ async function handleGetCompoundInfo(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const response = await client.get(`/molecule/${args.chembl_id}.json`);
+  const response = await client.get<unknown>(`/molecule/${args.chembl_id}.json`);
   return response.data;
 }
 
@@ -116,8 +118,8 @@ async function handleSearchByInchi(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const response = await client.get('/molecule/search.json', {
-    params: { q: args.inchi, limit: (args.limit as number) || 25 },
+  const response = await client.get<unknown>('/molecule/search.json', {
+    params: { q: args.inchi, limit: optionalNumber(args, 'limit') || 25 },
   });
   return response.data;
 }
@@ -128,21 +130,22 @@ async function handleGetCompoundStructure(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const format = (args.format as string) || 'smiles';
+  const format = optionalString(args, 'format') || 'smiles';
   if (format === 'sdf') {
-    const response = await client.get(`/molecule/${args.chembl_id}.sdf`, { responseType: 'text' });
+    const response = await client.get<unknown>(`/molecule/${args.chembl_id}.sdf`, { responseType: 'text' });
     return { chembl_id: args.chembl_id, structure: response.data, requested_format: format };
   }
-  const response = await client.get(`/molecule/${args.chembl_id}.json`);
-  const compound = response.data;
+  const response = await client.get<unknown>(`/molecule/${args.chembl_id}.json`);
+  const compound = asRecord(response.data);
   const field = { smiles: 'canonical_smiles', inchi: 'standard_inchi', molfile: 'molfile' }[format];
   if (!field) throw new Error('Invalid structure format');
+  const structures = optRecord(compound.molecule_structures);
 
   return {
     chembl_id: compound.molecule_chembl_id,
-    structure: compound.molecule_structures?.[field] ?? null,
-    structures: compound.molecule_structures || {},
-    requested_format: (args.format as string) || 'smiles',
+    structure: structures?.[field] ?? null,
+    structures: structures ?? {},
+    requested_format: format,
   };
 }
 
@@ -153,7 +156,7 @@ async function handleSearchSimilarCompounds(args: Record<string, unknown>) {
 
   const client = getClient();
   const similarity = args.similarity !== undefined ? Math.round(args.similarity * 100) : 70;
-  const response = await client.get(
+  const response = await client.get<unknown>(
     '/similarity/' + encodeURIComponent(args.smiles) + '/' + similarity + '.json',
     { params: { limit: args.limit || 25 } },
   );

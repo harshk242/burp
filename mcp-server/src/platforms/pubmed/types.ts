@@ -3,7 +3,8 @@ import type { RetryDeps } from '../../shared/http-retry.js';
 import type { TokenBucketRateLimiter } from '../../shared/rate-limiter.js';
 
 export interface CacheEntry {
-  data: unknown;
+  /** The raw response text; it is parsed again on each hit. */
+  xml: string;
   timestamp: number;
 }
 
@@ -29,32 +30,38 @@ export interface TranslationStack {
   explode: string;
 }
 
+/** An ESummary `Structure` item: its sub-items' text by name. */
+export type SummaryStructure = Record<string, string>;
+
+/** An element of an ESummary `List` item. */
+export type SummaryListItem = string | SummaryStructure;
+
 export interface ArticleSummary {
   uid: string;
   pubdate: string;
-  epubdate?: string;
+  epubdate?: string | undefined;
   source: string;
-  authors: Author[];
-  lastauthor?: string;
+  authors: string[];
+  lastauthor?: string | undefined;
   title: string;
-  sorttitle?: string;
-  volume?: string;
-  issue?: string;
-  pages?: string;
-  lang?: string[];
-  nlmuniqueid?: string;
-  issn?: string;
-  essn?: string;
-  pubtype?: string[];
-  recordstatus?: string;
-  pubstatus?: string;
-  articleids?: ArticleId[];
-  history?: HistoryEntry[];
-  references?: string[];
+  sorttitle?: string | undefined;
+  volume?: string | undefined;
+  issue?: string | undefined;
+  pages?: string | undefined;
+  lang?: string[] | undefined;
+  nlmuniqueid?: string | undefined;
+  issn?: string | undefined;
+  essn?: string | undefined;
+  pubtype?: string[] | undefined;
+  recordstatus?: string | undefined;
+  pubstatus?: string | undefined;
+  articleids?: SummaryListItem[] | undefined;
+  history?: SummaryListItem[] | undefined;
+  references?: SummaryListItem[] | undefined;
   attributes?: string[];
   pmcrefcount?: number | undefined;
-  fulljournalname?: string;
-  elocationid?: string;
+  fulljournalname?: string | undefined;
+  elocationid?: string | undefined;
   doctype?: string;
   srccontriblist?: string[];
   booktitle?: string;
@@ -70,25 +77,8 @@ export interface ArticleSummary {
   docdate?: string;
   bookname?: string;
   chapter?: string;
-  sortpubdate?: string;
-  sortfirstauthor?: string;
-}
-
-export interface Author {
-  name: string;
-  authtype?: string;
-  clusterid?: string;
-}
-
-export interface ArticleId {
-  idtype: string;
-  idtypen: number;
-  value: string;
-}
-
-export interface HistoryEntry {
-  pubstatus: string;
-  date: string;
+  sortpubdate?: string | undefined;
+  sortfirstauthor?: string | undefined;
 }
 
 export interface PubMedArticle {
