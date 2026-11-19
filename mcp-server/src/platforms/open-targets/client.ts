@@ -4,7 +4,8 @@ import { GraphQLError, OpenTargetsAPIError } from './exceptions.js';
 import { filterNoneValues, generateCacheKey } from './utils.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
-import type { CacheEntry, GraphQLResponse, GraphQLError as GraphQLErrorType } from './types.js';
+import { asArray, asRecord, optString, optText, path, recordArray } from '../../shared/json.js';
+import type { CacheEntry } from './types.js';
 
 export const OPEN_TARGETS_GRAPHQL_URL = 'https://api.platform.opentargets.org/api/v4/graphql';
 const DEFAULT_CACHE_TTL = 3600 * 1000;
@@ -23,6 +24,20 @@ export const OPEN_TARGETS_POLICY: RetryPolicy = Object.freeze({
   perAttemptTimeoutMs: 30_000,
   on429: 'retry',
 });
+
+interface GraphQLErrorSummary {
+  message: string;
+  path?: string[];
+}
+
+/** The `errors` of a GraphQL response body, as the message and path each error carries. */
+function graphQLErrors(value: unknown): GraphQLErrorSummary[] {
+  return recordArray(value).map((error) => {
+    const message = optString(error.message) ?? '';
+    if (!Array.isArray(error.path)) return { message };
+    return { message, path: asArray(error.path).flatMap((step) => optText(step) ?? []) };
+  });
+}
 
 export interface OpenTargetsHttpOptions {
   baseUrl?: string;
@@ -79,20 +94,21 @@ export class OpenTargetsClient {
     });
   }
 
-  async query<T = unknown>(
+  /** The `data` of the GraphQL response, untyped: each tool narrows the fields it reads. */
+  async query(
     query: string,
     variables?: Record<string, unknown>
-  ): Promise<T> {
+  ): Promise<unknown> {
     const cleanVariables = variables ? filterNoneValues(variables) : undefined;
 
     const cacheKey = generateCacheKey(query, cleanVariables);
     const cachedEntry = this.cache.get(cacheKey);
 
     if (cachedEntry && Date.now() - cachedEntry.timestamp < this.cacheTtl) {
-      return cachedEntry.data as T;
+      return cachedEntry.data;
     }
 
-    const response = await this.axiosInstance.post<GraphQLResponse<T>>(
+    const response = await this.axiosInstance.post<unknown>(
       '',
       {
         query,
@@ -100,22 +116,24 @@ export class OpenTargetsClient {
       }
     ).catch((error: unknown) => {
       const cause = error instanceof UpstreamError ? error.cause : error;
-      const errors = axios.isAxiosError(cause) ? cause.response?.data?.errors : undefined;
-      if (Array.isArray(errors) && errors.some((e) => /Cannot query field|Unknown argument|Unknown type|Syntax Error|is never used/.test(e.message))) {
+      const errors = axios.isAxiosError(cause) ? graphQLErrors(path(cause.response?.data, 'errors')) : [];
+      if (errors.some((e) => /Cannot query field|Unknown argument|Unknown type|Syntax Error|is never used/.test(e.message))) {
         throw new GraphQLError('Open Targets query is incompatible with the upstream schema; the integration must be updated: ' + errors.map((e) => e.message).join('; '), errors);
       }
       throw error;
     });
 
-    const { data, errors } = response.data;
+    const body = asRecord(response.data);
+    const data = body.data;
+    const errors = graphQLErrors(body.errors);
 
-    if (errors && errors.length > 0) {
+    if (errors.length > 0) {
       if (data) {
-        console.warn('GraphQL returned partial data with errors:', errors);
+        console.warn('GraphQL returned partial data with errors:', body.errors);
       } else {
         throw new GraphQLError(
-          `GraphQL query failed: ${errors.map((e: GraphQLErrorType) => e.message).join(', ')}`,
-          errors.map((e: GraphQLErrorType) => ({ message: e.message, path: e.path as string[] }))
+          `GraphQL query failed: ${errors.map((e) => e.message).join(', ')}`,
+          errors
         );
       }
     }

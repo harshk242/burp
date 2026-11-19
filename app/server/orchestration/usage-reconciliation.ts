@@ -1,6 +1,7 @@
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import { z } from "zod";
 import { DB_PATH } from "../db/client";
 import { db, chatTurnQueries, dailyUsageQueries, usageEventQueries, type ChatTurnOutcome } from "../db";
 import { logger } from "../logger";
@@ -15,12 +16,78 @@ export interface UsageRecoveryJob {
   outcome?: ChatTurnOutcome | undefined;
 }
 
+const UsageEventSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  date: z.string(),
+  month: z.string(),
+  operation: z.literal("chat"),
+  provider: z.string(),
+  model: z.string(),
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  cache_read_tokens: z.number(),
+  cache_write_5m_tokens: z.number(),
+  cache_write_1h_tokens: z.number(),
+  input_cost_per_mtok_microusd: z.number(),
+  output_cost_per_mtok_microusd: z.number(),
+  pricing_json: z.string().nullable(),
+  cost_microusd: z.number(),
+  input_cost_microusd: z.number(),
+  cache_read_cost_microusd: z.number(),
+  cache_write_cost_microusd: z.number(),
+  output_cost_microusd: z.number(),
+  llm_calls: z.number().nullable(),
+  long_context_calls: z.number(),
+  status: z.enum(["ok", "error"]),
+  reconciliation_state: z.enum(["none", "estimated", "uncertain"]),
+  usage_estimated: z.number(),
+  session_id: z.string().nullable(),
+  message_id: z.string().nullable(),
+  turn_id: z.string().nullable(),
+}) satisfies z.ZodType<Omit<DbUsageEvent, "created_at">>;
+
+const ChatTurnOutcomeSchema = z.object({
+  status: z.enum(["ok", "error", "aborted"]),
+  errorCode: z.string().nullable().optional(),
+  errorMessage: z.string().nullable().optional(),
+  iterations: z.number(),
+  assistantMessageId: z.string().nullable().optional(),
+  lastPromptTokens: z.number().nullable().optional(),
+  lastInputMessageCount: z.number().nullable().optional(),
+  lastInputIdentity: z.string().nullable().optional(),
+  finalFinishReason: z.string().nullable().optional(),
+  toolErrorCount: z.number().optional(),
+}) satisfies z.ZodType<ChatTurnOutcome>;
+
+const UsageRecoveryJobSchema = z.object({
+  id: z.string(),
+  event: UsageEventSchema.optional(),
+  turnId: z.string().nullable(),
+  outcome: ChatTurnOutcomeSchema.optional(),
+}) satisfies z.ZodType<UsageRecoveryJob>;
+
+/** The journal file's jobs; an entry that does not match the job shape is logged and dropped. */
+function readJournal(path: string): UsageRecoveryJob[] {
+  const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const entries: unknown[] = Array.isArray(raw) ? raw : [raw];
+  return entries.flatMap((entry) => {
+    const parsed = UsageRecoveryJobSchema.safeParse(entry);
+    if (parsed.success) return [parsed.data];
+    logger.error("CHAT", "usage_recovery_job_malformed", {
+      error: parsed.error.message,
+      data: { job: JSON.stringify(entry) },
+    });
+    return [];
+  });
+}
+
 export class UsageRecoveryJournal {
   private jobs: UsageRecoveryJob[];
 
   constructor(private readonly path: string, private readonly apply: (job: UsageRecoveryJob) => void,
     private readonly recorded: (id: string) => boolean) {
-    this.jobs = existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as UsageRecoveryJob[]) : [];
+    this.jobs = existsSync(path) ? readJournal(path) : [];
   }
 
   submit(job: UsageRecoveryJob): void {

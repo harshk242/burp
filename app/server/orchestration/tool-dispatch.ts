@@ -9,6 +9,7 @@ import { SEARCH_TOOL_NAME, type ToolSet } from "./context/tool-catalog";
 import type { StreamEvent, ToolCallRecord } from "./types";
 import type { TurnTrace } from "../observability/turn-trace";
 import { omitUndefined } from "../../shared/object";
+import { asRecord } from "../../shared/json";
 
 export type { ToolSet } from "./context/tool-catalog";
 
@@ -87,7 +88,7 @@ export async function* dispatchToolCall(
   dc: DispatchContext,
 ): AsyncGenerator<StreamEvent, DispatchResult> {
   const originalName = desanitizeToolName(tc.toolName, dc.provider);
-  const input = tc.input as Record<string, unknown>;
+  const input = asRecord(tc.input);
 
   const parsed = toolRegistry.parseToolName(originalName);
   const call: ParsedCall = { tc, originalName, server: parsed.server, name: parsed.name, input };
@@ -147,7 +148,8 @@ async function* runSearchTool(
   };
   const { activeTools, sanitize, provider } = dc;
   try {
-    const query = (call.input as { query: string }).query;
+    const query = call.input.query;
+    if (typeof query !== "string") throw new Error("tool search requires a string \"query\"");
     const declared = provider === "anthropic" ? activeTools : undefined;
     const search = await runToolSearch(query, { provider, sanitize, declared, signal: dc.signal });
     dc.signal?.throwIfAborted();

@@ -47,7 +47,7 @@ Then re-clone or `git checkout -- CLAUDE.md`.
 # Linting
 - `bun run lint` runs oxlint (type-aware) over all workspaces; config in `.oxlintrc.json`. CI fails on any finding.
 - `bun run lint:fix` applies safe autofixes.
-- Outside tests, `no-explicit-any` and the `no-unsafe-*` rules are errors. Type external data at the boundary (`unknown` + narrowing, or a named shape such as `get<T>()`). `mcp-server/src/platforms/**` is still exempt from `no-unsafe-*`.
+- Outside tests, `no-explicit-any`, the `no-unsafe-*` rules and `no-unsafe-type-assertion` are errors everywhere, including `mcp-server/src/platforms/**`. Type external data at the boundary: take it as `unknown` and narrow it. In mcp-server use `src/shared/json.ts` for upstream responses and `src/shared/args.ts` for tool args; in app use `app/shared/json.ts`; in web use the zod schemas in `app/web/lib/api-schemas.ts`. Don't use `get<T>()` to cast fields you then read.
 
 # Type checking
 - `bun run typecheck:all` checks every tsconfig and fails if a TS/JS file is outside all of them (`scripts/check-typecheck-coverage.ts`). CI runs it.

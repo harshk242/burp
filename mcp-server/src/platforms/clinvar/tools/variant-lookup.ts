@@ -1,6 +1,6 @@
 import { getClient } from '../client.js';
 import { formatVariationId, formatRsId } from '../utils.js';
-import type { VariantInfo, VCVRecord } from '../types.js';
+import type { ClinicalTablesVariant, VariantInfo, VCVRecord } from '../types.js';
 
 export async function searchVariantsByGene(
   gene: string,
@@ -143,13 +143,7 @@ export async function quickVariantSearch(
 ): Promise<{
   query: string;
   totalCount: number;
-  variants: Array<{
-    name: string;
-    gene?: string;
-    clinicalSignificance?: string;
-    chromosome?: string;
-    position?: number;
-  }>;
+  variants: ClinicalTablesVariant[];
 }> {
   const client = getClient();
   const result = await client.quickLookup(query, maxResults);

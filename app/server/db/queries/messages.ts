@@ -8,7 +8,7 @@ export function createMessageQueries(db: DrizzleDb) {
     create(
       id: string,
       chatId: string,
-      role: string,
+      role: DbMessageRow["role"],
       content: string | null,
       toolCalls: string | null,
       inputTokens: number = 0,
@@ -21,7 +21,7 @@ export function createMessageQueries(db: DrizzleDb) {
         .values({
           id,
           chat_id: chatId,
-          role: role as DbMessageRow["role"],
+          role,
           content,
           tool_calls: toolCalls,
           input_tokens: inputTokens,

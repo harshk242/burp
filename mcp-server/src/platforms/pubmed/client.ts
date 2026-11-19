@@ -6,6 +6,7 @@ import {
   parseEFetchResult,
   parseELinkResult,
 } from './xml-parser.js';
+import { XMLParseError } from './exceptions.js';
 import type { TokenBucketRateLimiter} from '../../shared/rate-limiter.js';
 import { createNcbiRateLimiter } from '../../shared/rate-limiter.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
@@ -130,18 +131,22 @@ export class PubMedClient {
     const cachedEntry = this.cache.get(cacheKey);
 
     if (cachedEntry && Date.now() - cachedEntry.timestamp < this.cacheTtl) {
-      return cachedEntry.data as T;
+      return parser(cachedEntry.xml);
     }
 
-    const response = await this.axiosInstance.get(endpoint, {
+    const response = await this.axiosInstance.get<unknown>(endpoint, {
       params: fullParams,
       responseType: 'text',
     });
 
-    const data = parser(response.data);
+    if (typeof response.data !== 'string') {
+      throw new XMLParseError(`Expected XML text from ${endpoint}`);
+    }
+    const xml = response.data;
+    const data = parser(xml);
 
     this.cache.set(cacheKey, {
-      data,
+      xml,
       timestamp: Date.now(),
     });
 

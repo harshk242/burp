@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isRecord } from "../../shared/json";
 
 export function canonicalJson(value: unknown): string {
   return encode(value, "$");
@@ -18,10 +19,10 @@ function encode(value: unknown, path: string): string {
         return `[${value.map((v, i) => (v === undefined ? "null" : encode(v, `${path}[${i}]`))).join(",")}]`;
       }
       const proto: unknown = Object.getPrototypeOf(value);
-      if (proto !== Object.prototype && proto !== null) {
+      if (!isRecord(value) || (proto !== Object.prototype && proto !== null)) {
         throw new Error(`canonicalJson: unsupported object at ${path}`);
       }
-      const record = value as Record<string, unknown>;
+      const record = value;
       const members = Object.keys(record)
         .filter((k) => record[k] !== undefined)
         .sort()

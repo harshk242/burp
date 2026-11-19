@@ -2,25 +2,25 @@
 // fields, and handlers return them as-is, so every record type stays open.
 
 export interface UniProtValue {
-  value?: string;
+  value?: string | undefined;
 }
 
 export interface UniProtEvidence {
-  evidenceCode?: string;
+  evidenceCode?: string | undefined;
   [key: string]: unknown;
 }
 
 export interface UniProtFeature {
   type: string;
-  description?: string;
-  evidences?: UniProtEvidence[];
+  description?: string | undefined;
+  evidences?: UniProtEvidence[] | undefined;
   [key: string]: unknown;
 }
 
 export interface UniProtComment {
   commentType: string;
-  disease?: { acronym?: string; [key: string]: unknown };
-  texts?: UniProtValue[];
+  disease?: { acronym?: string | undefined; [key: string]: unknown } | undefined;
+  texts?: UniProtValue[] | undefined;
   [key: string]: unknown;
 }
 
@@ -31,44 +31,44 @@ export interface UniProtCrossReference {
 }
 
 export interface UniProtReference {
-  citation?: { citationCrossReferences?: UniProtCrossReference[]; [key: string]: unknown };
+  citation?: { citationCrossReferences?: UniProtCrossReference[] | undefined; [key: string]: unknown } | undefined;
   [key: string]: unknown;
 }
 
 export interface UniProtGene {
-  geneName?: UniProtValue;
-  synonyms?: UniProtValue[];
-  orderedLocusNames?: UniProtValue[];
-  orfNames?: UniProtValue[];
+  geneName?: UniProtValue | undefined;
+  synonyms?: UniProtValue[] | undefined;
+  orderedLocusNames?: UniProtValue[] | undefined;
+  orfNames?: UniProtValue[] | undefined;
 }
 
 export interface UniProtProteinName {
-  fullName?: UniProtValue;
+  fullName?: UniProtValue | undefined;
 }
 
 export interface UniProtEntry {
-  primaryAccession: string;
-  uniProtkbId?: string;
-  entryType?: string;
-  proteinExistence?: string;
-  annotationScore?: number;
+  primaryAccession?: string | undefined;
+  uniProtkbId?: string | undefined;
+  entryType?: string | undefined;
+  proteinExistence?: string | undefined;
+  annotationScore?: number | undefined;
   proteinDescription?: {
-    recommendedName?: UniProtProteinName;
-    submissionNames?: UniProtProteinName[];
-    alternativeNames?: UniProtProteinName[];
-  };
-  genes?: UniProtGene[];
-  organism?: { scientificName?: string; commonName?: string; taxonId?: number; lineage?: string[]; [key: string]: unknown };
-  sequence?: { value?: string; length?: number; molWeight?: number; [key: string]: unknown };
-  features?: UniProtFeature[];
-  comments?: UniProtComment[];
-  keywords?: unknown[];
-  references?: UniProtReference[];
-  uniProtKBCrossReferences?: UniProtCrossReference[];
-  extraAttributes?: { countByFeatureType?: Record<string, number>; [key: string]: unknown };
+    recommendedName?: UniProtProteinName | undefined;
+    submissionNames?: UniProtProteinName[] | undefined;
+    alternativeNames?: UniProtProteinName[] | undefined;
+  } | undefined;
+  genes?: UniProtGene[] | undefined;
+  organism?: { scientificName?: string | undefined; commonName?: string | undefined; taxonId?: number | undefined; lineage?: string[] | undefined; [key: string]: unknown } | undefined;
+  sequence?: { value?: string | undefined; length?: number | undefined; molWeight?: number | undefined; [key: string]: unknown } | undefined;
+  features?: UniProtFeature[] | undefined;
+  comments?: UniProtComment[] | undefined;
+  keywords?: unknown[] | undefined;
+  references?: UniProtReference[] | undefined;
+  uniProtKBCrossReferences?: UniProtCrossReference[] | undefined;
+  extraAttributes?: { countByFeatureType?: Record<string, number> | undefined; [key: string]: unknown } | undefined;
   [key: string]: unknown;
 }
 
 export interface UniProtSearchResponse {
-  results?: UniProtEntry[];
+  results?: UniProtEntry[] | undefined;
 }

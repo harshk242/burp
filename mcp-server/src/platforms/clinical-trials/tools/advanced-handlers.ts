@@ -1,4 +1,5 @@
 import type { ToolHandler } from '../../../types.js';
+import { optionalNumber, optionalString } from '../../../shared/args.js';
 import {
   fetchStudies,
   formatStudySummary,
@@ -98,7 +99,8 @@ export const handleGetPediatricStudies: ToolHandler = async (args) => {
   if (args.recruitmentStatus)
     params['filter.overallStatus'] = args.recruitmentStatus;
 
-  const ageWindow = PEDIATRIC_AGE_RANGES[args.ageRange as string];
+  const ageRange = optionalString(args, 'ageRange');
+  const ageWindow = ageRange === undefined ? undefined : PEDIATRIC_AGE_RANGES[ageRange];
   applyAdvancedFilter(params, [
     'AREA[StdAge]CHILD',
     ageWindow ? ageOverlap(ageWindow[0], ageWindow[1]) : [],
@@ -135,8 +137,8 @@ export const handleGetPediatricStudies: ToolHandler = async (args) => {
 };
 
 export const handleGetSimilarStudies: ToolHandler = async (args) => {
-  const nctId = args.nctId as string;
-  if (!nctId || !/^NCT\d{8}$/.test(nctId)) {
+  const nctId = args.nctId;
+  if (typeof nctId !== 'string' || !/^NCT\d{8}$/.test(nctId)) {
     throw new Error('Valid NCT ID is required (format: NCT########)');
   }
 
@@ -150,7 +152,7 @@ export const handleGetSimilarStudies: ToolHandler = async (args) => {
   if (!referenceStudy) {
     throw new Error(`Reference study not found: ${nctId}`);
   }
-  const similarityType = (args.similarityType as string) || 'CONDITION';
+  const similarityType = optionalString(args, 'similarityType') || 'CONDITION';
 
   const searchParams: Record<string, unknown> = {
     format: 'json',
@@ -256,8 +258,9 @@ export const handleSearchByEligibilityCriteria: ToolHandler = async (args) => {
   const data = await fetchStudies(params);
   let studies = data.studies || [];
 
-  if (args.exclusionKeywords) {
-    const exclusionWords = (args.exclusionKeywords as string)
+  const exclusionKeywords = optionalString(args, 'exclusionKeywords');
+  if (exclusionKeywords) {
+    const exclusionWords = exclusionKeywords
       .toLowerCase()
       .split(/\s+/);
     studies = studies.filter((study) => {
@@ -310,7 +313,7 @@ export const handleGetStudyTimeline: ToolHandler = async (args) => {
   if (args.condition) params['query.cond'] = args.condition;
   if (args.sponsor) params['query.spons'] = args.sponsor;
 
-  const timelineType = (args.timelineType as string) || 'CURRENT';
+  const timelineType = optionalString(args, 'timelineType') || 'CURRENT';
   let startFrom: string | undefined;
 
   switch (timelineType) {
@@ -376,15 +379,17 @@ export const handleSearchInternationalStudies: ToolHandler = async (args) => {
   const data = await fetchStudies(params);
   const studies = data.studies || [];
 
+  const minCountries = optionalNumber(args, 'minCountries');
+  const excludeCountry = optionalString(args, 'excludeCountry');
   const filtered = studies.filter((study) => {
     const locations =
       study.protocolSection.contactsLocationsModule?.locations || [];
     const countries = new Set(locations.map((loc) => loc.country));
 
-    if (args.minCountries && countries.size < (args.minCountries as number)) {
+    if (minCountries && countries.size < minCountries) {
       return false;
     }
-    if (args.excludeCountry && countries.has(args.excludeCountry as string)) {
+    if (excludeCountry && countries.has(excludeCountry)) {
       return false;
     }
     return countries.size >= 2;

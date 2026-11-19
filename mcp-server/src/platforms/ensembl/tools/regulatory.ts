@@ -1,5 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
+import { optionalString } from '../../../shared/args.js';
+import { asRecord } from '../../../shared/json.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidRegulatoryArgs = (
@@ -76,10 +78,11 @@ async function handleGetRegulatoryFeatures(args: Record<string, unknown>) {
   const region = args.region;
   const params: Record<string, unknown> = { feature: 'regulatory' };
 
-  const response = await getClient().get(`/overlap/region/${species}/${region}`, { params });
+  const response = await getClient().get<unknown>(`/overlap/region/${species}/${region}`, { params });
 
-  const data = args.feature_type ? response.data.filter((row: { description?: unknown }) =>
-    String(row.description).toLowerCase() === args.feature_type!.toLowerCase()) : response.data;
+  const featureType = args.feature_type;
+  const data = featureType && Array.isArray(response.data) ? response.data.filter((row) =>
+    String(asRecord(row).description).toLowerCase() === featureType.toLowerCase()) : response.data;
 
   if (Array.isArray(data) && data.length === 0) {
     return {
@@ -100,7 +103,7 @@ async function handleGetMotifFeatures(args: Record<string, unknown>) {
 
   const species = getDefaultSpecies(args.species);
 
-  const response = await getClient().get(`/overlap/region/${species}/${args.region}`, {
+  const response = await getClient().get<unknown>(`/overlap/region/${species}/${args.region}`, {
     params: { feature: 'motif' },
   });
   return response.data;
@@ -111,7 +114,7 @@ export const handlers: Record<string, ToolHandler> = {
     if (typeof args.binding_matrix !== 'string' || !args.binding_matrix.trim()) {
       throw new Error('binding_matrix must be an Ensembl matrix ID (e.g., ENSPFM0001)');
     }
-    return (await getClient().get('/species/' + getDefaultSpecies(args.species as string | undefined) + '/binding_matrix/' + args.binding_matrix + '/')).data;
+    return (await getClient().get<unknown>('/species/' + getDefaultSpecies(optionalString(args, 'species')) + '/binding_matrix/' + args.binding_matrix + '/')).data;
   },
   get_regulatory_features: handleGetRegulatoryFeatures,
   get_motif_features: handleGetMotifFeatures,

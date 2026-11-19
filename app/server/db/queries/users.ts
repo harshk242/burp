@@ -23,7 +23,7 @@ export function createUserQueries(db: DrizzleDb) {
       email: string,
       name: string | null,
       imageUrl: string | null,
-      role: string,
+      role: DbUser["role"],
       institution: string | null,
       researchArea: string | null
     ) {
@@ -35,7 +35,7 @@ export function createUserQueries(db: DrizzleDb) {
           email,
           name,
           image_url: imageUrl,
-          role: role as DbUser["role"],
+          role,
           institution,
           research_area: researchArea,
         })
@@ -54,10 +54,10 @@ export function createUserQueries(db: DrizzleDb) {
         .run();
     },
 
-    updateRole(id: string, role: string) {
+    updateRole(id: string, role: DbUser["role"]) {
       return db
         .update(users)
-        .set({ role: role as DbUser["role"] })
+        .set({ role })
         .where(eq(users.id, id))
         .run();
     },

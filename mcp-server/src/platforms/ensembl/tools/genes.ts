@@ -1,6 +1,7 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { UpstreamError } from '../../../shared/exceptions.js';
+import { asArray, asRecord, isRecord, path } from '../../../shared/json.js';
 import { getClient, getDefaultSpecies } from '../client.js';
 
 const isValidGeneArgs = (
@@ -140,7 +141,7 @@ async function handleLookupGene(args: Record<string, unknown>) {
     params.expand = 1;
   }
 
-  const response = await getClient().get(endpoint, { params });
+  const response = await getClient().get<unknown>(endpoint, { params });
   return response.data;
 }
 
@@ -150,15 +151,15 @@ async function handleGetTranscripts(args: Record<string, unknown>) {
   }
 
   const species = getDefaultSpecies(args.species);
-  const response = await getClient().get(`/lookup/id/${args.gene_id}`, {
+  const response = await getClient().get<unknown>(`/lookup/id/${args.gene_id}`, {
     params: { species, expand: 1 },
   });
 
-  const gene = response.data;
-  let transcripts = gene.Transcript || [];
+  const gene = asRecord(response.data);
+  let transcripts = asArray(gene.Transcript);
 
   if (args.canonical_only) {
-    transcripts = transcripts.filter((t: { is_canonical?: number }) => t.is_canonical === 1);
+    transcripts = transcripts.filter((t) => isRecord(t) && t.is_canonical === 1);
   }
 
   return {
@@ -177,14 +178,14 @@ async function handleSearchGenes(args: Record<string, unknown>) {
   const species = getDefaultSpecies(args.species);
 
   try {
-    const response = await getClient().get(`/lookup/symbol/${species}/${args.query}`, {
+    const response = await getClient().get<unknown>(`/lookup/symbol/${species}/${args.query}`, {
       params: {},
     });
 
     return {
       search_type: 'exact_symbol_match',
       note: 'REST API only supports exact gene symbol lookup, not fuzzy search',
-      result: args.biotype && response.data.biotype !== args.biotype ? null : response.data,
+      result: args.biotype && path(response.data, 'biotype') !== args.biotype ? null : response.data,
     };
   } catch (error) {
     if (!(error instanceof UpstreamError) || (error.kind !== 'not_found' && error.kind !== 'bad_request')) {
@@ -205,7 +206,7 @@ async function handleBatchGeneLookup(args: Record<string, unknown>) {
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
 
-  const response = await getClient().post(
+  const response = await getClient().post<unknown>(
     '/lookup/id',
     { ids: args.gene_ids },
     { params: { species }, headers },

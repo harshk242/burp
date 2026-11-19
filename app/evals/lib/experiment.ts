@@ -1,7 +1,7 @@
 import type { ExperimentItemResult, FetchedDataset, LangfuseClient } from "@langfuse/client";
 import { scoreConfigId } from "../../server/observability/score-configs";
 import { evaluateItem } from "../evaluators";
-import type { TaskOutput } from "../evaluators/types";
+import { TaskOutputSchema } from "../evaluators/types";
 import type { DatasetItem } from "./schema";
 import { runEvaluations, summarizeRun, type ItemRun, type RunSummary } from "./aggregate";
 import { isEligibleForPassFail } from "./schema";
@@ -38,7 +38,7 @@ function evalItem(evalItems: Map<string, DatasetItem>, id: string): DatasetItem 
 }
 
 function toItemRun(result: ExperimentItemResult, evalItems: Map<string, DatasetItem>): ItemRun {
-  const output = result.output as TaskOutput;
+  const output = TaskOutputSchema.parse(result.output);
   return {
     itemId: output.item_id,
     reviewed: isEligibleForPassFail(evalItem(evalItems, output.item_id)),
@@ -59,7 +59,7 @@ export async function runExperiment(client: LangfuseClient, spec: ExperimentSpec
     task: createItemTask(spec.task),
     evaluators: [
       async ({ output }) => {
-        const out = output as TaskOutput;
+        const out = TaskOutputSchema.parse(output);
         return evaluateItem(out, evalItem(spec.evalItems, out.item_id)).map((e) => ({ ...e, ...omitUndefined({ configId: scoreConfigId(e.name) }) }));
       },
     ],

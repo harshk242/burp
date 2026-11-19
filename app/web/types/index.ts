@@ -1,31 +1,19 @@
+import type { z } from "zod";
 import type { RateLimitErrorCode } from "../../shared/rate-limit";
-import type { FeedbackCategoryId } from "@/lib/feedback-categories";
+import type {
+  dbMessageSchema, dbToolCallSchema, feedbackSchema, sessionListResponseSchema, sessionSchema,
+  sessionWithMessagesResponseSchema, toolListResponseSchema, toolSchema, userSchema,
+} from "@/lib/api-schemas";
 
-export interface User {
-  id: string;
-  clerk_id: string;
-  email: string;
-  name: string | null;
-  image_url: string | null;
-  role: "waitlist" | "user" | "admin";
-  institution: string | null;
-  research_area: string | null;
-  total_queries: number;
-  created_at: number;
-  last_active_at: number | null;
-  daily_query_limit?: number | null;
-  daily_token_limit?: number | null;
-  daily_cost_limit_microusd?: number | null;
-  monthly_cost_limit_microusd?: number | null;
-}
-
-export interface Session {
-  id: string;
-  user_id: string;
-  title: string | null;
-  created_at: number;
-  updated_at: number | null;
-}
+export type User = z.infer<typeof userSchema>;
+export type Session = z.infer<typeof sessionSchema>;
+export type Feedback = z.infer<typeof feedbackSchema>;
+export type DbToolCall = z.infer<typeof dbToolCallSchema>;
+export type DbMessage = z.infer<typeof dbMessageSchema>;
+export type Tool = z.infer<typeof toolSchema>;
+export type SessionListResponse = z.infer<typeof sessionListResponseSchema>;
+export type SessionWithMessagesResponse = z.infer<typeof sessionWithMessagesResponseSchema>;
+export type ToolListResponse = z.infer<typeof toolListResponseSchema>;
 
 export interface ToolCall {
   id: string;
@@ -38,12 +26,6 @@ export interface ToolCall {
   status: "pending" | "running" | "complete" | "error";
 }
 
-export interface Feedback {
-  value: 0 | 1;
-  comment: string | null;
-  categories: FeedbackCategoryId[];
-}
-
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -54,42 +36,6 @@ export interface Message {
   reasoning?: string | undefined;
   persisted?: boolean;
   feedback?: Feedback | null;
-}
-
-export interface DbMessage {
-  id: string;
-  chat_id: string;
-  role: "user" | "assistant";
-  content: string | null;
-  tool_calls: ToolCall[] | null;
-  created_at: number;
-  input_tokens?: number;
-  output_tokens?: number;
-  cost_microusd?: number;
-  reasoning?: string | null;
-  feedback?: Feedback | null;
-}
-
-export interface Tool {
-  name: string;
-  description: string;
-  server: string;
-  inputSchema: Record<string, unknown>;
-  available: boolean;
-}
-
-export interface SessionListResponse {
-  sessions: Session[];
-}
-
-export interface SessionWithMessagesResponse {
-  session: Session;
-  messages: DbMessage[];
-}
-
-export interface ToolListResponse {
-  tools: Tool[];
-  count: number;
 }
 
 export interface UserResponse {

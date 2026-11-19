@@ -1,3 +1,4 @@
+import { asArray, path } from '../../../shared/json.js';
 import { normalizeProperties } from '../properties.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient } from '../client.js';
@@ -21,23 +22,21 @@ const handleSearchCompounds: ToolHandler = async (args) => {
   const api = getClient();
 
   const response = ['smiles', 'inchi', 'sdf'].includes(searchType)
-    ? await api.post(`/compound/${searchType}/cids/JSON`,
+    ? await api.post<unknown>(`/compound/${searchType}/cids/JSON`,
       new URLSearchParams({ [searchType]: args.query }).toString(),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
-    : await api.get(`/compound/${searchType === 'formula' ? 'fastformula' : searchType}/${encodeURIComponent(args.query)}/cids/JSON`);
-  if (response.data?.IdentifierList?.CID) {
-    response.data.IdentifierList.CID = response.data.IdentifierList.CID.slice(0, maxRecords);
-  }
+    : await api.get<unknown>(`/compound/${searchType === 'formula' ? 'fastformula' : searchType}/${encodeURIComponent(args.query)}/cids/JSON`);
+  const foundCids = asArray(path(response.data, 'IdentifierList', 'CID')).slice(0, maxRecords);
 
-  if (response.data?.IdentifierList?.CID?.length > 0) {
-    const cids = response.data.IdentifierList.CID.slice(0, 10);
-    const detailsResponse = await api.get(
+  if (foundCids.length > 0) {
+    const cids = foundCids.slice(0, 10);
+    const detailsResponse = await api.get<unknown>(
       `/compound/cid/${cids.join(',')}/property/MolecularFormula,MolecularWeight,CanonicalSMILES,IUPACName/JSON`,
     );
     return {
       query: args.query,
       search_type: searchType,
-      total_found: response.data.IdentifierList.CID.length,
+      total_found: foundCids.length,
       details: normalizeProperties(detailsResponse.data),
     };
   }
@@ -52,14 +51,14 @@ const handleGetCompoundInfo: ToolHandler = async (args) => {
 
   const format = args.format || 'json';
   const api = getClient();
-  const response = await api.get(compoundRecord(args.cid, format === 'json' ? 'JSON' : format));
+  const response = await api.get<unknown>(compoundRecord(args.cid, format === 'json' ? 'JSON' : format));
   const record = format === 'json' ? response.data : String(response.data);
 
   if (!args.include_descriptions) {
     return record;
   }
 
-  const descriptionsResponse = await api.get(compoundDescriptions(args.cid));
+  const descriptionsResponse = await api.get<unknown>(compoundDescriptions(args.cid));
   return { record, descriptions: descriptionsResponse.data };
 };
 
@@ -69,13 +68,14 @@ const handleSearchBySmiles: ToolHandler = async (args) => {
   }
 
   const api = getClient();
-  const response = await api.post('/compound/smiles/cids/JSON',
+  const response = await api.post<unknown>('/compound/smiles/cids/JSON',
     new URLSearchParams({ smiles: args.smiles }).toString(),
     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
-  if (response.data?.IdentifierList?.CID?.length > 0) {
-    const cid = response.data.IdentifierList.CID[0];
-    const detailsResponse = await api.get(
+  const foundCids = asArray(path(response.data, 'IdentifierList', 'CID'));
+  if (foundCids.length > 0) {
+    const cid = foundCids[0];
+    const detailsResponse = await api.get<unknown>(
       `/compound/cid/${cid}/property/MolecularFormula,MolecularWeight,CanonicalSMILES,IUPACName/JSON`,
     );
     return {
@@ -94,7 +94,7 @@ const handleGetCompoundSynonyms: ToolHandler = async (args) => {
   }
 
   const api = getClient();
-  const response = await api.get(`/compound/cid/${args.cid}/synonyms/JSON`);
+  const response = await api.get<unknown>(`/compound/cid/${args.cid}/synonyms/JSON`);
   return response.data;
 };
 
@@ -107,7 +107,7 @@ const handleSearchSimilarCompounds: ToolHandler = async (args) => {
   const maxRecords = args.max_records || 100;
   const api = getClient();
 
-  const response = await api.post('/compound/fastsimilarity_2d/smiles/cids/JSON',
+  const response = await api.post<unknown>('/compound/fastsimilarity_2d/smiles/cids/JSON',
     new URLSearchParams({ smiles: args.smiles }).toString(), {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       params: { Threshold: threshold, MaxRecords: maxRecords },
@@ -122,7 +122,7 @@ const handleGet3dConformers: ToolHandler = async (args) => {
   }
 
   const api = getClient();
-  const response = await api.get(
+  const response = await api.get<unknown>(
     `/compound/cid/${args.cid}/property/Volume3D,ConformerCount3D/JSON`,
   );
 
@@ -138,7 +138,7 @@ const handleAnalyzeStereochemistry: ToolHandler = async (args) => {
   }
 
   const api = getClient();
-  const response = await api.get(
+  const response = await api.get<unknown>(
     `/compound/cid/${args.cid}/property/AtomStereoCount,DefinedAtomStereoCount,BondStereoCount,DefinedBondStereoCount,IsomericSMILES/JSON`,
   );
 
@@ -156,7 +156,7 @@ const handleGetCompoundProperties: ToolHandler = async (args) => {
   ];
 
   const api = getClient();
-  const response = await api.get(
+  const response = await api.get<unknown>(
     `/compound/cid/${args.cid}/property/${properties.join(',')}/JSON`,
   );
 
@@ -166,7 +166,7 @@ const handleGetCompoundProperties: ToolHandler = async (args) => {
 const handleGetAssayInfo: ToolHandler = async (args) => {
   const a = args;
   const api = getClient();
-  const response = await api.get(`/assay/aid/${a.aid}/description/JSON`);
+  const response = await api.get<unknown>(`/assay/aid/${a.aid}/description/JSON`);
   return response.data;
 };
 
@@ -176,7 +176,7 @@ const handleGetSafetyData: ToolHandler = async (args) => {
   }
 
   const api = getClient();
-  const response = await api.get(`/compound/cid/${args.cid}/classification/JSON`);
+  const response = await api.get<unknown>(`/compound/cid/${args.cid}/classification/JSON`);
   return response.data;
 };
 
@@ -190,7 +190,7 @@ const handleBatchCompoundLookup: ToolHandler = async (args) => {
 
   for (const cid of args.cids) {
     try {
-      const response = await api.get(
+      const response = await api.get<unknown>(
         `/compound/cid/${cid}/${args.operation && args.operation !== 'property'
           ? args.operation : 'property/MolecularWeight,CanonicalSMILES,IUPACName'}/JSON`,
       );

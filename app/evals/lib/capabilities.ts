@@ -1,15 +1,32 @@
+import { z } from "zod";
 import type { ArmSpec } from "./arms";
 
-export interface ModelInfo {
-  id: string;
-  display_name?: string;
-  max_input_tokens?: number;
-  max_tokens?: number;
-  capabilities?: {
-    effort?: { supported?: boolean } & Record<string, { supported?: boolean } | boolean | undefined>;
-    thinking?: { types?: { adaptive?: { supported?: boolean } } };
-  };
-}
+const SupportedSchema = z.object({ supported: z.boolean().optional() }).passthrough();
+
+/** The Models API fields the capability check reads; other fields are kept as returned. */
+const ModelInfoSchema = z
+  .object({
+    id: z.string(),
+    display_name: z.string().optional(),
+    max_input_tokens: z.number().optional(),
+    max_tokens: z.number().optional(),
+    capabilities: z
+      .object({
+        effort: z
+          .object({ supported: z.boolean().optional() })
+          .catchall(z.union([SupportedSchema, z.boolean()]))
+          .optional(),
+        thinking: z
+          .object({ types: z.object({ adaptive: SupportedSchema.optional() }).passthrough().optional() })
+          .passthrough()
+          .optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+
+export type ModelInfo = z.infer<typeof ModelInfoSchema>;
 
 export interface ModelsApiOptions {
   apiKey: string | undefined;
@@ -39,7 +56,8 @@ export async function fetchModelInfo(id: string, opts: ModelsApiOptions): Promis
   }
   if (res.status === 404) return `${id}: unknown model (Models API 404)`;
   if (!res.ok) return `${id}: Models API returned ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`;
-  return (await res.json()) as ModelInfo;
+  const parsed = ModelInfoSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : `${id}: Models API returned an unexpected body (${parsed.error.issues[0]?.message ?? "invalid"})`;
 }
 
 export function armProblems(arm: ArmSpec, info: ModelInfo, maxContextTokens: number): string[] {

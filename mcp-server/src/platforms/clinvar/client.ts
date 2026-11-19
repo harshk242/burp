@@ -15,6 +15,8 @@ import type { TokenBucketRateLimiter} from '../../shared/rate-limiter.js';
 import { createNcbiRateLimiter } from '../../shared/rate-limiter.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
+import { asArray, optNumber, optString } from '../../shared/json.js';
+import { NCBIAPIError } from './exceptions.js';
 import type {
   CacheEntry,
   ClinVarClientOptions,
@@ -79,7 +81,9 @@ export class ClinVarClient {
   private readonly cacheTtl: number;
   private readonly maxAttempts: number;
   private readonly retryDelay: number;
-  private readonly cache: Map<string, CacheEntry>;
+  /** Raw E-utilities bodies; each request re-parses with its own parser. */
+  private readonly ncbiCache: Map<string, CacheEntry<string>>;
+  private readonly clinicalTablesCache: Map<string, CacheEntry<ClinicalTablesResult>>;
   private readonly rateLimiter: TokenBucketRateLimiter;
   private readonly ncbiAxios: AxiosInstance;
   private readonly clinicalTablesAxios: AxiosInstance;
@@ -89,7 +93,8 @@ export class ClinVarClient {
     this.cacheTtl = options.cacheTtl || DEFAULT_CACHE_TTL;
     this.maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
-    this.cache = new Map();
+    this.ncbiCache = new Map();
+    this.clinicalTablesCache = new Map();
     this.rateLimiter = options.rateLimiter ?? createNcbiRateLimiter(!!this.apiKey);
 
     this.ncbiAxios = createClinVarNcbiHttp({
@@ -121,21 +126,25 @@ export class ClinVarClient {
     };
 
     const cacheKey = generateCacheKey(`ncbi:${endpoint}`, fullParams);
-    const cachedEntry = this.cache.get(cacheKey);
+    const cachedEntry = this.ncbiCache.get(cacheKey);
 
     if (cachedEntry && Date.now() - cachedEntry.timestamp < this.cacheTtl) {
-      return cachedEntry.data as T;
+      return parser(cachedEntry.data);
     }
 
-    const response = await this.ncbiAxios.get(endpoint, {
+    const response = await this.ncbiAxios.get<unknown>(endpoint, {
       params: fullParams,
       responseType: 'text',
     });
+    const body = response.data;
+    if (typeof body !== 'string') {
+      throw new NCBIAPIError(`Unexpected non-text response from NCBI ${endpoint}`);
+    }
 
-    const data = parser(response.data);
+    const data = parser(body);
 
-    this.cache.set(cacheKey, {
-      data,
+    this.ncbiCache.set(cacheKey, {
+      data: body,
       timestamp: Date.now(),
     });
 
@@ -146,33 +155,36 @@ export class ClinVarClient {
     params: Record<string, unknown>
   ): Promise<ClinicalTablesResult> {
     const cacheKey = generateCacheKey('clinicaltables', params);
-    const cachedEntry = this.cache.get(cacheKey);
+    const cachedEntry = this.clinicalTablesCache.get(cacheKey);
 
     if (cachedEntry && Date.now() - cachedEntry.timestamp < this.cacheTtl) {
-      return cachedEntry.data as ClinicalTablesResult;
+      return cachedEntry.data;
     }
 
-    const response = await this.clinicalTablesAxios.get('/search', {
+    const response = await this.clinicalTablesAxios.get<unknown>('/search', {
       params: filterNoneValues(params),
     });
 
     // Clinical Tables returns array: [total, list_of_codes, extra_data, list_of_display_strings]
-    const [totalCount, , , displayData] = response.data;
-
-    const variants: ClinicalTablesVariant[] = (displayData || []).map((item: string[]) => ({
-      name: item[0] || '',
-      gene: item[1] || undefined,
-      clinicalSignificance: item[2] || undefined,
-      chromosome: item[3] || undefined,
-      position: item[4] ? parseInt(item[4], 10) : undefined,
-    }));
+    const body = asArray(response.data);
+    const variants = asArray(body[3]).map((item): ClinicalTablesVariant => {
+      const row = asArray(item);
+      const position = optString(row[4]);
+      return {
+        name: optString(row[0]) || '',
+        gene: optString(row[1]) || undefined,
+        clinicalSignificance: optString(row[2]) || undefined,
+        chromosome: optString(row[3]) || undefined,
+        position: position ? parseInt(position, 10) : undefined,
+      };
+    });
 
     const result: ClinicalTablesResult = {
-      totalCount: totalCount || 0,
+      totalCount: optNumber(body[0]) || 0,
       variants,
     };
 
-    this.cache.set(cacheKey, {
+    this.clinicalTablesCache.set(cacheKey, {
       data: result,
       timestamp: Date.now(),
     });
@@ -346,14 +358,13 @@ export class ClinVarClient {
   }
 
   clearCache(): void {
-    this.cache.clear();
+    this.ncbiCache.clear();
+    this.clinicalTablesCache.clear();
   }
 
   getCacheStats(): { size: number; entries: number } {
-    return {
-      size: this.cache.size,
-      entries: this.cache.size,
-    };
+    const size = this.ncbiCache.size + this.clinicalTablesCache.size;
+    return { size, entries: size };
   }
 
   hasApiKey(): boolean {

@@ -1,4 +1,18 @@
-import type { DbMessage, Message, ToolCall } from "@/types";
+import type { DbMessage, DbToolCall, Message, ToolCall } from "@/types";
+
+/** A stored tool call as the UI shows it: finished, so complete unless it recorded an error. */
+function toToolCall(call: DbToolCall): ToolCall {
+  return {
+    id: call.id,
+    name: call.name,
+    server: call.server,
+    toolName: call.toolName ?? call.name,
+    input: call.input,
+    output: call.output,
+    error: call.error,
+    status: call.error ? "error" : "complete",
+  };
+}
 
 export function dbMessageToMessage(msg: DbMessage): Message {
   const tokenUsage =
@@ -9,7 +23,7 @@ export function dbMessageToMessage(msg: DbMessage): Message {
     id: msg.id,
     role: msg.role,
     content: msg.content || "",
-    toolCalls: msg.tool_calls as ToolCall[] | undefined,
+    toolCalls: msg.tool_calls?.map(toToolCall),
     createdAt: msg.created_at * 1000,
     tokenUsage,
     reasoning: msg.reasoning || undefined,

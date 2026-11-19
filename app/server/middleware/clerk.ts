@@ -171,6 +171,13 @@ export async function requireDbUser(c: Context<AppEnv>, next: Next) {
   return next();
 }
 
+/** The signed-in user's id, for handlers mounted behind `requireDbUser` (which guarantees it is set). */
+export function authedUserId(c: Context<AppEnv>): string {
+  const userId = c.get("userId");
+  if (userId === null) throw new Error("authedUserId: no database user; mount the route behind requireDbUser");
+  return userId;
+}
+
 export function requireRole(...roles: string[]) {
   return async (c: Context<AppEnv>, next: Next) => {
     const userRole = c.get("role") as string | undefined;

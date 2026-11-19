@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { isRecord } from '../../shared/json.js';
 
 export function filterNoneValues<T extends Record<string, unknown>>(
   obj: T
@@ -64,13 +65,10 @@ export function extractText(obj: unknown): string {
   if (typeof obj === 'number') {
     return String(obj);
   }
-  if (obj && typeof obj === 'object') {
-    if ('#text' in obj) {
-      return String((obj as Record<string, unknown>)['#text']);
-    }
-    for (const key of ['_', 'text', 'value', '$t']) {
+  if (isRecord(obj)) {
+    for (const key of ['#text', '_', 'text', 'value', '$t']) {
       if (key in obj) {
-        return String((obj as Record<string, unknown>)[key]);
+        return String(obj[key]);
       }
     }
   }
@@ -84,14 +82,10 @@ export function getNestedValue(
   const keys = path.split('.');
   let current: unknown = obj;
   for (const key of keys) {
-    if (current === null || current === undefined) {
+    if (!isRecord(current)) {
       return undefined;
     }
-    if (typeof current === 'object') {
-      current = (current as Record<string, unknown>)[key];
-    } else {
-      return undefined;
-    }
+    current = current[key];
   }
   return current;
 }

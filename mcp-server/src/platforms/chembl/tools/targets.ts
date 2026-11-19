@@ -1,7 +1,8 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
-import type { ChemblActivity, ChemblCrossReference } from '../types.js';
+import { optionalNumber } from '../../../shared/args.js';
+import { asRecord, path, recordArray } from '../../../shared/json.js';
 
 export const tools: Tool[] = [
   {
@@ -72,7 +73,7 @@ async function handleSearchTargets(args: Record<string, unknown>) {
   const params: Record<string, unknown> = { q: args.query, limit: (args.limit) || 25 };
   if (args.target_type) params.target_type = args.target_type;
   if (args.organism) params.organism = args.organism;
-  const response = await client.get('/target/search.json', { params });
+  const response = await client.get<unknown>('/target/search.json', { params });
   return response.data;
 }
 
@@ -82,7 +83,7 @@ async function handleGetTargetInfo(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const response = await client.get(`/target/${args.chembl_id}.json`);
+  const response = await client.get<unknown>(`/target/${args.chembl_id}.json`);
   return response.data;
 }
 
@@ -101,9 +102,9 @@ async function handleGetTargetCompounds(args: Record<string, unknown>) {
     params.standard_type = args.activity_type;
   }
 
-  const response = await client.get('/activity.json', { params });
-  const activities = response.data.activities || [];
-  const compoundIds = [...new Set(activities.map((a: ChemblActivity) => a.molecule_chembl_id))];
+  const response = await client.get<unknown>('/activity.json', { params });
+  const activities = recordArray(path(response.data, 'activities'));
+  const compoundIds = [...new Set(activities.map((a) => a.molecule_chembl_id))];
 
   return {
     target_chembl_id: args.target_chembl_id,
@@ -120,8 +121,8 @@ async function handleSearchByUniprot(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const response = await client.get('/target/search.json', {
-    params: { q: args.uniprot_id, limit: (args.limit as number) || 25 },
+  const response = await client.get<unknown>('/target/search.json', {
+    params: { q: args.uniprot_id, limit: optionalNumber(args, 'limit') || 25 },
   });
   return response.data;
 }
@@ -132,16 +133,17 @@ async function handleGetTargetPathways(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const targetResponse = await client.get(`/target/${args.target_chembl_id}.json`);
-  const target = targetResponse.data;
+  const targetResponse = await client.get<unknown>(`/target/${args.target_chembl_id}.json`);
+  const target = asRecord(targetResponse.data);
+  const crossReferences = recordArray(target.cross_references);
 
   return {
     target_chembl_id: args.target_chembl_id,
     target_name: target.pref_name,
     target_type: target.target_type,
-    cross_references: target.cross_references || [],
-    pathways: (target.cross_references || []).filter(
-      (ref: ChemblCrossReference) => ref.xref_src === 'Reactome' || ref.xref_src === 'KEGG' || ref.xref_src === 'WikiPathways',
+    cross_references: crossReferences,
+    pathways: crossReferences.filter(
+      (ref) => ref.xref_src === 'Reactome' || ref.xref_src === 'KEGG' || ref.xref_src === 'WikiPathways',
     ),
   };
 }

@@ -1,4 +1,4 @@
-import axios, { AxiosHeaders, type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosHeaders, type AxiosHeaderValue, type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { UpstreamError } from './exceptions.js';
 import {
   REASON_TO_KIND,
@@ -221,11 +221,11 @@ export async function withRetry<T>(
         : nextDelay(reason, lastError, attempt, retryAfterMs);
       if (delay === null) {
         const reported = reason === 'rate_limited' ? (retryAfterMs ?? policy.fallbackReportedRetryAfterMs) : retryAfterMs;
-        fail(reason, lastError, reported ?? null);
+        return fail(reason, lastError, reported ?? null);
       }
 
       try {
-        await sleep(delay as number, combined);
+        await sleep(delay, combined);
       } catch (error) {
         interrupted(error, lastError);
       }
@@ -248,11 +248,18 @@ export function requestPath(config: InternalAxiosRequestConfig): string {
   }
 }
 
+/** A plain response-headers object without its absent (`undefined`) entries, as `AxiosHeaders.from` takes. */
+function definedHeaders(headers: Record<string, AxiosHeaderValue | undefined>): Record<string, AxiosHeaderValue> {
+  const result: Record<string, AxiosHeaderValue> = {};
+  for (const [key, value] of Object.entries(headers)) if (value !== undefined) result[key] = value;
+  return result;
+}
+
 function transformErrorResponse(config: InternalAxiosRequestConfig, error: unknown): void {
   const cause = error instanceof UpstreamError ? error.cause : undefined;
   if (!axios.isAxiosError(cause) || !cause.response) return;
   const { response } = cause;
-  const headers = AxiosHeaders.from(response.headers as AxiosHeaders);
+  const headers = response.headers instanceof AxiosHeaders ? response.headers : AxiosHeaders.from(definedHeaders(response.headers));
   const transforms = config.transformResponse;
   const fns = Array.isArray(transforms) ? transforms : transforms ? [transforms] : [];
   try {

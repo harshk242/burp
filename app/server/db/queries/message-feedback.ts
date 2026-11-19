@@ -144,9 +144,11 @@ export function createMessageFeedbackQueries(db: DrizzleDb) {
           )
         )
         .all();
-      return new Map(
-        rows.map((r) => [r.message_id, { value: r.value as FeedbackValue, comment: r.comment, categories: r.categories }])
-      );
+      const result = new Map<string, { value: FeedbackValue; comment: string | null; categories: FeedbackCategory[] }>();
+      for (const r of rows) {
+        if (r.value !== null) result.set(r.message_id, { value: r.value, comment: r.comment, categories: r.categories });
+      }
+      return result;
     },
   };
 }

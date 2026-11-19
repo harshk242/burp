@@ -1,6 +1,7 @@
-import type { ModelMessage } from "ai";
+import { modelMessageSchema, type ModelMessage } from "ai";
 import { chatTurnQueries, messageQueries, modelTranscriptQueries, type DbTranscriptRow, type NewTranscriptRow } from "../../db";
 import { shortHash } from "../usage-meter";
+import { stringArray } from "../../../shared/json";
 
 export interface TranscriptTag {
   provider: string;
@@ -12,40 +13,62 @@ export function contextVersion(systemPrompt: string, providerOptions: unknown): 
   return shortHash(JSON.stringify({ systemPrompt, providerOptions: providerOptions ?? null }));
 }
 
-type ProviderOptions = Record<string, Record<string, unknown> | undefined>;
+type ProviderOptions = NonNullable<ModelMessage["providerOptions"]>;
 const CACHE_KEYS = ["cacheControl", "cache_control"] as const;
 
-function withoutCacheMarkers<T extends ProviderOptions | undefined>(options: T): T | undefined {
+function withoutCacheMarkers(options: ProviderOptions | undefined): ProviderOptions | undefined {
   const anthropic = options?.anthropic;
-  if (!anthropic || !CACHE_KEYS.some((key) => key in anthropic)) return options;
+  if (!options || !anthropic || !CACHE_KEYS.some((key) => key in anthropic)) return options;
   const rest = Object.fromEntries(Object.entries(anthropic).filter(([key]) => !(CACHE_KEYS as readonly string[]).includes(key)));
   const { anthropic: _marked, ...others } = options;
-  const result = Object.keys(rest).length > 0 ? { ...options, anthropic: rest } : others;
-  return (Object.keys(result).length > 0 ? result : undefined) as T | undefined;
+  const result: ProviderOptions = Object.keys(rest).length > 0 ? { ...options, anthropic: rest } : others;
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function replaceOptions<T extends { providerOptions?: unknown }>(item: T, options: unknown): T {
-  const { providerOptions: _old, ...rest } = item;
-  return (options === undefined ? rest : { ...rest, providerOptions: options }) as T;
+/** A shallow copy of `item` whose `providerOptions` is `options` (removed when `undefined`). */
+function withOptions<T extends { providerOptions?: ProviderOptions }>(item: T, options: ProviderOptions | undefined): T {
+  const copy = { ...item };
+  if (options === undefined) delete copy.providerOptions;
+  else copy.providerOptions = options;
+  return copy;
+}
+
+function stripPart<P extends { providerOptions?: ProviderOptions }>(part: P): P {
+  const stripped = withoutCacheMarkers(part.providerOptions);
+  return stripped === part.providerOptions ? part : withOptions(part, stripped);
+}
+
+/** `parts.map(fn)`, or the same array when `fn` returned every part unchanged. */
+function mapParts<P>(parts: P[], fn: (part: P) => P): P[] {
+  const result = parts.map(fn);
+  return result.some((part, i) => part !== parts[i]) ? result : parts;
+}
+
+function stripContentMarkers(message: ModelMessage): ModelMessage {
+  switch (message.role) {
+    case "system":
+      return message;
+    case "user": {
+      if (typeof message.content === "string") return message;
+      const content = mapParts(message.content, stripPart);
+      return content === message.content ? message : { ...message, content };
+    }
+    case "assistant": {
+      if (typeof message.content === "string") return message;
+      const content = mapParts(message.content, (part) => (part.type === "tool-approval-request" ? part : stripPart(part)));
+      return content === message.content ? message : { ...message, content };
+    }
+    case "tool": {
+      const content = mapParts(message.content, (part) => (part.type === "tool-approval-response" ? part : stripPart(part)));
+      return content === message.content ? message : { ...message, content };
+    }
+  }
 }
 
 export function stripCacheMarkers(message: ModelMessage): ModelMessage {
-  let result = message;
-  const options = withoutCacheMarkers(message.providerOptions as ProviderOptions | undefined);
-  if (options !== message.providerOptions) result = replaceOptions(result, options);
-
-  if (Array.isArray(message.content)) {
-    let changed = false;
-    const content = message.content.map((part) => {
-      const partOptions = (part as { providerOptions?: ProviderOptions }).providerOptions;
-      const stripped = withoutCacheMarkers(partOptions);
-      if (stripped === partOptions) return part;
-      changed = true;
-      return replaceOptions(part as { providerOptions?: unknown }, stripped) as typeof part;
-    });
-    if (changed) result = { ...result, content } as ModelMessage;
-  }
-  return result;
+  const options = withoutCacheMarkers(message.providerOptions);
+  const result = options === message.providerOptions ? message : withOptions(message, options);
+  return stripContentMarkers(result);
 }
 
 export function transcriptToolNames(message: ModelMessage): string[] {
@@ -55,7 +78,7 @@ export function transcriptToolNames(message: ModelMessage): string[] {
       if (part.type === "tool-call") names.add(part.toolName);
       if (part.type === "tool-result" && part.output.type === "content") {
         for (const item of part.output.value) {
-          const ref = (item as { providerOptions?: ProviderOptions }).providerOptions?.anthropic;
+          const ref = item.providerOptions?.anthropic;
           if (ref?.type === "tool-reference" && typeof ref.toolName === "string") names.add(ref.toolName);
         }
       }
@@ -103,7 +126,7 @@ export interface TranscriptCompatibility extends TranscriptTag {
 }
 
 export type TranscriptDegradedReason =
-  | { reason: "provider" | "model" | "context_version" | "system_message" }
+  | { reason: "provider" | "model" | "context_version" | "system_message" | "malformed_message" }
   | { reason: "missing_tools"; missing_tools: string[] };
 
 function incompatibility(rows: DbTranscriptRow[], current: TranscriptCompatibility): TranscriptDegradedReason | undefined {
@@ -112,12 +135,20 @@ function incompatibility(rows: DbTranscriptRow[], current: TranscriptCompatibili
   if (rows.some((row) => row.context_version !== current.contextVersion)) return { reason: "context_version" };
   const missing = new Set<string>();
   for (const row of rows) {
-    for (const name of JSON.parse(row.tool_names_json) as string[]) {
+    for (const name of stringArray(JSON.parse(row.tool_names_json))) {
       if (!current.toolNames.has(name)) missing.add(name);
     }
   }
   if (missing.size) return { reason: "missing_tools", missing_tools: [...missing].sort() };
   return undefined;
+}
+
+/**
+ * Checks a stored row against the SDK's message schema. The parsed JSON itself is kept rather than
+ * the schema's output, which would drop keys the schema does not list.
+ */
+function isModelMessage(value: unknown): value is ModelMessage {
+  return modelMessageSchema.safeParse(value).success;
 }
 
 export function loadTranscript(sessionId: string, current?: TranscriptCompatibility): TranscriptContext {
@@ -130,9 +161,14 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
   const rowsByTurn = new Map<string, DbTranscriptRow[]>();
   const okIds = new Set(turns.filter((turn) => turn.status === "ok").map((turn) => turn.id));
   const untrusted = new Set<string>();
+  const malformed = new Set<string>();
   for (const row of rows) {
     if (!okIds.has(row.turn_id)) continue;
-    const message = JSON.parse(row.content_json) as ModelMessage;
+    const message: unknown = JSON.parse(row.content_json);
+    if (!isModelMessage(message)) {
+      malformed.add(row.turn_id);
+      continue;
+    }
     if (row.role === "system" || message.role === "system") untrusted.add(row.turn_id);
     const messages = byTurn.get(row.turn_id) ?? [];
     messages.push(message);
@@ -147,9 +183,14 @@ export function loadTranscript(sessionId: string, current?: TranscriptCompatibil
     degraded.add(turnId);
     current?.onDegraded?.(turnId, { reason: "system_message" });
   }
+  for (const turnId of malformed) {
+    if (degraded.has(turnId)) continue;
+    degraded.add(turnId);
+    current?.onDegraded?.(turnId, { reason: "malformed_message" });
+  }
   if (current) {
     for (const [turnId, turnRows] of rowsByTurn) {
-      if (untrusted.has(turnId)) continue;
+      if (degraded.has(turnId)) continue;
       const reason = incompatibility(turnRows, current);
       if (!reason) continue;
       degraded.add(turnId);

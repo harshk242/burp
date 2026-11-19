@@ -1,6 +1,6 @@
-import { streamText, type ModelMessage } from "ai";
+import { streamText } from "ai";
 import { getChatModel } from "../../server/llm";
-import { assistantParts, bodyBlocks, parseWireBody, type WireBody } from "./gate-lib";
+import { assistantParts, bodyBlocks, gateFetch, isReasoning, parseModelMessages, parseWireBody, requestBody, type WireBody } from "./gate-lib";
 
 export const REDACTED_TRIGGER = "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253";
 
@@ -24,23 +24,23 @@ const CANNED = [
 
 export async function checkRedactedOffline(): Promise<{ pass: boolean; detail: string }> {
   const first = streamText({
-    model: getChatModel({ fetch: (async () => sse(CANNED)) as unknown as typeof fetch }),
+    model: getChatModel({ fetch: gateFetch(async () => sse(CANNED)) }),
     messages: [{ role: "user", content: "hi" }],
     maxRetries: 0,
   });
   for await (const _ of first.stream);
   const response = (await first.finalStep).response.messages;
-  const parsed = JSON.parse(JSON.stringify(response)) as ModelMessage[];
-  const reasoning = assistantParts(parsed).find((p) => p.type === "reasoning");
+  const parsed = parseModelMessages(JSON.stringify(response));
+  const reasoning = assistantParts(parsed).find(isReasoning);
   const kept = reasoning?.providerOptions?.anthropic?.redactedData === DATA;
 
   let body: WireBody | undefined;
   const second = streamText({
     model: getChatModel({
-      fetch: (async (_url: unknown, init?: RequestInit) => {
-        body = parseWireBody(init?.body as string);
+      fetch: gateFetch(async (_url, init) => {
+        body = parseWireBody(requestBody(init));
         return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "gate: captured" } }), { status: 400 });
-      }) as unknown as typeof fetch,
+      }),
     }),
     messages: [{ role: "user", content: "hi" }, ...parsed, { role: "user", content: "again" }],
     maxRetries: 0,

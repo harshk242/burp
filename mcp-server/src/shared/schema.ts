@@ -1,3 +1,5 @@
+import { isRecord } from './json.js';
+
 interface SchemaNodeBase {
   path: string;
   optional?: boolean;
@@ -23,9 +25,9 @@ export function extractSchema(value: unknown, path = '$'): SchemaNode {
     };
   }
 
-  if (typeof value === 'object') {
+  if (isRecord(value)) {
     const node: SchemaNode = { type: 'object', path, properties: {} };
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    for (const [k, v] of Object.entries(value)) {
       node.properties[k] = extractSchema(v, `${path}.${k}`);
     }
     return node;

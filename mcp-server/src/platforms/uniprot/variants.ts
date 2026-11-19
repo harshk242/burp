@@ -1,5 +1,6 @@
 import { stripEvidences } from './entry-fields.js';
 import type { UniProtEntry, UniProtFeature } from './entry-types.js';
+import { toFeatures } from './narrow.js';
 
 // UniProt variant descriptions are '; '-separated clauses, e.g.
 // "in BC; benign; functionally neutral in vitro; dbSNP:rs80357102". Curators state
@@ -36,7 +37,7 @@ export function variantSummary(protein: UniProtEntry) {
   const acronyms = [...new Set((protein.comments || [])
     .filter((c) => c.commentType === 'DISEASE')
     .flatMap((c) => c.disease?.acronym ? [c.disease.acronym] : []))];
-  const naturalVariants = stripEvidences(protein.features?.filter((f) => f.type === 'Natural variant') || [])
+  const naturalVariants = toFeatures(stripEvidences(protein.features?.filter((f) => f.type === 'Natural variant') || []))
     .map((feature): AnnotatedVariant => {
       const significance = clinicalSignificance(feature.description);
       return significance ? { ...feature, clinicalSignificance: significance } : feature;

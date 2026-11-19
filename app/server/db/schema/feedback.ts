@@ -14,7 +14,7 @@ export const messageFeedback = sqliteTable(
     user_id: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    value: integer("value"),
+    value: integer("value").$type<0 | 1>(),
     comment: text("comment"),
     categories: text("categories", { mode: "json" }).$type<FeedbackCategory[]>().notNull().default(sql`'[]'`),
     created_at: integer("created_at").notNull().default(sql`(unixepoch())`),

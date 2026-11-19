@@ -1,5 +1,6 @@
 import { getClient } from '../../client.js';
 import { paginateTargetLists } from './pagination.js';
+import { asRecord, optRecord, optString, path, recordArray, type JsonRecord } from '../../../../shared/json.js';
 
 /**
  * Open Targets stage labels are not regulatory status. A target–drug row's `maxClinicalStage`
@@ -50,10 +51,33 @@ interface KnownDrugRow {
   diseases?: unknown;
 }
 
-interface KnownDrugsResponse {
-  target?: {
-    drugAndClinicalCandidates?: { count: number; rows: KnownDrugRow[] } | null;
-  } | null;
+function readMolecule(value: unknown): MoleculeRef | null {
+  const record = optRecord(value);
+  const id = optString(record?.id);
+  const name = optString(record?.name);
+  return id !== undefined && name !== undefined ? { id, name } : null;
+}
+
+/** The fields of an upstream row that approval classification and the summary read. */
+function readRow(row: JsonRecord): KnownDrugRow {
+  const drug = optRecord(row.drug);
+  const molecule = readMolecule(drug);
+  return {
+    id: optString(row.id) ?? '',
+    maxClinicalStage: optString(row.maxClinicalStage) ?? null,
+    drug: drug && molecule
+      ? {
+        ...molecule,
+        maximumClinicalStage: optString(drug.maximumClinicalStage) ?? null,
+        parentMolecule: readMolecule(drug.parentMolecule),
+      }
+      : null,
+    clinicalReports: recordArray(row.clinicalReports).map((report) => ({
+      origin: optString(report.origin) ?? null,
+      source: optString(report.source) ?? null,
+      clinicalStage: optString(report.clinicalStage) ?? null,
+    })),
+  };
 }
 
 export interface DrugApproval {
@@ -173,17 +197,21 @@ export async function getTargetKnownDrugs(
   pageIndex: number = 0,
   pageSize: number = 10
 ): Promise<unknown> {
-  const data = await getClient().query<KnownDrugsResponse>(KNOWN_DRUGS_QUERY, { ensemblId });
-  const candidates = data.target?.drugAndClinicalCandidates;
+  const data = await getClient().query(KNOWN_DRUGS_QUERY, { ensemblId });
+  const target = asRecord(path(data, 'target'));
+  const candidates = optRecord(target.drugAndClinicalCandidates);
   if (!candidates) return data;
-  // Reports are only needed for classification; dropping them keeps the result small.
-  const rows = candidates.rows.map(({ clinicalReports, ...row }) => ({
-    ...row,
-    approval: classifyApproval({ ...row, clinicalReports: clinicalReports ?? null }),
-  }));
+  const entries = recordArray(candidates.rows).map((raw) => {
+    const typed = readRow(raw);
+    const approval = classifyApproval(typed);
+    // Reports are only needed for classification; dropping them keeps the result small.
+    const row: JsonRecord = { ...raw, approval };
+    delete row.clinicalReports;
+    return { row, classified: { ...typed, approval } };
+  });
   const result = {
-    approvalSummary: summarizeApprovals(rows),
-    target: { ...data.target, drugAndClinicalCandidates: { ...candidates, rows } },
+    approvalSummary: summarizeApprovals(entries.map((entry) => entry.classified)),
+    target: { ...target, drugAndClinicalCandidates: { ...candidates, rows: entries.map((entry) => entry.row) } },
   };
   return paginateTargetLists(result, ['drugAndClinicalCandidates.rows'], pageIndex, pageSize);
 }

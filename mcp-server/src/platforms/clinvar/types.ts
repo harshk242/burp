@@ -2,8 +2,8 @@ import type { AxiosAdapter } from 'axios';
 import type { RetryDeps } from '../../shared/http-retry.js';
 import type { TokenBucketRateLimiter } from '../../shared/rate-limiter.js';
 
-export interface CacheEntry {
-  data: unknown;
+export interface CacheEntry<T> {
+  data: T;
   timestamp: number;
 }
 
@@ -184,12 +184,12 @@ export interface ClinicalTablesResult {
 
 export interface ClinicalTablesVariant {
   name: string;
-  gene?: string;
-  clinicalSignificance?: string;
-  reviewStatus?: string;
-  chromosome?: string;
-  position?: number;
-  rsId?: string;
+  gene?: string | undefined;
+  clinicalSignificance?: string | undefined;
+  reviewStatus?: string | undefined;
+  chromosome?: string | undefined;
+  position?: number | undefined;
+  rsId?: string | undefined;
 }
 
 export interface VariantFrequencyResult {

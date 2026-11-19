@@ -31,9 +31,11 @@ export interface TurnSignals {
 function outcomeOf(row: TurnSignalRow): TurnOutcome {
   if (row.status === "ok") return "ok";
   if (row.status === "aborted" || row.error_code === "closed") return "aborted";
-  return (TURN_OUTCOMES as readonly string[]).includes(row.error_code ?? "")
-    ? (row.error_code as TurnOutcome)
-    : "internal_error";
+  return isTurnOutcome(row.error_code) ? row.error_code : "internal_error";
+}
+
+function isTurnOutcome(value: string | null): value is TurnOutcome {
+  return value !== null && (TURN_OUTCOMES as readonly string[]).includes(value);
 }
 
 export function turnSignals(row: TurnSignalRow): TurnSignals | null {

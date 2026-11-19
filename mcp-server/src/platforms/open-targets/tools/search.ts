@@ -1,6 +1,7 @@
 import type * as Fuzzball from 'fuzzball';
 import { getClient } from '../client.js';
 import { filterNoneValues } from '../utils.js';
+import { optNumber, optString, path, recordArray } from '../../../shared/json.js';
 import { mapIds } from './meta.js';
 import {
   DEFAULT_SEARCH_ENTITY_NAMES,
@@ -30,37 +31,40 @@ async function searchDirect(
   return client.query(SEARCH_ENTITIES_OPERATION, variables);
 }
 
-interface SearchResult {
-  search?: {
-    total?: number;
-    hits?: Array<{
-      id: string;
-      entity: string;
-      name: string;
-      description?: string;
-      score: number;
-      object?: {
-        approvedSymbol?: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    }>;
-  };
+interface SearchHit {
+  id: string;
+  entity: string;
+  name: string;
+  approvedSymbol?: string | undefined;
 }
 
-interface MapIdsResult {
-  mapIds?: {
-    mappings?: Array<{
-      hits?: Array<{
-        id: string;
-        name?: string;
-        score?: number;
-        [key: string]: unknown;
-      }>;
-      [key: string]: unknown;
-    }>;
-    [key: string]: unknown;
-  };
+/** The hits of a `search` response that carry an id; other hits are skipped. */
+function searchHits(result: unknown): SearchHit[] {
+  return recordArray(path(result, 'search', 'hits')).flatMap((hit) => {
+    const id = optString(hit.id);
+    if (id === undefined) return [];
+    return [{
+      id,
+      entity: optString(hit.entity) ?? '',
+      name: optString(hit.name) ?? '',
+      approvedSymbol: optString(path(hit, 'object', 'approvedSymbol')),
+    }];
+  });
+}
+
+interface MappedHit {
+  id: string;
+  name?: string | undefined;
+  score?: number | undefined;
+}
+
+/** The hits of the first `mapIds` mapping. */
+function firstMappingHits(result: unknown): MappedHit[] {
+  const [first] = recordArray(path(result, 'mapIds', 'mappings'));
+  return recordArray(first?.hits).flatMap((hit) => {
+    const id = optString(hit.id);
+    return id === undefined ? [] : [{ id, name: optString(hit.name), score: optNumber(hit.score) }];
+  });
 }
 
 export async function searchEntities(
@@ -70,28 +74,28 @@ export async function searchEntities(
   pageSize: number = 10
 ): Promise<unknown> {
   const [directResults, mappedResults] = await Promise.all([
-    searchDirect(queryString, entityNames, pageIndex, pageSize) as Promise<SearchResult>,
-    mapIds([queryString], entityNames) as Promise<MapIdsResult>,
+    searchDirect(queryString, entityNames, pageIndex, pageSize),
+    mapIds([queryString], entityNames),
   ]);
 
-  let bestMappedHit: { id: string; name?: string; score?: number } | null = null;
-  const mappings = mappedResults?.mapIds?.mappings || [];
-  for (const hit of mappings[0]?.hits ?? []) {
+  let bestMappedHit: MappedHit | null = null;
+  for (const hit of firstMappingHits(mappedResults)) {
     if (!bestMappedHit || (hit.score || 0) > (bestMappedHit.score || 0)) bestMappedHit = hit;
   }
 
-  const directTopHitId = directResults?.search?.hits?.[0]?.id;
+  const directHits = searchHits(directResults);
+  const directTopHitId = directHits[0]?.id;
 
   if (bestMappedHit &&
       bestMappedHit.id !== directTopHitId &&
       bestMappedHit.score === 1.0 &&
-      directResults?.search?.hits?.length) {
+      directHits.length) {
     console.error(
       `[INFO] Resolving '${queryString}' to canonical match: '${bestMappedHit.name}' (${bestMappedHit.id})`
     );
     try {
-      const canonicalResults = await searchDirect(bestMappedHit.id, entityNames, pageIndex, pageSize) as SearchResult;
-      if (canonicalResults?.search?.hits?.length) {
+      const canonicalResults = await searchDirect(bestMappedHit.id, entityNames, pageIndex, pageSize);
+      if (searchHits(canonicalResults).length) {
         return canonicalResults;
       }
     } catch (error) {
@@ -120,16 +124,16 @@ export async function searchSuggestions(
     return { suggestions: [], message: 'Query prefix must be at least 3 characters long.' };
   }
 
-  const candidatesResult = await searchDirect(queryPrefix, entityNames, 0, 50) as SearchResult;
+  const hits = searchHits(await searchDirect(queryPrefix, entityNames, 0, 50));
 
-  if (!candidatesResult?.search?.hits?.length) {
+  if (!hits.length) {
     return { suggestions: [] };
   }
 
   const choices: Record<string, FuzzyChoice> = {};
-  for (const hit of candidatesResult.search.hits) {
+  for (const hit of hits) {
     const name = hit.name;
-    const symbol = hit.object?.approvedSymbol;
+    const symbol = hit.approvedSymbol;
     if (name && !(name in choices)) {
       choices[name] = { id: hit.id, entity: hit.entity };
     }

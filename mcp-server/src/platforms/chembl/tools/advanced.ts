@@ -2,7 +2,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { isRejectedLookup } from '../../../shared/exceptions.js';
 import { getClient, isValidChemblIdArgs, getExternalUrl } from '../client.js';
-import type { ChemblCrossReference } from '../types.js';
+import { asRecord, optString, optText, recordArray } from '../../../shared/json.js';
 
 const isValidSubstructureSearchArgs = (
   args: Record<string, unknown>,
@@ -113,7 +113,7 @@ async function handleSubstructureSearch(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const response = await client.get(
+  const response = await client.get<unknown>(
     '/substructure/' + encodeURIComponent(args.smiles) + '.json',
     { params: { limit: args.limit || 25 } },
   );
@@ -130,7 +130,7 @@ async function handleBatchCompoundLookup(args: Record<string, unknown>) {
 
   for (const chemblId of args.chembl_ids.slice(0, 10)) {
     try {
-      const response = await client.get(`/molecule/${chemblId}.json`);
+      const response = await client.get<unknown>(`/molecule/${chemblId}.json`);
       results.push({ chembl_id: chemblId, data: response.data, success: true });
     } catch (error) {
       results.push({
@@ -154,11 +154,11 @@ async function handleGetExternalReferences(args: Record<string, unknown>) {
   let entityType = 'molecule';
 
   try {
-    response = await client.get(`/molecule/${args.chembl_id}.json`);
+    response = await client.get<unknown>(`/molecule/${args.chembl_id}.json`);
   } catch (error) {
     if (!isRejectedLookup(error)) throw error;
     try {
-      response = await client.get(`/target/${args.chembl_id}.json`);
+      response = await client.get<unknown>(`/target/${args.chembl_id}.json`);
       entityType = 'target';
     } catch (targetError) {
       if (!isRejectedLookup(targetError)) throw targetError;
@@ -166,17 +166,18 @@ async function handleGetExternalReferences(args: Record<string, unknown>) {
     }
   }
 
-  const entity = response.data;
-  const crossRefs = entity.cross_references || [];
+  const crossRefs = recordArray(asRecord(response.data).cross_references);
 
-  const databases: Record<string, Array<{ id: string; name: string | null | undefined; url: string }>> = {};
+  const databases: Record<string, Array<{ id: string | undefined; name: string | null; url: string }>> = {};
 
-  crossRefs.forEach((ref: ChemblCrossReference) => {
-    const source = ref.xref_src || ref.xref_name || 'Unknown';
+  crossRefs.forEach((ref) => {
+    const name = optString(ref.xref_name) ?? null;
+    const source = optString(ref.xref_src) || name || 'Unknown';
+    const id = optText(ref.xref_id);
     (databases[source] ??= []).push({
-      id: ref.xref_id,
-      name: ref.xref_name,
-      url: getExternalUrl(source, ref.xref_id),
+      id,
+      name,
+      url: getExternalUrl(source, id ?? ''),
     });
   });
 
@@ -215,7 +216,7 @@ async function handleAdvancedSearch(args: Record<string, unknown>) {
   }
 
   const filterString = filters.join('&');
-  const response = await client.get(`/molecule.json?${filterString}&limit=${args.limit || 25}`);
+  const response = await client.get<unknown>(`/molecule.json?${filterString}&limit=${args.limit || 25}`);
 
   return {
     filters: args,

@@ -11,7 +11,8 @@ import { useToolStore } from "@/stores/toolStore";
 import { useApi } from "@/hooks/useApi";
 import { DatabaseGroup } from "@/components/tools/DatabaseGroup";
 import { DATABASE_LABELS, DATABASE_ORDER } from "@/lib/constants";
-import type { ToolListResponse, Tool } from "@/types";
+import type { Tool } from "@/types";
+import { toolListResponseSchema } from "@/lib/api-schemas";
 
 export default function ToolsPage() {
   const mounted = useMounted();
@@ -59,7 +60,7 @@ function ToolsPageContent() {
     async function loadTools() {
       setLoading(true);
       try {
-        const data = await get<ToolListResponse>("/tools");
+        const data = await get("/tools", toolListResponseSchema);
         setTools(data.tools);
       } catch (error) {
         console.error("Failed to load tools:", error);

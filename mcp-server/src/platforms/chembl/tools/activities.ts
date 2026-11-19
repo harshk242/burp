@@ -1,7 +1,8 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolHandler } from '../../../types.js';
 import { getClient, isValidChemblIdArgs } from '../client.js';
-import type { ChemblActivity } from '../types.js';
+import { optionalStringArray } from '../../../shared/args.js';
+import { asArray, path, recordArray } from '../../../shared/json.js';
 
 export const tools: Tool[] = [
   {
@@ -86,7 +87,7 @@ async function handleSearchActivities(args: Record<string, unknown>) {
   if (args.molecule_chembl_id) params.molecule_chembl_id = args.molecule_chembl_id;
   if (args.activity_type) params.standard_type = args.activity_type;
 
-  const response = await client.get('/activity.json', { params });
+  const response = await client.get<unknown>('/activity.json', { params });
   return response.data;
 }
 
@@ -96,7 +97,7 @@ async function handleGetAssayInfo(args: Record<string, unknown>) {
   }
 
   const client = getClient();
-  const response = await client.get(`/assay/${args.chembl_id}.json`);
+  const response = await client.get<unknown>(`/assay/${args.chembl_id}.json`);
   return response.data;
 }
 
@@ -121,7 +122,7 @@ async function handleSearchByActivityType(args: Record<string, unknown>) {
     params.standard_units = args.units;
   }
 
-  const response = await client.get('/activity.json', { params });
+  const response = await client.get<unknown>('/activity.json', { params });
   return response.data;
 }
 
@@ -140,12 +141,12 @@ async function handleGetDoseResponse(args: Record<string, unknown>) {
     params.target_chembl_id = args.target_chembl_id;
   }
 
-  const response = await client.get('/activity.json', { params });
-  const activities = response.data.activities || [];
+  const response = await client.get<unknown>('/activity.json', { params });
+  const activities = recordArray(path(response.data, 'activities'));
 
   const doseResponseData = activities
-    .filter((a: ChemblActivity) => a.standard_value !== null && a.standard_type)
-    .map((a: ChemblActivity) => ({
+    .filter((a) => a.standard_value !== null && a.standard_type)
+    .map((a) => ({
       assay_chembl_id: a.assay_chembl_id,
       target_chembl_id: a.target_chembl_id,
       activity_type: a.standard_type,
@@ -162,14 +163,15 @@ async function handleGetDoseResponse(args: Record<string, unknown>) {
 }
 
 async function handleCompareActivities(args: Record<string, unknown>) {
-  if (!args || !Array.isArray(args.molecule_chembl_ids) || args.molecule_chembl_ids.length < 2) {
+  const moleculeIds = optionalStringArray(args, 'molecule_chembl_ids');
+  if (!moleculeIds || moleculeIds.length < 2) {
     throw new Error('Invalid activity comparison arguments');
   }
 
   const client = getClient();
   const comparisonResults = [];
 
-  for (const chemblId of (args.molecule_chembl_ids as string[]).slice(0, 10)) {
+  for (const chemblId of moleculeIds.slice(0, 10)) {
     const params: Record<string, unknown> = {
       molecule_chembl_id: chemblId,
       limit: 50,
@@ -183,8 +185,8 @@ async function handleCompareActivities(args: Record<string, unknown>) {
     }
 
     try {
-      const response = await client.get('/activity.json', { params });
-      const activities = response.data.activities || [];
+      const response = await client.get<unknown>('/activity.json', { params });
+      const activities = asArray(path(response.data, 'activities'));
       comparisonResults.push({
         molecule_chembl_id: chemblId,
         activity_count: activities.length,

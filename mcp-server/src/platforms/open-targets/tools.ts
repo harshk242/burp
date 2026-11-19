@@ -15,196 +15,203 @@ import * as search from './tools/search.js';
 import * as variant from './tools/variant.js';
 import * as study from './tools/study.js';
 import * as meta from './tools/meta.js';
+import {
+  optionalBoolean,
+  optionalNumber,
+  optionalString,
+  optionalStringArray,
+  requireString,
+  requireStringArray,
+} from '../../shared/args.js';
 
 export const toolDefinitions = [...definitions0, ...definitions1, ...definitions2];
-
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
 export const toolHandlers: Record<string, ToolHandler> = {
-  get_target_info: (args) => targetIdentity.getTargetInfo(args.ensembl_id as string),
-  get_target_class: (args) => targetIdentity.getTargetClass(args.ensembl_id as string),
-  get_target_alternative_genes: (args) => targetIdentity.getTargetAlternativeGenes(args.ensembl_id as string),
+  get_target_info: (args) => targetIdentity.getTargetInfo(requireString(args, 'ensembl_id')),
+  get_target_class: (args) => targetIdentity.getTargetClass(requireString(args, 'ensembl_id')),
+  get_target_alternative_genes: (args) => targetIdentity.getTargetAlternativeGenes(requireString(args, 'ensembl_id')),
 
-  get_target_expression: (args) => targetBiology.getTargetExpression(args.ensembl_id as string),
+  get_target_expression: (args) => targetBiology.getTargetExpression(requireString(args, 'ensembl_id')),
   get_target_pathways_and_go_terms: (args) => targetBiology.getTargetPathwaysAndGoTerms(
-    args.ensembl_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'ensembl_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
-  get_target_homologues: (args) => targetBiology.getTargetHomologues(args.ensembl_id as string),
-  get_target_subcellular_locations: (args) => targetBiology.getTargetSubcellularLocations(args.ensembl_id as string),
-  get_target_genetic_constraint: (args) => targetBiology.getTargetGeneticConstraint(args.ensembl_id as string),
+  get_target_homologues: (args) => targetBiology.getTargetHomologues(requireString(args, 'ensembl_id')),
+  get_target_subcellular_locations: (args) => targetBiology.getTargetSubcellularLocations(requireString(args, 'ensembl_id')),
+  get_target_genetic_constraint: (args) => targetBiology.getTargetGeneticConstraint(requireString(args, 'ensembl_id')),
   get_target_mouse_phenotypes: (args) => targetBiology.getTargetMousePhenotypes(
-    args.ensembl_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'ensembl_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
-  get_target_hallmarks: (args) => targetBiology.getTargetHallmarks(args.ensembl_id as string),
-  get_target_depmap_essentiality: (args) => targetBiology.getTargetDepmapEssentiality(args.ensembl_id as string),
+  get_target_hallmarks: (args) => targetBiology.getTargetHallmarks(requireString(args, 'ensembl_id')),
+  get_target_depmap_essentiality: (args) => targetBiology.getTargetDepmapEssentiality(requireString(args, 'ensembl_id')),
   get_target_interactions: (args) => targetBiology.getTargetInteractions(
-    args.ensembl_id as string,
-    args.source_database as string | undefined,
-    args.score_threshold as number | undefined,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'ensembl_id'),
+    optionalString(args, 'source_database'),
+    optionalNumber(args, 'score_threshold'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
 
   get_target_associated_diseases: (args) => targetAssociations.getTargetAssociatedDiseases(
-    args.ensembl_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'ensembl_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
   get_target_known_drugs: (args) => targetKnownDrugs.getTargetKnownDrugs(
-    args.ensembl_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'ensembl_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
   get_target_literature_occurrences: (args) => targetAssociations.getTargetLiteratureOccurrences(
-    args.ensembl_id as string,
-    args.additional_entity_ids as string[] | undefined,
-    args.start_year as number | undefined,
-    args.end_year as number | undefined,
-    args.start_month as number | undefined,
-    args.end_month as number | undefined,
-    args.cursor as string | undefined,
-    args.size as number | undefined
+    requireString(args, 'ensembl_id'),
+    optionalStringArray(args, 'additional_entity_ids'),
+    optionalNumber(args, 'start_year'),
+    optionalNumber(args, 'end_year'),
+    optionalNumber(args, 'start_month'),
+    optionalNumber(args, 'end_month'),
+    optionalString(args, 'cursor'),
+    optionalNumber(args, 'size')
   ),
 
-  get_target_safety_information: (args) => targetSafety.getTargetSafetyInformation(args.ensembl_id as string),
-  get_target_tractability: (args) => targetSafety.getTargetTractability(args.ensembl_id as string),
-  get_target_chemical_probes: (args) => targetSafety.getTargetChemicalProbes(args.ensembl_id as string),
-  get_target_prioritization: (args) => targetSafety.getTargetPrioritization(args.ensembl_id as string),
+  get_target_safety_information: (args) => targetSafety.getTargetSafetyInformation(requireString(args, 'ensembl_id')),
+  get_target_tractability: (args) => targetSafety.getTargetTractability(requireString(args, 'ensembl_id')),
+  get_target_chemical_probes: (args) => targetSafety.getTargetChemicalProbes(requireString(args, 'ensembl_id')),
+  get_target_prioritization: (args) => targetSafety.getTargetPrioritization(requireString(args, 'ensembl_id')),
 
-  get_disease_info: (args) => disease.getDiseaseInfo(args.efo_id as string),
+  get_disease_info: (args) => disease.getDiseaseInfo(requireString(args, 'efo_id')),
   get_disease_associated_targets: (args) => disease.getDiseaseAssociatedTargets(
-    args.efo_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'efo_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
   get_disease_phenotypes: (args) => disease.getDiseasePhenotypes(
-    args.efo_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'efo_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
-  get_disease_otar_projects: (args) => disease.getDiseaseOtarProjects(args.efo_id as string),
+  get_disease_otar_projects: (args) => disease.getDiseaseOtarProjects(requireString(args, 'efo_id')),
 
-  get_drug_info: (args) => drugIdentity.getDrugInfo(args.chembl_id as string),
-  get_drug_cross_references: (args) => drugIdentity.getDrugCrossReferences(args.chembl_id as string),
+  get_drug_info: (args) => drugIdentity.getDrugInfo(requireString(args, 'chembl_id')),
+  get_drug_cross_references: (args) => drugIdentity.getDrugCrossReferences(requireString(args, 'chembl_id')),
 
-  get_drug_linked_diseases: (args) => drugAssociations.getDrugLinkedDiseases(args.chembl_id as string),
-  get_drug_linked_targets: (args) => drugAssociations.getDrugLinkedTargets(args.chembl_id as string),
+  get_drug_linked_diseases: (args) => drugAssociations.getDrugLinkedDiseases(requireString(args, 'chembl_id')),
+  get_drug_linked_targets: (args) => drugAssociations.getDrugLinkedTargets(requireString(args, 'chembl_id')),
 
   get_drug_adverse_events: (args) => drugSafety.getDrugAdverseEvents(
-    args.chembl_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'chembl_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
-  get_drug_pharmacovigilance: (args) => drugSafety.getDrugPharmacovigilance(args.chembl_id as string),
-  get_drug_warnings: (args) => drugSafety.getDrugWarnings(args.chembl_id as string),
+  get_drug_pharmacovigilance: (args) => drugSafety.getDrugPharmacovigilance(requireString(args, 'chembl_id')),
+  get_drug_warnings: (args) => drugSafety.getDrugWarnings(requireString(args, 'chembl_id')),
 
   get_target_disease_evidence: (args) => evidence.getTargetDiseaseEvidence(
-    args.ensembl_id as string,
-    args.efo_id as string,
-    args.datasource_ids as string[] | undefined,
-    args.size as number | undefined,
-    args.cursor as string | undefined
+    requireString(args, 'ensembl_id'),
+    requireString(args, 'efo_id'),
+    optionalStringArray(args, 'datasource_ids'),
+    optionalNumber(args, 'size'),
+    optionalString(args, 'cursor')
   ),
   get_target_disease_biomarkers: (args) => evidence.getTargetDiseaseBiomarkers(
-    args.ensembl_id as string,
-    args.efo_id as string,
-    args.size as number | undefined,
-    args.cursor as string | undefined
+    requireString(args, 'ensembl_id'),
+    requireString(args, 'efo_id'),
+    optionalNumber(args, 'size'),
+    optionalString(args, 'cursor')
   ),
 
   search_entities: (args) => search.searchEntities(
-    args.query_string as string,
-    args.entity_names as string[] | undefined,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'query_string'),
+    optionalStringArray(args, 'entity_names'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
   search_suggestions: (args) => search.searchSuggestions(
-    args.query_prefix as string,
-    args.entity_names as string[] | undefined,
-    args.max_suggestions as number | undefined
+    requireString(args, 'query_prefix'),
+    optionalStringArray(args, 'entity_names'),
+    optionalNumber(args, 'max_suggestions')
   ),
   get_similar_targets: (args) => search.getSimilarTargets(
-    args.entity_id as string,
-    args.threshold as number | undefined,
-    args.size as number | undefined
+    requireString(args, 'entity_id'),
+    optionalNumber(args, 'threshold'),
+    optionalNumber(args, 'size')
   ),
   search_facets: (args) => search.searchFacets(
-    args.query_string as string | undefined,
-    args.category_id as string | undefined,
-    args.entity_names as string[] | undefined,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    optionalString(args, 'query_string'),
+    optionalString(args, 'category_id'),
+    optionalStringArray(args, 'entity_names'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
 
-  get_variant_info: (args) => variant.getVariantInfo(args.variant_id as string),
+  get_variant_info: (args) => variant.getVariantInfo(requireString(args, 'variant_id')),
   get_variant_credible_sets: (args) => variant.getVariantCredibleSets(
-    args.variant_id as string,
-    args.study_types as string[] | undefined,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'variant_id'),
+    optionalStringArray(args, 'study_types'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
   get_variant_pharmacogenomics: (args) => variant.getVariantPharmacogenomics(
-    args.variant_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'variant_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
   get_variant_evidences: (args) => variant.getVariantEvidences(
-    args.variant_id as string,
-    args.datasource_ids as string[] | undefined,
-    args.size as number | undefined,
-    args.cursor as string | undefined
+    requireString(args, 'variant_id'),
+    optionalStringArray(args, 'datasource_ids'),
+    optionalNumber(args, 'size'),
+    optionalString(args, 'cursor')
   ),
   get_variant_intervals: (args) => variant.getVariantIntervals(
-    args.variant_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'variant_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
   get_variant_protein_coordinates: (args) => variant.getVariantProteinCoordinates(
-    args.variant_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'variant_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
 
-  get_study_info: (args) => study.getStudyInfo(args.study_id as string),
+  get_study_info: (args) => study.getStudyInfo(requireString(args, 'study_id')),
   get_studies_by_disease: (args) => study.getStudiesByDisease(
-    args.disease_ids as string[],
-    args.enable_indirect as boolean | undefined,
-    args.study_id as string | undefined,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireStringArray(args, 'disease_ids'),
+    optionalBoolean(args, 'enable_indirect'),
+    optionalString(args, 'study_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
   get_study_credible_sets: (args) => study.getStudyCredibleSets(
-    args.study_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'study_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
-  get_credible_set_by_id: (args) => study.getCredibleSetById(args.study_locus_id as string),
+  get_credible_set_by_id: (args) => study.getCredibleSetById(requireString(args, 'study_locus_id')),
   get_credible_set_colocalisation: (args) => study.getCredibleSetColocalisation(
-    args.study_locus_id as string,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    requireString(args, 'study_locus_id'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
   get_credible_sets: (args) => study.getCredibleSets(
-    args.study_locus_ids as string[] | undefined,
-    args.study_ids as string[] | undefined,
-    args.variant_ids as string[] | undefined,
-    args.study_types as string[] | undefined,
-    args.regions as string[] | undefined,
-    args.page_index as number | undefined,
-    args.page_size as number | undefined
+    optionalStringArray(args, 'study_locus_ids'),
+    optionalStringArray(args, 'study_ids'),
+    optionalStringArray(args, 'variant_ids'),
+    optionalStringArray(args, 'study_types'),
+    optionalStringArray(args, 'regions'),
+    optionalNumber(args, 'page_index'),
+    optionalNumber(args, 'page_size')
   ),
 
   get_api_metadata: () => meta.getApiMetadata(),
   get_association_datasources: () => meta.getAssociationDatasources(),
   get_interaction_resources: () => meta.getInteractionResources(),
-  get_gene_ontology_terms: (args) => meta.getGeneOntologyTerms(args.go_ids as string[]),
+  get_gene_ontology_terms: (args) => meta.getGeneOntologyTerms(requireStringArray(args, 'go_ids')),
   map_ids: (args) => meta.mapIds(
-    args.query_terms as string[],
-    args.entity_names as string[] | undefined
+    requireStringArray(args, 'query_terms'),
+    optionalStringArray(args, 'entity_names')
   ),
 };
