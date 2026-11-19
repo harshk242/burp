@@ -11,8 +11,8 @@ import {
   parseESummaryResult,
   parseVCVRecord,
 } from './xml-parser.js';
-import type { TokenBucketRateLimiter} from '../../shared/rate-limiter.js';
-import { getSharedNcbiRateLimiter } from '../../shared/rate-limiter.js';
+import type { TokenBucketRateLimiter } from '../../shared/rate-limiter.js';
+import { createNcbiHttp } from '../../shared/ncbi-http.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import { asArray, optNumber, optString } from '../../shared/json.js';
@@ -26,7 +26,6 @@ import type {
   ClinicalTablesVariant,
 } from './types.js';
 
-const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const CLINICAL_TABLES_URL = 'https://clinicaltables.nlm.nih.gov/api/variants/v4';
 const DEFAULT_CACHE_TTL = 3600 * 1000;
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -59,21 +58,23 @@ export interface ClinVarHttpOptions {
   retryDeps?: RetryDeps | undefined;
 }
 
-function createHttp(baseURL: string, defaultPolicy: RetryPolicy, options: ClinVarHttpOptions): AxiosInstance {
-  const instance = axios.create({
-    baseURL,
-    timeout: 30000,
-    ...(options.adapter ? { adapter: options.adapter } : {}),
-  });
-  return attachRetry(instance, options.policy ?? defaultPolicy, 'clinvar', options.retryDeps);
+export interface ClinVarNcbiHttpOptions extends ClinVarHttpOptions {
+  /** The API key these requests send; it picks the shared NCBI limiter. */
+  apiKey?: string | undefined;
+  rateLimiter?: TokenBucketRateLimiter | undefined;
 }
 
-export function createClinVarNcbiHttp(options: ClinVarHttpOptions = {}): AxiosInstance {
-  return createHttp(NCBI_BASE_URL, CLINVAR_NCBI_POLICY, options);
+export function createClinVarNcbiHttp(options: ClinVarNcbiHttpOptions = {}): AxiosInstance {
+  return createNcbiHttp({ ...options, platform: 'clinvar', policy: options.policy ?? CLINVAR_NCBI_POLICY });
 }
 
 export function createClinicalTablesHttp(options: ClinVarHttpOptions = {}): AxiosInstance {
-  return createHttp(CLINICAL_TABLES_URL, CLINICAL_TABLES_POLICY, options);
+  const instance = axios.create({
+    baseURL: CLINICAL_TABLES_URL,
+    timeout: 30000,
+    ...(options.adapter ? { adapter: options.adapter } : {}),
+  });
+  return attachRetry(instance, options.policy ?? CLINICAL_TABLES_POLICY, 'clinvar', options.retryDeps);
 }
 
 export class ClinVarClient {
@@ -84,7 +85,6 @@ export class ClinVarClient {
   /** Raw E-utilities bodies; each request re-parses with its own parser. */
   private readonly ncbiCache: Map<string, CacheEntry<string>>;
   private readonly clinicalTablesCache: Map<string, CacheEntry<ClinicalTablesResult>>;
-  private readonly rateLimiter: TokenBucketRateLimiter;
   private readonly ncbiAxios: AxiosInstance;
   private readonly clinicalTablesAxios: AxiosInstance;
 
@@ -95,15 +95,15 @@ export class ClinVarClient {
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.ncbiCache = new Map();
     this.clinicalTablesCache = new Map();
-    this.rateLimiter = options.rateLimiter ?? getSharedNcbiRateLimiter(this.apiKey);
 
     this.ncbiAxios = createClinVarNcbiHttp({
       policy: {
         ...CLINVAR_NCBI_POLICY,
         maxAttempts: this.maxAttempts,
         backoffMs: exponentialBackoff(this.retryDelay),
-        beforeAttempt: (signal) => this.rateLimiter.waitForToken(signal),
       },
+      apiKey: this.apiKey,
+      rateLimiter: options.rateLimiter,
       adapter: options.adapter,
       retryDeps: options.retryDeps,
     });

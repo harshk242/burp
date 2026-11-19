@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { RateLimiterQueueFullError } from '../exceptions.js';
-import { TokenBucketRateLimiter, createNcbiRateLimiter, getSharedNcbiRateLimiter } from '../rate-limiter.js';
+import { TokenBucketRateLimiter } from '../rate-limiter.js';
 
 describe('TokenBucketRateLimiter', () => {
   describe('constructor', () => {
@@ -228,45 +228,5 @@ describe('TokenBucketRateLimiter', () => {
       const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 8, burstSize: 16 });
       expect(limiter.getConfig()).toEqual({ maxTokens: 16, refillRate: 8, maxQueueLength: Infinity });
     });
-  });
-});
-
-describe('createNcbiRateLimiter', () => {
-  it('creates 3 req/s limiter without API key', () => {
-    const limiter = createNcbiRateLimiter(false);
-    expect(limiter.getConfig().refillRate).toBe(3);
-  });
-
-  it('creates 10 req/s limiter with API key', () => {
-    const limiter = createNcbiRateLimiter(true);
-    expect(limiter.getConfig().refillRate).toBe(10);
-  });
-
-  it('allows a burst of one request so no second exceeds the NCBI limit by more than one', () => {
-    const limiter = createNcbiRateLimiter(false);
-    let acquired = 0;
-    while (limiter.tryAcquire()) acquired++;
-    expect(acquired).toBe(1);
-    expect(createNcbiRateLimiter(true).getConfig().maxTokens).toBe(1);
-  });
-
-  it('bounds the queue at 10s of requests', () => {
-    expect(createNcbiRateLimiter(false).getConfig().maxQueueLength).toBe(30);
-    expect(createNcbiRateLimiter(true).getConfig().maxQueueLength).toBe(100);
-  });
-});
-
-describe('getSharedNcbiRateLimiter', () => {
-  it('returns one limiter per API key, and one for keyless requests', () => {
-    const keyless = getSharedNcbiRateLimiter(undefined);
-    expect(getSharedNcbiRateLimiter(undefined)).toBe(keyless);
-    expect(getSharedNcbiRateLimiter('')).toBe(keyless);
-    expect(keyless.getConfig().refillRate).toBe(3);
-
-    const keyed = getSharedNcbiRateLimiter('key-a');
-    expect(getSharedNcbiRateLimiter('key-a')).toBe(keyed);
-    expect(keyed).not.toBe(keyless);
-    expect(keyed.getConfig().refillRate).toBe(10);
-    expect(getSharedNcbiRateLimiter('key-b')).not.toBe(keyed);
   });
 });

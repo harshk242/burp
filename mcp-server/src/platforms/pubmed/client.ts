@@ -1,4 +1,4 @@
-import axios, { type AxiosAdapter, type AxiosInstance } from 'axios';
+import type { AxiosAdapter, AxiosInstance } from 'axios';
 import { filterNoneValues, generateCacheKey } from './utils.js';
 import {
   parseESearchResult,
@@ -7,9 +7,9 @@ import {
   parseELinkResult,
 } from './xml-parser.js';
 import { XMLParseError } from './exceptions.js';
-import type { TokenBucketRateLimiter} from '../../shared/rate-limiter.js';
-import { getSharedNcbiRateLimiter } from '../../shared/rate-limiter.js';
-import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
+import type { TokenBucketRateLimiter } from '../../shared/rate-limiter.js';
+import { createNcbiHttp } from '../../shared/ncbi-http.js';
+import type { RetryDeps, RetryPolicy } from '../../shared/http-retry.js';
 import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import type {
   CacheEntry,
@@ -20,7 +20,6 @@ import type {
   LinkResult,
 } from './types.js';
 
-const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const DEFAULT_CACHE_TTL = 3600 * 1000;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY = 1000;
@@ -41,17 +40,15 @@ export const PUBMED_POLICY: RetryPolicy = Object.freeze({
 
 export interface PubMedHttpOptions {
   policy?: RetryPolicy;
+  /** The API key these requests send; it picks the shared NCBI limiter. */
+  apiKey?: string | undefined;
+  rateLimiter?: TokenBucketRateLimiter | undefined;
   adapter?: AxiosAdapter | undefined;
   retryDeps?: RetryDeps | undefined;
 }
 
 export function createPubMedHttp(options: PubMedHttpOptions = {}): AxiosInstance {
-  const instance = axios.create({
-    baseURL: NCBI_BASE_URL,
-    timeout: 30000,
-    ...(options.adapter ? { adapter: options.adapter } : {}),
-  });
-  return attachRetry(instance, options.policy ?? PUBMED_POLICY, 'pubmed', options.retryDeps);
+  return createNcbiHttp({ ...options, platform: 'pubmed', policy: options.policy ?? PUBMED_POLICY });
 }
 
 export interface ESearchParams {
@@ -94,7 +91,6 @@ export class PubMedClient {
   private readonly maxAttempts: number;
   private readonly retryDelay: number;
   private readonly cache: Map<string, CacheEntry>;
-  private readonly rateLimiter: TokenBucketRateLimiter;
   private readonly axiosInstance: AxiosInstance;
 
   constructor(options: PubMedClientOptions = {}) {
@@ -103,15 +99,15 @@ export class PubMedClient {
     this.maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
-    this.rateLimiter = options.rateLimiter ?? getSharedNcbiRateLimiter(this.apiKey);
 
     this.axiosInstance = createPubMedHttp({
       policy: {
         ...PUBMED_POLICY,
         maxAttempts: this.maxAttempts,
         backoffMs: exponentialBackoff(this.retryDelay),
-        beforeAttempt: (signal) => this.rateLimiter.waitForToken(signal),
       },
+      apiKey: this.apiKey,
+      rateLimiter: options.rateLimiter,
       adapter: options.adapter,
       retryDeps: options.retryDeps,
     });

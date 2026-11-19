@@ -2,7 +2,8 @@ import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 
 import { UpstreamError } from '../../../shared/exceptions.js';
-import { TokenBucketRateLimiter, getSharedNcbiRateLimiter } from '../../../shared/rate-limiter.js';
+import { TokenBucketRateLimiter } from '../../../shared/rate-limiter.js';
+import { getSharedNcbiRateLimiter } from '../../../shared/ncbi-http.js';
 import { runWithToolCallContext } from '../../../shared/tool-call-context.js';
 import { rejection, stubAdapter, type Step } from '../../../shared/__tests__/retry-test-utils.js';
 import { ClinVarClient } from '../../clinvar/client.js';

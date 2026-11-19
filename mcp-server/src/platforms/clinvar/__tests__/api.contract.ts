@@ -1,6 +1,5 @@
 import { describe, it } from 'vitest';
 import { assertSchemaStable } from '../../__test-utils__/schema-validator.js';
-import { createNcbiRateLimiter } from '../../../shared/rate-limiter.js';
 import { CLINVAR_NCBI_POLICY, createClinVarNcbiHttp } from '../client.js';
 
 const NCBI_API_KEY = process.env.NCBI_API_KEY;
@@ -14,13 +13,10 @@ const CONTRACT_OVERRIDES = {
   on429: 'retry' as const,
 };
 
-const rateLimiter = createNcbiRateLimiter(!!NCBI_API_KEY);
+// The factory takes tokens from the shared NCBI limiter for this key.
 const http = createClinVarNcbiHttp({
-  policy: {
-    ...CLINVAR_NCBI_POLICY,
-    ...CONTRACT_OVERRIDES,
-    beforeAttempt: (signal) => rateLimiter.waitForToken(signal),
-  },
+  apiKey: NCBI_API_KEY,
+  policy: { ...CLINVAR_NCBI_POLICY, ...CONTRACT_OVERRIDES },
 });
 
 async function ncbiGet(
