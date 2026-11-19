@@ -144,6 +144,20 @@ describe('ClinVar NCBI instance on the shared retry', () => {
     expect(calls).toHaveLength(0);
     expect(rateLimiter.getPendingCount()).toBe(0);
   });
+
+  it('fails fast with queue_full, sending nothing, when the NCBI queue is full', async () => {
+    const rateLimiter = new TokenBucketRateLimiter({ requestsPerSecond: 1, burstSize: 1, maxQueueLength: 0 });
+    rateLimiter.tryAcquire();
+    const { client, calls } = stubClinVar([200], { rateLimiter });
+
+    expect(await rejection(client.search('TP53[gene]'))).toMatchObject({
+      kind: 'rate_limited',
+      reason: 'queue_full',
+      attempts: 0,
+      retryAfterMs: expect.any(Number),
+    });
+    expect(calls).toHaveLength(0);
+  });
 });
 
 describe('ClinVar Clinical Tables instance', () => {

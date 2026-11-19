@@ -6,6 +6,7 @@ export type RetryReason =
   | 'budget_timeout'
   | 'http_5xx'
   | 'rate_limited'
+  | 'queue_full'
   | 'not_found'
   | 'bad_request'
   | 'cancelled'
@@ -55,6 +56,11 @@ export const REASON_TO_KIND: Readonly<Record<UpstreamReason, Readonly<UpstreamKi
     kind: 'rate_limited',
     retryableLater: true,
     hint: 'The service is rate limiting requests: wait retry_after_ms before trying again.',
+  },
+  queue_full: {
+    kind: 'rate_limited',
+    retryableLater: true,
+    hint: 'The service is busy with other requests: wait retry_after_ms before trying again.',
   },
   not_found: {
     kind: 'not_found',
@@ -213,6 +219,10 @@ export function formatUpstreamMessage(details: {
       break;
     case 'network':
       what = `${name} could not be reached on ${tries} over ${seconds}s`;
+      break;
+    case 'queue_full':
+      what = `${name} request was not sent: too many requests to it are already waiting`;
+      if (details.attempts > 0) what += ` (after ${tries} over ${seconds}s)`;
       break;
     default:
       what = details.status === null

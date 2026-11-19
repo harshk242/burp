@@ -1,5 +1,5 @@
 import axios, { AxiosHeaders, type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
-import { UpstreamError } from './exceptions.js';
+import { RateLimiterQueueFullError, UpstreamError } from './exceptions.js';
 import {
   REASON_TO_KIND,
   classifyError,
@@ -169,6 +169,7 @@ export async function withRetry<T>(
   const interrupted = (error: unknown, lastError: unknown): never => {
     const stop = abortReason();
     if (stop) fail(stop, lastError ?? error);
+    if (error instanceof RateLimiterQueueFullError) fail('queue_full', error, error.retryAfterMs);
     finish('failed', 'unknown');
     throw error;
   };

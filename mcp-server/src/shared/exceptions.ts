@@ -122,3 +122,14 @@ export function isRejectedLookup(error: unknown, invalidIdentifierStatuses: read
   if (error.status === 401 || error.status === 403) return false;
   return error.kind === 'bad_request' && invalidIdentifierStatuses.includes(error.status);
 }
+
+/** Thrown by a rate limiter whose wait queue is already full. */
+export class RateLimiterQueueFullError extends MCPError {
+  public readonly retryAfterMs: number;
+
+  constructor(retryAfterMs: number) {
+    super('Too many requests are already waiting for the rate limiter');
+    this.retryAfterMs = retryAfterMs;
+    this.name = 'RateLimiterQueueFullError';
+  }
+}

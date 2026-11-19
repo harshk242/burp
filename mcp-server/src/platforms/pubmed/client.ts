@@ -7,7 +7,7 @@ import {
   parseELinkResult,
 } from './xml-parser.js';
 import type { TokenBucketRateLimiter} from '../../shared/rate-limiter.js';
-import { createNcbiRateLimiter } from '../../shared/rate-limiter.js';
+import { getSharedNcbiRateLimiter } from '../../shared/rate-limiter.js';
 import { attachRetry, type RetryDeps, type RetryPolicy } from '../../shared/http-retry.js';
 import { isRetryableTransportOr5xx } from '../../shared/http-retry-classify.js';
 import type {
@@ -102,7 +102,7 @@ export class PubMedClient {
     this.maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
     this.retryDelay = options.retryDelay || DEFAULT_RETRY_DELAY;
     this.cache = new Map();
-    this.rateLimiter = options.rateLimiter ?? createNcbiRateLimiter(!!this.apiKey);
+    this.rateLimiter = options.rateLimiter ?? getSharedNcbiRateLimiter(this.apiKey);
 
     this.axiosInstance = createPubMedHttp({
       policy: {

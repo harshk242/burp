@@ -1,6 +1,10 @@
+import { RateLimiterQueueFullError } from './exceptions.js';
+
 export interface RateLimiterOptions {
   requestsPerSecond: number;
   burstSize?: number;
+  /** Waiters allowed in the queue; once full, `waitForToken` rejects at once. Unbounded by default. */
+  maxQueueLength?: number;
 }
 
 export class TokenBucketRateLimiter {
@@ -8,12 +12,14 @@ export class TokenBucketRateLimiter {
   private lastRefill: number;
   private readonly maxTokens: number;
   private readonly refillRate: number;
+  private readonly maxQueueLength: number;
   private pendingRequests: Array<() => void> = [];
   private drainTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: RateLimiterOptions) {
     this.maxTokens = options.burstSize || options.requestsPerSecond;
     this.refillRate = options.requestsPerSecond;
+    this.maxQueueLength = options.maxQueueLength ?? Infinity;
     this.tokens = this.maxTokens;
     this.lastRefill = Date.now();
   }
@@ -46,6 +52,11 @@ export class TokenBucketRateLimiter {
     if (this.pendingRequests.length === 0 && this.tokens >= 1) {
       this.tokens -= 1;
       return;
+    }
+    if (this.pendingRequests.length >= this.maxQueueLength) {
+      // How long this request would have waited behind the current queue.
+      const tokensNeeded = this.pendingRequests.length + 1 - this.tokens;
+      throw new RateLimiterQueueFullError(Math.ceil((tokensNeeded / this.refillRate) * 1000));
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -86,15 +97,40 @@ export class TokenBucketRateLimiter {
     return this.tokens;
   }
 
-  getConfig(): { maxTokens: number; refillRate: number } {
-    return { maxTokens: this.maxTokens, refillRate: this.refillRate };
+  getConfig(): { maxTokens: number; refillRate: number; maxQueueLength: number } {
+    return { maxTokens: this.maxTokens, refillRate: this.refillRate, maxQueueLength: this.maxQueueLength };
   }
 }
 
+/** Longest wait, in seconds, a full NCBI queue may cause before new requests fail fast. */
+export const NCBI_MAX_QUEUE_WAIT_SECONDS = 10;
+
+/**
+ * NCBI E-utilities allow 3 req/s per IP without an API key and 10 req/s per key,
+ * across all E-utilities and databases. A burst of one keeps any one-second
+ * window within one request of that limit.
+ */
 export function createNcbiRateLimiter(hasApiKey: boolean): TokenBucketRateLimiter {
   const requestsPerSecond = hasApiKey ? 10 : 3;
   return new TokenBucketRateLimiter({
     requestsPerSecond,
-    burstSize: requestsPerSecond * 2,
+    burstSize: 1,
+    maxQueueLength: requestsPerSecond * NCBI_MAX_QUEUE_WAIT_SECONDS,
   });
+}
+
+const sharedNcbiLimiters = new Map<string, TokenBucketRateLimiter>();
+
+/**
+ * The process-wide NCBI limiter for an API key (or for keyless requests), shared
+ * by every NCBI client (PubMed, ClinVar) because the limit covers them together.
+ */
+export function getSharedNcbiRateLimiter(apiKey: string | undefined): TokenBucketRateLimiter {
+  const key = apiKey ?? '';
+  let limiter = sharedNcbiLimiters.get(key);
+  if (!limiter) {
+    limiter = createNcbiRateLimiter(key !== '');
+    sharedNcbiLimiters.set(key, limiter);
+  }
+  return limiter;
 }

@@ -91,6 +91,7 @@ describe('REASON_TO_KIND', () => {
       attempt_timeout: ['timeout', true],
       budget_timeout: ['timeout', true],
       rate_limited: ['rate_limited', true],
+      queue_full: ['rate_limited', true],
       not_found: ['not_found', false],
       bad_request: ['bad_request', false],
       cancelled: ['cancelled', false],
@@ -105,6 +106,14 @@ describe('REASON_TO_KIND', () => {
     ).toBe(
       'Ensembl returned HTTP 500 on 3 attempts over 4.2s. The service looks temporarily unavailable: try again later or use another source.',
     );
+    expect(
+      formatUpstreamMessage({ reason: 'queue_full', platform: 'pubmed', status: null, attempts: 0, elapsedMs: 0 }),
+    ).toBe(
+      'Pubmed request was not sent: too many requests to it are already waiting. The service is busy with other requests: wait retry_after_ms before trying again.',
+    );
+    expect(
+      formatUpstreamMessage({ reason: 'queue_full', platform: 'clinvar', status: 503, attempts: 1, elapsedMs: 1_200 }),
+    ).toMatch(/^Clinvar request was not sent: too many requests to it are already waiting \(after 1 attempt over 1\.2s\)\./);
   });
 });
 

@@ -2,9 +2,10 @@ import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 
 import { UpstreamError } from '../../../shared/exceptions.js';
-import { TokenBucketRateLimiter } from '../../../shared/rate-limiter.js';
+import { TokenBucketRateLimiter, getSharedNcbiRateLimiter } from '../../../shared/rate-limiter.js';
 import { runWithToolCallContext } from '../../../shared/tool-call-context.js';
 import { rejection, stubAdapter, type Step } from '../../../shared/__tests__/retry-test-utils.js';
+import { ClinVarClient } from '../../clinvar/client.js';
 import { PUBMED_POLICY, PubMedClient } from '../client.js';
 import type { PubMedClientOptions } from '../types.js';
 
@@ -140,11 +141,38 @@ describe('PubMedClient on the shared retry', () => {
     expect(rateLimiter.getPendingCount()).toBe(0);
   });
 
+  it('fails fast with queue_full, sending nothing, when the NCBI queue is full', async () => {
+    const rateLimiter = new TokenBucketRateLimiter({ requestsPerSecond: 1, burstSize: 1, maxQueueLength: 0 });
+    rateLimiter.tryAcquire();
+    const { client, calls } = stubPubMed([200], { rateLimiter });
+
+    expect(await rejection(client.search('CRISPR'))).toMatchObject({
+      kind: 'rate_limited',
+      reason: 'queue_full',
+      attempts: 0,
+      retryAfterMs: expect.any(Number),
+    });
+    expect(calls).toHaveLength(0);
+  });
+
   it('serves a cached result without another request or token', async () => {
     const { client, calls, waitForToken } = stubPubMed([200]);
     await client.search('CRISPR');
     await client.search('CRISPR');
     expect(calls).toHaveLength(1);
     expect(waitForToken).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('NCBI rate limit', () => {
+  it('PubMed and ClinVar share one limiter per API key by default', async () => {
+    const shared = getSharedNcbiRateLimiter('shared-limiter-test');
+    const waitForToken = vi.spyOn(shared, 'waitForToken');
+    const { adapter: base } = stubAdapter([200, 200]);
+    const adapter: AxiosAdapter = async (config) => ({ ...(await base(config)), data: ESEARCH_XML });
+
+    await new PubMedClient({ apiKey: 'shared-limiter-test', adapter }).search('CRISPR');
+    await new ClinVarClient({ apiKey: 'shared-limiter-test', adapter }).search('TP53[gene]');
+    expect(waitForToken).toHaveBeenCalledTimes(2);
   });
 });

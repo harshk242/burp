@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { TokenBucketRateLimiter, createNcbiRateLimiter } from '../rate-limiter.js';
+import { RateLimiterQueueFullError } from '../exceptions.js';
+import { TokenBucketRateLimiter, createNcbiRateLimiter, getSharedNcbiRateLimiter } from '../rate-limiter.js';
 
 describe('TokenBucketRateLimiter', () => {
   describe('constructor', () => {
@@ -179,10 +180,53 @@ describe('TokenBucketRateLimiter', () => {
     });
   });
 
+  describe('maxQueueLength', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('rejects at once when the queue is full, with the wait it would have had', async () => {
+      vi.useFakeTimers();
+      const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 2, burstSize: 1, maxQueueLength: 2 });
+      limiter.tryAcquire();
+      const queued = [limiter.waitForToken(), limiter.waitForToken()];
+
+      const error = await limiter.waitForToken().catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(RateLimiterQueueFullError);
+      expect((error as RateLimiterQueueFullError).retryAfterMs).toBe(1_500);
+      expect(limiter.getPendingCount()).toBe(2);
+
+      await vi.runAllTimersAsync();
+      await Promise.all(queued);
+      expect(limiter.getPendingCount()).toBe(0);
+    });
+
+    it('accepts waiters again once the queue drains', async () => {
+      vi.useFakeTimers();
+      const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 2, burstSize: 1, maxQueueLength: 1 });
+      limiter.tryAcquire();
+      const first = limiter.waitForToken();
+      await expect(limiter.waitForToken()).rejects.toBeInstanceOf(RateLimiterQueueFullError);
+
+      await vi.advanceTimersByTimeAsync(500);
+      await first;
+      const second = limiter.waitForToken();
+      expect(limiter.getPendingCount()).toBe(1);
+      await vi.runAllTimersAsync();
+      await expect(second).resolves.toBeUndefined();
+    });
+
+    it('takes a free token even when the queue limit is zero', async () => {
+      const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 1, burstSize: 1, maxQueueLength: 0 });
+      await expect(limiter.waitForToken()).resolves.toBeUndefined();
+      await expect(limiter.waitForToken()).rejects.toBeInstanceOf(RateLimiterQueueFullError);
+    });
+  });
+
   describe('getConfig', () => {
     it('returns correct maxTokens and refillRate', () => {
       const limiter = new TokenBucketRateLimiter({ requestsPerSecond: 8, burstSize: 16 });
-      expect(limiter.getConfig()).toEqual({ maxTokens: 16, refillRate: 8 });
+      expect(limiter.getConfig()).toEqual({ maxTokens: 16, refillRate: 8, maxQueueLength: Infinity });
     });
   });
 });
@@ -198,18 +242,31 @@ describe('createNcbiRateLimiter', () => {
     expect(limiter.getConfig().refillRate).toBe(10);
   });
 
-  it('burst size is 2× rate without API key (6)', () => {
-    expect(createNcbiRateLimiter(false).getConfig().maxTokens).toBe(6);
-  });
-
-  it('burst size is 2× rate with API key (20)', () => {
-    expect(createNcbiRateLimiter(true).getConfig().maxTokens).toBe(20);
-  });
-
-  it('starts with full burst bucket', () => {
+  it('allows a burst of one request so no second exceeds the NCBI limit by more than one', () => {
     const limiter = createNcbiRateLimiter(false);
     let acquired = 0;
     while (limiter.tryAcquire()) acquired++;
-    expect(acquired).toBe(6);
+    expect(acquired).toBe(1);
+    expect(createNcbiRateLimiter(true).getConfig().maxTokens).toBe(1);
+  });
+
+  it('bounds the queue at 10s of requests', () => {
+    expect(createNcbiRateLimiter(false).getConfig().maxQueueLength).toBe(30);
+    expect(createNcbiRateLimiter(true).getConfig().maxQueueLength).toBe(100);
+  });
+});
+
+describe('getSharedNcbiRateLimiter', () => {
+  it('returns one limiter per API key, and one for keyless requests', () => {
+    const keyless = getSharedNcbiRateLimiter(undefined);
+    expect(getSharedNcbiRateLimiter(undefined)).toBe(keyless);
+    expect(getSharedNcbiRateLimiter('')).toBe(keyless);
+    expect(keyless.getConfig().refillRate).toBe(3);
+
+    const keyed = getSharedNcbiRateLimiter('key-a');
+    expect(getSharedNcbiRateLimiter('key-a')).toBe(keyed);
+    expect(keyed).not.toBe(keyless);
+    expect(keyed.getConfig().refillRate).toBe(10);
+    expect(getSharedNcbiRateLimiter('key-b')).not.toBe(keyed);
   });
 });
