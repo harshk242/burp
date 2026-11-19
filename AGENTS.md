@@ -10,6 +10,11 @@ Destructive ops forbidden unless explicit (reset --hard, clean, restore, rm, …
 For deleting files or directories, use `gio trash <file or dir>` instead of `rm`.
 Don't mention claude or codex models as co author in commit messages or anywhere in the code
 
+# Branching
+- `develop`: default branch for development. `main`: release branch.
+- Open PRs against `develop` unless told otherwise.
+- Release PRs (`develop` → `main`) are created only when I ask.
+
 # Tech stack
 use bun 
 
